@@ -1,0 +1,102 @@
+# Render Blueprint for the Oja backend. Written and validated in the walking skeleton;
+# applied from the Render dashboard once the checkout slice works end to end.
+#
+# One codebase runs as two services (Medusa server + worker), sharing Postgres and a
+# Valkey Key Value instance. BullMQ (event bus / workflow engine) requires noeviction.
+
+envVarGroups:
+  - name: oja-api-shared
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: COOKIE_SECRET
+        generateValue: true
+      # Public origin of the API, e.g. https://api.<domain>; baked into the panels at build time.
+      - key: MERCUR_BACKEND_URL
+        sync: false
+      - key: VITE_MERCUR_BACKEND_URL
+        sync: false
+      - key: FILE_BACKEND_URL
+        sync: false
+      - key: STORE_CORS
+        sync: false
+      - key: ADMIN_CORS
+        sync: false
+      - key: VENDOR_CORS
+        sync: false
+      - key: AUTH_CORS
+        sync: false
+      - key: MERCUR_VENDOR_URL
+        sync: false
+
+services:
+  - type: web
+    name: oja-api
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: >-
+      npx -y bun@1.3.11 install --frozen-lockfile &&
+      npx -y bun@1.3.11 run codegen &&
+      npx -y bun@1.3.11 x turbo run build --filter=@acme/api &&
+      cd packages/api/.medusa/server && npm install --omit=dev
+    autoDeploy: true
+    branch: main
+    preDeployCommand: cd packages/api/.medusa/server && npx medusa db:migrate
+    startCommand: cd packages/api/.medusa/server && npx medusa start
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: oja-api-shared
+      - key: MEDUSA_WORKER_MODE
+        value: server
+      - key: DATABASE_URL
+        fromDatabase:
+          name: oja-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: oja-kv
+          property: connectionString
+
+  - type: worker
+    name: oja-worker
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: >-
+      npx -y bun@1.3.11 install --frozen-lockfile &&
+      npx -y bun@1.3.11 run codegen &&
+      npx -y bun@1.3.11 x turbo run build --filter=@acme/api &&
+      cd packages/api/.medusa/server && npm install --omit=dev
+    autoDeploy: true
+    branch: main
+    startCommand: cd packages/api/.medusa/server && npx medusa start
+    envVars:
+      - fromGroup: oja-api-shared
+      - key: MEDUSA_WORKER_MODE
+        value: worker
+      - key: DATABASE_URL
+        fromDatabase:
+          name: oja-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: oja-kv
+          property: connectionString
+
+  - type: keyvalue
+    name: oja-kv
+    region: frankfurt
+    plan: starter
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+databases:
+  - name: oja-db
+    region: frankfurt
+    plan: basic-256mb
+    postgresMajorVersion: "16"
