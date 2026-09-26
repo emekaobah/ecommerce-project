@@ -1,21 +1,30 @@
-import { buyerTheme, ThemeProvider as OjaThemeProvider } from '@oja/ui';
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { buyerTheme, ThemeProvider } from '@oja/ui';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { queryClient } from '@/api/query-client';
+import { RegionProvider } from '@/region/region-provider';
 
-SplashScreen.preventAutoHideAsync();
-
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <OjaThemeProvider theme={buyerTheme}>
-        <AnimatedSplashOverlay />
-        <AppTabs />
-      </OjaThemeProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={buyerTheme}>
+        <RegionProvider>
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerTintColor: buyerTheme.colors.ink,
+              contentStyle: { backgroundColor: buyerTheme.colors.background },
+            }}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="product/[id]" options={{ title: '' }} />
+            <Stack.Screen name="seller/[id]" options={{ title: '' }} />
+            <Stack.Screen name="checkout" options={{ title: 'Checkout' }} />
+            <Stack.Screen name="sign-in" options={{ presentation: 'modal', title: 'Sign in' }} />
+          </Stack>
+        </RegionProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
