@@ -20,6 +20,13 @@ const SELLER_KEY = 'seller-id';
 let state: SessionState = { status: 'hydrating' };
 const listeners = new Set<() => void>();
 
+// Keychain writes run one at a time, so a quick sign-in can't interleave with sign-out's deletes.
+let keychain: Promise<unknown> = Promise.resolve();
+function queueKeychain(write: () => Promise<unknown>): Promise<unknown> {
+  keychain = keychain.then(write, write);
+  return keychain;
+}
+
 function setState(next: SessionState) {
   state = next;
   listeners.forEach((listener) => listener());
@@ -44,17 +51,21 @@ export async function hydrateSession(): Promise<void> {
 }
 
 export async function saveSession(session: Session): Promise<void> {
-  await Promise.all([
-    SecureStore.setItemAsync(TOKEN_KEY, session.token),
-    SecureStore.setItemAsync(SELLER_KEY, session.sellerId),
-  ]);
+  await queueKeychain(() =>
+    Promise.all([
+      SecureStore.setItemAsync(TOKEN_KEY, session.token),
+      SecureStore.setItemAsync(SELLER_KEY, session.sellerId),
+    ])
+  );
   setState({ status: 'signedIn', session });
 }
 
 export async function clearSession(): Promise<void> {
   // Leave the signed-in screens straight away; the keychain catches up.
   setState({ status: 'signedOut' });
-  await Promise.all([SecureStore.deleteItemAsync(TOKEN_KEY), SecureStore.deleteItemAsync(SELLER_KEY)]);
+  await queueKeychain(() =>
+    Promise.all([SecureStore.deleteItemAsync(TOKEN_KEY), SecureStore.deleteItemAsync(SELLER_KEY)])
+  );
 }
 
 function subscribe(listener: () => void) {

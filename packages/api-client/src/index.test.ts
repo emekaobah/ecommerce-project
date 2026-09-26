@@ -54,6 +54,23 @@ describe("createVendorClient", () => {
     await expect(client.vendor.orders.query()).rejects.toBeInstanceOf(ClientError)
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
+
+  test("ignores a 401 for a token the session has since replaced, so a stale request can't sign out the next member", async () => {
+    status = 401
+    let token = "member-a"
+    const onUnauthorized = mock(() => {})
+    const client = createVendorClient({ baseUrl, getToken: () => token, onUnauthorized })
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      // Member A signs out and member B signs in while A's request is in flight.
+      token = "member-b"
+      requests.push(new Request(input, init))
+      return Response.json({ message: "Unauthorized" }, { status: 401 })
+    }) as unknown as typeof fetch
+
+    await expect(client.vendor.orders.query()).rejects.toBeInstanceOf(ClientError)
+    expect(requests[0]?.headers.get("authorization")).toBe("Bearer member-a")
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
 })
 
 describe("createStoreClient", () => {
