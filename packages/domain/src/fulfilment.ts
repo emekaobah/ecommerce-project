@@ -59,7 +59,13 @@ export type StaffActionType =
   | "confirm_handover"
 
 /** Events any shipment provider reports, whatever its own status names. */
-export type ProviderEventType = "label_created" | "confirmed" | "picked_up" | "in_transit" | "delivered" | "cancelled"
+export type ProviderEventType =
+  | "label_created"
+  | "confirmed"
+  | "picked_up"
+  | "in_transit"
+  | "delivered"
+  | "cancelled"
 
 export type SystemEventType = "accept_deadline_passed"
 
@@ -104,7 +110,9 @@ function nextFulfilment(fulfilment: Fulfilment, trigger: FulfilmentTrigger): Ful
     case "new":
       if (isStaff(trigger, "accept")) return { state: "accepted" }
       if (isStaff(trigger, "reject")) return { state: "rejected", rejectedBy: "seller" }
-      if (isSystem(trigger, "accept_deadline_passed")) return { state: "rejected", rejectedBy: "accept_deadline" }
+      if (isSystem(trigger, "accept_deadline_passed")) {
+        return { state: "rejected", rejectedBy: "accept_deadline" }
+      }
       return undefined
     case "accepted":
       return isStaff(trigger, "start_picking") ? { state: "picking" } : undefined
@@ -134,9 +142,11 @@ function nextFulfilment(fulfilment: Fulfilment, trigger: FulfilmentTrigger): Ful
       return undefined
     }
     case "handed_to_courier":
-      return isProvider(trigger, "in_transit") ? { state: "in_transit", handover: fulfilment.handover } : undefined
+      if (isProvider(trigger, "in_transit")) return { state: "in_transit", handover: fulfilment.handover }
+      return undefined
     case "in_transit":
-      return isProvider(trigger, "delivered") ? { state: "delivered", handover: fulfilment.handover } : undefined
+      if (isProvider(trigger, "delivered")) return { state: "delivered", handover: fulfilment.handover }
+      return undefined
     case "rejected":
     case "delivered":
       return undefined
@@ -149,14 +159,23 @@ function recordHandover(handover: HandoverProgress): Fulfilment {
   return { state: "courier_confirmed", handover }
 }
 
-function isStaff<T extends StaffActionType>(trigger: FulfilmentTrigger, type: T): trigger is StaffAction & { type: T } {
+function isStaff<T extends StaffActionType>(
+  trigger: FulfilmentTrigger,
+  type: T,
+): trigger is StaffAction & { type: T } {
   return trigger.source === "staff" && trigger.type === type
 }
 
-function isProvider<T extends ProviderEventType>(trigger: FulfilmentTrigger, type: T): trigger is ProviderEvent & { type: T } {
+function isProvider<T extends ProviderEventType>(
+  trigger: FulfilmentTrigger,
+  type: T,
+): trigger is ProviderEvent & { type: T } {
   return trigger.source === "provider" && trigger.type === type
 }
 
-function isSystem<T extends SystemEventType>(trigger: FulfilmentTrigger, type: T): trigger is SystemEvent & { type: T } {
+function isSystem<T extends SystemEventType>(
+  trigger: FulfilmentTrigger,
+  type: T,
+): trigger is SystemEvent & { type: T } {
   return trigger.source === "system" && trigger.type === type
 }

@@ -85,7 +85,7 @@ describe("transition", () => {
     })
   })
 
-  test("a provider cancellation sends a confirmed courier back to packed, dropping any half-recorded handover", () => {
+  test("a provider cancellation after courier confirmation drops any half-recorded handover", () => {
     expect(
       transition(
         { state: "courier_confirmed", handover: { staff: { actor, at } } },
