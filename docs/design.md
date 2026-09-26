@@ -18,7 +18,7 @@ Private GitHub monorepo (`emekaobah/ecommerce-project`) scaffolded by `create-me
 - `apps/mobile-buyer`, `apps/mobile-vendor` — Expo, Expo Router, dev builds
 - `packages/*` — shared API client, types, design tokens/UI
 
-Visual direction: **clean retail** (white, single brand colour, neutral). Vendor app uses a high-contrast variant with large touch targets and state-coloured chips.
+Visual direction: **Monochrome** (option C on the design canvas, researched in Refero from Uber Eats' app): black and white, black full-width primary buttons with the price in the label, bold left-aligned headings, selected options outlined in black, products contained on light-grey tiles. Chosen for simplicity and because it is easy to build on later. Vendor app uses the same system at larger sizes with large touch targets and state chips.
 
 ## Buyer app
 
@@ -89,7 +89,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 ### Shop-scoped listings (no price comparison)
 
 - Local shops object to side-by-side price comparison, so v1 never shows several shops' prices for the same product together.
-- Search and category results list **offers** (product × shop), ordered by relevance then nearest / fastest delivery — not by lowest price. Each result names its shop.
+- Search and category results are **grouped by shop**: a shop header (name, area, rating, delivery estimate) with a row of that shop's matching products and "See all", shops ordered nearest / fastest first — never by lowest price. A product may appear under two shops, but never side by side.
 - The product page is always in a shop's context: that shop's price, compare-at, delivery estimate and rating; then summary, details (attributes), reviews, "more from this shop" and "you might also like" (same shop).
 - Mercur's store API shows the cheapest offer on a product by default; we add a shop-scoped store route (offer + product + seller) and don't use the cheapest-offer price in the buyer app.
 - Buyers can still add products from several shops to one cart; comparison is simply not surfaced.
@@ -146,7 +146,7 @@ Target: independent per-country markets. Cross-border purchasing is out of scope
 ### Design pass (in parallel with the skeleton)
 
 One Claude Design canvas artifact, "Oja — App Design":
-visual direction (tokens + core components, clean-retail and high-contrast vendor variant), buyer screen map, vendor screen map, lo-fi flows (checkout, fulfilment, quick-add), and five hi-fi anchor screens (buyer home, product page, checkout; vendor order list, picking). Code (`packages/ui`) is the design system's source of truth.
+visual direction (tokens + core components, monochrome and vendor sizing), buyer screen map, vendor screen map, lo-fi flows (checkout, fulfilment, quick-add), and five hi-fi anchor screens (buyer home, product page, checkout; vendor order list, picking). Code (`packages/ui`) is the design system's source of truth.
 
 ### Vertical slices
 
