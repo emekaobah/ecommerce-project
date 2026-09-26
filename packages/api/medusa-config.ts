@@ -55,6 +55,18 @@ module.exports = withMercur({
   modules: [
     ...redisModules,
     {
+      resolve: '@mercurjs/core/modules/custom-fields',
+      options: {
+        customFields: {
+          // Crossed-out "was" price on a seller's offer, above its selling price.
+          // Offer-scoped because variant price lists are shared across sellers.
+          Offer: {
+            compare_at_amount: { type: 'float', nullable: true },
+          },
+        },
+      },
+    },
+    {
       resolve: '@mercurjs/core/modules/admin-ui',
       options: {
         appDir: dashboardAppDir('admin'),
