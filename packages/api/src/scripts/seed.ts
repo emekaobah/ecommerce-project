@@ -6,7 +6,6 @@ import {
 } from "@medusajs/framework/utils";
 import {
   AttributeType,
-  MercurModules,
   ProductStatus,
   SellerRole,
   type CreateOfferDTO,
@@ -21,6 +20,7 @@ import {
   createSellerMembersStep,
   createSellerShippingOptionsWorkflow,
   createSellerStockLocationsWorkflow,
+  upsertCustomFieldsStep,
   upsertMembersStep,
 } from "@mercurjs/core/workflows";
 import {
@@ -89,6 +89,14 @@ const addSeedStaffMemberWorkflow = createWorkflow(
       ])
     );
     return new WorkflowResponse(member);
+  }
+);
+
+const setOfferCompareAtWorkflow = createWorkflow(
+  "oja-seed-set-offer-compare-at",
+  (input: { offers: { id: string; compare_at_amount: number }[] }) => {
+    upsertCustomFieldsStep({ alias: "offer", data: input.offers });
+    return new WorkflowResponse(undefined);
   }
 );
 
@@ -328,10 +336,12 @@ async function seedSeller(
       | undefined;
 
   const { pickup } = config;
-  const addressMetadata = {
-    landmark: pickup.landmark,
-    latitude: pickup.latitude,
-    longitude: pickup.longitude,
+  const pickupAddress = {
+    address_1: pickup.address_1,
+    city: pickup.city,
+    province: pickup.province,
+    country_code: SEED_REGION.countries[0],
+    phone: config.phone,
   };
 
   const { data: [existingSeller] } = await query.graph({
@@ -355,16 +365,17 @@ async function seedSeller(
           logo: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(config.name)}`,
           banner: `https://picsum.photos/seed/${toHandle(config.name)}/1200/320`,
         },
+        // Coordinates stay on the seller's address only; staff never see them (ADR 0002).
         address: {
+          ...pickupAddress,
           first_name: config.owner.first_name,
           last_name: config.owner.last_name,
           company: config.name,
-          address_1: pickup.address_1,
-          city: pickup.city,
-          province: pickup.province,
-          country_code: "ng",
-          phone: config.phone,
-          metadata: addressMetadata,
+          metadata: {
+            landmark: pickup.landmark,
+            latitude: pickup.latitude,
+            longitude: pickup.longitude,
+          },
         },
       },
     });
@@ -403,14 +414,8 @@ async function seedSeller(
       locations: [
         {
           name: locationName,
-          address: {
-            address_1: pickup.address_1,
-            city: pickup.city,
-            province: pickup.province,
-            country_code: "ng",
-            phone: config.phone,
-          },
-          metadata: addressMetadata,
+          address: pickupAddress,
+          metadata: { landmark: pickup.landmark },
         },
       ],
     },
@@ -542,7 +547,7 @@ async function seedOffers(
   shippingProfileId: string
 ): Promise<number> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY);
-  const wanted: (CreateOfferDTO & { compare_at?: number })[] = [];
+  const wanted: (CreateOfferDTO & { compare_at_amount?: number })[] = [];
 
   for (const seller of sellers) {
     const shopCode = toHandle(seller.config.name).toUpperCase();
@@ -560,7 +565,7 @@ async function seedOffers(
             { sku, stock_levels: [{ location_id: seller.stockLocationId, stocked_quantity: 50 }] },
           ],
           prices: [{ amount: item.price, currency_code: SEED_REGION.currency_code }],
-          compare_at: item.compare_at,
+          compare_at_amount: item.compare_at_amount,
         });
       }
     }
@@ -579,16 +584,18 @@ async function seedOffers(
   const missing = wanted.filter((o) => !offerIdBySku.has(o.sku));
   if (missing.length) {
     await createOffersWorkflow(container).run({
-      input: { offers: missing.map(({ compare_at: _compareAt, ...offer }) => offer) },
+      input: { offers: missing.map(({ compare_at_amount: _compareAt, ...offer }) => offer) },
     });
     offerIdBySku = await loadOffers();
   }
 
-  const compareAt = wanted
-    .filter((o) => o.compare_at != null)
-    .map((o) => ({ id: offerIdBySku.get(o.sku)!, compare_at_amount: o.compare_at }));
+  const compareAt = wanted.flatMap((o) =>
+    o.compare_at_amount != null
+      ? [{ id: offerIdBySku.get(o.sku)!, compare_at_amount: o.compare_at_amount }]
+      : []
+  );
   if (compareAt.length) {
-    await container.resolve<any>(MercurModules.CUSTOM_FIELDS).upsert("offer", compareAt);
+    await setOfferCompareAtWorkflow(container).run({ input: { offers: compareAt } });
   }
   return wanted.length;
 }

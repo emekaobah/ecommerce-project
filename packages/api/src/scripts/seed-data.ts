@@ -104,7 +104,7 @@ export type SeedProduct = {
   /** Selling price in NGN. */
   price: number
   /** Crossed-out "was" price; always above `price`. */
-  compare_at?: number
+  compare_at_amount?: number
   weight_grams: number
   /** One variant per size (S–XL) instead of a single variant. */
   sized?: boolean
@@ -112,25 +112,25 @@ export type SeedProduct = {
 
 export const SEED_PRODUCTS: SeedProduct[] = [
   // Groceries
-  { title: "Ofada Rice 5kg", department: "Groceries", category: "Rice & Grains", price: 14500, compare_at: 16000, weight_grams: 5000, description: "Stone-free local ofada rice, bagged in Abeokuta." },
+  { title: "Ofada Rice 5kg", department: "Groceries", category: "Rice & Grains", price: 14500, compare_at_amount: 16000, weight_grams: 5000, description: "Stone-free local ofada rice, bagged in Abeokuta." },
   { title: "Long Grain Parboiled Rice 10kg", department: "Groceries", category: "Rice & Grains", price: 22000, weight_grams: 10000, description: "Everyday parboiled rice for jollof and fried rice." },
   { title: "Honey Beans (Oloyin) 2kg", department: "Groceries", category: "Beans & Garri", price: 6800, weight_grams: 2000, description: "Sweet brown beans, handpicked and cleaned." },
-  { title: "Ijebu Garri 4kg", department: "Groceries", category: "Beans & Garri", price: 5200, compare_at: 6000, weight_grams: 4000, description: "Crisp, sour white garri for soaking or eba." },
+  { title: "Ijebu Garri 4kg", department: "Groceries", category: "Beans & Garri", price: 5200, compare_at_amount: 6000, weight_grams: 4000, description: "Crisp, sour white garri for soaking or eba." },
   { title: "Red Palm Oil 3L", department: "Groceries", category: "Oils & Spices", price: 9500, weight_grams: 2800, description: "Unbleached red palm oil in a sealed jerrycan." },
   { title: "Ground Crayfish 500g", department: "Groceries", category: "Oils & Spices", price: 4500, weight_grams: 500, description: "Finely ground dried crayfish for soups and stews." },
   { title: "Dried Zobo Leaves 250g", department: "Groceries", category: "Snacks & Drinks", price: 1800, weight_grams: 250, description: "Dried hibiscus petals for homemade zobo." },
-  { title: "Plantain Chips 150g", department: "Groceries", category: "Snacks & Drinks", price: 1200, compare_at: 1500, weight_grams: 150, description: "Thin-sliced, lightly salted ripe plantain chips." },
+  { title: "Plantain Chips 150g", department: "Groceries", category: "Snacks & Drinks", price: 1200, compare_at_amount: 1500, weight_grams: 150, description: "Thin-sliced, lightly salted ripe plantain chips." },
   // Fashion
-  { title: "Adire Kaftan", department: "Fashion", category: "Men's Clothing", price: 28000, compare_at: 35000, weight_grams: 450, sized: true, description: "Indigo hand-dyed adire kaftan in soft cotton." },
+  { title: "Adire Kaftan", department: "Fashion", category: "Men's Clothing", price: 28000, compare_at_amount: 35000, weight_grams: 450, sized: true, description: "Indigo hand-dyed adire kaftan in soft cotton." },
   { title: "Ankara Wrap Dress", department: "Fashion", category: "Women's Clothing", price: 32000, weight_grams: 400, sized: true, description: "Midi wrap dress in a bold Ankara print." },
   { title: "Aso Oke Fila Cap", department: "Fashion", category: "Bags & Accessories", price: 8500, weight_grams: 150, description: "Handwoven aso oke cap for owambe days." },
-  { title: "Ankara Tote Bag", department: "Fashion", category: "Bags & Accessories", price: 12000, compare_at: 15000, weight_grams: 350, description: "Lined canvas tote with an Ankara print panel." },
+  { title: "Ankara Tote Bag", department: "Fashion", category: "Bags & Accessories", price: 12000, compare_at_amount: 15000, weight_grams: 350, description: "Lined canvas tote with an Ankara print panel." },
   // Electronics
-  { title: "20,000mAh Power Bank", department: "Electronics", category: "Power & Lighting", price: 24000, compare_at: 29500, weight_grams: 420, description: "Charges a phone four times over; USB-C in and out." },
+  { title: "20,000mAh Power Bank", department: "Electronics", category: "Power & Lighting", price: 24000, compare_at_amount: 29500, weight_grams: 420, description: "Charges a phone four times over; USB-C in and out." },
   { title: "Rechargeable LED Lantern", department: "Electronics", category: "Power & Lighting", price: 9800, weight_grams: 600, description: "Up to 12 hours of light for NEPA outages." },
-  { title: "Rechargeable Standing Fan 16-inch", department: "Electronics", category: "Power & Lighting", price: 65000, compare_at: 72000, weight_grams: 5500, description: "Runs up to 8 hours on its built-in battery." },
+  { title: "Rechargeable Standing Fan 16-inch", department: "Electronics", category: "Power & Lighting", price: 65000, compare_at_amount: 72000, weight_grams: 5500, description: "Runs up to 8 hours on its built-in battery." },
   { title: "6-Way Surge Protector", department: "Electronics", category: "Phone Accessories", price: 11500, weight_grams: 900, description: "Surge-protected extension with two USB ports." },
-  { title: "25W USB-C Fast Charger", department: "Electronics", category: "Phone Accessories", price: 7500, compare_at: 9000, weight_grams: 120, description: "Wall charger with a 1m USB-C cable." },
+  { title: "25W USB-C Fast Charger", department: "Electronics", category: "Phone Accessories", price: 7500, compare_at_amount: 9000, weight_grams: 120, description: "Wall charger with a 1m USB-C cable." },
   { title: "Wireless Earbuds", department: "Electronics", category: "Audio", price: 18500, weight_grams: 80, description: "Bluetooth 5.3 earbuds with a charging case." },
 ]
 
