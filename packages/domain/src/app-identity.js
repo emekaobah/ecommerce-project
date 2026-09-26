@@ -5,6 +5,9 @@
 export const PRODUCT_NAME = "Oja"
 
 export function appIdentity(app) {
-  const slug = PRODUCT_NAME.toLowerCase()
-  return { name: PRODUCT_NAME, slug, scheme: slug, bundleId: `com.emekaobah.${slug}.${app}` }
+  const base = PRODUCT_NAME.toLowerCase()
+  const bundleId = `com.emekaobah.${base}.${app}`
+  if (app === "buyer") return { name: PRODUCT_NAME, slug: base, scheme: base, bundleId }
+  // The vendor app gets its own name and scheme so both apps install side by side.
+  return { name: `${PRODUCT_NAME} Vendor`, slug: `${base}-vendor`, scheme: `${base}vendor`, bundleId }
 }

@@ -1,5 +1,6 @@
-// Relative import of the plain-JS module: Expo's config loader doesn't transpile workspace TypeScript.
+// Relative imports of plain-JS modules: Expo's config loader doesn't transpile workspace TypeScript.
 import { appIdentity } from '../../packages/domain/src/app-identity.js';
+import withIosSceneLifecycle from '../../packages/expo-plugins/with-ios-scene-lifecycle.js';
 import type { ExpoConfig } from 'expo/config';
 
 // Name, scheme and bundle id derive from the product-name constant in @oja/domain.
@@ -24,7 +25,7 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-localization',
     ['expo-splash-screen', { backgroundColor: '#FFFFFF', image: './assets/splash-icon.png', imageWidth: 120 }],
-    './plugins/with-ios-scene-lifecycle',
+    withIosSceneLifecycle,
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
 };

@@ -34,6 +34,7 @@ Standard Expo layout in each app:
 
 - TanStack Query over `@oja/api-client` is the only server-state store. Each app defines per-domain hooks (`useProducts`, `useOrder`, …) and a query-key factory per domain.
 - React context only for small, app-wide client state: session, region, current seller.
+- Exception: state the API client reads outside React (the vendor member session) lives in a small module store, read in components with `useSyncExternalStore`.
 - No Redux or Zustand.
 - Every data screen designs four states: loading, error, empty and content. `@oja/ui` provides `LoadingState`, `ErrorState` and `EmptyState`.
 

@@ -16,8 +16,8 @@ type DynamicClientConfig = {
   baseUrl: string
   /** Resolved before every request. */
   headers: () => Promise<Record<string, string>>
-  /** Called when a request is rejected with 401, before the error is rethrown. */
-  onUnauthorized?: () => void
+  /** Called with the headers the request carried when it is rejected with 401, before the error is rethrown. */
+  onUnauthorized?: (sent: Record<string, string>) => void
 }
 
 /**
@@ -26,12 +26,13 @@ type DynamicClientConfig = {
  */
 function createDynamicClient({ baseUrl, headers, onUnauthorized }: DynamicClientConfig): OjaClient {
   const call = async (path: string[], args: unknown[]) => {
-    let target: any = createClient({ baseUrl, fetchOptions: { headers: await headers() } })
+    const sent = await headers()
+    let target: any = createClient({ baseUrl, fetchOptions: { headers: sent } })
     for (const segment of path) target = target[segment]
     try {
       return await target(...args)
     } catch (error) {
-      if (error instanceof ClientError && error.status === 401) onUnauthorized?.()
+      if (error instanceof ClientError && error.status === 401) onUnauthorized?.(sent)
       throw error
     }
   }
@@ -71,7 +72,10 @@ export type VendorClientConfig = {
   getToken?: Getter
   /** Seller the member is acting for; required by every seller-scoped vendor route. */
   getSellerId?: Getter
-  /** The member's session is no longer valid; the app signs them out. */
+  /**
+   * The member's session is no longer valid; the app signs them out. Not called when the
+   * rejected request carried a token the session has since replaced.
+   */
   onUnauthorized?: () => void
 }
 
@@ -79,7 +83,9 @@ export type VendorClientConfig = {
 export function createVendorClient({ baseUrl, getToken, getSellerId, onUnauthorized }: VendorClientConfig): OjaClient {
   return createDynamicClient({
     baseUrl,
-    onUnauthorized,
+    onUnauthorized: async (sent) => {
+      if (sent.authorization === (await bearer(getToken)).authorization) onUnauthorized?.()
+    },
     headers: async () => {
       const sellerId = await getSellerId?.()
       return { ...(await bearer(getToken)), ...(sellerId ? { "x-seller-id": sellerId } : {}) }

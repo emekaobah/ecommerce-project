@@ -12,4 +12,4 @@ export type AppIdentity = {
 }
 
 /** Name, scheme and bundle id for an app, derived from the product name. */
-export declare function appIdentity(app: "buyer"): AppIdentity
+export declare function appIdentity(app: "buyer" | "vendor"): AppIdentity
