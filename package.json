@@ -8,7 +8,9 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "db:up": "docker compose up -d",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "codegen": "bun run --cwd packages/api codegen",
+    "test": "turbo run test"
   },
   "dependencies": {
     "react": "18.3.1",

@@ -3,24 +3,47 @@
   "ui": "tui",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
         "$TURBO_ROOT$/packages/api/medusa-config.ts"
       ],
-      "env": ["NODE_ENV", "MERCUR_BACKEND_URL", "VITE_MERCUR_BACKEND_URL"],
-      "outputs": [".next/**", "!.next/cache/**", ".medusa/**", "dist/**"]
+      "env": [
+        "NODE_ENV",
+        "MERCUR_BACKEND_URL",
+        "VITE_MERCUR_BACKEND_URL"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        ".medusa/**",
+        "dist/**"
+      ]
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": [
+        "^lint"
+      ]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": [
+        "^check-types"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true
+    },
+    "test": {
+      "env": [
+        "DB_HOST",
+        "DB_PORT",
+        "DB_USERNAME",
+        "DB_PASSWORD"
+      ]
     }
   }
 }
