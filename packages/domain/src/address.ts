@@ -1,5 +1,5 @@
-/** Medusa address keys a country's form can fill. */
-export type AddressFieldKey =
+/** Medusa address columns a country's form can fill. */
+type AddressColumn =
   | "first_name"
   | "last_name"
   | "address_1"
@@ -9,10 +9,15 @@ export type AddressFieldKey =
   | "postal_code"
   | "phone"
 
+/** A Medusa address column, or a key stored in the address's `metadata` (ADR 0002). */
+export type AddressFieldKey = AddressColumn | `metadata.${string}`
+
 export type AddressField = {
   key: AddressFieldKey
   label: string
   required: boolean
+  /** Example input shown in the empty field. */
+  placeholder?: string
   /** A fixed list to pick from; absent means free text. */
   options?: readonly string[]
 }
@@ -81,7 +86,13 @@ const CONFIGS: Record<string, AddressConfig> = {
       { key: "first_name", label: "First name", required: true },
       { key: "last_name", label: "Last name", required: true },
       { key: "address_1", label: "Street address", required: true },
-      { key: "address_2", label: "Landmark or apartment", required: false },
+      { key: "address_2", label: "Apartment, floor", required: false },
+      {
+        key: "metadata.landmark",
+        label: "Landmark / directions for the rider",
+        required: false,
+        placeholder: "e.g. opposite the Mobil station",
+      },
       // Nigerian addresses have no reliable postcode; the LGA takes the city slot.
       { key: "city", label: "LGA", required: true },
       { key: "province", label: "State", required: true, options: NG_STATES },
