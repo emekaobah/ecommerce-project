@@ -28,7 +28,7 @@
     "codegen": "mercurjs codegen",
     "cloud:prebuild": "mercurjs codegen",
     "check-types": "tsc --noEmit",
-    "test": "bun run test:integration:http"
+    "test": "bun run test:unit && bun run test:integration:http"
   },
   "dependencies": {
     "@medusajs/admin-sdk": "2.20.1",
@@ -48,6 +48,7 @@
     "@acme/admin": "*",
     "@acme/vendor": "*",
     "@medusajs/test-utils": "2.20.1",
+    "@oja/domain": "workspace:*",
     "@swc/core": "^1.7.28",
     "@swc/jest": "^0.2.36",
     "@types/jest": "^29.5.13",

@@ -228,6 +228,7 @@
         "@acme/admin": "*",
         "@acme/vendor": "*",
         "@medusajs/test-utils": "2.20.1",
+        "@oja/domain": "workspace:*",
         "@swc/core": "^1.7.28",
         "@swc/jest": "^0.2.36",
         "@types/jest": "^29.5.13",
