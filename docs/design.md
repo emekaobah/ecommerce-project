@@ -83,7 +83,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 
 **A. Platform catalogue import + enrichment (admin).** Based on the removed v2.1 admin import page. Upload CSV → column mapping (saved per source) → preview with row errors → create via Mercur product workflows. Enrichment fills empty fields per row.
 
-**B. Vendor offer import (vendor panel).** Adapt the `product-import-export` block. Vendor uploads any list (barcode, name, selling price, optional compare-at, cost, stock…). Rows whose barcode matches a catalogue variant → **offers**. Unmatched rows → **seller-linked proposals** carrying whatever fields the vendor had; they land in the admin queue where A's enrichment runs before approval.
+**B. Vendor offer import (vendor panel).** Adapt the `product-import-export` block. Vendor uploads any list (barcode, name, selling price, cost, stock…). Rows whose barcode matches a catalogue variant → **offers**. Unmatched rows → **seller-linked proposals** carrying whatever fields the vendor had; they land in the admin queue where A's enrichment runs before approval.
 
 **C. Vendor app quick-add.** Scan barcode → if unmatched, take a photo + enter name/price → creates a proposal with a real image.
 
@@ -91,7 +91,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 
 - Local shops object to side-by-side price comparison, so v1 never shows several shops' prices for the same product together.
 - Search and category results are **grouped by shop**: a shop header (name, area, rating, delivery estimate) with a row of that shop's matching products and "See all", shops ordered nearest / fastest first — never by lowest price. A product may appear under two shops, but never side by side.
-- The product page is always in a shop's context: that shop's price, compare-at, delivery estimate and rating; then summary, details (attributes), reviews, "more from this shop" and "you might also like" (same shop).
+- The product page is always in a shop's context: that shop's price, delivery estimate and rating; then summary, details (attributes), reviews, "more from this shop" and "you might also like" (same shop).
 - Mercur's store API shows the cheapest offer on a product by default; we add a shop-scoped store route (offer + product + seller) and don't use the cheapest-offer price in the buyer app.
 - Buyers can still add products from several shops to one cart; comparison is simply not surfaced.
 
@@ -104,7 +104,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 - **Images:** only stored in R2 with source recorded; never hotlinked. Product photos are shown **contained on a neutral tile** (not full-bleed), so the pipeline removes backgrounds (on-device/server segmentation) and the approval queue includes a quick image check (accept cut-out, re-crop, or request a clean pack shot) — segmentation can keep hands holding a product. Quick-add asks staff to photograph products on a flat surface, not in hand.
 - **Extra fields** (care instructions, voltage, fabric…) are Mercur category attributes, starting with a small set for grocery, fashion, electronics.
 - **Units:** weight in grams, dimensions in cm; importer parses "1.5kg", "30cm"; Shipbubble provider converts to kg.
-- **Compare-at price** stored on the offer (`compare_at_amount` > selling price), not variant price lists (which are variant-scoped, not per seller).
+- **No compare-at ("was") price in v1**: crossed-out prices don't suit the local market yet. If it returns, store it on the offer, not on variant price lists (which are variant-scoped, not per seller).
 - **Cost price** stored privately on the offer, visible to owner/manager role only; v1 use: below-cost warning.
 - **Stock** optional; if absent, treat as in stock / not tracked and rely on the pick-time out-of-stock path.
 

@@ -1,4 +1,4 @@
-import { ExecArgs } from "@medusajs/framework/types";
+import { ExecArgs, MedusaContainer } from "@medusajs/framework/types";
 import {
   ContainerRegistrationKeys,
   Modules,
@@ -7,6 +7,7 @@ import {
 import {
   AttributeType,
   ProductStatus,
+  SellerRole,
   type CreateOfferDTO,
   type CreateProductDTO,
 } from "@mercurjs/types";
@@ -16,8 +17,10 @@ import {
   createProductAttributesWorkflow,
   createProductsWorkflow,
   createSellerAccountWorkflow,
+  createSellerMembersStep,
   createSellerShippingOptionsWorkflow,
   createSellerStockLocationsWorkflow,
+  upsertMembersStep,
 } from "@mercurjs/core/workflows";
 import {
   createWorkflow,
@@ -35,1002 +38,551 @@ import {
   createTaxRegionsWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
-  updateStoresStep,
+  setAuthAppMetadataStep,
+  updateSalesChannelsWorkflow,
   updateStoresWorkflow,
 } from "@medusajs/medusa/core-flows";
+import {
+  SEED_CATEGORIES,
+  SEED_DELIVERY_FEE,
+  SEED_PASSWORD,
+  SEED_PRODUCTS,
+  SEED_REGION,
+  SEED_SALES_CHANNEL,
+  SEED_SELLERS,
+  SEED_SIZES,
+  SEED_VAT,
+  seedImageUrl,
+  type SeedSeller,
+} from "./seed-data";
 
-// Demo catalog with fictional brands and generic product names. Titles, brands,
-// and colorways are invented for a trademark-safe marketplace demo — they do not
-// reference any real brand or protected product design. Product images are generic
-// AI-generated renders hosted from /static via the jsDelivr GitHub CDN (main branch).
-type SeedCatalogItem = {
-  title: string;
-  brand: string;
-  colorway: string;
-  category: "Sandals" | "Sneakers" | "Boots" | "Sport" | "Accessories";
-  price: number;
-  footwear: boolean;
-  description: string;
-  images: string[];
-};
+// Seeds Oja's demo world (see seed-data.ts). Every section looks up what already
+// exists and creates only what is missing, so the seed is safe to re-run.
 
-const seedCatalog: SeedCatalogItem[] = [
-  {
-    title: "Meridian Twin-Strap Buckle Sandal",
-    brand: "Meridian",
-    colorway: "Black - Regular/Wide",
-    price: 155,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/meridian-twin-strap-buckle-sandal-1.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Meridian Twin-Strap Buckle Sandal in Black - Regular/Wide.",
-  },
-  {
-    title: "Meridian Twin-Strap Sandal",
-    brand: "Meridian",
-    colorway: "Pearl White - Narrow",
-    price: 125,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/meridian-twin-strap-sandal-1.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Meridian Twin-Strap Sandal in Pearl White - Narrow.",
-  },
-  {
-    title: "Meridian Clog Slide",
-    brand: "Meridian",
-    colorway: "Anthracite",
-    price: 232,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/meridian-clog-slide-1.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Meridian Clog Slide in Anthracite.",
-  },
-  {
-    title: "Cloudpeak Golden Slide",
-    brand: "Cloudpeak",
-    colorway: "Dark Sand",
-    price: 72,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/cloudpeak-golden-slide-1.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Cloudpeak Golden Slide in Dark Sand.",
-  },
-  {
-    title: "Meridian Wire Buckle Clog",
-    brand: "Meridian",
-    colorway: "Vintage Wood Roast",
-    price: 226,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/meridian-wire-buckle-clog-1.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Meridian Wire Buckle Clog in Vintage Wood Roast.",
-  },
-  {
-    title: "Cloudpeak Golden Sandal",
-    brand: "Cloudpeak",
-    colorway: "Bay Fog",
-    price: 78,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/cloudpeak-golden-sandal-1.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Cloudpeak Golden Sandal in Bay Fog.",
-  },
-  {
-    title: "Apex Pool Slides",
-    brand: "Apex",
-    colorway: "Black",
-    price: 47,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/apex-pool-slides-1.png",
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/apex-pool-slides-2.png",
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/apex-pool-slides-3.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Apex Pool Slides in Black.",
-  },
-  {
-    title: "Strive Mule Slides",
-    brand: "Strive",
-    colorway: "Core Black Gum",
-    price: 106,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/strive-mule-slides-1.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Strive Mule Slides in Core Black Gum.",
-  },
-  {
-    title: "Nimbus Classic Clog",
-    brand: "Nimbus",
-    colorway: "Pond",
-    price: 60,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/nimbus-classic-clog-1.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Nimbus Classic Clog in Pond.",
-  },
-  {
-    title: "Cloudpeak Starlet Sandal",
-    brand: "Cloudpeak",
-    colorway: "Sand",
-    price: 83,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/cloudpeak-starlet-sandal-1.png",
-    ],
-    category: "Sandals",
-    footwear: true,
-    description: "Cloudpeak Starlet Sandal in Sand.",
-  },
-  {
-    title: "Cityline Canvas High Top",
-    brand: "Cityline",
-    colorway: "Black Denim",
-    price: 82,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/cityline-canvas-high-top-1.png",
-    ],
-    category: "Sneakers",
-    footwear: true,
-    description: "Cityline Canvas High Top in Black Denim.",
-  },
-  {
-    title: "Vantage 204 Runner",
-    brand: "Vantage",
-    colorway: "Beige Brown",
-    price: 95,
-    images: [
-      "https://cdn.jsdelivr.net/gh/mercurjs/mercur@main/static/vantage-204-runner-1.png",
-    ],
-    category: "Sneakers",
-    footwear: true,
-    description: "Vantage 204 Runner in Beige Brown.",
-  },
-];
-
-const updateStoreCurrencies = createWorkflow(
-  "update-store-currencies",
+// Adds a staff member to a shop without the invite round-trip: the member
+// record, the login's actor link, and the membership with its role.
+const addSeedStaffMemberWorkflow = createWorkflow(
+  "oja-seed-add-staff-member",
   (input: {
-    supported_currencies: { currency_code: string; is_default?: boolean }[];
-    store_id: string;
+    auth_identity_id: string;
+    seller_id: string;
+    role_id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
   }) => {
-    const normalizedInput = transform({ input }, (data) => {
-      return {
-        selector: { id: data.input.store_id },
-        update: {
-          supported_currencies: data.input.supported_currencies.map(
-            (currency) => {
-              return {
-                currency_code: currency.currency_code,
-                is_default: currency.is_default ?? false,
-              };
-            }
-          ),
-        },
-      };
+    const members = upsertMembersStep(
+      transform({ input }, ({ input }) => [
+        { email: input.email, first_name: input.first_name, last_name: input.last_name },
+      ])
+    );
+    const member = transform({ members }, ({ members }) => members[0]);
+    setAuthAppMetadataStep({
+      authIdentityId: input.auth_identity_id,
+      actorType: "member",
+      value: member.id,
     });
-
-    const stores = updateStoresStep(normalizedInput);
-
-    return new WorkflowResponse(stores);
+    createSellerMembersStep(
+      transform({ input, member }, ({ input, member }) => [
+        { seller_id: input.seller_id, member_id: member.id, role_id: input.role_id, is_owner: false },
+      ])
+    );
+    return new WorkflowResponse(member);
   }
 );
 
 export default async function seedDemoData({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
-  const link = container.resolve(ContainerRegistrationKeys.LINK);
   const query = container.resolve(ContainerRegistrationKeys.QUERY);
-  const salesChannelModuleService = container.resolve(Modules.SALES_CHANNEL);
-  const storeModuleService = container.resolve(Modules.STORE);
 
-  const countries = ["gb", "de", "dk", "se", "fr", "es", "it"];
+  logger.info("Seeding store, sales channel and publishable key...");
+  const [store] = await container.resolve(Modules.STORE).listStores();
+  const salesChannelId = await seedSalesChannel(container, store.default_sales_channel_id);
+  await updateStoresWorkflow(container).run({
+    input: {
+      selector: { id: store.id },
+      update: {
+        name: "Oja",
+        supported_currencies: [{ currency_code: SEED_REGION.currency_code, is_default: true }],
+        default_sales_channel_id: salesChannelId,
+      },
+    },
+  });
+  await seedPublishableKey(container, salesChannelId);
 
-  logger.info("Seeding store data...");
-  const [store] = await storeModuleService.listStores();
-  let defaultSalesChannel = await salesChannelModuleService.listSalesChannels({
-    name: "Default Sales Channel",
+  logger.info("Seeding the Nigeria region and VAT...");
+  await seedRegion(container);
+
+  logger.info("Seeding categories and attributes...");
+  const categoryIds = await seedCategories(container);
+  const sizeAttribute = await seedSizeAttribute(container);
+
+  const shippingProfileId = await seedShippingProfile(container);
+
+  const sellers: SeededSeller[] = [];
+  for (const config of SEED_SELLERS) {
+    logger.info(`Seeding seller "${config.name}"...`);
+    sellers.push(await seedSeller(container, config, salesChannelId, shippingProfileId));
+  }
+
+  logger.info("Seeding products...");
+  const productsByHandle = await seedProducts(container, {
+    createdBy: sellers[0].ownerMemberId,
+    salesChannelId,
+    categoryIds,
+    sizeAttribute,
   });
 
-  if (!defaultSalesChannel.length) {
-    const { result: salesChannelResult } = await createSalesChannelsWorkflow(
-      container
-    ).run({
+  logger.info("Seeding offers...");
+  const offerCount = await seedOffers(container, sellers, productsByHandle, shippingProfileId);
+
+  const { data: regions } = await query.graph({ entity: "region", fields: ["id"] });
+  logger.info(
+    `Finished seeding: ${regions.length} region, ${sellers.length} sellers, ${productsByHandle.size} products, ${offerCount} offers.`
+  );
+}
+
+// Medusa creates a default sales channel and publishable key when it first boots.
+// The buyer app uses them: reuse (and name) them, creating them only when absent.
+async function seedSalesChannel(
+  container: MedusaContainer,
+  defaultSalesChannelId: string | null | undefined
+): Promise<string> {
+  if (defaultSalesChannelId) {
+    await updateSalesChannelsWorkflow(container).run({
+      input: { selector: { id: defaultSalesChannelId }, update: { name: SEED_SALES_CHANNEL } },
+    });
+    return defaultSalesChannelId;
+  }
+  const salesChannelService = container.resolve(Modules.SALES_CHANNEL);
+  const [existing] = await salesChannelService.listSalesChannels({ name: SEED_SALES_CHANNEL });
+  if (existing) return existing.id;
+  const { result } = await createSalesChannelsWorkflow(container).run({
+    input: { salesChannelsData: [{ name: SEED_SALES_CHANNEL }] },
+  });
+  return result[0].id;
+}
+
+async function seedPublishableKey(container: MedusaContainer, salesChannelId: string) {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
+  type Key = { id: string; token: string; sales_channels?: { id: string }[] };
+  const { data } = await query.graph({
+    entity: "api_key",
+    fields: ["id", "token", "sales_channels.id"],
+    filters: { type: "publishable", revoked_at: null },
+  });
+  const keys = data as Key[];
+  let key = keys.find((k) => k.sales_channels?.some((sc) => sc.id === salesChannelId)) ?? keys[0];
+  if (!key) {
+    const { result } = await createApiKeysWorkflow(container).run({
+      input: { api_keys: [{ title: SEED_SALES_CHANNEL, type: "publishable", created_by: "" }] },
+    });
+    key = { id: result[0].id, token: result[0].token };
+  }
+  if (!key.sales_channels?.some((sc) => sc.id === salesChannelId)) {
+    await linkSalesChannelsToApiKeyWorkflow(container).run({
+      input: { id: key.id, add: [salesChannelId] },
+    });
+  }
+  logger.info(`Buyer app publishable key (EXPO_PUBLIC_PUBLISHABLE_KEY): ${key.token}`);
+}
+
+async function seedRegion(container: MedusaContainer) {
+  const regionService = container.resolve(Modules.REGION);
+  const [existing] = await regionService.listRegions({ name: SEED_REGION.name });
+  if (!existing) {
+    await createRegionsWorkflow(container).run({
       input: {
-        salesChannelsData: [
+        regions: [
           {
-            name: "Default Sales Channel",
+            ...SEED_REGION,
+            payment_providers: ["pp_system_default"],
+            automatic_taxes: true,
+            // Nigerian shelf prices include VAT.
+            is_tax_inclusive: true,
           },
         ],
       },
     });
-    defaultSalesChannel = salesChannelResult;
   }
 
-  await updateStoreCurrencies(container).run({
+  const taxService = container.resolve(Modules.TAX);
+  const countries = SEED_REGION.countries;
+  const existingTax = await taxService.listTaxRegions({ country_code: countries });
+  const missing = countries.filter((c) => !existingTax.some((t) => t.country_code === c));
+  if (missing.length) {
+    await createTaxRegionsWorkflow(container).run({
+      input: missing.map((country_code) => ({
+        country_code,
+        provider_id: "tp_system",
+        default_tax_rate: { ...SEED_VAT },
+      })),
+    });
+  }
+}
+
+async function seedCategories(container: MedusaContainer): Promise<Map<string, string>> {
+  const productService = container.resolve(Modules.PRODUCT);
+  const parents = Object.keys(SEED_CATEGORIES) as (keyof typeof SEED_CATEGORIES)[];
+  const children = Object.values(SEED_CATEGORIES).flat();
+  const existing = await productService.listProductCategories({ name: [...parents, ...children] });
+  const idByName = new Map(existing.map((c) => [c.name, c.id]));
+
+  const create = async (inputs: { name: string; rank: number; parent_category_id?: string }[]) => {
+    if (!inputs.length) return;
+    const { result } = await createProductCategoriesWorkflow(container).run({
+      input: { product_categories: inputs.map((c) => ({ ...c, is_active: true })) },
+    });
+    result.forEach((c) => idByName.set(c.name, c.id));
+  };
+
+  await create(
+    parents.filter((name) => !idByName.has(name)).map((name) => ({ name, rank: parents.indexOf(name) }))
+  );
+  await create(
+    parents.flatMap((parent) =>
+      SEED_CATEGORIES[parent]
+        .map((name, rank) => ({ name, rank, parent_category_id: idByName.get(parent)! }))
+        .filter((c) => !idByName.has(c.name))
+    )
+  );
+  return idByName;
+}
+
+type SizeAttribute = { id: string; values: { id: string; name: string }[] };
+
+// A global Size attribute that is a variant axis, so sized products get a native
+// Size option the store can filter on.
+async function seedSizeAttribute(container: MedusaContainer): Promise<SizeAttribute> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const load = async () =>
+    (
+      await query.graph({
+        entity: "product_attribute",
+        fields: ["id", "values.id", "values.name"],
+        filters: { handle: "size", product_id: null },
+      })
+    ).data[0] as SizeAttribute | undefined;
+
+  const existing = await load();
+  if (existing) return existing;
+  await createProductAttributesWorkflow(container).run({
     input: {
-      store_id: store.id,
-      supported_currencies: [
+      attributes: [
         {
-          currency_code: "eur",
-          is_default: true,
+          name: "Size",
+          handle: "size",
+          type: AttributeType.MULTI_SELECT,
+          is_variant_axis: true,
+          is_filterable: true,
+          rank: 0,
+          values: SEED_SIZES.map((name, rank) => ({ name, rank })),
         },
+      ],
+    },
+  });
+  return (await load())!;
+}
+
+// One marketplace-wide shipping profile shared by every seller's shipping options
+// and offers, so cart refresh keeps per-seller shipping methods.
+async function seedShippingProfile(container: MedusaContainer): Promise<string> {
+  const fulfillmentService = container.resolve(Modules.FULFILLMENT);
+  const [existing] = await fulfillmentService.listShippingProfiles({ name: "Marketplace Shipping" });
+  if (existing) return existing.id;
+  const { result } = await createShippingProfilesWorkflow(container).run({
+    input: { data: [{ name: "Marketplace Shipping", type: "default" }] },
+  });
+  return result[0].id;
+}
+
+async function registerLogin(container: MedusaContainer, email: string): Promise<string> {
+  const authService = container.resolve(Modules.AUTH);
+  const { success, authIdentity } = await authService.register("emailpass", {
+    body: { email, password: SEED_PASSWORD },
+  });
+  if (success && authIdentity) return authIdentity.id;
+  const [identity] = await authService.listProviderIdentities({ entity_id: email, provider: "emailpass" });
+  return identity.auth_identity_id!;
+}
+
+type SeededSeller = {
+  id: string;
+  config: SeedSeller;
+  ownerMemberId: string;
+  stockLocationId: string;
+};
+
+async function seedSeller(
+  container: MedusaContainer,
+  config: SeedSeller,
+  salesChannelId: string,
+  shippingProfileId: string
+): Promise<SeededSeller> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const findMember = async (email: string) =>
+    (await query.graph({ entity: "member", fields: ["id"], filters: { email } })).data[0] as
+      | { id: string }
+      | undefined;
+
+  const { pickup } = config;
+  const pickupAddress = {
+    address_1: pickup.address_1,
+    city: pickup.city,
+    province: pickup.province,
+    country_code: SEED_REGION.countries[0],
+    phone: config.phone,
+  };
+
+  const { data: [existingSeller] } = await query.graph({
+    entity: "seller",
+    fields: ["id"],
+    filters: { email: config.owner.email },
+  });
+  let sellerId: string = existingSeller?.id;
+  if (!sellerId) {
+    const { result } = await createSellerAccountWorkflow(container).run({
+      input: {
+        auth_identity_id: await registerLogin(container, config.owner.email),
+        member_email: config.owner.email,
+        first_name: config.owner.first_name,
+        last_name: config.owner.last_name,
+        seller: {
+          name: config.name,
+          email: config.owner.email,
+          currency_code: SEED_REGION.currency_code,
+          description: config.description,
+          logo: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(config.name)}`,
+          banner: `https://picsum.photos/seed/${toHandle(config.name)}/1200/320`,
+        },
+        // Coordinates stay on the seller's address only; staff never see them (ADR 0002).
+        address: {
+          ...pickupAddress,
+          first_name: config.owner.first_name,
+          last_name: config.owner.last_name,
+          company: config.name,
+          metadata: {
+            landmark: pickup.landmark,
+            latitude: pickup.latitude,
+            longitude: pickup.longitude,
+          },
+        },
+      },
+    });
+    await approveSellerWorkflow(container).run({ input: { seller_id: result.id } });
+    sellerId = result.id;
+  }
+
+  const ownerMemberId = (await findMember(config.owner.email))!.id;
+
+  if (!(await findMember(config.staff.email))) {
+    await addSeedStaffMemberWorkflow(container).run({
+      input: {
+        ...config.staff,
+        auth_identity_id: await registerLogin(container, config.staff.email),
+        seller_id: sellerId,
+        role_id: SellerRole.ORDER_MANAGEMENT,
+      },
+    });
+  }
+
+  const locationName = `${config.name} pickup`;
+  const { data: [existingLocation] } = await query.graph({
+    entity: "stock_location",
+    fields: ["id"],
+    filters: { name: locationName },
+  });
+  if (existingLocation) {
+    return { id: sellerId, config, ownerMemberId, stockLocationId: existingLocation.id };
+  }
+
+  const {
+    result: [location],
+  } = await createSellerStockLocationsWorkflow(container).run({
+    input: {
+      seller_id: sellerId,
+      locations: [
         {
-          currency_code: "usd",
+          name: locationName,
+          address: pickupAddress,
+          metadata: { landmark: pickup.landmark },
         },
       ],
     },
   });
 
-  await updateStoresWorkflow(container).run({
+  await container.resolve(ContainerRegistrationKeys.LINK).create({
+    [Modules.STOCK_LOCATION]: { stock_location_id: location.id },
+    [Modules.FULFILLMENT]: { fulfillment_provider_id: "manual_manual" },
+  });
+  await linkSalesChannelsToStockLocationWorkflow(container).run({
+    input: { id: location.id, add: [salesChannelId] },
+  });
+  await createLocationFulfillmentSetWorkflow(container).run({
     input: {
-      selector: { id: store.id },
-      update: {
-        name: 'Mercur Marketplace',
-        default_sales_channel_id: defaultSalesChannel[0].id,
-      },
+      location_id: location.id,
+      fulfillment_set_data: { name: `${config.name} delivery`, type: "shipping" },
     },
   });
-  logger.info("Seeding region data...");
-  const regionModuleService = container.resolve(Modules.REGION);
-
-  const existingRegions = await regionModuleService.listRegions({}, {
-    relations: ["countries"],
+  const {
+    data: [locationWithSet],
+  } = await query.graph({
+    entity: "stock_location",
+    fields: ["fulfillment_sets.id"],
+    filters: { id: location.id },
   });
-
-  const assignedCountries = new Set<string>();
-  for (const r of existingRegions) {
-    for (const c of r.countries || []) {
-      assignedCountries.add(c.iso_2);
-    }
-  }
-
-  const unassignedCountries = countries.filter(c => !assignedCountries.has(c));
-
-  let region;
-  if (unassignedCountries.length === 0) {
-    region = existingRegions.find(r =>
-      r.countries?.some(c => countries.includes(c.iso_2))
-    ) || existingRegions[0];
-    logger.info("Countries already assigned to a region, skipping region creation.");
-  } else if (unassignedCountries.length < countries.length) {
-    logger.info(`Some countries already assigned, creating region with: ${unassignedCountries.join(", ")}`);
-    const { result: regionResult } = await createRegionsWorkflow(container).run({
-      input: {
-        regions: [
-          {
-            name: "Europe",
-            currency_code: "eur",
-            countries: unassignedCountries,
-            payment_providers: ["pp_system_default"],
-          },
-        ],
-      },
-    });
-    region = regionResult[0];
-  } else {
-    const { result: regionResult } = await createRegionsWorkflow(container).run({
-      input: {
-        regions: [
-          {
-            name: "Europe",
-            currency_code: "eur",
-            countries,
-            payment_providers: ["pp_system_default"],
-          },
-        ],
-      },
-    });
-    region = regionResult[0];
-  }
-  logger.info("Finished seeding regions.");
-
-  logger.info("Seeding tax regions...");
-  const taxModuleService = container.resolve(Modules.TAX);
-  const existingTaxRegions = await taxModuleService.listTaxRegions();
-  const existingCountryCodes = new Set(existingTaxRegions.map((tr) => tr.country_code));
-  const countriesToCreate = countries.filter((c) => !existingCountryCodes.has(c));
-
-  if (countriesToCreate.length > 0) {
-    await createTaxRegionsWorkflow(container).run({
-      input: countriesToCreate.map((country_code) => ({
-        country_code,
-        provider_id: "tp_system",
-      })),
-    });
-  } else {
-    logger.info("Tax regions already exist, skipping.");
-  }
-  logger.info("Finished seeding tax regions.");
-
-  logger.info("Seeding publishable API key data...");
-  let publishableApiKey;
-  const { data } = await query.graph({
-    entity: "api_key",
-    fields: ["id"],
-    filters: {
-      type: "publishable",
-    },
-  });
-
-  publishableApiKey = data?.[0];
-
-  if (!publishableApiKey) {
-    const {
-      result: [publishableApiKeyResult],
-    } = await createApiKeysWorkflow(container).run({
-      input: {
-        api_keys: [
-          {
-            title: "Webshop",
-            type: "publishable",
-            created_by: "",
-          },
-        ],
-      },
-    });
-
-    publishableApiKey = publishableApiKeyResult
-  }
-
-  try {
-    await linkSalesChannelsToApiKeyWorkflow(container).run({
-      input: {
-        id: publishableApiKey.id,
-        add: [defaultSalesChannel[0].id],
-      },
-    });
-  } catch (error: unknown) {
-    // Ignore if link already exists
-    if (!(error instanceof Error && error.message.includes("already"))) {
-      throw error;
-    }
-    logger.info("Sales channel already linked to API key, skipping.");
-  }
-  logger.info("Finished seeding publishable API key data.");
-
-  logger.info("Seeding product categories...");
-  const productModule = container.resolve(Modules.PRODUCT);
-
-  // Departments (roots) and their sub-categories; array order sets nav `rank`.
-  const CATEGORY_TREE: Record<string, string[]> = {
-    Sandals: ["Slides", "Flip Flops", "Clogs"],
-    Sneakers: ["Low Top", "High Top", "Retro"],
-    Boots: ["Chelsea Boots", "Winter Boots", "Work Boots"],
-    Sport: ["Football", "Running", "Basketball"],
-    Accessories: ["Bags", "Headwear", "Wallets"],
-  };
-  const parentNames = Object.keys(CATEGORY_TREE);
-  const childNames = Object.values(CATEGORY_TREE).flat();
-
-  const existingCats = await productModule.listProductCategories({
-    name: [...parentNames, ...childNames],
-  });
-  const catByName = new Map(existingCats.map((c) => [c.name, c]));
-
-  const missingParents = parentNames.filter((name) => !catByName.has(name));
-  if (missingParents.length) {
-    const { result } = await createProductCategoriesWorkflow(container).run({
-      input: {
-        product_categories: missingParents.map((name) => ({
-          name,
-          is_active: true,
-          rank: parentNames.indexOf(name),
-        })),
-      },
-    });
-    result.forEach((c) => catByName.set(c.name, c));
-  }
-
-  const childInputs: {
-    name: string;
-    is_active: boolean;
-    rank: number;
-    parent_category_id: string;
-  }[] = [];
-  for (const parent of parentNames) {
-    CATEGORY_TREE[parent].forEach((childName, rank) => {
-      if (!catByName.has(childName)) {
-        childInputs.push({
-          name: childName,
-          is_active: true,
-          rank,
-          parent_category_id: catByName.get(parent)!.id,
-        });
-      }
-    });
-  }
-  if (childInputs.length) {
-    const { result } = await createProductCategoriesWorkflow(container).run({
-      input: { product_categories: childInputs },
-    });
-    result.forEach((c) => catByName.set(c.name, c));
-  }
-  logger.info("Finished seeding product categories.");
-
-  // Global product attributes (Mercur product-attribute module). Each is a
-  // multi_select variant axis so it maps to a native Medusa product option and
-  // powers `/store/products` filtering via `variants.options`. Products restrict
-  // Color/Condition to a single value each, so variant count stays size-driven.
-  logger.info("Seeding global product attributes...");
-
-  const FOOTWEAR_SIZES = ["40", "41", "42", "43", "44", "45"];
-  const COLOR_VALUES = [
-    "Black",
-    "White",
-    "Grey",
-    "Brown",
-    "Beige",
-    "Green",
-    "Blue",
-    "Red",
-    "Yellow",
-    "Orange",
-    "Purple",
-    "Pink",
-    "Multicolor",
-  ];
-  const CONDITION_VALUES = ["New", "Like New", "Used"];
-
-  const ATTRIBUTE_DEFS = [
-    { name: "Size", handle: "size", values: FOOTWEAR_SIZES },
-    { name: "Color", handle: "color", values: COLOR_VALUES },
-    { name: "Condition", handle: "condition", values: CONDITION_VALUES },
-  ];
-
-  type SeededAttribute = {
-    id: string;
-    handle: string;
-    values: { id: string; name: string }[];
-  };
-
-  const loadAttributes = async () => {
-    const { data } = await query.graph({
-      entity: "product_attribute",
-      fields: ["id", "handle", "values.id", "values.name"],
-      filters: {
-        handle: ATTRIBUTE_DEFS.map((a) => a.handle),
-        product_id: null,
-      },
-    });
-    return new Map(
-      (data as SeededAttribute[]).map((a) => [a.handle, a])
-    );
-  };
-
-  let attrByHandle = await loadAttributes();
-  const missingAttrs = ATTRIBUTE_DEFS.filter((a) => !attrByHandle.has(a.handle));
-
-  if (missingAttrs.length) {
-    await createProductAttributesWorkflow(container).run({
-      input: {
-        attributes: missingAttrs.map((attr, index) => ({
-          name: attr.name,
-          handle: attr.handle,
-          type: AttributeType.MULTI_SELECT,
-          is_variant_axis: true,
-          is_filterable: true,
-          rank: index,
-          values: attr.values.map((name, rank) => ({ name, rank })),
-        })),
-      },
-    });
-    attrByHandle = await loadAttributes();
-  }
-
-  const sizeAttr = attrByHandle.get("size")!;
-  const colorAttr = attrByHandle.get("color")!;
-  const conditionAttr = attrByHandle.get("condition")!;
-
-  const valueId = (attr: SeededAttribute, name: string) =>
-    attr.values.find((v) => v.name === name)?.id;
-
-  const COLOR_KEYWORDS: [string, string][] = [
-    ["black", "Black"],
-    ["white", "White"],
-    ["pearl", "White"],
-    ["cream", "Beige"],
-    ["sand", "Beige"],
-    ["beige", "Beige"],
-    ["wheat", "Beige"],
-    ["tan", "Beige"],
-    ["nubuck", "Beige"],
-    ["grey", "Grey"],
-    ["gray", "Grey"],
-    ["anthracite", "Grey"],
-    ["quarry", "Grey"],
-    ["graphite", "Grey"],
-    ["platinum", "Grey"],
-    ["brown", "Brown"],
-    ["chocolate", "Brown"],
-    ["cocoa", "Brown"],
-    ["wood", "Brown"],
-    ["hickory", "Brown"],
-    ["chestnut", "Brown"],
-    ["roast", "Brown"],
-    ["truffle", "Brown"],
-    ["olive", "Green"],
-    ["camo", "Green"],
-    ["neon", "Green"],
-    ["green", "Green"],
-    ["sapphire", "Blue"],
-    ["cobalt", "Blue"],
-    ["turquoise", "Blue"],
-    ["aurora", "Blue"],
-    ["blue", "Blue"],
-    ["maroon", "Red"],
-    ["red", "Red"],
-    ["yellow", "Yellow"],
-    ["orange", "Orange"],
-    ["purple", "Purple"],
-    ["pink", "Pink"],
-    ["multi", "Multicolor"],
-  ];
-  const mapColor = (colorway: string) => {
-    const c = colorway.toLowerCase();
-    for (const [keyword, color] of COLOR_KEYWORDS) {
-      if (c.includes(keyword)) {
-        return color;
-      }
-    }
-    return "Multicolor";
-  };
-  const conditionForIndex = (index: number) =>
-    ["New", "New", "New", "Like New", "Used"][index % 5];
-
-  logger.info("Finished seeding global product attributes.");
-
-  const SELLER_PASSWORD = "supersecret";
-  const SELLER_CONFIGS = [
-    { name: "Sole Society", email: "seller@mercur.dev", first_name: "Demo", last_name: "Seller", city: "Berlin", country_code: "DE", address_1: "Alexanderplatz 1" },
-    { name: "Kickz Corner", email: "kickz@mercur.dev", first_name: "Kai", last_name: "Corner", city: "Amsterdam", country_code: "NL", address_1: "Damrak 12" },
-    { name: "Trailhead Outfitters", email: "trailhead@mercur.dev", first_name: "Tara", last_name: "Head", city: "Munich", country_code: "DE", address_1: "Marienplatz 3" },
-  ];
-  const PRIMARY_SELLER_EMAIL = SELLER_CONFIGS[0].email;
-
-  // DiceBear renders a crisp initials avatar per seller name; Picsum returns a
-  // deterministic photo for the same seed, so re-seeding is stable.
-  const sellerLogo = (name: string) =>
-    `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`;
-  const sellerBanner = (name: string) =>
-    `https://picsum.photos/seed/${toHandle(name)}/1200/320`;
-
-  const { data: existingSellers } = await query.graph({
-    entity: "seller",
-    fields: ["id"],
-    filters: { email: PRIMARY_SELLER_EMAIL },
-  });
-
-  if (existingSellers[0]) {
-    logger.info(
-      "Demo sellers already exist, skipping seller, product and offer seeding."
-    );
-    logger.info("Finished seeding.");
-    return;
-  }
-
-  const authModuleService = container.resolve(Modules.AUTH);
-
-  // One marketplace-wide shipping profile shared by every seller's shipping
-  // options and every offer. createOffersWorkflow links each offer's product to
-  // this profile, so the cart-refresh orphan-cleanup keeps per-seller shipping
-  // methods (it matches option profile against the product's profile).
-  let sharedShippingProfileId: string;
-  const { data: existingProfiles } = await query.graph({
-    entity: "shipping_profile",
-    fields: ["id"],
-    filters: { name: "Marketplace Shipping" },
-  });
-  if (existingProfiles[0]) {
-    sharedShippingProfileId = existingProfiles[0].id as string;
-  } else {
-    const {
-      result: [createdProfile],
-    } = await createShippingProfilesWorkflow(container).run({
-      input: { data: [{ name: "Marketplace Shipping", type: "default" }] },
-    });
-    sharedShippingProfileId = createdProfile.id;
-  }
-
-  type SeededSeller = {
-    id: string;
-    name: string;
-    memberId: string;
-    stockLocationId: string;
-    shippingProfileId: string;
-  };
-  const sellers: SeededSeller[] = [];
-
-  for (const [index, sellerConfig] of SELLER_CONFIGS.entries()) {
-    logger.info(`Seeding seller "${sellerConfig.name}"...`);
-
-    let authIdentityId: string;
-    const registerResponse = await authModuleService.register("emailpass", {
-      body: { email: sellerConfig.email, password: SELLER_PASSWORD },
-    });
-
-    if (registerResponse.success && registerResponse.authIdentity) {
-      authIdentityId = registerResponse.authIdentity.id;
-    } else {
-      const [providerIdentity] =
-        await authModuleService.listProviderIdentities({
-          entity_id: sellerConfig.email,
-          provider: "emailpass",
-        });
-      authIdentityId = providerIdentity.auth_identity_id!;
-    }
-
-    const { result: seller } = await createSellerAccountWorkflow(
-      container
-    ).run({
-      input: {
-        auth_identity_id: authIdentityId,
-        member_email: sellerConfig.email,
-        first_name: sellerConfig.first_name,
-        last_name: sellerConfig.last_name,
-        seller: {
-          name: sellerConfig.name,
-          email: sellerConfig.email,
-          currency_code: "eur",
-          description: `${sellerConfig.name} — a demo marketplace footwear seller.`,
-          logo: sellerLogo(sellerConfig.name),
-          banner: sellerBanner(sellerConfig.name),
+  const {
+    result: [serviceZone],
+  } = await createServiceZonesWorkflow(container).run({
+    input: {
+      data: [
+        {
+          fulfillment_set_id: locationWithSet.fulfillment_sets![0]!.id,
+          name: `${config.name} Nigeria`,
+          geo_zones: SEED_REGION.countries.map((country_code) => ({ country_code, type: "country" as const })),
         },
-      },
-    });
-
-    await approveSellerWorkflow(container).run({
-      input: { seller_id: seller.id },
-    });
-
-  const { data: members } = await query.graph({
-      entity: "member",
-      fields: ["id"],
-      filters: { email: sellerConfig.email },
-    });
-    const memberId = members[0].id;
-
-    const { result: stockLocations } =
-      await createSellerStockLocationsWorkflow(container).run({
-        input: {
-          seller_id: seller.id,
-          locations: [
-            {
-              name: `${sellerConfig.name} Warehouse`,
-              address: {
-                city: sellerConfig.city,
-                country_code: sellerConfig.country_code,
-                address_1: sellerConfig.address_1,
-              },
-            },
+      ],
+    },
+  });
+  await createSellerShippingOptionsWorkflow(container).run({
+    input: {
+      seller_id: sellerId,
+      shipping_options: [
+        {
+          name: "Standard delivery",
+          price_type: "flat",
+          provider_id: "manual_manual",
+          service_zone_id: serviceZone.id,
+          shipping_profile_id: shippingProfileId,
+          type: { label: "Standard", description: "Delivered in 1-3 days.", code: "standard" },
+          prices: [{ currency_code: SEED_REGION.currency_code, amount: SEED_DELIVERY_FEE }],
+          rules: [
+            { attribute: "enabled_in_store", value: "true", operator: "eq" },
+            { attribute: "is_return", value: "false", operator: "eq" },
           ],
         },
-      });
-    const stockLocation = stockLocations[0];
+      ],
+    },
+  });
 
-    await link.create({
-      [Modules.STOCK_LOCATION]: { stock_location_id: stockLocation.id },
-      [Modules.FULFILLMENT]: { fulfillment_provider_id: "manual_manual" },
-    });
+  return { id: sellerId, config, ownerMemberId, stockLocationId: location.id };
+}
 
-    await linkSalesChannelsToStockLocationWorkflow(container).run({
-      input: {
-        id: stockLocation.id,
-        add: [defaultSalesChannel[0].id],
-      },
-    });
+type SeededProduct = { id: string; handle: string; variants: { id: string; sku: string }[] };
 
-    if (index === 0) {
-      await updateStoresWorkflow(container).run({
-        input: {
-          selector: { id: store.id },
-          update: {
-            default_location_id: stockLocation.id,
-          },
-        },
-      });
-    }
-
-    await createLocationFulfillmentSetWorkflow(container).run({
-      input: {
-        location_id: stockLocation.id,
-        fulfillment_set_data: {
-          name: `${sellerConfig.name} delivery`,
-          type: "shipping",
-        },
-      },
-    });
-
-    const {
-      data: [locationWithSet],
-    } = await query.graph({
-      entity: "stock_location",
-      fields: ["id", "fulfillment_sets.id"],
-      filters: { id: stockLocation.id },
-    });
-    const fulfillmentSetId = locationWithSet?.fulfillment_sets?.[0]?.id;
-    if (!fulfillmentSetId) {
-      throw new Error(
-        `Fulfillment set was not created for seller "${sellerConfig.name}"`
-      );
-    }
-
-    const { result: serviceZones } = await createServiceZonesWorkflow(
-      container
-    ).run({
-      input: {
-        data: [
-          {
-            fulfillment_set_id: fulfillmentSetId,
-            name: `${sellerConfig.name} Europe`,
-            geo_zones: countries.map((country_code) => ({
-              country_code,
-              type: "country" as const,
-            })),
-          },
-        ],
-      },
-    });
-    const serviceZoneId = serviceZones[0].id;
-
-    const shippingProfileId = sharedShippingProfileId;
-
-    await createSellerShippingOptionsWorkflow(container).run({
-      input: {
-        seller_id: seller.id,
-        shipping_options: [
-          {
-            name: "Standard Shipping",
-            price_type: "flat",
-            provider_id: "manual_manual",
-            service_zone_id: serviceZoneId,
-            shipping_profile_id: shippingProfileId,
-            type: {
-              label: "Standard",
-              description: "Ship in 2-3 days.",
-              code: "standard",
-            },
-            prices: [
-              { currency_code: "usd", amount: 10 },
-              { currency_code: "eur", amount: 10 },
-              { region_id: region.id, amount: 10 },
-            ],
-            rules: [
-              { attribute: "enabled_in_store", value: "true", operator: "eq" },
-              { attribute: "is_return", value: "false", operator: "eq" },
-            ],
-          },
-          {
-            name: "Express Shipping",
-            price_type: "flat",
-            provider_id: "manual_manual",
-            service_zone_id: serviceZoneId,
-            shipping_profile_id: shippingProfileId,
-            type: {
-              label: "Express",
-              description: "Ship in 24 hours.",
-              code: "express",
-            },
-            prices: [
-              { currency_code: "usd", amount: 10 },
-              { currency_code: "eur", amount: 10 },
-              { region_id: region.id, amount: 10 },
-            ],
-            rules: [
-              { attribute: "enabled_in_store", value: "true", operator: "eq" },
-              { attribute: "is_return", value: "false", operator: "eq" },
-            ],
-          },
-        ],
-      },
-    });
-
-    sellers.push({
-      id: seller.id,
-      name: sellerConfig.name,
-      memberId,
-      stockLocationId: stockLocation.id,
-      shippingProfileId,
-    });
-    logger.info(`Finished seeding seller "${sellerConfig.name}".`);
+async function seedProducts(
+  container: MedusaContainer,
+  ctx: {
+    createdBy: string;
+    salesChannelId: string;
+    categoryIds: Map<string, string>;
+    sizeAttribute: SizeAttribute;
   }
-
-  const primarySeller = sellers[0];
-  logger.info(`Finished seeding ${sellers.length} sellers.`);
-
-  logger.info("Seeding product data...");
-
-  const catalog = seedCatalog;
-
-  const slugify = (value: string) =>
-    value
-      .toLowerCase()
-      .replace(/'/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
-
-  const usedHandles = new Set<string>();
-  const uniqueHandle = (title: string) => {
-    const base = slugify(title);
-    let handle = base;
-    let n = 2;
-    while (usedHandles.has(handle)) {
-      handle = `${base}-${n++}`;
-    }
-    usedHandles.add(handle);
-    return handle;
+): Promise<Map<string, SeededProduct>> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const handles = SEED_PRODUCTS.map((p) => toHandle(p.title));
+  const load = async () => {
+    const { data } = await query.graph({
+      entity: "product",
+      fields: ["id", "handle", "variants.id", "variants.sku"],
+      filters: { handle: handles },
+    });
+    return new Map((data as SeededProduct[]).map((p) => [p.handle, p]));
   };
 
-  const childCursor: Record<string, number> = {};
-  const nextChildId = (parent: string) => {
-    const children = CATEGORY_TREE[parent];
-    const i = (childCursor[parent] ?? 0) % children.length;
-    childCursor[parent] = i + 1;
-    return catByName.get(children[i])!.id;
-  };
+  const existing = await load();
+  const missing = SEED_PRODUCTS.filter((p) => !existing.has(toHandle(p.title)));
+  if (!missing.length) return existing;
 
-  const products: CreateProductDTO[] = catalog.map((item, index) => {
-    const handle = uniqueHandle(item.title);
-    const skuBase = handle.toUpperCase().replace(/-/g, "");
-    const images = item.images.map((url) => ({ url }));
-
-    const color = mapColor(item.colorway);
-    const condition = conditionForIndex(index);
-
-    const attributes = [
-      ...(item.footwear
-        ? [
-            {
-              id: sizeAttr.id,
-              value_ids: FOOTWEAR_SIZES.map((size) =>
-                valueId(sizeAttr, size)
-              ).filter((id): id is string => Boolean(id)),
-            },
-          ]
-        : []),
-      {
-        id: colorAttr.id,
-        value_ids: [valueId(colorAttr, color)].filter(
-          (id): id is string => Boolean(id)
-        ),
-      },
-      {
-        id: conditionAttr.id,
-        value_ids: [valueId(conditionAttr, condition)].filter(
-          (id): id is string => Boolean(id)
-        ),
-      },
-    ];
-
-    const variants = item.footwear
-      ? FOOTWEAR_SIZES.map((size) => ({
-          title: `EU ${size}`,
-          sku: `${skuBase}-EU${size}`,
-          options: { Size: size, Color: color, Condition: condition },
-        }))
-      : [
-          {
-            title: "One Size",
-            sku: `${skuBase}-OS`,
-            options: { Color: color, Condition: condition },
-          },
-        ];
-
+  const products: CreateProductDTO[] = missing.map((item) => {
+    const handle = toHandle(item.title);
+    const sku = handle.toUpperCase();
+    const image = seedImageUrl(item.title);
     return {
       title: item.title,
-      category_ids: [nextChildId(item.category)],
-      description: item.description,
       handle,
-      weight: item.footwear ? 1200 : 400,
+      description: item.description,
       status: ProductStatus.PUBLISHED,
-      thumbnail: images[0].url,
-      images,
-      attributes,
-      variants,
+      category_ids: [ctx.categoryIds.get(item.category)!],
+      sales_channels: [{ id: ctx.salesChannelId }],
+      weight: item.weight_grams,
+      thumbnail: image,
+      images: [{ url: image }],
+      attributes: item.sized
+        ? [{ id: ctx.sizeAttribute.id, value_ids: ctx.sizeAttribute.values.map((v) => v.id) }]
+        : [],
+      variants: item.sized
+        ? SEED_SIZES.map((size) => ({
+            title: size,
+            sku: `${sku}-${size}`,
+            weight: item.weight_grams,
+            options: { Size: size },
+          }))
+        : [{ title: item.title, sku, weight: item.weight_grams }],
     };
   });
 
   await createProductsWorkflow(container).run({
-    input: {
-      created_by: primarySeller.memberId,
-      products,
-    },
+    input: { created_by: ctx.createdBy, products },
   });
-  logger.info(`Finished seeding ${products.length} products.`);
+  return load();
+}
 
-  logger.info("Creating randomized offers across sellers...");
+// Each shop offers every product in its department, plus the products that list
+// it in `also_at`, each at that shop's own price.
+async function seedOffers(
+  container: MedusaContainer,
+  sellers: SeededSeller[],
+  productsByHandle: Map<string, SeededProduct>,
+  shippingProfileId: string
+): Promise<number> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const wanted: CreateOfferDTO[] = [];
 
-  // Deterministic PRNG (mulberry32) so re-seeding produces the same spread.
-  let rngState = 0x9e3779b9;
-  const rand = () => {
-    rngState = (rngState + 0x6d2b79f5) | 0;
-    let t = rngState;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-  const randInt = (min: number, max: number) =>
-    min + Math.floor(rand() * (max - min + 1));
-
-  const priceByHandle = new Map(
-    products.map((product, index) => [product.handle, catalog[index].price])
-  );
-  const { data: seededProducts } = await query.graph({
-    entity: "product",
-    fields: ["id", "handle", "variants.id", "variants.sku"],
-    filters: {
-      handle: products
-        .map((product) => product.handle)
-        .filter((handle): handle is string => Boolean(handle)),
-    },
-  });
-
-  const offers: CreateOfferDTO[] = [];
-
-  for (const product of seededProducts) {
-    const basePrice = priceByHandle.get(product.handle) ?? 50;
-
-    // At least one seller always carries the product; the rest are random.
-    const shuffledSellers = [...sellers].sort(() => rand() - 0.5);
-    const participantCount = randInt(1, sellers.length);
-    const participants = shuffledSellers.slice(0, participantCount);
-
-    for (const seller of participants) {
-      for (const variant of product.variants as {
-        id: string;
-        sku: string | null;
-      }[]) {
-        const offerCount = randInt(1, 2);
-        for (let o = 0; o < offerCount; o++) {
-          const jitter = 1 + (rand() * 0.3 - 0.15); // ±15%
-          const eur = Math.max(1, Math.round(basePrice * jitter));
-          const usd = Math.round(eur * 1.08);
-          const sku = `OFFER-${seller.id.slice(-4)}-${variant.sku}-${o + 1}`;
-          offers.push({
-            seller_id: seller.id,
-            created_by: seller.memberId,
-            sku,
-            variant_id: variant.id,
-            shipping_profile_id: seller.shippingProfileId,
-            inventory_items: [
-              {
-                sku,
-                stock_levels: [
-                  {
-                    location_id: seller.stockLocationId,
-                    stocked_quantity: 1000000,
-                  },
-                ],
-              },
-            ],
-            prices: [
-              { amount: eur, currency_code: "eur" },
-              { amount: usd, currency_code: "usd" },
-            ],
-          });
-        }
+  for (const seller of sellers) {
+    const shopCode = toHandle(seller.config.name).toUpperCase();
+    const range = SEED_PRODUCTS.flatMap((item) => {
+      if (item.department === seller.config.department) return [{ item, price: item.price }];
+      const extra = item.also_at?.find((a) => a.shop === seller.config.name);
+      return extra ? [{ item, price: extra.price }] : [];
+    });
+    for (const { item, price } of range) {
+      const product = productsByHandle.get(toHandle(item.title))!;
+      for (const variant of product.variants) {
+        const sku = `${shopCode}-${variant.sku}`;
+        wanted.push({
+          seller_id: seller.id,
+          created_by: seller.ownerMemberId,
+          sku,
+          variant_id: variant.id,
+          shipping_profile_id: shippingProfileId,
+          inventory_items: [
+            { sku, stock_levels: [{ location_id: seller.stockLocationId, stocked_quantity: 50 }] },
+          ],
+          prices: [{ amount: price, currency_code: SEED_REGION.currency_code }],
+        });
       }
     }
   }
 
-  await createOffersWorkflow(container).run({ input: { offers } });
-  logger.info(
-    `Finished creating ${offers.length} offers across ${sellers.length} sellers.`
-  );
+  const loadOffers = async () => {
+    const { data } = await query.graph({
+      entity: "offer",
+      fields: ["id", "sku"],
+      filters: { sku: wanted.map((o) => o.sku) },
+    });
+    return new Map((data as { id: string; sku: string }[]).map((o) => [o.sku, o.id]));
+  };
 
-  logger.info("Finished seeding.");
+  let offerIdBySku = await loadOffers();
+  const missing = wanted.filter((o) => !offerIdBySku.has(o.sku));
+  if (missing.length) {
+    await createOffersWorkflow(container).run({
+      input: { offers: missing },
+    });
+    offerIdBySku = await loadOffers();
+  }
+
+  return wanted.length;
 }
