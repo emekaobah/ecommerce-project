@@ -18,12 +18,12 @@ Private GitHub monorepo (`emekaobah/ecommerce-project`) scaffolded by `create-me
 - `apps/mobile-buyer`, `apps/mobile-vendor` — Expo, Expo Router, dev builds
 - `packages/*` — shared API client, types, design tokens/UI
 
-Visual direction: **clean retail** (white, single brand colour, neutral). Vendor app uses a high-contrast variant with large touch targets and state-coloured chips.
+Visual direction: **Monochrome** (option C on the design canvas, researched in Refero from Uber Eats' app): black and white, black full-width primary buttons with the price in the label, bold left-aligned headings, selected options outlined in black, products contained on light-grey tiles. Chosen for simplicity and because it is easy to build on later. Token roles: ink `#000000` for primary buttons and headings; **Oja blue `#0B5CFF`** only for the brand mark, active tab, links, selection outlines, quantity badges and progress (never a primary button fill); saffron `#FFC043` only for deals; tiles `#F3F3F3`, dividers `#E2E2E2`, secondary text `#545454`. Typeface Manrope. Status chips always pair a symbol and label with colour. Vendor app uses the same system at larger sizes with large touch targets and state chips.
 
 ## Buyer app
 
 - Auth: **Clerk** (`@clerk/expo`) — native Google + Apple (required by App Store 4.8) + email. Clerk is the sole customer identity; Medusa customer emailpass disabled.
-- Browse by category/seller, search, product pages with multi-seller offers.
+- Browse by category/seller, search. **Listings and product pages are shop-scoped** — a product is always shown as one shop's offer (price, delivery time, shop rating). **No cross-shop price comparison** (shops object; not in v1). The product page uses that space for summary, details, reviews and "more from this shop" suggestions.
 - Multi-seller cart; checkout picks a Shipbubble rate **per seller** (cheapest / fastest / best value, default best value).
 - Payment: backend initialises Paystack transaction (`medusa-payment-paystack`); app opens `authorization_url` in a WebView; success only after backend confirms via webhook.
 - Order history showing the parent order group → per-seller orders; live tracking.
@@ -86,13 +86,21 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 
 **C. Vendor app quick-add.** Scan barcode → if unmatched, take a photo + enter name/price → creates a proposal with a real image.
 
+### Shop-scoped listings (no price comparison)
+
+- Local shops object to side-by-side price comparison, so v1 never shows several shops' prices for the same product together.
+- Search and category results are **grouped by shop**: a shop header (name, area, rating, delivery estimate) with a row of that shop's matching products and "See all", shops ordered nearest / fastest first — never by lowest price. A product may appear under two shops, but never side by side.
+- The product page is always in a shop's context: that shop's price, compare-at, delivery estimate and rating; then summary, details (attributes), reviews, "more from this shop" and "you might also like" (same shop).
+- Mercur's store API shows the cheapest offer on a product by default; we add a shop-scoped store route (offer + product + seller) and don't use the cheapest-offer price in the buyer app.
+- Buyers can still add products from several shops to one cart; comparison is simply not surfaced.
+
 ### Rules
 
 - **Field schema:** importers accept any subset of Medusa product/variant fields plus offer fields; mapping options are generated from the schema (including category attributes). GTIN/ISBN/ASIN map to EAN/UPC (Mercur doesn't store them). Barcodes are always read as text; prices like "₦1,500" parsed.
 - **Minimum to create a row:** barcode or title + selling price. **Minimum to publish:** title, selling price, ≥1 image, category, weight, required category attributes — enforced **server-side**. Vendors/admin see a completeness score and missing-field list.
 - **Enrichment order** (per field, lower sources only fill empty fields, provenance recorded): supplied data → existing catalogue → Open Food Facts / Open Beauty Facts / Open Products Facts (ODbL / CC-BY-SA, attribution shown) → AI draft (Claude vision; flagged for review). Sources are pluggable. **Go-UPC not in v1** (ToS forbids making data public and grants no image rights); slot kept, written permission worth pursuing if rich fields matter.
 - **Approval:** offers on existing products publish immediately. New products need admin approval; OFF matches with image + category may auto-approve; AI drafts always need a human.
-- **Images:** only stored in R2 with source recorded; never hotlinked.
+- **Images:** only stored in R2 with source recorded; never hotlinked. Product photos are shown **contained on a neutral tile** (not full-bleed), so the pipeline removes backgrounds (on-device/server segmentation) and the approval queue includes a quick image check (accept cut-out, re-crop, or request a clean pack shot) — segmentation can keep hands holding a product. Quick-add asks staff to photograph products on a flat surface, not in hand.
 - **Extra fields** (care instructions, voltage, fabric…) are Mercur category attributes, starting with a small set for grocery, fashion, electronics.
 - **Units:** weight in grams, dimensions in cm; importer parses "1.5kg", "30cm"; Shipbubble provider converts to kg.
 - **Compare-at price** stored on the offer (`compare_at_amount` > selling price), not variant price lists (which are variant-scoped, not per seller).
@@ -138,7 +146,7 @@ Target: independent per-country markets. Cross-border purchasing is out of scope
 ### Design pass (in parallel with the skeleton)
 
 One Claude Design canvas artifact, "Oja — App Design":
-visual direction (tokens + core components, clean-retail and high-contrast vendor variant), buyer screen map, vendor screen map, lo-fi flows (checkout, fulfilment, quick-add), and five hi-fi anchor screens (buyer home, product page, checkout; vendor order list, picking). Code (`packages/ui`) is the design system's source of truth.
+visual direction (tokens + core components, monochrome and vendor sizing), buyer screen map, vendor screen map, lo-fi flows (checkout, fulfilment, quick-add), and five hi-fi anchor screens (buyer home, product page, checkout; vendor order list, picking). Code (`packages/ui`) is the design system's source of truth.
 
 ### Vertical slices
 
@@ -168,7 +176,7 @@ Sentry/PostHog, seed data and demo polish ride along with the slices that need t
 
 ## Out of scope (v1)
 
-Returns, Shipbubble COD, own-rider delivery, vendor mode in buyer app, seller follows, phone OTP login, cross-border purchasing.
+Returns, Shipbubble COD, own-rider delivery, cross-shop price comparison, vendor mode in buyer app, seller follows, phone OTP login, cross-border purchasing.
 
 ## Accounts needed
 
