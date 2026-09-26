@@ -28,6 +28,7 @@ Visual direction: **Monochrome** (option C on the design canvas, researched in R
 - Payment: backend initialises Paystack transaction (`medusa-payment-paystack`); app opens `authorization_url` in a WebView; success only after backend confirms via webhook.
 - Order history showing the parent order group → per-seller orders; live tracking.
 - Saved addresses, public reviews + ratings, product wishlist, promo codes.
+- **Address entry** (ADR 0002): Google autocomplete or "use my current location" pre-fills the per-country form, then the buyer confirms a map pin; the pin's coordinates are validated with Shipbubble. Optional "Landmark / directions for the rider" field. Lookups go through the backend (`AddressLookupProvider`), signed-in only.
 
 ## Vendor app (fulfilment only)
 
@@ -61,7 +62,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 2. **Accept/reject module** — `POST /vendor/orders/:id/accept|reject`; scheduled job auto-rejects + refunds orders not accepted within **24h**.
 3. **Paystack payout provider** (`IPayoutProvider`) — Paystack Transfers after delivery. Flat **10%** commission; platform absorbs Paystack fees. Payout amounts computed explicitly: seller promotions borne by seller, platform promotions borne by marketplace.
 4. **Shipbubble fulfillment provider** — address validation, per-seller calculated rates, label on fulfilment, cancel, HMAC-SHA512-verified webhooks → state updates. Labels paid from the platform's Shipbubble wallet.
-5. **Vendor onboarding gates** — Shipbubble-validated pickup address + Paystack-resolved bank account (transfer recipient); offers hidden until both complete. Web vendor panel extensions.
+5. **Vendor onboarding gates** — Shipbubble-validated pickup address (Google autocomplete + map pin, ADR 0002) + Paystack-resolved bank account (transfer recipient); offers hidden until both complete. Web vendor panel extensions.
 6. **Shipping attributes** — weight/dimensions/package category defaults per product category, vendor-overridable; weight required.
 7. **Clerk auth provider** — custom Medusa auth provider verifying Clerk JWT, mapping to customer auth identity.
 8. **Public review routes** — `GET /store/products/:id/reviews`, `GET /store/sellers/:id/reviews` (published only, avg rating + count).
@@ -114,7 +115,7 @@ Target: independent per-country markets. Cross-border purchasing is out of scope
 1. Everything goes through Medusa regions; no hardcoded `NGN`; apps carry `region_id`, format money via `Intl`.
 2. Sellers have a country + currency; offers visible only in regions they can serve.
 3. Payment, fulfilment and payout providers selected per region / seller country (Paystack keys per country; Shipbubble serves NG region only; payout provider routes to the right Paystack account internally, since Mercur allows one payout provider).
-4. Address forms driven by per-country config (NG: state + LGA); phone formats likewise.
+4. Address forms driven by per-country config (NG: state + LGA); phone formats likewise. Address lookup goes through a per-region `AddressLookupProvider` (Google for NG), restricted to the region's countries server-side (ADR 0002).
 5. Order states bound to a generic shipment-provider interface.
 
 ## Infrastructure

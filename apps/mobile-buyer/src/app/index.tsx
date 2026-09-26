@@ -1,10 +1,11 @@
-import { formatMoney, listStoreProducts } from '@oja/api-client';
+import { listStoreProducts } from '@oja/api-client';
+import { formatMoney } from '@oja/domain';
+import { EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { storeClient } from '@/lib/api';
@@ -12,10 +13,12 @@ import { storeClient } from '@/lib/api';
 type ProductRow = { id: string; title: string; thumbnail: string | null; price: string | null };
 
 export default function CatalogueScreen() {
+  const theme = useTheme();
   const [products, setProducts] = useState<ProductRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError(null);
     (async () => {
       // Region-aware from day one: prices come from the region's currency, never a hardcoded one.
       const { regions } = await storeClient.store.regions.query();
@@ -36,29 +39,38 @@ export default function CatalogueScreen() {
     })().catch((e: Error) => setError(e.message));
   }, []);
 
+  useEffect(load, [load]);
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ThemedText type="title" style={styles.heading}>
+        <Text variant="title" style={styles.heading}>
           Oja
-        </ThemedText>
+        </Text>
         {error ? (
-          <ThemedText>Couldn&apos;t load products: {error}</ThemedText>
+          <ErrorState title="Couldn't load products" message={error} onRetry={load} />
         ) : !products ? (
-          <ActivityIndicator />
+          <LoadingState />
         ) : (
           <FlatList
             data={products}
             keyExtractor={(p) => p.id}
-            contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.three, gap: Spacing.three }}
+            contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.three }}
+            ListEmptyComponent={<EmptyState title="No products yet" message="Check back soon." />}
             renderItem={({ item }) => (
-              <ThemedView type="backgroundElement" style={styles.row}>
-                {item.thumbnail ? <Image source={item.thumbnail} style={styles.thumb} /> : null}
-                <ThemedView style={styles.rowText} type="backgroundElement">
-                  <ThemedText type="smallBold">{item.title}</ThemedText>
-                  {item.price ? <ThemedText type="small">{item.price}</ThemedText> : null}
-                </ThemedView>
-              </ThemedView>
+              <ListRow
+                title={item.title}
+                subtitle={item.price ?? undefined}
+                leading={
+                  item.thumbnail ? (
+                    <Image
+                      source={item.thumbnail}
+                      contentFit="contain"
+                      style={[styles.thumb, { backgroundColor: theme.colors.surface, borderRadius: theme.radius.sm }]}
+                    />
+                  ) : null
+                }
+              />
             )}
           />
         )}
@@ -71,7 +83,5 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1, paddingHorizontal: Spacing.four, gap: Spacing.three },
   heading: { marginTop: Spacing.three },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.two, borderRadius: Spacing.three },
-  thumb: { width: 64, height: 64, borderRadius: Spacing.two },
-  rowText: { flex: 1, gap: Spacing.one },
+  thumb: { width: 64, height: 64 },
 });

@@ -8,34 +8,83 @@ export type OjaClient = TypedClient<Routes>
 
 export { ClientError }
 
+type Awaitable<T> = T | Promise<T>
+/** Reads a value at request time; null or undefined means "don't send it". */
+export type Getter = () => Awaitable<string | null | undefined>
+
+type DynamicClientConfig = {
+  baseUrl: string
+  /** Resolved before every request. */
+  headers: () => Promise<Record<string, string>>
+  /** Called when a request is rejected with 401, before the error is rethrown. */
+  onUnauthorized?: () => void
+}
+
+/**
+ * A client whose headers are resolved per request. `@mercurjs/client` fixes headers
+ * when it is created, so each call builds a throwaway client with the current ones.
+ */
+function createDynamicClient({ baseUrl, headers, onUnauthorized }: DynamicClientConfig): OjaClient {
+  const call = async (path: string[], args: unknown[]) => {
+    let target: any = createClient({ baseUrl, fetchOptions: { headers: await headers() } })
+    for (const segment of path) target = target[segment]
+    try {
+      return await target(...args)
+    } catch (error) {
+      if (error instanceof ClientError && error.status === 401) onUnauthorized?.()
+      throw error
+    }
+  }
+  const proxy = (path: string[]): unknown =>
+    new Proxy(() => {}, {
+      // Not thenable, so a client path is never mistaken for a promise.
+      get: (_, prop) => (typeof prop !== "string" || prop === "then" ? undefined : proxy([...path, prop])),
+      apply: (_, __, args) => call(path, args),
+    })
+  return proxy([]) as OjaClient
+}
+
+async function bearer(getToken: Getter | undefined): Promise<Record<string, string>> {
+  const token = await getToken?.()
+  return token ? { authorization: `Bearer ${token}` } : {}
+}
+
 export type StoreClientConfig = {
   baseUrl: string
   /** Store API requests are scoped to a sales channel by a publishable key. */
   publishableKey: string
+  /** Customer session token (Clerk); guests return null. */
+  getToken?: Getter
 }
 
-/** Client for the buyer app: Store API, authenticated by publishable key (and later a customer token). */
-export function createStoreClient({ baseUrl, publishableKey }: StoreClientConfig): OjaClient {
-  return createClient({
+/** Client for the buyer app: Store API, by publishable key plus the customer's token when signed in. */
+export function createStoreClient({ baseUrl, publishableKey, getToken }: StoreClientConfig): OjaClient {
+  return createDynamicClient({
     baseUrl,
-    fetchOptions: { headers: { "x-publishable-api-key": publishableKey } },
+    headers: async () => ({ "x-publishable-api-key": publishableKey, ...(await bearer(getToken)) }),
   })
 }
 
 export type VendorClientConfig = {
   baseUrl: string
   /** Member JWT from `loginMember`. */
-  token?: string
+  getToken?: Getter
   /** Seller the member is acting for; required by every seller-scoped vendor route. */
-  sellerId?: string
+  getSellerId?: Getter
+  /** The member's session is no longer valid; the app signs them out. */
+  onUnauthorized?: () => void
 }
 
 /** Client for the vendor app: Vendor API, authenticated as a seller member. */
-export function createVendorClient({ baseUrl, token, sellerId }: VendorClientConfig): OjaClient {
-  const headers: Record<string, string> = {}
-  if (token) headers.authorization = `Bearer ${token}`
-  if (sellerId) headers["x-seller-id"] = sellerId
-  return createClient({ baseUrl, fetchOptions: { headers } })
+export function createVendorClient({ baseUrl, getToken, getSellerId, onUnauthorized }: VendorClientConfig): OjaClient {
+  return createDynamicClient({
+    baseUrl,
+    onUnauthorized,
+    headers: async () => {
+      const sellerId = await getSellerId?.()
+      return { ...(await bearer(getToken)), ...(sellerId ? { "x-seller-id": sellerId } : {}) }
+    },
+  })
 }
 
 /** Exchange member email/password for a JWT. */
@@ -53,17 +102,6 @@ export async function loginMember(
     throw new ClientError("Login did not return a token")
   }
   return result.token
-}
-
-/**
- * Formats a Medusa amount (major units, e.g. 1500 = ₦1,500) for display.
- * Currency always comes from the region/order — never hardcoded.
- */
-export function formatMoney(amount: number, currencyCode: string, locale?: string): string {
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: currencyCode.toUpperCase(),
-  }).format(amount)
 }
 
 /**
