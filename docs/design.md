@@ -23,7 +23,7 @@ Visual direction: **clean retail** (white, single brand colour, neutral). Vendor
 ## Buyer app
 
 - Auth: **Clerk** (`@clerk/expo`) — native Google + Apple (required by App Store 4.8) + email. Clerk is the sole customer identity; Medusa customer emailpass disabled.
-- Browse by category/seller, search, product pages with multi-seller offers.
+- Browse by category/seller, search. **Listings and product pages are shop-scoped** — a product is always shown as one shop's offer (price, delivery time, shop rating). **No cross-shop price comparison** (shops object; not in v1). The product page uses that space for summary, details, reviews and "more from this shop" suggestions.
 - Multi-seller cart; checkout picks a Shipbubble rate **per seller** (cheapest / fastest / best value, default best value).
 - Payment: backend initialises Paystack transaction (`medusa-payment-paystack`); app opens `authorization_url` in a WebView; success only after backend confirms via webhook.
 - Order history showing the parent order group → per-seller orders; live tracking.
@@ -86,13 +86,21 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 
 **C. Vendor app quick-add.** Scan barcode → if unmatched, take a photo + enter name/price → creates a proposal with a real image.
 
+### Shop-scoped listings (no price comparison)
+
+- Local shops object to side-by-side price comparison, so v1 never shows several shops' prices for the same product together.
+- Search and category results list **offers** (product × shop), ordered by relevance then nearest / fastest delivery — not by lowest price. Each result names its shop.
+- The product page is always in a shop's context: that shop's price, compare-at, delivery estimate and rating; then summary, details (attributes), reviews, "more from this shop" and "you might also like" (same shop).
+- Mercur's store API shows the cheapest offer on a product by default; we add a shop-scoped store route (offer + product + seller) and don't use the cheapest-offer price in the buyer app.
+- Buyers can still add products from several shops to one cart; comparison is simply not surfaced.
+
 ### Rules
 
 - **Field schema:** importers accept any subset of Medusa product/variant fields plus offer fields; mapping options are generated from the schema (including category attributes). GTIN/ISBN/ASIN map to EAN/UPC (Mercur doesn't store them). Barcodes are always read as text; prices like "₦1,500" parsed.
 - **Minimum to create a row:** barcode or title + selling price. **Minimum to publish:** title, selling price, ≥1 image, category, weight, required category attributes — enforced **server-side**. Vendors/admin see a completeness score and missing-field list.
 - **Enrichment order** (per field, lower sources only fill empty fields, provenance recorded): supplied data → existing catalogue → Open Food Facts / Open Beauty Facts / Open Products Facts (ODbL / CC-BY-SA, attribution shown) → AI draft (Claude vision; flagged for review). Sources are pluggable. **Go-UPC not in v1** (ToS forbids making data public and grants no image rights); slot kept, written permission worth pursuing if rich fields matter.
 - **Approval:** offers on existing products publish immediately. New products need admin approval; OFF matches with image + category may auto-approve; AI drafts always need a human.
-- **Images:** only stored in R2 with source recorded; never hotlinked.
+- **Images:** only stored in R2 with source recorded; never hotlinked. Product photos are shown **contained on a neutral tile** (not full-bleed), so the pipeline removes backgrounds (on-device/server segmentation) and the approval queue includes a quick image check (accept cut-out, re-crop, or request a clean pack shot) — segmentation can keep hands holding a product. Quick-add asks staff to photograph products on a flat surface, not in hand.
 - **Extra fields** (care instructions, voltage, fabric…) are Mercur category attributes, starting with a small set for grocery, fashion, electronics.
 - **Units:** weight in grams, dimensions in cm; importer parses "1.5kg", "30cm"; Shipbubble provider converts to kg.
 - **Compare-at price** stored on the offer (`compare_at_amount` > selling price), not variant price lists (which are variant-scoped, not per seller).
@@ -168,7 +176,7 @@ Sentry/PostHog, seed data and demo polish ride along with the slices that need t
 
 ## Out of scope (v1)
 
-Returns, Shipbubble COD, own-rider delivery, vendor mode in buyer app, seller follows, phone OTP login, cross-border purchasing.
+Returns, Shipbubble COD, own-rider delivery, cross-shop price comparison, vendor mode in buyer app, seller follows, phone OTP login, cross-border purchasing.
 
 ## Accounts needed
 
