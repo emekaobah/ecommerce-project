@@ -1,11 +1,11 @@
 import type { MedusaResponse } from "@medusajs/framework/http"
 
-// Route → client type inference. Mirrors @mercurjs/client's `InferClient`, which
-// resolves `MedusaResponse` from its own install location; under Bun's isolated
-// installs that import is unresolvable, so every response degrades to `unknown`.
-// Resolving it here restores typed responses, and GET inputs also accept the
-// route's query fields (upstream only reads `validatedBody`). Routes whose handlers
-// don't type their response (e.g. Mercur's store products) still yield `unknown`.
+// Route → client type inference. Mirrors @mercurjs/client's `InferClient`, but GET
+// inputs accept the route's query fields (e.g. `region_id`) and are optional;
+// upstream only reads `validatedBody`, so typed query params are rejected.
+// Drop this in favour of `InferClient` once Mercur types GET queries.
+// Routes whose handlers don't type their response (e.g. Mercur's store products)
+// still yield `unknown`.
 
 type HttpMethod = "GET" | "POST" | "DELETE"
 type ChildKeys<T> = Exclude<keyof T, HttpMethod | "__esModule">
