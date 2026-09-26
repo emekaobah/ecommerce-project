@@ -1,9 +1,11 @@
 import type { MedusaResponse } from "@medusajs/framework/http"
 
-// Route → client type inference. Mirrors @mercurjs/client's `InferClient`, but GET
-// inputs accept the route's query fields (e.g. `region_id`) and are optional;
-// upstream only reads `validatedBody`, so typed query params are rejected.
-// Drop this in favour of `InferClient` once Mercur types GET queries.
+// Route → client type inference. Mirrors @mercurjs/client's `InferClient`, which
+// types inputs only from `validatedBody`. Routes that type their query via
+// `validatedQuery` (e.g. Medusa's store products, so `region_id`) reject query
+// params, and every GET requires an argument. Here GET inputs also accept query
+// fields and are optional. Drop this for `InferClient` once upstream reads
+// `validatedQuery`.
 // Routes whose handlers don't type their response (e.g. Mercur's store products)
 // still yield `unknown`.
 
