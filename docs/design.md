@@ -18,7 +18,7 @@ Private GitHub monorepo (`emekaobah/ecommerce-project`) scaffolded by `create-me
 - `apps/mobile-buyer`, `apps/mobile-vendor` — Expo, Expo Router, dev builds
 - `packages/*` — shared API client, types, design tokens/UI
 
-Visual direction: **Monochrome** (option C on the design canvas, researched in Refero from Uber Eats' app): black and white, black full-width primary buttons with the price in the label, bold left-aligned headings, selected options outlined in black, products contained on light-grey tiles. Chosen for simplicity and because it is easy to build on later. Vendor app uses the same system at larger sizes with large touch targets and state chips.
+Visual direction: **Monochrome** (option C on the design canvas, researched in Refero from Uber Eats' app): black and white, black full-width primary buttons with the price in the label, bold left-aligned headings, selected options outlined in black, products contained on light-grey tiles. Chosen for simplicity and because it is easy to build on later. Token roles: ink `#000000` for primary buttons and headings; **Oja blue `#0B5CFF`** only for the brand mark, active tab, links, selection outlines, quantity badges and progress (never a primary button fill); saffron `#FFC043` only for deals; tiles `#F3F3F3`, dividers `#E2E2E2`, secondary text `#545454`. Typeface Manrope. Status chips always pair a symbol and label with colour. Vendor app uses the same system at larger sizes with large touch targets and state chips.
 
 ## Buyer app
 
