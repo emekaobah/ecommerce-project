@@ -7,12 +7,12 @@ export function PlaceholderScreen({
   title,
   message,
   action,
-}: {
+}: Readonly<{
   title: string;
   message?: string;
   /** Leads on to the next slot, so every route is reachable before its slice lands. */
   action?: EmptyStateProps['action'];
-}) {
+}>) {
   const theme = useTheme();
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>

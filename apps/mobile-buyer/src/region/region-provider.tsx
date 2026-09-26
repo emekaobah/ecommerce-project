@@ -1,6 +1,6 @@
 import { selectRegion } from '@oja/domain';
 import { getLocales } from 'expo-localization';
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 import { useRegions, type Region } from '@/api/regions';
 
@@ -17,19 +17,22 @@ const RegionContext = createContext<RegionState | null>(null);
  * Resolves the shopping region from the backend's regions and the device's country.
  * Prices and currency always come from this region; none is hardcoded.
  */
-export function RegionProvider({ children }: { children: ReactNode }) {
+export function RegionProvider({ children }: Readonly<{ children: ReactNode }>) {
   const regions = useRegions();
   const country = getLocales()[0]?.regionCode;
   const region = regions.data ? selectRegion(regions.data, country) : undefined;
-  const error =
-    regions.error ?? (regions.data && !region ? new Error('The store has no regions set up yet.') : null);
-
-  return (
-    <RegionContext.Provider
-      value={{ region, error, retry: () => void regions.refetch() }}>
-      {children}
-    </RegionContext.Provider>
+  const { error: queryError, refetch } = regions;
+  const noRegions = !!regions.data && !region;
+  const value = useMemo<RegionState>(
+    () => ({
+      region,
+      error: queryError ?? (noRegions ? new Error('The store has no regions set up yet.') : null),
+      retry: () => void refetch(),
+    }),
+    [region, queryError, noRegions, refetch]
   );
+
+  return <RegionContext.Provider value={value}>{children}</RegionContext.Provider>;
 }
 
 export function useRegion(): RegionState {
