@@ -20,7 +20,6 @@ import {
   createSellerMembersStep,
   createSellerShippingOptionsWorkflow,
   createSellerStockLocationsWorkflow,
-  upsertCustomFieldsStep,
   upsertMembersStep,
 } from "@mercurjs/core/workflows";
 import {
@@ -89,14 +88,6 @@ const addSeedStaffMemberWorkflow = createWorkflow(
       ])
     );
     return new WorkflowResponse(member);
-  }
-);
-
-const setOfferCompareAtWorkflow = createWorkflow(
-  "oja-seed-set-offer-compare-at",
-  (input: { offers: { id: string; compare_at_amount: number }[] }) => {
-    upsertCustomFieldsStep({ alias: "offer", data: input.offers });
-    return new WorkflowResponse(undefined);
   }
 );
 
@@ -538,8 +529,8 @@ async function seedProducts(
   return load();
 }
 
-// Each shop offers every product in its department. The offer's price is the
-// selling price; `compare_at_amount` (an Offer custom field) is the "was" price.
+// Each shop offers every product in its department, plus the products that list
+// it in `also_at`, each at that shop's own price.
 async function seedOffers(
   container: MedusaContainer,
   sellers: SeededSeller[],
@@ -547,11 +538,16 @@ async function seedOffers(
   shippingProfileId: string
 ): Promise<number> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY);
-  const wanted: (CreateOfferDTO & { compare_at_amount?: number })[] = [];
+  const wanted: CreateOfferDTO[] = [];
 
   for (const seller of sellers) {
     const shopCode = toHandle(seller.config.name).toUpperCase();
-    for (const item of SEED_PRODUCTS.filter((p) => p.department === seller.config.department)) {
+    const range = SEED_PRODUCTS.flatMap((item) => {
+      if (item.department === seller.config.department) return [{ item, price: item.price }];
+      const extra = item.also_at?.find((a) => a.shop === seller.config.name);
+      return extra ? [{ item, price: extra.price }] : [];
+    });
+    for (const { item, price } of range) {
       const product = productsByHandle.get(toHandle(item.title))!;
       for (const variant of product.variants) {
         const sku = `${shopCode}-${variant.sku}`;
@@ -564,8 +560,7 @@ async function seedOffers(
           inventory_items: [
             { sku, stock_levels: [{ location_id: seller.stockLocationId, stocked_quantity: 50 }] },
           ],
-          prices: [{ amount: item.price, currency_code: SEED_REGION.currency_code }],
-          compare_at_amount: item.compare_at_amount,
+          prices: [{ amount: price, currency_code: SEED_REGION.currency_code }],
         });
       }
     }
@@ -584,18 +579,10 @@ async function seedOffers(
   const missing = wanted.filter((o) => !offerIdBySku.has(o.sku));
   if (missing.length) {
     await createOffersWorkflow(container).run({
-      input: { offers: missing.map(({ compare_at_amount: _compareAt, ...offer }) => offer) },
+      input: { offers: missing },
     });
     offerIdBySku = await loadOffers();
   }
 
-  const compareAt = wanted.flatMap((o) =>
-    o.compare_at_amount != null
-      ? [{ id: offerIdBySku.get(o.sku)!, compare_at_amount: o.compare_at_amount }]
-      : []
-  );
-  if (compareAt.length) {
-    await setOfferCompareAtWorkflow(container).run({ input: { offers: compareAt } });
-  }
   return wanted.length;
 }

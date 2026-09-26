@@ -1,4 +1,4 @@
-import { medusaIntegrationTestRunner, TestDatabaseUtils } from "@medusajs/test-utils"
+import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules, SellerRole } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
@@ -6,23 +6,9 @@ import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 
 jest.setTimeout(5 * 60 * 1000)
 
-// Mercur's custom-fields loader creates its side tables (offer_custom_fields) only
-// when the process looks like `medusa db:migrate`, against DATABASE_URL. The runner
-// migrates programmatically, so point the loader at this suite's database and flag
-// the app start as a migration. Registered before the runner's own hooks.
-const dbName = `oja-seed-integration-${Date.now()}`
-const migrateFlag = "--oja-test-db:migrate"
-beforeAll(() => {
-  process.argv.push(migrateFlag)
-})
-afterAll(() => {
-  process.argv.splice(process.argv.indexOf(migrateFlag), 1)
-})
-
 medusaIntegrationTestRunner({
   inApp: true,
-  dbName,
-  env: { CUSTOM_FIELDS_DATABASE_URL: TestDatabaseUtils.getDatabaseURL(dbName) },
+  env: {},
   testSuite: ({ api, getContainer }) => {
     describe("Oja demo seed", () => {
       const seed = () => seedDemoData({ container: getContainer(), args: [] } as any)
@@ -105,22 +91,26 @@ medusaIntegrationTestRunner({
         }
       })
 
-      it("gives some offers a compare-at price above their selling price", async () => {
+      it("sells some products at more than one shop, each at its own price", async () => {
         const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
-        const { data: offers } = await query.graph({
-          entity: "offer",
-          fields: ["id", "variant_id", "custom_fields.compare_at_amount"],
-        })
-        const discounted = offers.filter((o: any) => o.custom_fields?.compare_at_amount != null)
-        expect(discounted.length).toBeGreaterThan(0)
-        expect(discounted.length).toBeLessThan(offers.length)
+        const { data: offers } = await query.graph({ entity: "offer", fields: ["id", "variant_id", "seller_id"] })
+        const sellersByVariant = new Map<string, Set<string>>()
+        for (const offer of offers as any[]) {
+          sellersByVariant.set(offer.variant_id, (sellersByVariant.get(offer.variant_id) ?? new Set()).add(offer.seller_id))
+        }
+        const shared = [...sellersByVariant.entries()].filter(([, sellers]) => sellers.size > 1)
+        expect(shared.length).toBeGreaterThan(0)
 
         const pricing = getContainer().resolve(Modules.PRICING)
-        for (const offer of discounted as any[]) {
-          const prices = await pricing.listPrices({ price_rules: { attribute: "offer_id", value: offer.id } } as any)
-          const selling = prices.find((p: any) => p.currency_code === "ngn")
-          expect(Number(offer.custom_fields.compare_at_amount)).toBeGreaterThan(Number(selling!.amount))
-        }
+        const [variantId] = shared[0]
+        const sharedOffers = (offers as any[]).filter((o) => o.variant_id === variantId)
+        const amounts = await Promise.all(
+          sharedOffers.map(async (o) => {
+            const prices = await pricing.listPrices({ price_rules: { attribute: "offer_id", value: o.id } } as any)
+            return Number(prices[0].amount)
+          })
+        )
+        expect(new Set(amounts).size).toBe(amounts.length)
       })
 
       it("seeds a categorised catalogue with images and weights in grams", async () => {

@@ -34,7 +34,7 @@ cd apps/mobile-vendor && bunx expo start        # log in with a seeded member be
 
 ### Seed data
 
-`bun run seed` (in `packages/api`) creates a Nigeria region in NGN with 7.5% VAT (tax-inclusive prices), the buyer app's sales channel and publishable key, and three Lagos shops, each offering its department's products from a small shared catalogue. Some offers have a crossed-out compare-at price (the `compare_at_amount` custom field on the offer). Re-running it only adds what's missing. It doesn't remove data from an older seed: to start clean, `docker compose down -v && bun run db:up`, then migrate and seed again.
+`bun run seed` (in `packages/api`) creates a Nigeria region in NGN with 7.5% VAT (tax-inclusive prices), the buyer app's sales channel and publishable key, and three Lagos shops, each offering its department's products from a small shared catalogue. A few products are sold by two shops at different prices (the charger and lantern at the grocery shop, plantain chips at the gadget hub), to demo shop-grouped search and listings. Re-running it only adds what's missing. It doesn't remove data from an older seed: to start clean, `docker compose down -v && bun run db:up`, then migrate and seed again.
 
 Every seeded member's password is `supersecret`. Owners have the seller administration role; staff have order management.
 
