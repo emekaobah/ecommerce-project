@@ -1,25 +1,35 @@
-import { createVendorClient, loginMember } from '@oja/api-client';
+import { loginMember } from '@oja/api-client';
+import { Button, EmptyState, ListRow, StatusChip, type StatusTone } from '@oja/ui';
 import { useState } from 'react';
-import { ActivityIndicator, Button, FlatList, StyleSheet, TextInput } from 'react-native';
+import { FlatList, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { apiUrl } from '@/lib/api';
+import { apiUrl, setSession, vendorClient } from '@/lib/api';
 
 type Session = { sellerId: string; sellerName: string; orders: OrderRow[] };
 type OrderRow = { id: string; displayId: number; status: string; createdAt: string };
 
+// Medusa order statuses; the fulfilment state machine replaces these with its own states.
+const STATUS_TONES: Partial<Record<string, StatusTone>> = {
+  pending: 'info',
+  completed: 'success',
+  canceled: 'danger',
+  requires_action: 'warning',
+};
+
 async function signIn(email: string, password: string): Promise<Session> {
   const token = await loginMember(apiUrl, { email, password });
-  const { seller_members } = await createVendorClient({ baseUrl: apiUrl, token }).vendor.sellers.query();
+  setSession({ token });
+  const { seller_members } = await vendorClient.vendor.sellers.query();
   // A member can belong to several sellers; the shop switcher comes with the vendor app slices.
   const membership = seller_members[0];
   if (!membership) throw new Error('This account is not a member of any shop');
-  const vendor = createVendorClient({ baseUrl: apiUrl, token, sellerId: membership.seller_id });
-  const { orders } = await vendor.vendor.orders.query({ limit: 50 });
+  setSession({ token, sellerId: membership.seller_id });
+  const { orders } = await vendorClient.vendor.orders.query({ limit: 50 });
   return {
     sellerId: membership.seller_id,
     sellerName: membership.seller?.name ?? membership.seller_id,
@@ -73,7 +83,7 @@ export default function OrdersScreen() {
               onChangeText={setPassword}
             />
             {error ? <ThemedText themeColor="textSecondary">{error}</ThemedText> : null}
-            {loading ? <ActivityIndicator /> : <Button title="Sign in" onPress={onSubmit} />}
+            <Button label="Sign in" onPress={onSubmit} loading={loading} />
           </ThemedView>
         ) : (
           <>
@@ -81,13 +91,13 @@ export default function OrdersScreen() {
             <FlatList
               data={session.orders}
               keyExtractor={(o) => o.id}
-              ListEmptyComponent={<ThemedText>No orders yet.</ThemedText>}
-              contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.three, gap: Spacing.two }}
+              ListEmptyComponent={<EmptyState title="No orders yet" message="New orders show up here." />}
+              contentContainerStyle={{ paddingBottom: BottomTabInset + Spacing.three }}
               renderItem={({ item }) => (
-                <ThemedView type="backgroundElement" style={styles.row}>
-                  <ThemedText type="smallBold">#{item.displayId}</ThemedText>
-                  <ThemedText type="small">{item.status}</ThemedText>
-                </ThemedView>
+                <ListRow
+                  title={`#${item.displayId}`}
+                  trailing={<StatusChip label={item.status} tone={STATUS_TONES[item.status] ?? 'neutral'} />}
+                />
               )}
             />
           </>
@@ -102,5 +112,4 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, paddingHorizontal: Spacing.four, gap: Spacing.three, paddingTop: Spacing.three },
   form: { gap: Spacing.three, marginTop: Spacing.five },
   input: { borderWidth: 1, borderRadius: Spacing.two, padding: Spacing.three, fontSize: 16 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', padding: Spacing.three, borderRadius: Spacing.two },
 });
