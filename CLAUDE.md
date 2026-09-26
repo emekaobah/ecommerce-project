@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Oja
 
 Multi-vendor marketplace on Mercur (Medusa) with Expo buyer and vendor apps. Design: `docs/design.md`.
