@@ -18,6 +18,7 @@ const config: ExpoConfig = {
     'expo-router',
     'expo-localization',
     ['expo-splash-screen', { backgroundColor: '#FFFFFF' }],
+    './plugins/with-ios-scene-lifecycle',
   ],
   experiments: { typedRoutes: true, reactCompiler: true },
 };
