@@ -14,7 +14,7 @@ export const SEED_SALES_CHANNEL = "Oja Buyer App"
 /** Flat delivery fee per shop until Shipbubble quotes replace it. */
 export const SEED_DELIVERY_FEE = 2500
 
-type Department = "Groceries" | "Fashion" | "Electronics"
+export type Department = "Groceries" | "Fashion" | "Electronics"
 
 type SeedPerson = { email: string; first_name: string; last_name: string }
 
@@ -96,6 +96,73 @@ export const SEED_CATEGORIES: Record<Department, string[]> = {
 
 export const SEED_SIZES = ["S", "M", "L", "XL"]
 
+/**
+ * Starter category attributes (Mercur product attributes linked to a department
+ * and each of its sub-categories). Required ones gate publishing.
+ */
+export type SeedAttribute = {
+  name: string
+  handle: string
+  type: "single_select" | "text"
+  is_required: boolean
+  values?: string[]
+}
+
+export const SEED_CATEGORY_ATTRIBUTES: Record<Department, SeedAttribute[]> = {
+  Groceries: [
+    { name: "Storage", handle: "storage", type: "single_select", is_required: true, values: ["Cool, dry place", "Refrigerate", "Freeze"] },
+    { name: "Shelf life", handle: "shelf-life", type: "text", is_required: false },
+  ],
+  Fashion: [
+    {
+      name: "Fabric",
+      handle: "fabric",
+      type: "single_select",
+      is_required: true,
+      values: ["Cotton", "Adire cotton", "Ankara wax print", "Aso oke", "Linen", "Canvas", "Leather"],
+    },
+    { name: "Care instructions", handle: "care-instructions", type: "text", is_required: false },
+  ],
+  Electronics: [
+    { name: "Voltage", handle: "voltage", type: "single_select", is_required: true, values: ["5V USB", "12V DC", "220-240V AC"] },
+    { name: "Warranty", handle: "warranty", type: "single_select", is_required: false, values: ["No warranty", "3 months", "6 months", "12 months"] },
+  ],
+}
+
+/**
+ * Shipping defaults a product takes from its category when it is created without
+ * its own (values the product is created with win, and stay editable). Grams and
+ * centimetres; `package_category` is the parcel class couriers quote on.
+ */
+export type ShippingDefaults = {
+  weight: number
+  length: number
+  width: number
+  height: number
+  package_category: string
+}
+
+const DEPARTMENT_SHIPPING: Record<Department, ShippingDefaults> = {
+  Groceries: { weight: 1000, length: 30, width: 20, height: 15, package_category: "groceries" },
+  Fashion: { weight: 400, length: 35, width: 25, height: 5, package_category: "fashion" },
+  Electronics: { weight: 500, length: 20, width: 15, height: 10, package_category: "electronics" },
+}
+
+const SUBCATEGORY_SHIPPING: Record<string, Partial<ShippingDefaults>> = {
+  "Rice & Grains": { weight: 5000, length: 50, width: 35, height: 12 },
+  "Beans & Garri": { weight: 2000, length: 35, width: 25, height: 10 },
+  "Snacks & Drinks": { weight: 300, length: 25, width: 18, height: 10 },
+  "Bags & Accessories": { weight: 350, length: 40, width: 35, height: 8 },
+  "Power & Lighting": { weight: 1500, length: 35, width: 30, height: 25 },
+  Audio: { weight: 200, length: 12, width: 10, height: 6 },
+}
+
+/** Shipping defaults for a department, or for one of its sub-categories. */
+export const seedShippingDefaults = (department: Department, category: string = department): ShippingDefaults => ({
+  ...DEPARTMENT_SHIPPING[department],
+  ...SUBCATEGORY_SHIPPING[category],
+})
+
 export type SeedProduct = {
   title: string
   department: Department
@@ -111,30 +178,32 @@ export type SeedProduct = {
   weight_grams: number
   /** One variant per size (S–XL) instead of a single variant. */
   sized?: boolean
+  /** Starter attribute values by attribute handle (select values by name). */
+  attributes: Record<string, string>
 }
 
 export const SEED_PRODUCTS: SeedProduct[] = [
   // Groceries
-  { title: "Ofada Rice 5kg", department: "Groceries", category: "Rice & Grains", price: 14500, weight_grams: 5000, description: "Stone-free local ofada rice, bagged in Abeokuta." },
-  { title: "Long Grain Parboiled Rice 10kg", department: "Groceries", category: "Rice & Grains", price: 22000, weight_grams: 10000, description: "Everyday parboiled rice for jollof and fried rice." },
-  { title: "Honey Beans (Oloyin) 2kg", department: "Groceries", category: "Beans & Garri", price: 6800, weight_grams: 2000, description: "Sweet brown beans, handpicked and cleaned." },
-  { title: "Ijebu Garri 4kg", department: "Groceries", category: "Beans & Garri", price: 5200, weight_grams: 4000, description: "Crisp, sour white garri for soaking or eba." },
-  { title: "Red Palm Oil 3L", department: "Groceries", category: "Oils & Spices", price: 9500, weight_grams: 2800, description: "Unbleached red palm oil in a sealed jerrycan." },
-  { title: "Ground Crayfish 500g", department: "Groceries", category: "Oils & Spices", price: 4500, weight_grams: 500, description: "Finely ground dried crayfish for soups and stews." },
-  { title: "Dried Zobo Leaves 250g", department: "Groceries", category: "Snacks & Drinks", price: 1800, weight_grams: 250, description: "Dried hibiscus petals for homemade zobo." },
-  { title: "Plantain Chips 150g", department: "Groceries", category: "Snacks & Drinks", price: 1200, also_at: [{ shop: "Ikeja Gadget Hub", price: 1300 }], weight_grams: 150, description: "Thin-sliced, lightly salted ripe plantain chips." },
+  { title: "Ofada Rice 5kg", department: "Groceries", category: "Rice & Grains", price: 14500, weight_grams: 5000, description: "Stone-free local ofada rice, bagged in Abeokuta.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
+  { title: "Long Grain Parboiled Rice 10kg", department: "Groceries", category: "Rice & Grains", price: 22000, weight_grams: 10000, description: "Everyday parboiled rice for jollof and fried rice.", attributes: { storage: "Cool, dry place", "shelf-life": "18 months" } },
+  { title: "Honey Beans (Oloyin) 2kg", department: "Groceries", category: "Beans & Garri", price: 6800, weight_grams: 2000, description: "Sweet brown beans, handpicked and cleaned.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
+  { title: "Ijebu Garri 4kg", department: "Groceries", category: "Beans & Garri", price: 5200, weight_grams: 4000, description: "Crisp, sour white garri for soaking or eba.", attributes: { storage: "Cool, dry place", "shelf-life": "6 months" } },
+  { title: "Red Palm Oil 3L", department: "Groceries", category: "Oils & Spices", price: 9500, weight_grams: 2800, description: "Unbleached red palm oil in a sealed jerrycan.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
+  { title: "Ground Crayfish 500g", department: "Groceries", category: "Oils & Spices", price: 4500, weight_grams: 500, description: "Finely ground dried crayfish for soups and stews.", attributes: { storage: "Refrigerate", "shelf-life": "3 months once opened" } },
+  { title: "Dried Zobo Leaves 250g", department: "Groceries", category: "Snacks & Drinks", price: 1800, weight_grams: 250, description: "Dried hibiscus petals for homemade zobo.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
+  { title: "Plantain Chips 150g", department: "Groceries", category: "Snacks & Drinks", price: 1200, also_at: [{ shop: "Ikeja Gadget Hub", price: 1300 }], weight_grams: 150, description: "Thin-sliced, lightly salted ripe plantain chips.", attributes: { storage: "Cool, dry place", "shelf-life": "3 months" } },
   // Fashion
-  { title: "Adire Kaftan", department: "Fashion", category: "Men's Clothing", price: 28000, weight_grams: 450, sized: true, description: "Indigo hand-dyed adire kaftan in soft cotton." },
-  { title: "Ankara Wrap Dress", department: "Fashion", category: "Women's Clothing", price: 32000, weight_grams: 400, sized: true, description: "Midi wrap dress in a bold Ankara print." },
-  { title: "Aso Oke Fila Cap", department: "Fashion", category: "Bags & Accessories", price: 8500, weight_grams: 150, description: "Handwoven aso oke cap for owambe days." },
-  { title: "Ankara Tote Bag", department: "Fashion", category: "Bags & Accessories", price: 12000, weight_grams: 350, description: "Lined canvas tote with an Ankara print panel." },
+  { title: "Adire Kaftan", department: "Fashion", category: "Men's Clothing", price: 28000, weight_grams: 450, sized: true, description: "Indigo hand-dyed adire kaftan in soft cotton.", attributes: { fabric: "Adire cotton", "care-instructions": "Hand wash cold; dry in the shade" } },
+  { title: "Ankara Wrap Dress", department: "Fashion", category: "Women's Clothing", price: 32000, weight_grams: 400, sized: true, description: "Midi wrap dress in a bold Ankara print.", attributes: { fabric: "Ankara wax print", "care-instructions": "Machine wash cold; iron inside out" } },
+  { title: "Aso Oke Fila Cap", department: "Fashion", category: "Bags & Accessories", price: 8500, weight_grams: 150, description: "Handwoven aso oke cap for owambe days.", attributes: { fabric: "Aso oke", "care-instructions": "Spot clean only" } },
+  { title: "Ankara Tote Bag", department: "Fashion", category: "Bags & Accessories", price: 12000, weight_grams: 350, description: "Lined canvas tote with an Ankara print panel.", attributes: { fabric: "Canvas", "care-instructions": "Spot clean only" } },
   // Electronics
-  { title: "20,000mAh Power Bank", department: "Electronics", category: "Power & Lighting", price: 24000, weight_grams: 420, description: "Charges a phone four times over; USB-C in and out." },
-  { title: "Rechargeable LED Lantern", department: "Electronics", category: "Power & Lighting", price: 9800, also_at: [{ shop: "Iya Bisi Foodstuff", price: 10500 }], weight_grams: 600, description: "Up to 12 hours of light for NEPA outages." },
-  { title: "Rechargeable Standing Fan 16-inch", department: "Electronics", category: "Power & Lighting", price: 65000, weight_grams: 5500, description: "Runs up to 8 hours on its built-in battery." },
-  { title: "6-Way Surge Protector", department: "Electronics", category: "Phone Accessories", price: 11500, weight_grams: 900, description: "Surge-protected extension with two USB ports." },
-  { title: "25W USB-C Fast Charger", department: "Electronics", category: "Phone Accessories", price: 7500, also_at: [{ shop: "Iya Bisi Foodstuff", price: 7900 }], weight_grams: 120, description: "Wall charger with a 1m USB-C cable." },
-  { title: "Wireless Earbuds", department: "Electronics", category: "Audio", price: 18500, weight_grams: 80, description: "Bluetooth 5.3 earbuds with a charging case." },
+  { title: "20,000mAh Power Bank", department: "Electronics", category: "Power & Lighting", price: 24000, weight_grams: 420, description: "Charges a phone four times over; USB-C in and out.", attributes: { voltage: "5V USB", warranty: "6 months" } },
+  { title: "Rechargeable LED Lantern", department: "Electronics", category: "Power & Lighting", price: 9800, also_at: [{ shop: "Iya Bisi Foodstuff", price: 10500 }], weight_grams: 600, description: "Up to 12 hours of light for NEPA outages.", attributes: { voltage: "5V USB", warranty: "3 months" } },
+  { title: "Rechargeable Standing Fan 16-inch", department: "Electronics", category: "Power & Lighting", price: 65000, weight_grams: 5500, description: "Runs up to 8 hours on its built-in battery.", attributes: { voltage: "220-240V AC", warranty: "12 months" } },
+  { title: "6-Way Surge Protector", department: "Electronics", category: "Phone Accessories", price: 11500, weight_grams: 900, description: "Surge-protected extension with two USB ports.", attributes: { voltage: "220-240V AC", warranty: "6 months" } },
+  { title: "25W USB-C Fast Charger", department: "Electronics", category: "Phone Accessories", price: 7500, also_at: [{ shop: "Iya Bisi Foodstuff", price: 7900 }], weight_grams: 120, description: "Wall charger with a 1m USB-C cable.", attributes: { voltage: "220-240V AC", warranty: "6 months" } },
+  { title: "Wireless Earbuds", department: "Electronics", category: "Audio", price: 18500, weight_grams: 80, description: "Bluetooth 5.3 earbuds with a charging case.", attributes: { voltage: "5V USB", warranty: "3 months" } },
 ]
 
 /**

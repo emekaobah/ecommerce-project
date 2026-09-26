@@ -44,6 +44,8 @@ Every seeded member's password is `supersecret`. Owners have the seller administ
 | Adire House | Fashion | Eti-Osa (Lekki) | `fashion.owner@oja.test` | `fashion.staff@oja.test` |
 | Ikeja Gadget Hub | Electronics | Ikeja | `electronics.owner@oja.test` | `electronics.staff@oja.test` |
 
+Each department's categories carry starter attributes (Storage and Shelf life; Fabric and Care instructions; Voltage and Warranty) and shipping defaults (weight, dimensions, package category) in `metadata.shipping_defaults`. A product created without its own weight or dimensions takes its category's; it can be edited afterwards. Products are seeded as proposals and published once their offers give them a price, through the same publish gate as everything else: a product can't be published without a title, a selling price, an image, a category, a weight and its category's required attributes (Storage, Fabric, Voltage). Products seeded before the gate lack those attributes, so start clean as above.
+
 The data lives in `packages/api/src/scripts/seed-data.ts`.
 
 Checks: `bun run codegen && bun run check-types && bun run test`.

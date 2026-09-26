@@ -2,7 +2,13 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules, SellerRole } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
-import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
+import {
+  SEED_CATEGORIES,
+  SEED_CATEGORY_ATTRIBUTES,
+  SEED_PASSWORD,
+  SEED_SELLERS,
+} from "../../src/scripts/seed-data"
+import { getProductsCompleteness } from "../../src/lib/product-completeness"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -23,6 +29,7 @@ medusaIntegrationTestRunner({
           products: await count("product"),
           offers: await count("offer"),
           categories: await count("product_category"),
+          attributes: await count("product_attribute"),
           apiKeys: await count("api_key"),
           salesChannels: await count("sales_channel"),
           stockLocations: await count("stock_location"),
@@ -126,6 +133,66 @@ medusaIntegrationTestRunner({
           expect(product.categories.length).toBeGreaterThan(0)
           expect(Number(product.weight)).toBeGreaterThan(0)
         }
+      })
+
+      it("gives each department's categories its starter attributes and shipping defaults", async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: categories } = await query.graph({
+          entity: "product_category",
+          fields: ["id", "name", "metadata"],
+        })
+        const { data: attributes } = await query.graph({
+          entity: "product_attribute",
+          fields: ["id", "handle", "is_required", "categories.id"],
+          filters: { product_id: null } as any,
+        })
+        const attributeHandlesFor = (categoryId: string) =>
+          (attributes as any[])
+            .filter((a) => (a.categories ?? []).some((c: any) => c?.id === categoryId))
+            .map((a) => a.handle)
+            .sort()
+
+        for (const [department, subcategories] of Object.entries(SEED_CATEGORIES)) {
+          const starter = SEED_CATEGORY_ATTRIBUTES[department as keyof typeof SEED_CATEGORIES]
+          expect(starter.length).toBeGreaterThan(0)
+          for (const name of [department, ...subcategories]) {
+            const category = (categories as any[]).find((c) => c.name === name)
+            expect(attributeHandlesFor(category.id)).toEqual(starter.map((a) => a.handle).sort())
+            expect(category.metadata?.shipping_defaults).toEqual(
+              expect.objectContaining({
+                weight: expect.any(Number),
+                length: expect.any(Number),
+                width: expect.any(Number),
+                height: expect.any(Number),
+                package_category: expect.any(String),
+              })
+            )
+          }
+        }
+
+        const byHandle = new Map((attributes as any[]).map((a) => [a.handle, a]))
+        expect(byHandle.get("fabric")?.is_required).toBe(true)
+        expect(byHandle.get("voltage")?.is_required).toBe(true)
+        expect(byHandle.has("care-instructions")).toBe(true)
+      })
+
+      it("publishes every seeded product complete, with its dimensions from the category defaults", async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: products } = await query.graph({
+          entity: "product",
+          fields: ["id", "status", "length", "width", "height"],
+        })
+        const completeness = await getProductsCompleteness(
+          getContainer(),
+          products.map((p: any) => p.id)
+        )
+        for (const product of products as any[]) {
+          expect(product.status).toBe("published")
+          expect(Number(product.length)).toBeGreaterThan(0)
+          expect(Number(product.width)).toBeGreaterThan(0)
+          expect(Number(product.height)).toBeGreaterThan(0)
+        }
+        expect(completeness.filter((c) => !c.is_complete)).toEqual([])
       })
 
       it("serves the catalogue in NGN to the buyer app's publishable key", async () => {
