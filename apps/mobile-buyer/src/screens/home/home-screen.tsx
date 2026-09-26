@@ -2,6 +2,7 @@ import { formatMoney, PRODUCT_NAME } from '@oja/domain';
 import { EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,19 +13,20 @@ export function HomeScreen() {
   const theme = useTheme();
   const region = useRegion();
   const products = useProducts(region.region?.id);
+  // Only a pull shows the spinner; background refetches stay silent.
+  const [pulling, setPulling] = useState(false);
+  const refresh = () => {
+    setPulling(true);
+    void products.refetch().finally(() => setPulling(false));
+  };
 
   const content = () => {
     if (region.error) {
       return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
     }
-    if (products.error) {
-      return (
-        <ErrorState
-          title="Couldn't load products"
-          message={products.error.message}
-          onRetry={() => void products.refetch()}
-        />
-      );
+    // A failed refresh keeps the list already on screen.
+    if (products.error && !products.data) {
+      return <ErrorState title="Couldn't load products" message={products.error.message} onRetry={refresh} />;
     }
     if (!region.region || !products.data) return <LoadingState />;
 
@@ -35,8 +37,8 @@ export function HomeScreen() {
         keyExtractor={(p) => p.id}
         contentContainerStyle={products.data.length === 0 && styles.emptyList}
         ListEmptyComponent={<EmptyState title="No products yet" message="Check back soon." />}
-        refreshing={products.isRefetching}
-        onRefresh={() => void products.refetch()}
+        refreshing={pulling}
+        onRefresh={refresh}
         renderItem={({ item }) => {
           const amount = item.variants?.[0]?.calculated_price?.calculated_amount;
           return (

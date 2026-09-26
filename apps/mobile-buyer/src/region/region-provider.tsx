@@ -7,7 +7,6 @@ import { useRegions, type Region } from '@/api/regions';
 type RegionState = {
   /** Undefined until the backend's regions have loaded. */
   region: Region | undefined;
-  isPending: boolean;
   error: Error | null;
   retry: () => void;
 };
@@ -27,7 +26,7 @@ export function RegionProvider({ children }: { children: ReactNode }) {
 
   return (
     <RegionContext.Provider
-      value={{ region, isPending: regions.isPending, error, retry: () => void regions.refetch() }}>
+      value={{ region, error, retry: () => void regions.refetch() }}>
       {children}
     </RegionContext.Provider>
   );

@@ -1,5 +1,5 @@
 import { listStoreProducts } from '@oja/api-client';
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 
 import { storeClient } from './client';
 
@@ -12,7 +12,8 @@ export const productKeys = {
 export function useProducts(regionId: string | undefined) {
   return useQuery({
     queryKey: productKeys.list(regionId ?? ''),
-    queryFn: async () => (await listStoreProducts(storeClient, { regionId: regionId! })).products,
-    enabled: !!regionId,
+    queryFn: regionId
+      ? async () => (await listStoreProducts(storeClient, { regionId })).products
+      : skipToken,
   });
 }
