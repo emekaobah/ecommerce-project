@@ -129,8 +129,7 @@ export async function previewMissing(scope: Scope, products: (ImportProduct | nu
         has_thumbnail: !!product.thumbnail,
         category_ids: categoryIds,
         weight: product.weight ?? (await defaultWeight(categoryIds)),
-        // Prices live on shops' offers, which a new product doesn't have yet.
-        variants: product.variants.map((_, i) => ({ id: `preview_${i}`, weight: null, price_amounts: [] })),
+        variants: product.variants.map((_, i) => ({ id: `preview_${i}`, weight: null })),
         attribute_values: Object.fromEntries((product.attributes ?? []).map((a) => [a.id, ["preview"]])),
       }
       return assessProductCompleteness(facts, required).missing.map((m) => m.label)

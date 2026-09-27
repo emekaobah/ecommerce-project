@@ -70,8 +70,8 @@ medusaIntegrationTestRunner({
         const [yam, egusi, plantain, blank] = data.rows
         expect(yam).toMatchObject({ row: 2, title: "Yam Flour 1kg", errors: [] })
         expect(yam.warnings).toEqual([expect.stringContaining("scientific notation")])
-        // Only a shop's offer can price a product, so the price stays missing until then.
-        expect(yam.missing).toEqual(["Selling price"])
+        // Complete enough to publish: a shop's offer prices it later.
+        expect(yam.missing).toEqual([])
 
         // "Cool dry place" (no comma) isn't one of Storage's values.
         expect(egusi.errors).toEqual([expect.stringMatching(/^Storage: "Cool dry place" is not one of/)])
@@ -127,7 +127,7 @@ medusaIntegrationTestRunner({
         )
 
         expect(data.results).toEqual([
-          expect.objectContaining({ row: 2, status: "created", missing: ["Selling price", "Image", "Storage"] }),
+          expect.objectContaining({ row: 2, status: "created", missing: ["Image", "Storage"] }),
         ])
         const [kilishi] = await productsTitled(["Kilishi 200g"])
         expect(kilishi.status).toBe("draft")
@@ -143,7 +143,7 @@ medusaIntegrationTestRunner({
 
         // The publish gate refuses it for the same reasons the import reported.
         const message = await refusal(api.post(`/admin/products/${kilishi.id}`, { status: "published" }, admin))
-        expect(message).toContain("Selling price, Image, Storage")
+        expect(message).toContain("Image, Storage")
       })
 
       it("refuses a mapping that names a column twice or a field that doesn't exist, creating nothing", async () => {
