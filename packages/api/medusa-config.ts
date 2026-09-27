@@ -29,6 +29,24 @@ const redisModules = redisUrl
     ]
   : []
 
+// Buyers sign in with Clerk only. Verification is networkless with the instance's PEM public
+// key (CLERK_JWT_KEY); the secret key is the fallback (fetches the JWKS). Without either, the
+// provider isn't registered and customers can't sign in.
+const clerkAuthProviders =
+  process.env.CLERK_JWT_KEY || process.env.CLERK_SECRET_KEY
+    ? [
+        {
+          resolve: './src/modules/clerk-auth',
+          id: 'clerk',
+          options: {
+            jwtKey: process.env.CLERK_JWT_KEY,
+            secretKey: process.env.CLERK_SECRET_KEY,
+            authorizedParties: process.env.CLERK_AUTHORIZED_PARTIES?.split(',').filter(Boolean),
+          },
+        },
+      ]
+    : []
+
 const dashboardAppDir = (name: string) => {
   const bundled = path.join(__dirname, 'dashboards', name)
   return fs.existsSync(bundled) ? bundled : path.join(__dirname, `../../apps/${name}`)
@@ -46,6 +64,13 @@ module.exports = withMercur({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
+      // Clerk is the sole customer identity, verified on every store request by the
+      // clerkCustomerAuth middleware. No /auth route issues customer tokens: not
+      // email/password, and not a Clerk-for-Medusa token swap, which would outlive a Clerk
+      // sign-out. Operators and seller members keep email/password.
+      authMethodsPerActor: {
+        customer: [],
+      },
     }
   },
   featureFlags: {
@@ -54,6 +79,12 @@ module.exports = withMercur({
   },
   modules: [
     ...redisModules,
+    {
+      resolve: '@medusajs/medusa/auth',
+      options: {
+        providers: [{ resolve: '@medusajs/medusa/auth-emailpass', id: 'emailpass' }, ...clerkAuthProviders],
+      },
+    },
     {
       resolve: '@mercurjs/core/modules/admin-ui',
       options: {

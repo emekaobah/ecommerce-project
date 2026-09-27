@@ -11,12 +11,19 @@ export { ClientError }
 type Awaitable<T> = T | Promise<T>
 /** Reads a value at request time; null or undefined means "don't send it". */
 export type Getter = () => Awaitable<string | null | undefined>
+/** Reads the session token; `fresh` asks for a newly issued one instead of a cached one. */
+export type TokenGetter = (options: { fresh: boolean }) => Awaitable<string | null | undefined>
 
 type DynamicClientConfig = {
   baseUrl: string
   /** Resolved before every request. */
   headers: () => Promise<Record<string, string>>
-  /** Called with the headers the request carried when it is rejected with 401, before the error is rethrown. */
+  /**
+   * After a 401, headers to retry the request with once (e.g. a freshly issued token), or
+   * null to not retry. Safe for writes too: a 401 means the request was never handled.
+   */
+  retryHeaders?: (sent: Record<string, string>) => Promise<Record<string, string> | null>
+  /** Called with the headers the final attempt carried when it is rejected with 401, before the error is rethrown. */
   onUnauthorized?: (sent: Record<string, string>) => void
 }
 
@@ -24,15 +31,30 @@ type DynamicClientConfig = {
  * A client whose headers are resolved per request. `@mercurjs/client` fixes headers
  * when it is created, so each call builds a throwaway client with the current ones.
  */
-function createDynamicClient({ baseUrl, headers, onUnauthorized }: DynamicClientConfig): OjaClient {
-  const call = async (path: string[], args: unknown[]) => {
-    const sent = await headers()
+function createDynamicClient({ baseUrl, headers, retryHeaders, onUnauthorized }: DynamicClientConfig): OjaClient {
+  const isUnauthorized = (error: unknown) => error instanceof ClientError && error.status === 401
+  const send = (path: string[], args: unknown[], sent: Record<string, string>) => {
     let target: any = createClient({ baseUrl, fetchOptions: { headers: sent } })
     for (const segment of path) target = target[segment]
+    return target(...args)
+  }
+  const call = async (path: string[], args: unknown[]) => {
+    let sent = await headers()
     try {
-      return await target(...args)
+      return await send(path, args, sent)
     } catch (error) {
-      if (error instanceof ClientError && error.status === 401) onUnauthorized?.(sent)
+      if (!isUnauthorized(error)) throw error
+      const retry = await retryHeaders?.(sent)
+      if (!retry) {
+        onUnauthorized?.(sent)
+        throw error
+      }
+      sent = retry
+    }
+    try {
+      return await send(path, args, sent)
+    } catch (error) {
+      if (isUnauthorized(error)) onUnauthorized?.(sent)
       throw error
     }
   }
@@ -55,14 +77,28 @@ export type StoreClientConfig = {
   /** Store API requests are scoped to a sales channel by a publishable key. */
   publishableKey: string
   /** Customer session token (Clerk); guests return null. */
-  getToken?: Getter
+  getToken?: TokenGetter
+  /** A fresh token was rejected too, so the session is no longer valid; the app signs the buyer out. */
+  onUnauthorized?: () => void
 }
 
-/** Client for the buyer app: Store API, by publishable key plus the customer's token when signed in. */
-export function createStoreClient({ baseUrl, publishableKey, getToken }: StoreClientConfig): OjaClient {
+/**
+ * Client for the buyer app: Store API, by publishable key plus the customer's token when signed in.
+ * A rejected token is retried once with a freshly issued one before the buyer is signed out.
+ */
+export function createStoreClient({ baseUrl, publishableKey, getToken, onUnauthorized }: StoreClientConfig): OjaClient {
+  const headersWith = async (fresh: boolean) => ({
+    "x-publishable-api-key": publishableKey,
+    ...(await bearer(() => getToken?.({ fresh }))),
+  })
   return createDynamicClient({
     baseUrl,
-    headers: async () => ({ "x-publishable-api-key": publishableKey, ...(await bearer(getToken)) }),
+    headers: () => headersWith(false),
+    // A guest's 401 isn't a session problem: no retry, no sign-out.
+    retryHeaders: async (sent) => (sent.authorization ? headersWith(true) : null),
+    onUnauthorized: (sent) => {
+      if (sent.authorization) onUnauthorized?.()
+    },
   })
 }
 

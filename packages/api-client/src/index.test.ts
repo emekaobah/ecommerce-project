@@ -85,4 +85,49 @@ describe("createStoreClient", () => {
     expect(requests.map((r) => r.headers.get("x-publishable-api-key"))).toEqual(["pk_1", "pk_1"])
     expect(requests.map((r) => r.headers.get("authorization"))).toEqual([null, "Bearer clerk-jwt"])
   })
+
+  test("after a 401, retries once with a freshly issued token, and keeps the session when that works", async () => {
+    const calls: boolean[] = []
+    const onUnauthorized = mock(() => {})
+    const client = createStoreClient({
+      baseUrl,
+      publishableKey: "pk_1",
+      getToken: async ({ fresh }) => {
+        calls.push(fresh)
+        return fresh ? "fresh-jwt" : "stale-jwt"
+      },
+      onUnauthorized,
+    })
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init)
+      requests.push(request)
+      const ok = request.headers.get("authorization") === "Bearer fresh-jwt"
+      return Response.json(ok ? { ok: true } : { message: "Unauthorized" }, { status: ok ? 200 : 401 })
+    }) as unknown as typeof fetch
+
+    expect(await client.store.regions.query()).toMatchObject({ ok: true } as object)
+    expect(calls).toEqual([false, true])
+    expect(requests.map((r) => r.headers.get("authorization"))).toEqual(["Bearer stale-jwt", "Bearer fresh-jwt"])
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  test("signs the buyer out when a fresh token is rejected too, and still rejects", async () => {
+    status = 401
+    const onUnauthorized = mock(() => {})
+    const client = createStoreClient({ baseUrl, publishableKey: "pk_1", getToken: async () => "revoked", onUnauthorized })
+
+    await expect(client.store.regions.query()).rejects.toBeInstanceOf(ClientError)
+    expect(requests).toHaveLength(2)
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+  })
+
+  test("neither retries nor signs out a guest's 401", async () => {
+    status = 401
+    const onUnauthorized = mock(() => {})
+    const client = createStoreClient({ baseUrl, publishableKey: "pk_1", getToken: async () => null, onUnauthorized })
+
+    await expect(client.store.customers.me.query()).rejects.toBeInstanceOf(ClientError)
+    expect(requests).toHaveLength(1)
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
 })
