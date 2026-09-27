@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/utils";
 import {
   AttributeType,
+  MercurModules,
   ProductStatus,
   SellerRole,
   type CreateOfferDTO,
@@ -15,7 +16,9 @@ import {
   approveSellerWorkflow,
   createOffersWorkflow,
   createProductAttributesWorkflow,
+  confirmProductsWorkflow,
   createProductsWorkflow,
+  updateProductAttributesWorkflow,
   createSellerAccountWorkflow,
   createSellerMembersStep,
   createSellerShippingOptionsWorkflow,
@@ -29,8 +32,11 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import {
   createApiKeysWorkflow,
+  createLinksWorkflow,
+  dismissLinksWorkflow,
   createLocationFulfillmentSetWorkflow,
   createProductCategoriesWorkflow,
+  updateProductCategoriesWorkflow,
   createRegionsWorkflow,
   createSalesChannelsWorkflow,
   createServiceZonesWorkflow,
@@ -44,6 +50,7 @@ import {
 } from "@medusajs/medusa/core-flows";
 import {
   SEED_CATEGORIES,
+  SEED_CATEGORY_ATTRIBUTES,
   SEED_DELIVERY_FEE,
   SEED_PASSWORD,
   SEED_PRODUCTS,
@@ -53,6 +60,8 @@ import {
   SEED_SIZES,
   SEED_VAT,
   seedImageUrl,
+  seedShippingDefaults,
+  type Department,
   type SeedSeller,
 } from "./seed-data";
 
@@ -116,6 +125,7 @@ export default async function seedDemoData({ container }: ExecArgs) {
   logger.info("Seeding categories and attributes...");
   const categoryIds = await seedCategories(container);
   const sizeAttribute = await seedSizeAttribute(container);
+  const categoryAttributes = await seedCategoryAttributes(container, categoryIds);
 
   const shippingProfileId = await seedShippingProfile(container);
 
@@ -131,10 +141,14 @@ export default async function seedDemoData({ container }: ExecArgs) {
     salesChannelId,
     categoryIds,
     sizeAttribute,
+    categoryAttributes,
   });
 
   logger.info("Seeding offers...");
   const offerCount = await seedOffers(container, sellers, productsByHandle, shippingProfileId);
+
+  logger.info("Publishing products...");
+  await publishSeedProducts(container, [...productsByHandle.values()].map((p) => p.id));
 
   const { data: regions } = await query.graph({ entity: "region", fields: ["id"] });
   logger.info(
@@ -229,13 +243,29 @@ async function seedCategories(container: MedusaContainer): Promise<Map<string, s
   const existing = await productService.listProductCategories({ name: [...parents, ...children] });
   const idByName = new Map(existing.map((c) => [c.name, c.id]));
 
+  const departmentOf = (name: string) =>
+    parents.find((parent) => parent === name || SEED_CATEGORIES[parent].includes(name))!;
+  const metadataFor = (name: string) => ({ shipping_defaults: seedShippingDefaults(departmentOf(name), name) });
+
   const create = async (inputs: { name: string; rank: number; parent_category_id?: string }[]) => {
     if (!inputs.length) return;
     const { result } = await createProductCategoriesWorkflow(container).run({
-      input: { product_categories: inputs.map((c) => ({ ...c, is_active: true })) },
+      input: {
+        product_categories: inputs.map((c) => ({ ...c, is_active: true, metadata: metadataFor(c.name) })),
+      },
     });
     result.forEach((c) => idByName.set(c.name, c.id));
   };
+
+  // Categories seeded before shipping defaults existed get them now.
+  for (const category of existing.filter((c) => !c.metadata?.shipping_defaults)) {
+    await updateProductCategoriesWorkflow(container).run({
+      input: {
+        selector: { id: category.id },
+        update: { metadata: { ...category.metadata, ...metadataFor(category.name) } },
+      },
+    });
+  }
 
   await create(
     parents.filter((name) => !idByName.has(name)).map((name) => ({ name, rank: parents.indexOf(name) }))
@@ -251,6 +281,90 @@ async function seedCategories(container: MedusaContainer): Promise<Map<string, s
 }
 
 type SizeAttribute = { id: string; values: { id: string; name: string }[] };
+
+type CategoryAttribute = {
+  id: string;
+  handle: string;
+  type: string;
+  is_required: boolean;
+  values: { id: string; name: string }[];
+  categories?: ({ id: string } | null)[] | null;
+};
+
+// Each department's starter attributes, linked to the department and every one
+// of its sub-categories so they surface on the product form for all of them.
+// Attributes that already exist are brought back in line with the seed data:
+// their required flag and category links.
+async function seedCategoryAttributes(
+  container: MedusaContainer,
+  categoryIds: Map<string, string>
+): Promise<Map<string, CategoryAttribute>> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const departments = Object.keys(SEED_CATEGORY_ATTRIBUTES) as Department[];
+  const handles = departments.flatMap((d) => SEED_CATEGORY_ATTRIBUTES[d].map((a) => a.handle));
+  const load = async () => {
+    const { data } = await query.graph({
+      entity: "product_attribute",
+      fields: ["id", "handle", "type", "is_required", "values.id", "values.name", "categories.id"],
+      filters: { handle: handles, product_id: null } as any,
+    });
+    return new Map((data as CategoryAttribute[]).map((a) => [a.handle, a]));
+  };
+
+  const categoryIdsFor = (department: Department) =>
+    [department, ...SEED_CATEGORIES[department]].map((name) => categoryIds.get(name)!);
+
+  const existing = await load();
+  await syncCategoryAttributes(container, existing, categoryIdsFor);
+  const missing = departments.flatMap((department) =>
+    SEED_CATEGORY_ATTRIBUTES[department]
+      .filter((a) => !existing.has(a.handle))
+      .map((a) => ({
+        name: a.name,
+        handle: a.handle,
+        type: a.type === "text" ? AttributeType.TEXT : AttributeType.SINGLE_SELECT,
+        is_required: a.is_required,
+        is_filterable: a.type !== "text",
+        rank: SEED_CATEGORY_ATTRIBUTES[department].indexOf(a) + 1,
+        values: (a.values ?? []).map((name, rank) => ({ name, rank })),
+        category_ids: categoryIdsFor(department),
+      }))
+  );
+  if (!missing.length) return existing;
+  await createProductAttributesWorkflow(container).run({ input: { attributes: missing } });
+  return load();
+}
+
+async function syncCategoryAttributes(
+  container: MedusaContainer,
+  existing: Map<string, CategoryAttribute>,
+  categoryIdsFor: (department: Department) => string[]
+) {
+  const pair = (attributeId: string, categoryId: string) => ({
+    [MercurModules.PRODUCT_ATTRIBUTE]: { product_attribute_id: attributeId },
+    [Modules.PRODUCT]: { product_category_id: categoryId },
+  });
+  const toLink: ReturnType<typeof pair>[] = [];
+  const toUnlink: ReturnType<typeof pair>[] = [];
+
+  for (const department of Object.keys(SEED_CATEGORY_ATTRIBUTES) as Department[]) {
+    const wanted = new Set(categoryIdsFor(department));
+    for (const seedAttribute of SEED_CATEGORY_ATTRIBUTES[department]) {
+      const attribute = existing.get(seedAttribute.handle);
+      if (!attribute) continue;
+      if (attribute.is_required !== seedAttribute.is_required) {
+        await updateProductAttributesWorkflow(container).run({
+          input: { selector: { id: attribute.id }, update: { is_required: seedAttribute.is_required } },
+        });
+      }
+      const linked = new Set((attribute.categories ?? []).flatMap((c) => (c?.id ? [c.id] : [])));
+      wanted.forEach((id) => !linked.has(id) && toLink.push(pair(attribute.id, id)));
+      linked.forEach((id) => !wanted.has(id) && toUnlink.push(pair(attribute.id, id)));
+    }
+  }
+  if (toUnlink.length) await dismissLinksWorkflow(container).run({ input: toUnlink });
+  if (toLink.length) await createLinksWorkflow(container).run({ input: toLink });
+}
 
 // A global Size attribute that is a variant axis, so sized products get a native
 // Size option the store can filter on.
@@ -478,6 +592,7 @@ async function seedProducts(
     salesChannelId: string;
     categoryIds: Map<string, string>;
     sizeAttribute: SizeAttribute;
+    categoryAttributes: Map<string, CategoryAttribute>;
   }
 ): Promise<Map<string, SeededProduct>> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY);
@@ -503,15 +618,24 @@ async function seedProducts(
       title: item.title,
       handle,
       description: item.description,
-      status: ProductStatus.PUBLISHED,
+      // Proposed until the shops' offers give it a selling price; the publish
+      // gate refuses a product without one (see publishSeedProducts).
+      status: ProductStatus.PROPOSED,
       category_ids: [ctx.categoryIds.get(item.category)!],
       sales_channels: [{ id: ctx.salesChannelId }],
       weight: item.weight_grams,
       thumbnail: image,
       images: [{ url: image }],
-      attributes: item.sized
-        ? [{ id: ctx.sizeAttribute.id, value_ids: ctx.sizeAttribute.values.map((v) => v.id) }]
-        : [],
+      attributes: [
+        ...(item.sized
+          ? [{ id: ctx.sizeAttribute.id, value_ids: ctx.sizeAttribute.values.map((v) => v.id) }]
+          : []),
+        ...Object.entries(item.attributes).map(([handle, value]) => {
+          const attribute = ctx.categoryAttributes.get(handle)!;
+          if (attribute.type === AttributeType.TEXT) return { id: attribute.id, value };
+          return { id: attribute.id, value_ids: [attribute.values.find((v) => v.name === value)!.id] };
+        }),
+      ],
       variants: item.sized
         ? SEED_SIZES.map((size) => ({
             title: size,
@@ -585,4 +709,20 @@ async function seedOffers(
   }
 
   return wanted.length;
+}
+
+// The seeded catalogue is approved once every product is sellable, through the
+// same publish gate as any other product. No operator exists in the seed, so the
+// approval is recorded without an actor.
+async function publishSeedProducts(container: MedusaContainer, productIds: string[]) {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const { data } = await query.graph({
+    entity: "product",
+    fields: ["id"],
+    filters: { id: productIds, status: ProductStatus.PROPOSED },
+  });
+  if (!data.length) return;
+  await confirmProductsWorkflow(container).run({
+    input: { product_ids: data.map((p: { id: string }) => p.id) },
+  });
 }

@@ -3,5 +3,20 @@
     "title": "Custom Fields",
     "description": "Manage your custom fields and configurations",
     "noFields": "No custom fields configured yet"
+  },
+  "productCompleteness": {
+    "title": "Completeness",
+    "loading": "Loading…",
+    "loadError": "Could not load completeness.",
+    "ready": "Ready to publish.",
+    "missingIntro": "Add these before the product can be published:",
+    "pendingNote": "Includes the changes you've submitted for review.",
+    "fields": {
+      "title": "Title",
+      "selling_price": "Selling price",
+      "image": "Image",
+      "category": "Category",
+      "weight": "Weight"
+    }
   }
 }
