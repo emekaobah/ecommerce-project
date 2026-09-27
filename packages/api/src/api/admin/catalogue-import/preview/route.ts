@@ -1,0 +1,78 @@
+import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import {
+  importFields,
+  loadImportCatalogue,
+  loadRequiredAttributes,
+  loadSavedMapping,
+  mappingErrors,
+  previewMissing,
+  readImportRows,
+  suggestMapping,
+  type ImportMapping,
+} from "../../../../lib/catalogue-import"
+import { readSheet } from "../sheet"
+import type { AdminPreviewCatalogueImportType } from "../validators"
+
+type PreviewRow = {
+  row: number
+  title: string | null
+  errors: string[]
+  warnings: string[]
+  /** What the product would still need before it can be published. */
+  missing: string[]
+}
+
+type PreviewResponse = {
+  headers: string[]
+  mapping: ImportMapping
+  /** Where the mapping came from: the request, the source's last import, or header names. */
+  mapping_origin: "request" | "saved" | "suggested"
+  mapping_errors: string[]
+  rows: PreviewRow[]
+  summary: { total: number; valid: number; invalid: number }
+}
+
+/** Reads a sheet through a mapping without creating anything, reporting each row. */
+export async function POST(
+  req: AuthenticatedMedusaRequest<AdminPreviewCatalogueImportType>,
+  res: MedusaResponse<PreviewResponse>
+) {
+  const { csv, source } = req.validatedBody
+  const table = readSheet(csv)
+  const catalogue = await loadImportCatalogue(req.scope)
+  const fieldKeys = new Set(importFields(catalogue.attributes).map((f) => f.key))
+
+  let mapping = req.validatedBody.mapping
+  let origin: PreviewResponse["mapping_origin"] = "request"
+  if (!mapping) {
+    // A saved mapping may name an attribute since removed; that column is left unmapped.
+    const saved = source ? await loadSavedMapping(req.scope, source, table.headers) : null
+    if (saved) {
+      mapping = Object.fromEntries(Object.entries(saved).filter(([, field]) => fieldKeys.has(field)))
+      origin = "saved"
+    } else {
+      mapping = suggestMapping(table.headers, importFields(catalogue.attributes))
+      origin = "suggested"
+    }
+  }
+
+  const problems = mappingErrors(mapping, table.headers, catalogue)
+  const required = await loadRequiredAttributes(req.scope)
+  const rows = problems.length ? [] : await readImportRows(req.scope, table, mapping, catalogue)
+  const preview = await Promise.all(
+    rows.map(async ({ product, ...row }) => ({
+      ...row,
+      missing: product ? await previewMissing(req.scope, product, required) : [],
+    }))
+  )
+  const valid = rows.filter((r) => r.product).length
+
+  res.json({
+    headers: table.headers,
+    mapping,
+    mapping_origin: origin,
+    mapping_errors: problems,
+    rows: preview,
+    summary: { total: table.rows.length, valid, invalid: table.rows.length - valid },
+  })
+}
