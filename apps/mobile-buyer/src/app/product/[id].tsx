@@ -1,8 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { PlaceholderScreen } from '@/components/placeholder-screen';
+import { ProductScreen } from '@/screens/product/product-screen';
 
 export default function ProductRoute() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  return <PlaceholderScreen title="Product" message={id} />;
+  const { id, seller } = useLocalSearchParams<{ id: string; seller?: string }>();
+  return <ProductScreen productId={id} sellerId={seller} />;
 }

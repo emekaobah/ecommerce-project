@@ -92,7 +92,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 - Local shops object to side-by-side price comparison, so v1 never shows several shops' prices for the same product together.
 - Search and category results are **grouped by shop**: a shop header (name, area, rating, delivery estimate) with a row of that shop's matching products and "See all", shops ordered nearest / fastest first — never by lowest price. A product may appear under two shops, but never side by side.
 - The product page is always in a shop's context: that shop's price, delivery estimate and rating; then summary, details (attributes), reviews, "more from this shop" and "you might also like" (same shop).
-- Mercur's store API shows the cheapest offer on a product by default; we add a shop-scoped store route (offer + product + seller) and don't use the cheapest-offer price in the buyer app.
+- Mercur's store API shows the cheapest offer on a product by default; we add shop-scoped store routes (`GET /store/listings`, `GET /store/listings/:seller_id/:product_id`: offer + product + seller, only for open shops serving the region) and don't use the cheapest-offer price in the buyer app. A listing's headline price is that shop's cheapest variant, shown as "From" when its variants differ (`@oja/domain`).
 - Buyers can still add products from several shops to one cart; comparison is simply not surfaced.
 
 ### Rules
@@ -104,7 +104,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 - **Images:** only stored in R2 with source recorded; never hotlinked. Product photos are shown **contained on a neutral tile** (not full-bleed), so the pipeline removes backgrounds (on-device/server segmentation) and the approval queue includes a quick image check (accept cut-out, re-crop, or request a clean pack shot) — segmentation can keep hands holding a product. Quick-add asks staff to photograph products on a flat surface, not in hand.
 - **Extra fields** (care instructions, voltage, fabric…) are Mercur category attributes, starting with a small set for grocery, fashion, electronics.
 - **Units:** weight in grams, dimensions in cm; importer parses "1.5kg", "30cm"; Shipbubble provider converts to kg.
-- **No compare-at ("was") price in v1**: crossed-out prices don't suit the local market yet. If it returns, store it on the offer, not on variant price lists (which are variant-scoped, not per seller).
+- **A shop's own discounts are shown; other shops' prices never are.** Shops fear losing buyers to a cheaper competitor, so no screen compares one shop's price with another's. A shop may still discount its own offer and show it: its normal price crossed out beside the sale price (`@oja/domain` `offerPrice`, #13). Sale prices come from sellers' price lists in the vendor panel and must be scoped to the seller's own offer, never the shared variant, or one shop's sale would change a competitor's price (#49). Cart-level promotions (codes, automatic deals) discount only that shop's items (#30).
 - **Cost price** stored privately on the offer, visible to owner/manager role only; v1 use: below-cost warning.
 - **Stock** optional; if absent, treat as in stock / not tracked and rely on the pick-time out-of-stock path.
 

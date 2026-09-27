@@ -30,6 +30,9 @@ envVarGroups:
         sync: false
       - key: MERCUR_VENDOR_URL
         sync: false
+      # Clerk PEM public key; verifies buyer session tokens without a network call.
+      - key: CLERK_JWT_KEY
+        sync: false
 
 services:
   - type: web

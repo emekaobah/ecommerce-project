@@ -32,6 +32,22 @@ cd apps/mobile-buyer && bunx expo start
 cd apps/mobile-vendor && bunx expo start        # log in with a seeded member below
 ```
 
+### Buyer sign-in (Clerk)
+
+Buyers sign in with Clerk only (Google, Apple, email); customer email/password is disabled in the API. One Clerk instance serves the buyer app and the API:
+
+1. Clerk Dashboard → **Native applications**: enable the Native API and add the iOS app (bundle id from `appIdentity('buyer')`, team id) and the Android app. Apple sign-in needs this.
+2. **User & authentication**: enable email, Google and Apple. Native Google needs the iOS, Android and web client ids configured on the Google connection.
+3. **Sessions → Customize session token**: add the claims the API uses to create the customer on first sign-in:
+   ```json
+   { "email": "{{user.primary_email_address}}", "first_name": "{{user.first_name}}", "last_name": "{{user.last_name}}" }
+   ```
+4. **API keys**: put the publishable key in the buyer app's `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY`, and the PEM public key (Show JWT public key → PEM) in the API's `CLERK_JWT_KEY`, which verifies tokens without a network call.
+
+The app sends the Clerk session token on every store request. The API verifies it, finds or creates the customer for that Clerk user id, and rejects an invalid or expired token. Sign-in uses Clerk's native `AuthView`, so it needs a development build (`bunx expo run:ios` / `run:android`), not Expo Go.
+
+If a web client is ever added on the same Clerk instance, set the API's `CLERK_AUTHORIZED_PARTIES` to its origin (comma-separated for several) so the API accepts that site's tokens only from it. Native app tokens carry no origin and are unaffected, so it stays empty until then.
+
 ### Seed data
 
 `bun run seed` (in `packages/api`) creates a Nigeria region in NGN with 7.5% VAT (tax-inclusive prices), the buyer app's sales channel and publishable key, and three Lagos shops, each offering its department's products from a small shared catalogue. A few products are sold by two shops at different prices (the charger and lantern at the grocery shop, plantain chips at the gadget hub), to demo shop-grouped search and listings. Re-running it only adds what's missing. It doesn't remove data from an older seed: to start clean, `docker compose down -v && bun run db:up`, then migrate and seed again.

@@ -1,23 +1,24 @@
-import { formatMoney, PRODUCT_NAME } from '@oja/domain';
+import { listingPrice, PRODUCT_NAME } from '@oja/domain';
 import { EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useProducts } from '@/api/products';
+import { useListings } from '@/api/listings';
+import { Price } from '@/components/price';
+import { openListing } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
 export function HomeScreen() {
   const theme = useTheme();
   const region = useRegion();
-  const products = useProducts(region.region?.id);
+  const listings = useListings(region.region?.id);
   // Only a pull shows the spinner; background refetches stay silent.
   const [pulling, setPulling] = useState(false);
   const refresh = () => {
     setPulling(true);
-    void products.refetch().finally(() => setPulling(false));
+    void listings.refetch().finally(() => setPulling(false));
   };
 
   const content = () => {
@@ -25,31 +26,32 @@ export function HomeScreen() {
       return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
     }
     // A failed refresh keeps the list already on screen.
-    if (products.error && !products.data) {
-      return <ErrorState title="Couldn't load products" message={products.error.message} onRetry={refresh} />;
+    if (listings.error && !listings.data) {
+      return <ErrorState title="Couldn't load products" message={listings.error.message} onRetry={refresh} />;
     }
-    if (!region.region || !products.data) return <LoadingState />;
+    if (!region.region || !listings.data) return <LoadingState />;
 
     const { currency_code } = region.region;
     return (
       <FlatList
-        data={products.data}
-        keyExtractor={(p) => p.id}
-        contentContainerStyle={products.data.length === 0 && styles.emptyList}
+        data={listings.data}
+        keyExtractor={(l) => `${l.seller.id}:${l.product.id}`}
+        contentContainerStyle={listings.data.length === 0 && styles.emptyList}
         ListEmptyComponent={<EmptyState title="No products yet" message="Check back soon." />}
         refreshing={pulling}
         onRefresh={refresh}
         renderItem={({ item }) => {
-          const amount = item.variants?.[0]?.calculated_price?.calculated_amount;
+          const price = listingPrice(item.offers);
           return (
             <ListRow
-              title={item.title}
-              subtitle={amount != null ? formatMoney(amount, currency_code) : undefined}
-              onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
+              title={item.product.title}
+              subtitle={item.seller.name}
+              onPress={() => openListing(item)}
+              trailing={price ? <Price price={price} currencyCode={currency_code} /> : null}
               leading={
-                item.thumbnail ? (
+                item.product.thumbnail ? (
                   <Image
-                    source={item.thumbnail}
+                    source={item.product.thumbnail}
                     contentFit="contain"
                     style={[styles.thumb, { backgroundColor: theme.colors.surface, borderRadius: theme.radius.sm }]}
                   />
