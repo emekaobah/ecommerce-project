@@ -50,16 +50,21 @@ export type ListingFilters = {
 
 type Region = { id: string; currency_code: string; countries: string[] }
 type SellerRow = ListingSeller & { default_leadtime_to_ship: number | null; address?: { country_code: string | null } | null }
-type OfferRow = {
+/** Mercur's calculated price; the pricing module's fields beyond `ListingPrice` pass through untyped. */
+type CalculatedOfferPrice = ListingPrice & { is_calculated_price_tax_inclusive?: boolean } & Record<string, unknown>
+type OfferPricingRow = {
   id: string
+  product_variant?: { price_set?: { id: string } | null } | null
+  calculated_price?: CalculatedOfferPrice | null
+}
+type OfferRow = OfferPricingRow & {
   seller_id: string
   product_id: string
   variant_id: string
   leadtime_to_ship: number | null
   product_variant?: { id: string; title: string | null; price_set?: { id: string } | null } | null
-  calculated_price?: (ListingPrice & Record<string, unknown>) | null
 }
-type PricedOfferRow = OfferRow & { calculated_price: ListingPrice }
+type PricedOfferRow = OfferRow & { calculated_price: CalculatedOfferPrice }
 type ProductDetailRow = Omit<ListingProductDetail, "attributes" | "weight"> & { weight: number | string | null }
 
 async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Region> {
@@ -139,15 +144,26 @@ async function pricedOffers(scope: MedusaContainer, region: Region, filters: Lis
     filters: { seller_id: [...sellers.keys()], product_id: productIds },
     pagination: { order: { created_at: "ASC", id: "ASC" } },
   })
-  const offers = data as OfferRow[]
+  return { sellers, offers: await priceOffers(scope, region, data as OfferRow[]) }
+}
+
+/**
+ * Prices each offer at its own shop's price in the region: Mercur's per-offer pricing (the
+ * variant's price set scoped by the offer), so two shops' offers of one variant never share a
+ * price. Needs `product_variant.price_set.id`; an offer without a price in the region's currency is left out.
+ */
+export async function priceOffers<O extends OfferPricingRow>(
+  scope: MedusaContainer,
+  region: { id: string; currency_code: string },
+  offers: O[]
+): Promise<(O & { calculated_price: CalculatedOfferPrice })[]> {
   // Mercur's helper reads only the request's scope and pricing context.
   const pricingRequest = { scope, pricingContext: { region_id: region.id, currency_code: region.currency_code } }
   await wrapOffersWithCalculatedPrices(pricingRequest as never, offers as never)
-  const priced = offers.filter(
-    (o): o is PricedOfferRow =>
+  return offers.filter(
+    (o): o is O & { calculated_price: CalculatedOfferPrice } =>
       o.calculated_price?.calculated_amount != null && o.calculated_price.currency_code === region.currency_code
   )
-  return { sellers, offers: priced }
 }
 
 /** Groups offers into one listing per shop and product, in the order they were first listed. */

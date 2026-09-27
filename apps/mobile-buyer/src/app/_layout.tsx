@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { queryClient } from '@/api/query-client';
+import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
 import { RegionProvider } from '@/region/region-provider';
 import { useClearCacheOnUserChange } from '@/session/use-clear-cache-on-user-change';
@@ -22,8 +23,10 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={buyerTheme}>
           <RegionProvider>
-            <StatusBar style="dark" />
-            <RootStack />
+            <CartProvider>
+              <StatusBar style="dark" />
+              <RootStack />
+            </CartProvider>
           </RegionProvider>
         </ThemeProvider>
       </QueryClientProvider>

@@ -1,12 +1,14 @@
-import { ClientError } from '@oja/api-client';
-import { formatWeight, listingPrice, offerPrice, shipsIn } from '@oja/domain';
+import { formatMoney, formatWeight, listingPrice, offerPrice, shipsIn } from '@oja/domain';
 import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import { useAddToCart } from '@/api/cart';
+import { isNotFound } from '@/api/errors';
 import { useListing, useListings, type Listing, type ListingDetail } from '@/api/listings';
+import { useCartSession } from '@/cart/cart-provider';
 import { Price } from '@/components/price';
 import { openListing } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
@@ -37,7 +39,7 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
     return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
   }
   if (listing.error) {
-    if (listing.error instanceof ClientError && listing.error.status === 404) {
+    if (isNotFound(listing.error)) {
       return (
         <EmptyState
           title="No longer available"
@@ -144,7 +146,39 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
           })}
         </View>
       ) : null}
+      {selected ? <AddToCart offer={selected} currencyCode={currencyCode} /> : null}
       {product.description ? <Text style={{ marginTop: theme.space.sm }}>{product.description}</Text> : null}
+    </View>
+  );
+}
+
+/** Adds the selected variant at this shop's price; the button carries the price (docs/design.md). */
+function AddToCart({ offer, currencyCode }: Readonly<{ offer: ListingDetail['offers'][number]; currencyCode: string }>) {
+  const theme = useTheme();
+  const { cartId, cartIdForAdding } = useCartSession();
+  const add = useAddToCart(cartIdForAdding);
+  // "Added" belongs to the variant just added, not the one selected since.
+  const added = add.isSuccess && add.variables?.offerId === offer.id;
+  return (
+    <View style={{ gap: theme.space.sm, marginTop: theme.space.sm }}>
+      <Button
+        label="Add to cart"
+        detail={formatMoney(offerPrice(offer).amount, currencyCode)}
+        loading={add.isPending}
+        disabled={cartId === undefined}
+        onPress={() => add.mutate({ offerId: offer.id })}
+      />
+      {added ? (
+        <View style={[styles.addedRow, { gap: theme.space.sm }]} accessibilityLiveRegion="polite">
+          <Text tone="secondary">Added to your cart.</Text>
+          <Button label="View cart" variant="link" onPress={() => router.navigate('/cart')} />
+        </View>
+      ) : null}
+      {add.error ? (
+        <Text tone="secondary" accessibilityLiveRegion="polite">
+          Couldn't add this to your cart: {add.error.message}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -245,6 +279,7 @@ function SuggestionTile({ listing, currencyCode }: Readonly<{ listing: Listing; 
 const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap' },
   chip: { alignItems: 'center', justifyContent: 'center' },
+  addedRow: { flexDirection: 'row', alignItems: 'center' },
   detailRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
   detailLabel: { flex: 1 },
   detailValue: { flex: 2 },

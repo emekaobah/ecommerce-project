@@ -112,7 +112,9 @@ export default async function seedDemoData({ container }: ExecArgs) {
       selector: { id: store.id },
       update: {
         name: "Oja",
-        supported_currencies: [{ currency_code: SEED_REGION.currency_code, is_default: true }],
+        // Offers are priced per currency, not per region, and Medusa applies a region's
+        // tax-inclusive preference only to region-scoped prices: the currency must say it too.
+        supported_currencies: [{ currency_code: SEED_REGION.currency_code, is_default: true, is_tax_inclusive: true }],
         default_sales_channel_id: salesChannelId,
       },
     },

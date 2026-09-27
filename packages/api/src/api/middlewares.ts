@@ -1,7 +1,8 @@
 import { defineMiddlewares } from "@medusajs/medusa";
-import { validateAndTransformBody, validateAndTransformQuery } from "@medusajs/framework/http";
+import { authenticate, validateAndTransformBody, validateAndTransformQuery } from "@medusajs/framework/http";
 import { clerkCustomerAuth } from "./store/clerk-customer-auth";
 import { StoreGetListingParams, StoreGetListingsParams } from "./store/listings/validators";
+import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
 
 export default defineMiddlewares({
@@ -17,6 +18,11 @@ export default defineMiddlewares({
             method: ["GET"],
             matcher: "/store/listings/:seller_id/:product_id",
             middlewares: [validateAndTransformQuery(StoreGetListingParams, {})],
+        },
+        {
+            method: ["POST"],
+            matcher: "/store/carts/:id/merge",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreMergeCart)],
         },
         // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows.
         {
