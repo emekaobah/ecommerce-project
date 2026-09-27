@@ -15,7 +15,8 @@ import { UploadStep } from "./upload-step"
 export const config: RouteConfig = {
   label: "Catalogue import",
   icon: ArrowUpTray,
-  nested: "products",
+  // The sidebar matches this against the parent item's path, not its id.
+  nested: "/products",
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- React Router reads the breadcrumb from this export
