@@ -46,8 +46,8 @@ function profileFrom(claims: Record<string, unknown>): ClerkProfile {
  * entity id, so a changed email never splits one person into two customers.
  */
 export class ClerkAuthProviderService extends AbstractAuthModuleProvider {
-  static identifier = "clerk"
-  static DISPLAY_NAME = "Clerk"
+  static readonly identifier = "clerk"
+  static readonly DISPLAY_NAME = "Clerk"
 
   private readonly options_: ClerkAuthOptions
 

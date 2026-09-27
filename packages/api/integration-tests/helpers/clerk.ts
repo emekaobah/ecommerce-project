@@ -1,4 +1,4 @@
-import { generateKeyPairSync, randomUUID } from "crypto"
+import { generateKeyPairSync, randomUUID } from "node:crypto"
 import jwt from "jsonwebtoken"
 
 /**
