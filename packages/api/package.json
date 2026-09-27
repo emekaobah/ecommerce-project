@@ -31,18 +31,19 @@
     "test": "bun run test:unit && bun run test:integration:http"
   },
   "dependencies": {
+    "@clerk/backend": "3.20.1",
     "@medusajs/admin-sdk": "2.20.1",
+    "@medusajs/admin-shared": "2.20.1",
     "@medusajs/cli": "2.20.1",
     "@medusajs/core-flows": "2.20.1",
-    "@medusajs/framework": "2.20.1",
     "@medusajs/dashboard": "2.20.1",
-    "@medusajs/admin-shared": "2.20.1",
-    "@medusajs/medusa": "2.20.1",
     "@medusajs/draft-order": "2.20.1",
+    "@medusajs/framework": "2.20.1",
+    "@medusajs/medusa": "2.20.1",
+    "@mercurjs/cli": "2.3.5",
     "@mercurjs/core": "2.3.5",
     "@mercurjs/types": "2.3.5",
-    "http-proxy-middleware": "3.0.7",
-    "@mercurjs/cli": "2.3.5"
+    "http-proxy-middleware": "3.0.7"
   },
   "devDependencies": {
     "@acme/admin": "*",
