@@ -17,12 +17,13 @@ export function Price({
   const { from = false } = price;
   const amount = formatMoney(price.amount, currencyCode);
   const was = price.compareAt == null ? null : formatMoney(price.compareAt, currencyCode);
+  const shown = from ? `From ${amount}` : amount;
   return (
     <View
       style={[styles.row, { gap: theme.space.xs }]}
       accessible
-      accessibilityLabel={`${from ? 'From ' : ''}${amount}${was ? `, was ${was}` : ''}`}>
-      <Text variant={variant}>{from ? `From ${amount}` : amount}</Text>
+      accessibilityLabel={was ? `${shown}, was ${was}` : shown}>
+      <Text variant={variant}>{shown}</Text>
       {was ? (
         <Text variant="caption" tone="secondary" style={styles.struck}>
           {was}

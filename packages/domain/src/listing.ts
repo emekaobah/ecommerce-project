@@ -27,9 +27,11 @@ export type ListingPrice = DisplayPrice & {
  * are priced differently.
  */
 export function listingPrice(offers: PricedOffer[]): ListingPrice | undefined {
-  if (!offers.length) return undefined
-  const cheapest = offers.reduce((min, o) =>
-    o.calculated_price.calculated_amount < min.calculated_price.calculated_amount ? o : min
+  const [first, ...rest] = offers
+  if (!first) return undefined
+  const cheapest = rest.reduce(
+    (min, o) => (o.calculated_price.calculated_amount < min.calculated_price.calculated_amount ? o : min),
+    first
   )
   const amounts = new Set(offers.map((o) => o.calculated_price.calculated_amount))
   return { ...offerPrice(cheapest), from: amounts.size > 1, offerId: cheapest.id }
