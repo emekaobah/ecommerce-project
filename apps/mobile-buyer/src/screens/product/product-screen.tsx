@@ -1,4 +1,3 @@
-import { ClientError } from '@oja/api-client';
 import { formatMoney, formatWeight, listingPrice, offerPrice, shipsIn } from '@oja/domain';
 import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
@@ -7,6 +6,7 @@ import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { useAddToCart } from '@/api/cart';
+import { isNotFound } from '@/api/errors';
 import { useListing, useListings, type Listing, type ListingDetail } from '@/api/listings';
 import { useCartSession } from '@/cart/cart-provider';
 import { Price } from '@/components/price';
@@ -39,7 +39,7 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
     return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
   }
   if (listing.error) {
-    if (listing.error instanceof ClientError && listing.error.status === 404) {
+    if (isNotFound(listing.error)) {
       return (
         <EmptyState
           title="No longer available"

@@ -51,11 +51,11 @@ export type ListingFilters = {
 type Region = { id: string; currency_code: string; countries: string[] }
 type SellerRow = ListingSeller & { default_leadtime_to_ship: number | null; address?: { country_code: string | null } | null }
 /** Mercur's calculated price; the pricing module's fields beyond `ListingPrice` pass through untyped. */
-type PricedOffer = ListingPrice & { is_calculated_price_tax_inclusive?: boolean } & Record<string, unknown>
+type CalculatedOfferPrice = ListingPrice & { is_calculated_price_tax_inclusive?: boolean } & Record<string, unknown>
 type OfferPricingRow = {
   id: string
   product_variant?: { price_set?: { id: string } | null } | null
-  calculated_price?: PricedOffer | null
+  calculated_price?: CalculatedOfferPrice | null
 }
 type OfferRow = OfferPricingRow & {
   seller_id: string
@@ -64,7 +64,7 @@ type OfferRow = OfferPricingRow & {
   leadtime_to_ship: number | null
   product_variant?: { id: string; title: string | null; price_set?: { id: string } | null } | null
 }
-type PricedOfferRow = OfferRow & { calculated_price: PricedOffer }
+type PricedOfferRow = OfferRow & { calculated_price: CalculatedOfferPrice }
 type ProductDetailRow = Omit<ListingProductDetail, "attributes" | "weight"> & { weight: number | string | null }
 
 async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Region> {
@@ -156,12 +156,12 @@ export async function priceOffers<O extends OfferPricingRow>(
   scope: MedusaContainer,
   region: { id: string; currency_code: string },
   offers: O[]
-): Promise<(O & { calculated_price: PricedOffer })[]> {
+): Promise<(O & { calculated_price: CalculatedOfferPrice })[]> {
   // Mercur's helper reads only the request's scope and pricing context.
   const pricingRequest = { scope, pricingContext: { region_id: region.id, currency_code: region.currency_code } }
   await wrapOffersWithCalculatedPrices(pricingRequest as never, offers as never)
   return offers.filter(
-    (o): o is O & { calculated_price: PricedOffer } =>
+    (o): o is O & { calculated_price: CalculatedOfferPrice } =>
       o.calculated_price?.calculated_amount != null && o.calculated_price.currency_code === region.currency_code
   )
 }

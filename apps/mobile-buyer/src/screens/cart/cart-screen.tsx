@@ -7,7 +7,8 @@ import { useEffect } from 'react';
 import { Pressable, SectionList, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { isNotFound, useCart, useSetCartItemQuantity, type Cart, type CartItem } from '@/api/cart';
+import { useCart, useSetCartItemQuantity, type Cart, type CartItem } from '@/api/cart';
+import { isNotFound } from '@/api/errors';
 import { useCartSession } from '@/cart/cart-provider';
 import { Price } from '@/components/price';
 
@@ -16,14 +17,14 @@ export function CartScreen() {
   const theme = useTheme();
   const { cartId, forgetCart } = useCartSession();
   const cart = useCart(cartId);
-  const gone = isNotFound(cart.error);
+  const cartMissing = isNotFound(cart.error);
 
   useEffect(() => {
-    if (gone) forgetCart();
-  }, [gone, forgetCart]);
+    if (cartMissing) forgetCart();
+  }, [cartMissing, forgetCart]);
 
   const content = () => {
-    if (cartId === null || gone || cart.data?.item_count === 0) {
+    if (cartId === null || cartMissing || cart.data?.item_count === 0) {
       return (
         <EmptyState
           title="Your cart is empty"
@@ -77,9 +78,10 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
             )}
           </View>
         )}
-        renderItem={({ item }) => (
+        renderItem={({ item, section: { group } }) => (
           <CartRow
             item={item}
+            available={!!group.seller}
             currencyCode={currency}
             busy={pendingItemId === item.id}
             onChange={(quantity) => setQuantity.mutate({ itemId: item.id, quantity })}
@@ -113,10 +115,18 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
 
 function CartRow({
   item,
+  available,
   currencyCode,
   busy,
   onChange,
-}: Readonly<{ item: CartItem; currencyCode: string; busy: boolean; onChange: (quantity: number) => void }>) {
+}: Readonly<{
+  item: CartItem;
+  /** False once the shop stopped selling it: it can only be removed. */
+  available: boolean;
+  currencyCode: string;
+  busy: boolean;
+  onChange: (quantity: number) => void;
+}>) {
   const theme = useTheme();
   const title = item.product_title ?? 'Item';
   const variant = item.variant_title && item.variant_title !== 'Default' ? item.variant_title : null;
@@ -140,7 +150,17 @@ function CartRow({
         <Text numberOfLines={2}>{title}</Text>
         {variant ? <Text variant="caption" tone="secondary">{variant}</Text> : null}
         <Price price={{ amount: item.unit_price, compareAt: item.compare_at_unit_price }} currencyCode={currencyCode} />
-        <Stepper title={title} quantity={item.quantity} disabled={busy} onChange={onChange} />
+        {available ? (
+          <Stepper title={title} quantity={item.quantity} disabled={busy} onChange={onChange} />
+        ) : (
+          <Button
+            label="Remove"
+            variant="link"
+            disabled={busy}
+            onPress={() => onChange(0)}
+            style={styles.removeOnly}
+          />
+        )}
       </View>
     </View>
   );
@@ -197,4 +217,5 @@ const styles = StyleSheet.create({
   stepperButton: { alignItems: 'center', justifyContent: 'center' },
   quantity: { minWidth: 24, textAlign: 'center' },
   pressed: { opacity: 0.6 },
+  removeOnly: { alignSelf: 'flex-start' },
 });

@@ -2,14 +2,14 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import type { HttpTypes } from "@medusajs/framework/types"
 import { updateLineItemInCartWorkflow } from "@medusajs/medusa/core-flows"
 import { refetchCart } from "@mercurjs/core/api/store/carts/helpers"
-import { lineItemOfferId, offerLinePrice } from "../../../../../../lib/cart"
+import { lineItemOfferId, offerLinePrice } from "../../../../../../lib/cart-lines"
 
 type Body = { quantity: number; metadata?: Record<string, unknown> | null; additional_data?: Record<string, unknown> }
 
 /**
  * Replaces Medusa's line item update (same body and query, validated by Medusa's middleware):
  * a quantity change reprices the line at its own offer's current price, never at another
- * shop's price for the same variant (see `offerLinePrice`). Quantity 0 removes the line.
+ * shop's price for the same variant (see `lib/cart-lines.ts`). Quantity 0 removes the line.
  */
 export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse<HttpTypes.StoreCartResponse>) => {
   const { id: cartId, line_id: lineId } = req.params

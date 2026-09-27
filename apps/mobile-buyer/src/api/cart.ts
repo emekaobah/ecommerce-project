@@ -1,7 +1,7 @@
-import { ClientError } from '@oja/api-client';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { storeClient } from './client';
+import { isNotFound } from './errors';
 
 export const cartKeys = {
   all: ['cart'] as const,
@@ -23,11 +23,28 @@ export async function transferCart(cartId: string) {
   await storeClient.store.carts.$id.customer.mutate({ $id: cartId });
 }
 
+/** Adds another cart's lines (the guest's) to the signed-in buyer's own cart. */
+export async function mergeCart(cartId: string, fromCartId: string) {
+  await storeClient.store.carts.$id.merge.mutate({ $id: cartId, cart_id: fromCartId });
+}
+
+/** The cart grouped by shop, or null when the store no longer has it. */
+export async function fetchCartIfAny(cartId: string) {
+  return fetchCart(cartId).catch((error: unknown) => {
+    if (isNotFound(error)) return null;
+    throw error;
+  });
+}
+
+/** Every cart write changes the totals, so the cart is refetched however it went. */
+function useRefetchCartAfterWrite() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: cartKeys.all });
+}
+
 export type Cart = Awaited<ReturnType<typeof fetchCart>>;
 export type CartSellerGroup = Cart['sellers'][number];
 export type CartItem = CartSellerGroup['items'][number];
-
-export const isNotFound = (error: unknown) => error instanceof ClientError && error.status === 404;
 
 /** The buyer's cart grouped by shop. Idle while there is no cart yet (nothing added). */
 export function useCart(cartId: string | null | undefined) {
@@ -40,19 +57,19 @@ export function useCart(cartId: string | null | undefined) {
 
 /** Adds a shop's offer to the cart `cartIdForAdding` resolves, which starts one on the first add. */
 export function useAddToCart(cartIdForAdding: () => Promise<string>) {
-  const queryClient = useQueryClient();
+  const onSettled = useRefetchCartAfterWrite();
   return useMutation({
     mutationFn: async ({ offerId, quantity = 1 }: { offerId: string; quantity?: number }) => {
       const cartId = await cartIdForAdding();
       await storeClient.store.carts.$id.lineItems.mutate({ $id: cartId, offer_id: offerId, quantity });
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: cartKeys.all }),
+    onSettled,
   });
 }
 
 /** Sets a line's quantity; 0 removes it. */
 export function useSetCartItemQuantity(cartId: string) {
-  const queryClient = useQueryClient();
+  const onSettled = useRefetchCartAfterWrite();
   return useMutation({
     mutationFn: async ({ itemId, quantity }: { itemId: string; quantity: number }) => {
       if (quantity === 0) {
@@ -61,6 +78,6 @@ export function useSetCartItemQuantity(cartId: string) {
         await storeClient.store.carts.$id.lineItems.$lineId.mutate({ $id: cartId, $lineId: itemId, quantity });
       }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: cartKeys.all }),
+    onSettled,
   });
 }

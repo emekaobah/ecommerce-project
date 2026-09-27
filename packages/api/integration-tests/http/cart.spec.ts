@@ -157,5 +157,58 @@ medusaIntegrationTestRunner({
         expect(res.status).toBe(404)
       })
     })
+
+    describe("POST /store/carts/:id/merge", () => {
+      const as = (email: string) => ({
+        headers: { ...headers, authorization: `Bearer ${clerk.sessionToken({ sub: `user_${email}`, email })}` },
+      })
+      const buyerCart = async (email: string) =>
+        (await api.post("/store/carts", { region_id: regionId }, as(email))).data.cart
+
+      it("adds a guest cart's lines to the buyer's own cart, at each shop's price", async () => {
+        const mine = await buyerCart("ada@oja.test")
+        const ikejaLantern = await offerId("Ikeja Gadget Hub", LANTERN.title)
+        await addOffer(mine.id, ikejaLantern)
+        const guest = await createCart()
+        await addOffer(guest.id, ikejaLantern, 2)
+        await addOffer(guest.id, await offerId("Iya Bisi Foodstuff", LANTERN.title))
+
+        const { data } = await api.post(`/store/carts/${mine.id}/merge`, { cart_id: guest.id }, as("ada@oja.test"))
+
+        expect(data.cart.id).toBe(mine.id)
+        expect(
+          data.cart.sellers.map((g: any) => [g.seller.name, g.items.map((i: any) => [i.quantity, i.unit_price])])
+        ).toEqual([
+          ["Ikeja Gadget Hub", [[3, LANTERN.price]]],
+          ["Iya Bisi Foodstuff", [[1, LANTERN.also_at![0].price]]],
+        ])
+      })
+
+      it("needs a signed-in buyer", async () => {
+        const mine = await createCart()
+        const guest = await createCart()
+
+        const res = await api.post(`/store/carts/${mine.id}/merge`, { cart_id: guest.id }, { headers }).catch((e) => e.response)
+
+        expect(res.status).toBe(401)
+      })
+
+      it("won't merge into, or out of, another buyer's cart", async () => {
+        const theirs = await buyerCart("bola@oja.test")
+        await addOffer(theirs.id, await offerId("Iya Bisi Foodstuff", RICE.title))
+        const mine = await buyerCart("ada@oja.test")
+        const guest = await createCart()
+
+        const into = await api
+          .post(`/store/carts/${theirs.id}/merge`, { cart_id: guest.id }, as("ada@oja.test"))
+          .catch((e) => e.response)
+        const outOf = await api
+          .post(`/store/carts/${mine.id}/merge`, { cart_id: theirs.id }, as("ada@oja.test"))
+          .catch((e) => e.response)
+
+        expect([into.status, outOf.status]).toEqual([404, 404])
+        expect((await bySeller(theirs.id)).item_count).toBe(1)
+      })
+    })
   },
 })
