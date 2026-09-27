@@ -39,7 +39,7 @@
       "sourcePlaceholder": "e.g. Ikeja wholesaler",
       "sourceHint": "Who the file comes from. Its column mapping is remembered for the next file from the same source.",
       "file": "CSV file",
-      "fileHint": "Comma, semicolon or tab separated, with a header row. Up to 2,000 rows.",
+      "fileHint": "Comma, semicolon or tab separated, with a header row. Up to 500 rows.",
       "continue": "Continue"
     },
     "mapping": {

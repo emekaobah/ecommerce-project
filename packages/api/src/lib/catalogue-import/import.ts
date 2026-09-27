@@ -41,7 +41,7 @@ export async function importRows(
     }
     try {
       const { result } = await createProductsWorkflow(scope).run({
-        input: { products: [row.product as any], created_by: options.created_by },
+        input: { products: [row.product], created_by: options.created_by },
       })
       const completeness = await getProductCompleteness(scope, result[0].id)
       results.push({

@@ -2,7 +2,6 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import {
   importFields,
   loadImportCatalogue,
-  loadRequiredAttributes,
   loadSavedMapping,
   mappingErrors,
   previewMissing,
@@ -59,14 +58,9 @@ export async function POST(
   }
 
   const problems = mappingErrors(mapping, table.headers, catalogue)
-  const required = await loadRequiredAttributes(req.scope)
   const rows = problems.length ? [] : await readImportRows(req.scope, table, mapping, catalogue)
-  const preview = await Promise.all(
-    rows.map(async ({ product, ...row }) => ({
-      ...row,
-      missing: product ? await previewMissing(req.scope, product, required) : [],
-    }))
-  )
+  const missing = await previewMissing(req.scope, rows.map((r) => r.product))
+  const preview = rows.map(({ product: _product, ...row }, i) => ({ ...row, missing: missing[i] }))
   const valid = rows.filter((r) => r.product).length
 
   res.json({

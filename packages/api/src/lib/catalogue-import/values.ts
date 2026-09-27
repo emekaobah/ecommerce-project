@@ -8,6 +8,10 @@ export type Parsed<T> = { ok: true; value: T; warning?: string } | { ok: false; 
 /** A variant's barcode fields. Mercur stores EAN and UPC; GTIN, ISBN and ASIN map onto them. */
 export type Barcode = { barcode: string; ean?: string; upc?: string }
 
+/** Every code a variant's barcode fields hold, for duplicate checks. */
+export const barcodeCodes = (b: { barcode?: string | null; ean?: string | null; upc?: string | null }) =>
+  [b.barcode, b.ean, b.upc].filter((c): c is string => !!c)
+
 /** GS1 check digit (mod 10, weights 3 and 1 from the right) over a whole code. */
 function gs1CheckDigitValid(code: string): boolean {
   const digits = [...code].map(Number)

@@ -15,7 +15,8 @@ type Props = {
 export const UploadStep = ({ sources, onPreviewed }: Props) => {
   const { t } = useTranslation()
   const sourcesListId = useId()
-  const [source, setSource] = useState(sources[0] ?? "")
+  // Left blank so a file is never read with another supplier's mapping by default.
+  const [source, setSource] = useState("")
   const [file, setFile] = useState<File | null>(null)
 
   const preview = useMutation({

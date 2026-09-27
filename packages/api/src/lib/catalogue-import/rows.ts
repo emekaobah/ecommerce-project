@@ -1,6 +1,6 @@
 import type { CsvTable } from "./csv"
 import { importFields, type CatalogueAttribute, type ImportField, type ImportMapping } from "./fields"
-import { headerUnit, parseBarcode, parseLength, parsePrice, parseWeight, type Barcode, type Parsed } from "./values"
+import { barcodeCodes, headerUnit, parseBarcode, parseLength, parsePrice, parseWeight, type Barcode, type Parsed } from "./values"
 
 /** What the importer checks rows against: the catalogue as it stands. */
 export type ImportCatalogue = {
@@ -175,7 +175,7 @@ export function buildImportRows(table: CsvTable, mapping: ImportMapping, catalog
       else skuRows.set(sku, row)
     }
     if (barcode) {
-      const codes = [barcode.barcode, barcode.ean, barcode.upc].filter((c): c is string => !!c)
+      const codes = barcodeCodes(barcode)
       const earlier = codes.map((c) => barcodeRows.get(c)).find((r) => r !== undefined)
       if (codes.some((c) => existingBarcodes.has(c))) {
         errors.push(`${columnOf("barcode")}: ${barcode.barcode} is already in the catalogue.`)

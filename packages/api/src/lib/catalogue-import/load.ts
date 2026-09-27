@@ -2,14 +2,10 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { updateStoresWorkflow } from "@medusajs/medusa/core-flows"
 import { loadCategoryDefaults } from "../shipping-defaults"
-import {
-  assessProductCompleteness,
-  loadRequiredAttributes,
-  type ProductFacts,
-  type RequiredAttribute,
-} from "../product-completeness"
+import { assessProductCompleteness, loadRequiredAttributes, type ProductFacts } from "../product-completeness"
 import type { CsvTable } from "./csv"
 import type { CatalogueAttribute, ImportMapping } from "./fields"
+import { barcodeCodes } from "./values"
 import { buildImportRows, type ImportCatalogue, type ImportProduct, type ImportRow } from "./rows"
 
 type Scope = Pick<MedusaContainer, "resolve">
@@ -62,7 +58,7 @@ async function loadExistingCodes(scope: Scope, codes: { skus: string[]; barcodes
   const variants = data as { sku: string | null; barcode: string | null; ean: string | null; upc: string | null }[]
   return {
     skus: variants.map((v) => v.sku).filter((s): s is string => !!s),
-    barcodes: variants.flatMap((v) => [v.barcode, v.ean, v.upc]).filter((c): c is string => !!c),
+    barcodes: variants.flatMap(barcodeCodes),
   }
 }
 
@@ -99,39 +95,48 @@ export async function readImportRows(
   const variants = draft.flatMap((r) => (r.product ? r.product.variants : []))
   const existing = await loadExistingCodes(scope, {
     skus: variants.map((v) => v.sku).filter((s): s is string => !!s),
-    barcodes: variants.flatMap((v) => [v.barcode, v.ean, v.upc]).filter((c): c is string => !!c),
+    barcodes: variants.flatMap(barcodeCodes),
   })
   return buildImportRows(table, mapping, { ...catalogue, existing })
 }
 
 /**
- * What the publish gate would say of a row's product once created: the same
+ * What the publish gate would say of each row's product once created: the same
  * rule, applied to the product it would create (with its category's default
- * weight, which creation fills in).
+ * weight, which creation fills in). Rows with no product get an empty list.
  */
-export async function previewMissing(
-  scope: Scope,
-  product: ImportProduct,
-  required: RequiredAttribute[]
-): Promise<string[]> {
-  const categoryIds = (product.categories ?? []).map((c) => c.id)
-  const weight = product.weight ?? (await loadCategoryDefaults(scope, categoryIds))?.weight ?? null
-  const facts: ProductFacts = {
-    id: "preview",
-    status: product.status,
-    title: product.title,
-    image_count: product.images?.length ?? 0,
-    has_thumbnail: !!product.thumbnail,
-    category_ids: categoryIds,
-    weight,
-    // Prices live on shops' offers, which a new product doesn't have yet.
-    variants: product.variants.map((_, i) => ({ id: `preview_${i}`, weight: null, price_amounts: [] })),
-    attribute_values: Object.fromEntries((product.attributes ?? []).map((a) => [a.id, ["preview"]])),
+export async function previewMissing(scope: Scope, products: (ImportProduct | null)[]): Promise<string[][]> {
+  const required = await loadRequiredAttributes(scope)
+  // Rows share a handful of categories; look each one's defaults up once.
+  const defaultWeights = new Map<string, Promise<number | null>>()
+  const defaultWeight = (categoryIds: string[]) => {
+    const key = categoryIds.join(",")
+    if (!defaultWeights.has(key)) {
+      defaultWeights.set(key, loadCategoryDefaults(scope, categoryIds).then((d) => d?.weight ?? null))
+    }
+    return defaultWeights.get(key)!
   }
-  return assessProductCompleteness(facts, required).missing.map((m) => m.label)
-}
 
-export { loadRequiredAttributes }
+  return Promise.all(
+    products.map(async (product) => {
+      if (!product) return []
+      const categoryIds = (product.categories ?? []).map((c) => c.id)
+      const facts: ProductFacts = {
+        id: "preview",
+        status: product.status,
+        title: product.title,
+        image_count: product.images?.length ?? 0,
+        has_thumbnail: !!product.thumbnail,
+        category_ids: categoryIds,
+        weight: product.weight ?? (await defaultWeight(categoryIds)),
+        // Prices live on shops' offers, which a new product doesn't have yet.
+        variants: product.variants.map((_, i) => ({ id: `preview_${i}`, weight: null, price_amounts: [] })),
+        attribute_values: Object.fromEntries((product.attributes ?? []).map((a) => [a.id, ["preview"]])),
+      }
+      return assessProductCompleteness(facts, required).missing.map((m) => m.label)
+    })
+  )
+}
 
 // Saved mappings are a few small operator-wide records, so they live in the
 // store's metadata rather than a module and table of their own.
