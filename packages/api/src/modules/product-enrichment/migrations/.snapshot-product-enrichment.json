@@ -77,6 +77,22 @@
           ],
           "mappedType": "enum"
         },
+        "supplied": {
+          "name": "supplied",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "'{\"items\":[]}'",
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
         "outcome": {
           "name": "outcome",
           "type": "text",

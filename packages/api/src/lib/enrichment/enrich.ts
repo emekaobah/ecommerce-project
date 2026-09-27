@@ -2,10 +2,10 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { ProductStatus } from "@mercurjs/types"
-import { PRODUCT_ENRICHMENT_MODULE } from "../../modules/product-enrichment"
-import type ProductEnrichmentModuleService from "../../modules/product-enrichment/service"
+import { errorMessage as message } from "../errors"
 import { getProductCompleteness } from "../product-completeness"
 import { copyImage } from "./images"
+import { enrichmentOf, enrichmentService, type EnrichmentOutcome, type Submitter } from "./record"
 import type { Attribution, EnrichmentSource, SourceMatch } from "./source"
 import { configuredSources, type ConfiguredSource } from "./sources"
 
@@ -38,8 +38,6 @@ type ProductRow = {
 
 type Category = { id: string; name: string; handle: string }
 
-const service = (scope: Scope) => scope.resolve<ProductEnrichmentModuleService>(PRODUCT_ENRICHMENT_MODULE)
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /**
  * Enriches one queued product: fills the fields its submitter left empty from the
@@ -49,11 +47,12 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
  * answer is recorded and skipped.
  */
 export async function enrichProduct(container: MedusaContainer, productId: string): Promise<void> {
-  const enrichments = service(container)
-  const [record] = await enrichments.listProductEnrichments({ product_id: productId })
+  const enrichments = enrichmentService(container)
+  const record = await enrichmentOf(container, productId)
   if (!record || record.status !== "queued") return
   try {
-    const result = await fill(container, productId, record.fields as Record<string, Provenance>)
+    const supplied = (record.supplied as { items?: EnrichableField[] }).items ?? []
+    const result = await fill(container, productId, supplied)
     const outcome = await decide(container, productId, record.submitter, result)
     await enrichments.updateProductEnrichments({
       id: record.id,
@@ -85,7 +84,7 @@ type FillResult = {
   contributors: ConfiguredSource[]
 }
 
-async function fill(container: MedusaContainer, productId: string, supplied: Record<string, Provenance>): Promise<FillResult> {
+async function fill(container: MedusaContainer, productId: string, supplied: EnrichableField[]): Promise<FillResult> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const {
     data: [product],
@@ -99,17 +98,20 @@ async function fill(container: MedusaContainer, productId: string, supplied: Rec
     fields: ["id", "name", "handle"],
   })) as { data: Category[] }
 
-  const fields: FillResult["fields"] = { ...supplied }
+  const fields: FillResult["fields"] = Object.fromEntries(supplied.map((f) => [f, { source: "supplied", url: null }]))
   const errors: string[] = []
   const contributors: ConfiguredSource[] = []
+  /** Credits carried by a match's data itself (a catalogue product that took Open Facts data). */
+  const credits: Attribution[] = []
   const update: Record<string, unknown> = {}
   let images: StoredImage[] = []
 
-  // The submitter's own images are copied too: nothing is hotlinked.
+  // The submitter's own images are copied too: nothing is hotlinked, so one that
+  // can't be copied is dropped, and a source may fill the gap.
   if (fields.images) {
     images = await copyAll(container, (product.images ?? []).map((i) => i.url), "supplied", errors)
-    if (images.length) update.images = images
-    else delete fields.images
+    update.images = images
+    if (!images.length) delete fields.images
   }
 
   const barcode = product.variants?.map((v) => v.barcode ?? v.ean ?? v.upc).find(Boolean) ?? null
@@ -121,7 +123,7 @@ async function fill(container: MedusaContainer, productId: string, supplied: Rec
     let match: SourceMatch | null
     try {
       await rateLimit(source)
-      match = await source.lookup({ barcode, title: fields.title ? product.title : null })
+      match = await source.lookup({ barcode })
     } catch (error) {
       errors.push(`${source.name}: ${message(error)}`)
       continue
@@ -138,16 +140,26 @@ async function fill(container: MedusaContainer, productId: string, supplied: Rec
       fields[field] = provenance
       contributed = true
     }
-    if (contributed) contributors.push(configured)
+    if (contributed) {
+      contributors.push(configured)
+      credits.push(...(match.attribution ?? []))
+    }
   }
 
-  if (Object.keys(update).length) await updateProductsWorkflow(container).run({ input: { selector: { id: productId }, update: toProductUpdate(update) } })
+  if (Object.keys(update).length) {
+    await updateProductsWorkflow(container).run({
+      input: { selector: { id: productId }, update: toProductUpdate(update) },
+    })
+  }
 
-  const attribution = contributors
-    .map((c) => c.source.policy.attribution)
-    .filter((a): a is Attribution => !!a)
+  const attribution = uniqueByName([
+    ...contributors.map((c) => c.source.policy.attribution).filter((a): a is Attribution => !!a),
+    ...credits,
+  ])
   return { fields, images, attribution, errors, contributors }
 }
+
+const uniqueByName = (credits: Attribution[]) => [...new Map(credits.map((c) => [c.name, c])).values()]
 
 /** A source's value for one field, in the form the product takes it, or undefined when it has none. */
 async function valueOf(
@@ -195,7 +207,7 @@ function toProductUpdate(update: Record<string, unknown>) {
   const { images, categories, ...rest } = update as { images?: StoredImage[]; categories?: string[] }
   return {
     ...rest,
-    ...(images ? { images: images.map((i) => ({ url: i.url })), thumbnail: images[0].url } : {}),
+    ...(images ? { images: images.map((i) => ({ url: i.url })), thumbnail: images[0]?.url ?? null } : {}),
     ...(categories ? { category_ids: categories } : {}),
   }
 }
@@ -207,7 +219,8 @@ function singular(word: string): string {
   if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1)
   return word
 }
-const words = (name: string) =>
+/** A category name's parts: "Rice & Grains" → ["rice", "grain"]. */
+const nameParts = (name: string) =>
   name
     .toLowerCase()
     .split(/\s*(?:&|,|\band\b)\s*/)
@@ -221,8 +234,8 @@ const words = (name: string) =>
  */
 export function matchCategory(categories: Category[], names: string[]): string[] {
   for (const name of names) {
-    const wanted = words(name).join(" ")
-    const found = categories.find((c) => words(c.name).join(" ") === wanted || words(c.name).includes(wanted))
+    const wanted = nameParts(name).join(" ")
+    const found = categories.find((c) => nameParts(c.name).join(" ") === wanted || nameParts(c.name).includes(wanted))
     if (found) return [found.id]
   }
   return []
@@ -246,9 +259,9 @@ async function rateLimit(source: EnrichmentSource) {
 async function decide(
   container: MedusaContainer,
   productId: string,
-  submitter: "operator" | "vendor",
+  submitter: Submitter,
   { fields, contributors }: FillResult
-): Promise<{ outcome: "published" | "needs_review" | "incomplete"; reasons: string[] }> {
+): Promise<{ outcome: EnrichmentOutcome; reasons: string[] }> {
   const contributorById = new Map(contributors.map((c) => [c.source.id, c]))
   const reasons: string[] = []
   for (const field of ENRICHABLE_FIELDS) {
@@ -259,7 +272,9 @@ async function decide(
       reasons.push(`${LABELS[field]} came from ${contributor.source.name}, which isn't trusted.`)
     }
   }
-  const confirmed = contributors.some((c) => c.trusted) && !!fields.images && !!fields.categories
+  // The image and category themselves must come from a trusted source, not the vendor or an untrusted one.
+  const fromTrusted = (field: EnrichableField) => !!contributorById.get(fields[field]?.source ?? "")?.trusted
+  const confirmed = fromTrusted("images") && fromTrusted("categories")
   if (submitter === "vendor" && !confirmed) {
     reasons.push("A shop proposed it, and no trusted source confirmed it with an image and a category.")
   }
@@ -277,5 +292,9 @@ async function decide(
   await updateProductsWorkflow(container).run({
     input: { selector: { id: productId }, update: { status: ProductStatus.PUBLISHED } },
   })
-  return { outcome: "published", reasons: [] }
+  const why =
+    submitter === "operator"
+      ? "Every field came from the operator's sheet or a trusted source, and it is complete."
+      : "A trusted source confirmed it with an image and a category, and it is complete."
+  return { outcome: "published", reasons: [why] }
 }

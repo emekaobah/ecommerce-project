@@ -19,10 +19,11 @@ const ADAPTERS: Record<string, (scope: Scope) => EnrichmentSource> = {
   open_products_facts: () => openProductsFacts(),
 }
 
-// The demo's sources. Open Facts is public, crowd-sourced data: trust it for the
-// demo, not in production, where curated databases are expected (docs/design.md).
+// The demo's sources. Only the catalogue is trusted unless config says otherwise:
+// Open Facts is crowd-sourced, so a deployment that forgets to configure trust
+// sends its matches for review rather than publishing them (docs/design.md).
 const DEFAULT_SOURCES = "catalogue,open_food_facts,open_beauty_facts,open_products_facts"
-const DEFAULT_TRUSTED = DEFAULT_SOURCES
+const DEFAULT_TRUSTED = "catalogue"
 
 const idsOf = (list: string) =>
   list

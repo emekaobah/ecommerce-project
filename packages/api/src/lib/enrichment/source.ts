@@ -1,8 +1,8 @@
 // A product database that enrichment can ask about a product. Adapters are
 // pluggable: config picks which run and in what order (see ./sources).
 
-/** What enrichment knows of the product when it asks. */
-export type LookupQuery = { barcode: string | null; title: string | null }
+/** What enrichment knows of the product when it asks: sources are keyed by barcode. */
+export type LookupQuery = { barcode: string | null }
 
 /** The fields a source can fill. Weight is in grams; categories are the source's own names. */
 export type SourceFields = {
@@ -20,6 +20,8 @@ export type SourceMatch = {
   fields: SourceFields
   /** The source's page for this product, recorded as provenance. */
   url: string | null
+  /** Credits the matched data already owes, beyond the source's own (e.g. catalogue data taken from Open Facts). */
+  attribution?: Attribution[]
 }
 
 /** A credit buyers must see when a product shows the source's data. */

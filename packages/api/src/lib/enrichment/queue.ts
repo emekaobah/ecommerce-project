@@ -1,8 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
-import { PRODUCT_ENRICHMENT_MODULE } from "../../modules/product-enrichment"
-import type ProductEnrichmentModuleService from "../../modules/product-enrichment/service"
 import type { EnrichableField } from "./enrich"
+import { enrichmentService, type Submitter } from "./record"
 
 /** Emitted per queued product; the enrichment subscriber picks it up in the worker. */
 export const ENRICHMENT_QUEUED = "product_enrichment.queued"
@@ -15,18 +14,18 @@ export type EnrichmentRequest = {
 
 type Scope = Pick<MedusaContainer, "resolve">
 
-/** Records each product as queued, with its supplied fields' provenance, and hands it to the worker. */
+/** Records each product as queued, with the fields its submitter supplied, and hands it to the worker. */
 export async function queueEnrichment(
   scope: Scope,
   requests: EnrichmentRequest[],
-  submitter: "operator" | "vendor"
+  submitter: Submitter
 ): Promise<void> {
   if (!requests.length) return
-  await scope.resolve<ProductEnrichmentModuleService>(PRODUCT_ENRICHMENT_MODULE).createProductEnrichments(
+  await enrichmentService(scope).createProductEnrichments(
     requests.map((r) => ({
       product_id: r.product_id,
       submitter,
-      fields: Object.fromEntries(r.supplied.map((field) => [field, { source: "supplied", url: null }])),
+      supplied: { items: r.supplied },
     }))
   )
   await scope

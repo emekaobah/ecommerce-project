@@ -26,7 +26,7 @@ describe("Open Food Facts source", () => {
   it("reads a product's name, description, weight in grams, front image and categories, most specific first", async () => {
     const { fetch, calls } = fakeFetch(RICE)
 
-    const match = await openFoodFacts({ fetch }).lookup({ barcode: "5901234123457", title: null })
+    const match = await openFoodFacts({ fetch }).lookup({ barcode: "5901234123457" })
 
     expect(match).toEqual({
       url: "https://world.openfoodfacts.org/product/5901234123457",
@@ -47,22 +47,22 @@ describe("Open Food Facts source", () => {
     const kilo = fakeFetch({ status: 1, product: { product_name: "Garri", product_quantity: 2, product_quantity_unit: "kg" } })
     const litre = fakeFetch({ status: 1, product: { product_name: "Palm oil", product_quantity: 1000, product_quantity_unit: "ml" } })
 
-    expect((await openFoodFacts({ fetch: kilo.fetch }).lookup({ barcode: "1", title: null }))?.fields.weight).toBe(2000)
-    expect((await openFoodFacts({ fetch: litre.fetch }).lookup({ barcode: "1", title: null }))?.fields).not.toHaveProperty("weight")
+    expect((await openFoodFacts({ fetch: kilo.fetch }).lookup({ barcode: "1" }))?.fields.weight).toBe(2000)
+    expect((await openFoodFacts({ fetch: litre.fetch }).lookup({ barcode: "1" }))?.fields).not.toHaveProperty("weight")
   })
 
   it("finds nothing for an unknown barcode, or without a barcode", async () => {
     const unknown = fakeFetch({ status: 0, status_verbose: "product not found" }, 404)
 
-    expect(await openFoodFacts({ fetch: unknown.fetch }).lookup({ barcode: "0000000000000", title: null })).toBeNull()
-    expect(await openFoodFacts({ fetch: unknown.fetch }).lookup({ barcode: null, title: "Rice" })).toBeNull()
+    expect(await openFoodFacts({ fetch: unknown.fetch }).lookup({ barcode: "0000000000000" })).toBeNull()
+    expect(await openFoodFacts({ fetch: unknown.fetch }).lookup({ barcode: null })).toBeNull()
     expect(unknown.calls).toHaveLength(1)
   })
 
   it("fails loudly when the service errors, so the worker can record it", async () => {
     const down = fakeFetch({ error: "overloaded" }, 503)
 
-    await expect(openFoodFacts({ fetch: down.fetch }).lookup({ barcode: "1", title: null })).rejects.toThrow(/503/)
+    await expect(openFoodFacts({ fetch: down.fetch }).lookup({ barcode: "1" })).rejects.toThrow(/503/)
   })
 
   it("declares its licence: public data and images, with attribution required", () => {

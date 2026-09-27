@@ -1,6 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { createProductsWorkflow } from "@mercurjs/core/workflows"
-import { queueEnrichment, type EnrichableField, type EnrichmentRequest } from "../enrichment"
+import { errorMessage } from "../errors"
+import { queueEnrichment, type EnrichableField } from "../enrichment"
 import { getProductCompleteness } from "../product-completeness"
 import type { ImportProduct, ImportRow } from "./rows"
 
@@ -19,7 +20,6 @@ export type ImportResult = {
   missing: string[]
 }
 
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /**
  * Creates each valid row as a draft through Mercur's create-products workflow,
@@ -38,7 +38,6 @@ export async function importRows(
   options: { created_by: string }
 ): Promise<ImportResult[]> {
   const results: ImportResult[] = []
-  const enrichment: EnrichmentRequest[] = []
   for (const row of rows) {
     const base = { row: row.row, title: row.title, errors: row.errors, warnings: row.warnings, missing: [] }
     if (!row.product) {
@@ -49,7 +48,8 @@ export async function importRows(
       const { result } = await createProductsWorkflow(scope).run({
         input: { products: [row.product], created_by: options.created_by },
       })
-      enrichment.push({ product_id: result[0].id, supplied: suppliedFields(row.product) })
+      // Queued as soon as it exists, so a request cut short leaves nothing un-enriched.
+      await queueEnrichment(scope, [{ product_id: result[0].id, supplied: suppliedFields(row.product) }], "operator")
       const completeness = await getProductCompleteness(scope, result[0].id)
       results.push({
         ...base,
@@ -58,10 +58,9 @@ export async function importRows(
         missing: completeness.missing.map((m) => m.label),
       })
     } catch (error) {
-      results.push({ ...base, status: "failed", product_id: null, errors: [message(error)] })
+      results.push({ ...base, status: "failed", product_id: null, errors: [errorMessage(error)] })
     }
   }
-  await queueEnrichment(scope, enrichment, "operator")
   return results
 }
 

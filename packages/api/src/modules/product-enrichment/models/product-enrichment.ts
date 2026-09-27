@@ -13,9 +13,11 @@ const ProductEnrichment = model
     status: model.enum(["queued", "done", "failed"]).default("queued"),
     /** Who supplied the product's own data: the operator reviewed it at import; a vendor did not. */
     submitter: model.enum(["operator", "vendor"]),
+    /** The fields the submitter filled in, which enrichment never overwrites. */
+    supplied: model.json().default({ items: [] }),
     /** `published`: approved and complete; `needs_review`: sent to the proposal queue; `incomplete`: approved, still missing fields. */
     outcome: model.enum(["published", "needs_review", "incomplete"]).nullable(),
-    /** Per field: the source that filled it (`supplied` for the submitter's own data) and its record. */
+    /** Per field, once enriched: the source that filled it (`supplied` for the submitter's own data) and its record. */
     fields: model.json().default({}),
     /** Each stored image: its URL in our file storage, its source and where it was copied from. */
     images: model.json().default({ items: [] }),

@@ -29,8 +29,9 @@ const PIXEL = Buffer.from(
 )
 
 /**
- * Serves a tiny PNG for every image URL on `hosts`, so copying images into storage
- * needs no network; other requests pass through. Returns the image URLs fetched.
+ * Serves a tiny PNG for every image URL on `hosts` (a 404 for paths under
+ * `/missing`), so copying images into storage needs no network; other requests
+ * pass through. Returns the image URLs fetched.
  */
 export function fakeImageHosts(hosts: string[]) {
   const fetched: string[] = []
@@ -39,6 +40,7 @@ export function fakeImageHosts(hosts: string[]) {
     const url = String(input instanceof Request ? input.url : input)
     if (!hosts.includes(new URL(url).host)) return real(input, init)
     fetched.push(url)
+    if (new URL(url).pathname.startsWith("/missing")) return new Response("Not found", { status: 404 })
     return new Response(PIXEL, { status: 200, headers: { "content-type": "image/png" } })
   })
   return fetched

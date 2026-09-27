@@ -1,7 +1,6 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { PRODUCT_ENRICHMENT_MODULE } from "../../../modules/product-enrichment"
-import type ProductEnrichmentModuleService from "../../../modules/product-enrichment/service"
+import { enrichmentService } from "../../../lib/enrichment"
 import type { AdminListEnrichmentsType } from "./validators"
 
 type ProductSummary = { id: string; title: string; status: string; thumbnail: string | null }
@@ -12,8 +11,7 @@ type ProductSummary = { id: string; title: string; status: string; thumbnail: st
  */
 export async function GET(req: AuthenticatedMedusaRequest<unknown, AdminListEnrichmentsType>, res: MedusaResponse) {
   const { outcome, status, limit, offset } = req.validatedQuery
-  const enrichments = req.scope.resolve<ProductEnrichmentModuleService>(PRODUCT_ENRICHMENT_MODULE)
-  const [records, count] = await enrichments.listAndCountProductEnrichments(
+  const [records, count] = await enrichmentService(req.scope).listAndCountProductEnrichments(
     { ...(outcome ? { outcome } : {}), ...(status ? { status } : {}) },
     { order: { enriched_at: "DESC", created_at: "DESC" }, take: limit, skip: offset }
   )

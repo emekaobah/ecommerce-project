@@ -1,6 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { ProductStatus } from "@mercurjs/types"
+import { attributionOf } from "./record"
 import type { EnrichmentSource } from "./source"
 
 type Scope = Pick<MedusaContainer, "resolve">
@@ -18,7 +19,8 @@ type CatalogueProduct = {
 /**
  * The published catalogue, matched by barcode: another published product whose
  * variant carries the same barcode, EAN or UPC. Its data is already public and its
- * images already ours, so it needs no credit.
+ * images already ours, so it needs no credit of its own, but it passes on the
+ * credits its data owes to the databases that enriched it.
  */
 export function catalogueSource(scope: Scope): EnrichmentSource {
   return {
@@ -47,6 +49,7 @@ export function catalogueSource(scope: Scope): EnrichmentSource {
       const weight = product.weight == null ? null : Number(product.weight)
       return {
         url: null,
+        attribution: await attributionOf(scope, product.id),
         fields: {
           ...(product.title ? { title: product.title } : {}),
           ...(product.description ? { description: product.description } : {}),

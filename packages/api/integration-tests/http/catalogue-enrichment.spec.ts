@@ -1,6 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { catalogueSource } from "../../src/lib/enrichment/catalogue"
+import { enrichmentService, queueEnrichment } from "../../src/lib/enrichment"
 import seedDemoData from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
 import { offerOn } from "../helpers/offers"
@@ -50,6 +51,22 @@ medusaIntegrationTestRunner({
       return `attribute:${data[0].id}`
     }
 
+    const categoryId = async (name: string) => {
+      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+      const { data } = await query.graph({ entity: "product_category", fields: ["id"], filters: { name } })
+      return data[0].id as string
+    }
+    const storeHeaders = async () => {
+      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+      const { data: [key] } = await query.graph({ entity: "api_key", fields: ["token"], filters: { type: "publishable" } })
+      return { "x-publishable-api-key": key.token }
+    }
+    const regionId = async () => {
+      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+      const { data: [region] } = await query.graph({ entity: "region", fields: ["id"] })
+      return region.id as string
+    }
+
     const product = async (id: string) => {
       const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
       const { data } = await query.graph({
@@ -79,9 +96,16 @@ medusaIntegrationTestRunner({
         )
         const enrichment = await enrichmentOf(api, admin, id)
 
-        expect(enrichment).toMatchObject({ status: "done", outcome: "published", reasons: { items: [] } })
+        expect(enrichment).toMatchObject({
+          status: "done",
+          outcome: "published",
+          reasons: { items: ["Every field came from the operator's sheet or a trusted source, and it is complete."] },
+        })
         // "rices" found the catalogue's "Rice & Grains", whose shipping defaults filled the weight.
         expect(await product(id)).toMatchObject({ status: "published", categories: [{ name: "Rice & Grains" }] })
+        // Shops can now find it to offer; buyers see nothing until one prices it.
+        const { data } = await api.get(`/store/listings?region_id=${await regionId()}&limit=100`, { headers: await storeHeaders() })
+        expect(data.listings.some((l: any) => l.product.id === id)).toBe(false)
       })
 
       it("sends a product to review when a field came from an untrusted source", async () => {
@@ -100,6 +124,32 @@ medusaIntegrationTestRunner({
         ])
         // Mercur's queue of products awaiting an operator's review.
         expect((await product(id)).status).toBe("proposed")
+      })
+
+      it("sends a shop's proposal to review unless a trusted source itself supplied its image and category", async () => {
+        useSources(getContainer(), [
+          { trusted: true, source: fakeSource("curated_db", { [RICE_EAN]: { url: null, fields: { description: "Local rice" } } }) },
+        ])
+        const { data } = await api.post(
+          "/admin/products",
+          {
+            title: "Abakaliki Rice 5kg",
+            status: "draft",
+            images: [{ url: "https://sheet.test/rice.png" }],
+            categories: [{ id: await categoryId("Rice & Grains") }],
+            variants: [{ title: "Abakaliki Rice 5kg", ean: RICE_EAN }],
+          },
+          admin
+        )
+
+        // The shop supplied the image and category; the trusted source only a description.
+        await queueEnrichment(getContainer(), [{ product_id: data.product.id, supplied: ["title", "images", "categories"] }], "vendor")
+        const enrichment = await enrichmentOf(api, admin, data.product.id)
+
+        expect(enrichment.outcome).toBe("needs_review")
+        expect(enrichment.reasons.items).toEqual([
+          "A shop proposed it, and no trusted source confirmed it with an image and a category.",
+        ])
       })
 
       it("leaves an approved product that is still incomplete a draft, saying what it lacks", async () => {
@@ -193,6 +243,18 @@ medusaIntegrationTestRunner({
         expect(enrichment.images.items).toEqual([
           { url: images[0].url, source: "supplied", source_url: "https://sheet.test/rice.png" },
         ])
+      })
+
+      it("drops a sheet image it can't copy rather than link to it, saying why", async () => {
+        const [id] = await importSheet(
+          ["title", "barcode", "selling_price", "images"],
+          ["Abakaliki Rice 5kg", RICE_EAN, "14500", "https://sheet.test/missing.png"]
+        )
+        const enrichment = await enrichmentOf(api, admin, id)
+
+        expect(await product(id)).toMatchObject({ images: [], thumbnail: null })
+        expect(enrichment.fields).not.toHaveProperty("images")
+        expect(enrichment.errors.items).toEqual(["Image https://sheet.test/missing.png: https://sheet.test/missing.png answered 404"])
       })
 
       it("skips a source without image rights, taking the image from the next source that has them", async () => {
@@ -299,10 +361,15 @@ medusaIntegrationTestRunner({
         })
         await getContainer().resolve(Modules.PRODUCT).updateProductVariants(kaftan.variants[0].id, { ean: RICE_EAN })
 
-        const match = await catalogueSource(getContainer()).lookup({ barcode: RICE_EAN, title: null })
+        const match = await catalogueSource(getContainer()).lookup({ barcode: RICE_EAN })
 
         expect(match?.fields).toMatchObject({ title: "Adire Kaftan", description: kaftan.description, category_ids: [expect.any(String)] })
-        expect(await catalogueSource(getContainer()).lookup({ barcode: "0000000000000", title: null })).toBeNull()
+        expect(await catalogueSource(getContainer()).lookup({ barcode: "0000000000000" })).toBeNull()
+
+        // Data the catalogue product itself took from a database keeps that database's credit.
+        const credit = { name: "Open Food Facts", url: "https://world.openfoodfacts.org", license: "ODbL / CC BY-SA" }
+        await enrichmentService(getContainer()).createProductEnrichments({ product_id: kaftan.id, submitter: "operator", attribution: { items: [credit] } })
+        expect((await catalogueSource(getContainer()).lookup({ barcode: RICE_EAN }))?.attribution).toEqual([credit])
       })
     })
   },

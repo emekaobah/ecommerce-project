@@ -3,9 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
 import { resolveVisibleSellerIds } from "@mercurjs/core/api/utils/sellers"
 import { ProductStatus } from "@mercurjs/types"
-import type { Attribution } from "./enrichment"
-import { PRODUCT_ENRICHMENT_MODULE } from "../modules/product-enrichment"
-import type ProductEnrichmentModuleService from "../modules/product-enrichment/service"
+import { attributionOf, type Attribution } from "./enrichment"
 
 // A listing is one shop's offer of one product: the product page and the feed are always
 // in a shop's context, and prices are never compared across shops (docs/design.md).
@@ -286,17 +284,6 @@ export async function retrieveListing(
     attributes: attributesOf(attributeValues ?? []),
     attribution: await attributionOf(scope, p.id),
   })
-}
-
-/** The credits enrichment recorded for the product; none if it wasn't enriched. */
-async function attributionOf(scope: MedusaContainer, productId: string): Promise<Attribution[]> {
-  const enrichments = scope.resolve<ProductEnrichmentModuleService>(PRODUCT_ENRICHMENT_MODULE)
-  const [enrichment] = await enrichments.listProductEnrichments({ product_id: productId })
-  return ((enrichment?.attribution as { items?: Attribution[] } | undefined)?.items ?? []).map(({ name, url, license }) => ({
-    name,
-    url,
-    license,
-  }))
 }
 
 type AttributeValueRow = { name: string; attribute?: { id: string; name: string; rank: number | null } | null }
