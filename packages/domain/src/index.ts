@@ -25,3 +25,5 @@ export type {
 } from "./fulfilment"
 export { formatWeight, listingPrice, offerPrice, shipsIn } from "./listing"
 export type { DisplayPrice, ListingPrice, PricedOffer } from "./listing"
+export { currentShop, shopChoice } from "./shop-choice"
+export type { ShopChoice } from "./shop-choice"

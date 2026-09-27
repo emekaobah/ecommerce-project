@@ -11,6 +11,8 @@ export type Session = {
 export type SessionState =
   | { status: 'hydrating' }
   | { status: 'signedOut' }
+  /** Signed in as a member of several shops, before picking one. */
+  | { status: 'choosingShop'; token: string }
   | { status: 'signedIn'; session: Session };
 
 const TOKEN_KEY = 'member-token';
@@ -36,6 +38,13 @@ export function getSession(): Session | undefined {
   return state.status === 'signedIn' ? state.session : undefined;
 }
 
+/** The member JWT, whether or not a shop has been picked yet. */
+export function getToken(): string | undefined {
+  if (state.status === 'signedIn') return state.session.token;
+  if (state.status === 'choosingShop') return state.token;
+  return undefined;
+}
+
 /** Restores the persisted session. The root layout holds the splash screen until this settles. */
 export async function hydrateSession(): Promise<void> {
   try {
@@ -43,7 +52,10 @@ export async function hydrateSession(): Promise<void> {
       SecureStore.getItemAsync(TOKEN_KEY),
       SecureStore.getItemAsync(SELLER_KEY),
     ]);
-    setState(token && sellerId ? { status: 'signedIn', session: { token, sellerId } } : { status: 'signedOut' });
+    if (!token) setState({ status: 'signedOut' });
+    // Closed before picking a shop: back to the shop picker.
+    else if (!sellerId) setState({ status: 'choosingShop', token });
+    else setState({ status: 'signedIn', session: { token, sellerId } });
   } catch {
     // An unreadable keychain (e.g. after a device restore) means signing in again, not a stuck splash.
     setState({ status: 'signedOut' });
@@ -58,6 +70,14 @@ export async function saveSession(session: Session): Promise<void> {
     ])
   );
   setState({ status: 'signedIn', session });
+}
+
+/** Keeps the member signed in with no shop picked, so the shop picker shows. */
+export async function saveTokenForShopChoice(token: string): Promise<void> {
+  await queueKeychain(() =>
+    Promise.all([SecureStore.setItemAsync(TOKEN_KEY, token), SecureStore.deleteItemAsync(SELLER_KEY)])
+  );
+  setState({ status: 'choosingShop', token });
 }
 
 export async function clearSession(): Promise<void> {

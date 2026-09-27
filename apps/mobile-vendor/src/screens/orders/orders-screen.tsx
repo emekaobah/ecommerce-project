@@ -1,12 +1,11 @@
 import { Button, EmptyState, ErrorState, ListRow, LoadingState, StatusChip, useTheme, type StatusTone } from '@oja/ui';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet } from 'react-native';
 
 import { useOrders } from '@/api/orders';
 import { useCurrentSeller } from '@/api/sellers';
 import { useSession } from '@/session/session-store';
-import { signOut } from '@/session/sign-out';
 
 // Medusa order statuses; the fulfilment state machine replaces these with its own states.
 const STATUS_TONES: Partial<Record<string, StatusTone>> = {
@@ -18,6 +17,7 @@ const STATUS_TONES: Partial<Record<string, StatusTone>> = {
 
 export function OrdersScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const sellerId = useSession()?.sellerId;
   const seller = useCurrentSeller(sellerId);
   const orders = useOrders(sellerId);
@@ -61,7 +61,7 @@ export function OrdersScreen() {
       <Stack.Screen
         options={{
           title: seller.data?.name ?? 'Orders',
-          headerRight: () => <Button label="Sign out" variant="link" onPress={() => void signOut()} />,
+          headerRight: () => <Button label="Settings" variant="link" onPress={() => router.push('/settings')} />,
         }}
       />
       {content()}
