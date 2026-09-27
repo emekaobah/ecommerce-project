@@ -24,6 +24,9 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-localization',
+    'expo-secure-store',
+    // Native sign-in UI (AuthView). Adds the Sign in with Apple entitlement and needs a dev build.
+    ['@clerk/expo', { theme: './clerk-theme.json' }],
     ['expo-splash-screen', { backgroundColor: '#FFFFFF', image: './assets/splash-icon.png', imageWidth: 120 }],
     withIosSceneLifecycle,
   ],
