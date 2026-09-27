@@ -19,6 +19,16 @@ export type ListingOffer = {
 
 export type ListingSeller = { id: string; name: string; handle: string }
 
+/** A shop's page header. */
+export type Shop = ListingSeller & {
+  description: string | null
+  logo: string | null
+  /** Where the shop is: its pickup address's LGA or city (ADR 0002). */
+  area: string | null
+  /** The shop's usual days to ship; null when it hasn't set one. */
+  leadtime_to_ship: number | null
+}
+
 export type ListingProduct = { id: string; title: string; handle: string; thumbnail: string | null }
 
 export type ListingProductDetail = ListingProduct & {
@@ -43,13 +53,22 @@ export type ListingFilters = {
   regionId: string
   /** The publishable key's sales channels; products outside them are never listed. */
   salesChannelIds: string[]
+  /** Words the product's name must all hold, ignoring case. */
+  search?: string
+  /** Products in this category or any category below it. */
+  categoryId?: string
   sellerId?: string
   productId?: string
   excludeProductId?: string
 }
 
 type Region = { id: string; currency_code: string; countries: string[] }
-type SellerRow = ListingSeller & { default_leadtime_to_ship: number | null; address?: { country_code: string | null } | null }
+type SellerRow = ListingSeller & {
+  description: string | null
+  logo: string | null
+  default_leadtime_to_ship: number | null
+  address?: { country_code: string | null; city: string | null } | null
+}
 /** Mercur's calculated price; the pricing module's fields beyond `ListingPrice` pass through untyped. */
 type CalculatedOfferPrice = ListingPrice & { is_calculated_price_tax_inclusive?: boolean } & Record<string, unknown>
 type OfferPricingRow = {
@@ -87,7 +106,16 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "seller",
-    fields: ["id", "name", "handle", "default_leadtime_to_ship", "address.country_code"],
+    fields: [
+      "id",
+      "name",
+      "handle",
+      "description",
+      "logo",
+      "default_leadtime_to_ship",
+      "address.country_code",
+      "address.city",
+    ],
     filters: { id: ids },
   })
   const serving = (data as SellerRow[]).filter((s) => {
@@ -97,9 +125,9 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
   return new Map(serving.map((s) => [s.id, s]))
 }
 
-/** Published products in the publishable key's sales channels. */
-async function listableProductIds(scope: MedusaContainer, filters: ListingFilters): Promise<string[]> {
-  if (!filters.salesChannelIds.length) return []
+/** Published products in the publishable key's sales channels, with their titles for ranking. */
+async function listableProducts(scope: MedusaContainer, filters: ListingFilters): Promise<Map<string, string>> {
+  if (!filters.salesChannelIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: inChannels } = await query.graph({
     entity: "product_sales_channel",
@@ -110,14 +138,55 @@ async function listableProductIds(scope: MedusaContainer, filters: ListingFilter
     },
   })
   const channelProductIds = [...new Set((inChannels as { product_id: string }[]).map((l) => l.product_id))]
-  if (!channelProductIds.length) return []
+  if (!channelProductIds.length) return new Map()
+  const categoryIds = filters.categoryId ? await categoryTree(scope, filters.categoryId) : undefined
+  if (categoryIds && !categoryIds.length) return new Map()
   const { data } = await query.graph({
     entity: "product",
-    fields: ["id"],
-    filters: { status: ProductStatus.PUBLISHED, id: channelProductIds },
+    fields: ["id", "title"],
+    // The generated filter type leaves out the product module's own relations, which filter fine.
+    filters: {
+      status: ProductStatus.PUBLISHED,
+      id: channelProductIds,
+      ...titleFilter(filters.search),
+      ...(categoryIds ? { categories: { id: categoryIds } } : {}),
+    } as any,
   })
-  return (data as { id: string }[]).map((p) => p.id).filter((id) => id !== filters.excludeProductId)
+  return new Map(
+    (data as { id: string; title: string }[]).filter((p) => p.id !== filters.excludeProductId).map((p) => [p.id, p.title])
+  )
 }
+
+/**
+ * A category and every category below it that buyers can see: active and not internal.
+ * A hidden category hides the branch beneath it. Empty when the category itself is hidden or unknown.
+ */
+async function categoryTree(scope: MedusaContainer, categoryId: string): Promise<string[]> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "product_category",
+    fields: ["id", "parent_category_id"],
+    filters: { is_active: true, is_internal: false },
+  })
+  const categories = data as { id: string; parent_category_id: string | null }[]
+  if (!categories.some((c) => c.id === categoryId)) return []
+  const tree = [categoryId]
+  for (let i = 0; i < tree.length; i++) {
+    tree.push(...categories.filter((c) => c.parent_category_id === tree[i]).map((c) => c.id))
+  }
+  return tree
+}
+
+/** Every word of the search in the product's title, ignoring case; no filter for an empty search. */
+function titleFilter(search: string | undefined) {
+  const words = searchWords(search)
+  if (!words.length) return {}
+  // `%`, `_` and `\` are pattern characters in ILIKE; a buyer's query matches them literally.
+  const escape = (word: string) => word.replaceAll(/[\\%_]/g, (c) => `\\${c}`)
+  return { $and: words.map((word) => ({ title: { $ilike: `%${escape(word)}%` } })) }
+}
+
+const searchWords = (search: string | undefined) => search?.toLowerCase().split(/\s+/).filter(Boolean) ?? []
 
 /**
  * Offers visible in the region, each priced by Mercur's per-offer pricing (the variant's
@@ -125,8 +194,8 @@ async function listableProductIds(scope: MedusaContainer, filters: ListingFilter
  */
 async function pricedOffers(scope: MedusaContainer, region: Region, filters: ListingFilters) {
   const sellers = await sellersServing(scope, region, filters.sellerId)
-  const productIds = sellers.size ? await listableProductIds(scope, filters) : []
-  if (!productIds.length) return { sellers, offers: [] as PricedOfferRow[] }
+  const titles = sellers.size ? await listableProducts(scope, filters) : new Map<string, string>()
+  if (!titles.size) return { sellers, titles, offers: [] as PricedOfferRow[] }
 
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
@@ -141,10 +210,10 @@ async function pricedOffers(scope: MedusaContainer, region: Region, filters: Lis
       "product_variant.title",
       "product_variant.price_set.id",
     ],
-    filters: { seller_id: [...sellers.keys()], product_id: productIds },
+    filters: { seller_id: [...sellers.keys()], product_id: [...titles.keys()] },
     pagination: { order: { created_at: "ASC", id: "ASC" } },
   })
-  return { sellers, offers: await priceOffers(scope, region, data as OfferRow[]) }
+  return { sellers, titles, offers: await priceOffers(scope, region, data as OfferRow[]) }
 }
 
 /**
@@ -166,9 +235,11 @@ export async function priceOffers<O extends OfferPricingRow>(
   )
 }
 
+type ListingGroup = { seller: SellerRow; productId: string; offers: PricedOfferRow[] }
+
 /** Groups offers into one listing per shop and product, in the order they were first listed. */
-function groupListings(sellers: Map<string, SellerRow>, offers: PricedOfferRow[]) {
-  const listings = new Map<string, { seller: SellerRow; productId: string; offers: PricedOfferRow[] }>()
+function groupListings(sellers: Map<string, SellerRow>, offers: PricedOfferRow[]): ListingGroup[] {
+  const listings = new Map<string, ListingGroup>()
   for (const offer of offers) {
     const key = `${offer.seller_id}:${offer.product_id}`
     const listing = listings.get(key)
@@ -178,14 +249,47 @@ function groupListings(sellers: Map<string, SellerRow>, offers: PricedOfferRow[]
   return [...listings.values()]
 }
 
-function toListing<P extends ListingProduct>(
-  group: { seller: SellerRow; offers: PricedOfferRow[] },
-  product: P
-): Listing<P> {
-  const { seller, offers } = group
+/** Days until the shop ships: the slowest of its offers, else the shop's default; null when neither is set. */
+function leadtimeToShip({ seller, offers }: Pick<ListingGroup, "seller" | "offers">): number | null {
   const leadTimes = offers
     .map((o) => o.leadtime_to_ship ?? seller.default_leadtime_to_ship)
     .filter((days): days is number => days != null)
+  return leadTimes.length ? Math.max(...leadTimes) : null
+}
+
+/**
+ * How well a product's name matches the search: the whole name (3), the start of it (2),
+ * the start of a word for every search word (1), or only somewhere inside (0).
+ */
+function relevance(title: string, words: string[]): number {
+  if (!words.length) return 0
+  const name = title.toLowerCase()
+  const phrase = words.join(" ")
+  if (name === phrase) return 3
+  if (name.startsWith(phrase)) return 2
+  const nameWords = name.split(/[^\p{L}\p{N}]+/u)
+  return words.every((word) => nameWords.some((w) => w.startsWith(word))) ? 1 : 0
+}
+
+/**
+ * The documented listing order (docs/design.md): best name match first, then the shop that
+ * ships soonest, then the order listings were first made. Never by price. "Nearest" joins
+ * once buyers have a delivery address to measure from.
+ */
+function orderListings(groups: ListingGroup[], titles: Map<string, string>, search: string | undefined) {
+  const words = searchWords(search)
+  const ranked = groups.map((group, index) => ({
+    group,
+    index,
+    relevance: relevance(titles.get(group.productId) ?? "", words),
+    days: leadtimeToShip(group) ?? Number.POSITIVE_INFINITY,
+  }))
+  ranked.sort((a, b) => b.relevance - a.relevance || a.days - b.days || a.index - b.index)
+  return ranked.map((r) => r.group)
+}
+
+function toListing<P extends ListingProduct>(group: Pick<ListingGroup, "seller" | "offers">, product: P): Listing<P> {
+  const { seller, offers } = group
   return {
     seller: { id: seller.id, name: seller.name, handle: seller.handle },
     product,
@@ -199,13 +303,13 @@ function toListing<P extends ListingProduct>(
         currency_code: calculated_price.currency_code,
       },
     })),
-    leadtime_to_ship: leadTimes.length ? Math.max(...leadTimes) : null,
+    leadtime_to_ship: leadtimeToShip(group),
   }
 }
 
 /**
- * Listings visible in a region, one per shop and product. Offers are grouped before paging,
- * so a page never splits a listing; fine at v1 catalogue sizes.
+ * Listings visible in a region, one per shop and product, in the documented order. Offers are
+ * grouped and ordered before paging, so a page never splits a listing; fine at v1 catalogue sizes.
  */
 export async function listListings(
   scope: MedusaContainer,
@@ -213,8 +317,8 @@ export async function listListings(
   page: { limit: number; offset: number }
 ): Promise<{ listings: Listing[]; count: number }> {
   const region = await loadRegion(scope, filters.regionId)
-  const { sellers, offers } = await pricedOffers(scope, region, filters)
-  const groups = groupListings(sellers, offers)
+  const { sellers, titles, offers } = await pricedOffers(scope, region, filters)
+  const groups = orderListings(groupListings(sellers, offers), titles, filters.search)
   const pageGroups = groups.slice(page.offset, page.offset + page.limit)
   if (!pageGroups.length) return { listings: [], count: groups.length }
 
@@ -294,4 +398,20 @@ function attributesOf(values: AttributeValueRow[]): { name: string; values: stri
     byAttribute.set(attribute.id, entry)
   }
   return [...byAttribute.values()].sort((a, b) => a.rank - b.rank).map(({ name, values }) => ({ name, values }))
+}
+
+/** An open shop serving the region, for its page's header, or not found. */
+export async function retrieveShop(scope: MedusaContainer, filters: { regionId: string; sellerId: string }): Promise<Shop> {
+  const region = await loadRegion(scope, filters.regionId)
+  const seller = (await sellersServing(scope, region, filters.sellerId)).get(filters.sellerId)
+  if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop isn't open in your region")
+  return {
+    id: seller.id,
+    name: seller.name,
+    handle: seller.handle,
+    description: seller.description ?? null,
+    logo: seller.logo ?? null,
+    area: seller.address?.city ?? null,
+    leadtime_to_ship: seller.default_leadtime_to_ship ?? null,
+  }
 }

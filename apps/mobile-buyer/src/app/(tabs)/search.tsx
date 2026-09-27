@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from '@/components/placeholder-screen';
+import { SearchScreen } from '@/screens/search/search-screen';
 
 export default function SearchRoute() {
-  return <PlaceholderScreen title="Search" />;
+  return <SearchScreen />;
 }

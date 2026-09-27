@@ -20,6 +20,11 @@ export default defineMiddlewares({
             middlewares: [validateAndTransformQuery(StoreGetListingParams, {})],
         },
         {
+            method: ["GET"],
+            matcher: "/store/shops/:seller_id",
+            middlewares: [validateAndTransformQuery(StoreGetListingParams, {})],
+        },
+        {
             method: ["POST"],
             matcher: "/store/carts/:id/merge",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreMergeCart)],

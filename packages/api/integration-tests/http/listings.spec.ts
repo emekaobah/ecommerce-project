@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
-import { SEED_PRODUCTS } from "../../src/scripts/seed-data"
+import { SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -39,6 +39,11 @@ medusaIntegrationTestRunner({
       const { data } = await query.graph({ entity: "product", fields: ["id"], filters: { title } })
       return data[0].id as string
     }
+    const shipsIn = async (name: string, days: number) =>
+      (getContainer().resolve(MercurModules.SELLER) as any).updateSellers({
+        id: await sellerId(name),
+        default_leadtime_to_ship: days,
+      })
     const list = (params: Record<string, string | number> = {}) =>
       api.get(`/store/listings?${new URLSearchParams({ region_id: regionId, ...params } as any)}`, { headers })
     const detail = (seller: string, product: string, region = regionId) =>
@@ -141,6 +146,114 @@ medusaIntegrationTestRunner({
       it("requires a region", async () => {
         const res = await api.get("/store/listings", { headers }).catch((e) => e.response)
         expect(res.status).toBe(400)
+      })
+    })
+
+    describe("search", () => {
+      it("finds listings whose product name holds every word of the query, ignoring case", async () => {
+        const { data } = await list({ q: "rechargeable LANTERN", limit: 100 })
+
+        expect(data.listings.map((l: any) => l.product.title)).toEqual([LANTERN.title, LANTERN.title])
+        expect(data.count).toBe(2)
+      })
+
+      it("orders the best name matches first, then the fastest shops, never the cheapest", async () => {
+        // The dearer shop ships sooner, so a price order would put it last.
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+
+        const { data } = await list({ q: "charge", limit: 100 })
+        const found = data.listings.map((l: any) => `${l.product.title} @ ${l.seller.name}`)
+
+        // "Charger" starts a word of its name; the rest only hold "charge" inside "Rechargeable".
+        expect(found.slice(0, 3)).toEqual([
+          "25W USB-C Fast Charger @ Iya Bisi Foodstuff",
+          "25W USB-C Fast Charger @ Ikeja Gadget Hub",
+          "Rechargeable LED Lantern @ Iya Bisi Foodstuff",
+        ])
+        expect(found.slice(3).sort()).toEqual([
+          "Rechargeable LED Lantern @ Ikeja Gadget Hub",
+          "Rechargeable Standing Fan 16-inch @ Ikeja Gadget Hub",
+        ])
+      })
+    })
+
+    describe("by category", () => {
+      const categoryId = async (name: string) => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({ entity: "product_category", fields: ["id"], filters: { name } })
+        return data[0].id as string
+      }
+      const titlesIn = (category: string) =>
+        SEED_PRODUCTS.filter((p) => p.category === category || p.department === category).map((p) => p.title)
+
+      it("lists only the category's products, fastest shops first, never the cheapest", async () => {
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+
+        const { data } = await list({ category_id: await categoryId("Power & Lighting"), limit: 100 })
+        const found = data.listings.map((l: any) => `${l.product.title} @ ${l.seller.name}`)
+
+        expect(new Set(data.listings.map((l: any) => l.product.title))).toEqual(new Set(titlesIn("Power & Lighting")))
+        // The dearer shop's lantern leads: it ships in a day.
+        expect(found[0]).toBe("Rechargeable LED Lantern @ Iya Bisi Foodstuff")
+      })
+
+      it("includes a department's sub-categories", async () => {
+        const { data } = await list({ category_id: await categoryId("Electronics"), limit: 100 })
+
+        expect(new Set(data.listings.map((l: any) => l.product.title))).toEqual(new Set(titlesIn("Electronics")))
+      })
+    })
+
+    describe("GET /store/shops/:seller_id", () => {
+      const shop = (seller: string, region = regionId) =>
+        api.get(`/store/shops/${seller}?region_id=${region}`, { headers })
+
+      it("returns the shop's header: name, description, area and ship time", async () => {
+        const seller = await sellerId("Iya Bisi Foodstuff")
+        await shipsIn("Iya Bisi Foodstuff", 2)
+
+        const { data } = await shop(seller)
+
+        expect(data.shop).toMatchObject({
+          id: seller,
+          name: "Iya Bisi Foodstuff",
+          description: SEED_SELLERS[0].description,
+          area: "Surulere",
+          leadtime_to_ship: 2,
+        })
+      })
+
+      it("pairs with the listings narrowed to the shop, which hold only its own offers", async () => {
+        const seller = await sellerId("Iya Bisi Foodstuff")
+
+        const { data } = await list({ seller_id: seller, limit: 100 })
+
+        expect(data.listings.length).toBeGreaterThan(0)
+        expect(data.listings.every((l: any) => l.seller.id === seller)).toBe(true)
+        // It also sells the lantern, at its own price.
+        const lantern = data.listings.find((l: any) => l.product.title === LANTERN.title)
+        expect(lantern.offers[0].calculated_price.calculated_amount).toBe(LANTERN.also_at![0].price)
+      })
+
+      it("is not found for a closed shop", async () => {
+        const seller = await sellerId("Adire House")
+        await (getContainer().resolve(MercurModules.SELLER) as any).updateSellers({ id: seller, status: "suspended" })
+
+        const res = await shop(seller).catch((e) => e.response)
+
+        expect(res.status).toBe(404)
+      })
+
+      it("is not found in a region the shop doesn't serve", async () => {
+        const ghana = await getContainer()
+          .resolve(Modules.REGION)
+          .createRegions({ name: "Ghana", currency_code: "ghs", countries: ["gh"] })
+
+        const res = await shop(await sellerId("Adire House"), ghana.id).catch((e) => e.response)
+
+        expect(res.status).toBe(404)
       })
     })
 

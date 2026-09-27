@@ -5,6 +5,10 @@ export const StoreGetListingParams = z.object({
 })
 
 export const StoreGetListingsParams = StoreGetListingParams.extend({
+  /** Words the product's name must all hold, in any order and case. */
+  q: z.string().trim().max(200).optional(),
+  /** A category; its sub-categories' products are included. */
+  category_id: z.string().optional(),
   seller_id: z.string().optional(),
   exclude_product_id: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),

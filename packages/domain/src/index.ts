@@ -23,8 +23,8 @@ export type {
   TransitionError,
   TransitionResult,
 } from "./fulfilment"
-export { formatWeight, listingPrice, offerPrice, shipsIn } from "./listing"
-export type { DisplayPrice, ListingPrice, PricedOffer } from "./listing"
+export { formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
+export type { DisplayPrice, ListingPrice, PricedOffer, ShopGroup } from "./listing"
 export { currentShop, shopChoice } from "./shop-choice"
 export type { ShopChoice } from "./shop-choice"
 export { cartOnSignIn } from "./cart"

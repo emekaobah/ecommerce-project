@@ -49,3 +49,19 @@ export function formatWeight(grams: number, locale?: string): string {
     new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "short", maximumFractionDigits: 2 }).format(value)
   return grams < 1000 ? format(grams, "gram") : format(grams / 1000, "kilogram")
 }
+
+export type ShopGroup<L extends { seller: { id: string } }> = { seller: L["seller"]; listings: L[] }
+
+/**
+ * Search and category results under a header per shop (docs/design.md). Results arrive in
+ * the listing order, so a shop comes where its best result came and keeps its own order.
+ */
+export function groupByShop<L extends { seller: { id: string } }>(listings: L[]): ShopGroup<L>[] {
+  const groups = new Map<string, ShopGroup<L>>()
+  for (const listing of listings) {
+    const group = groups.get(listing.seller.id)
+    if (group) group.listings.push(listing)
+    else groups.set(listing.seller.id, { seller: listing.seller, listings: [listing] })
+  }
+  return [...groups.values()]
+}
