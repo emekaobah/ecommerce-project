@@ -37,8 +37,32 @@ jobs:
         with:
           node-version: 22
 
+      - name: Cache Bun downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      # Diagnostic (PR #50): the install has been killed silently after ~5 min. Log the
+      # runner's memory every 15s alongside a verbose install to see where and why.
       - name: Install
-        run: bun install --frozen-lockfile
+        run: |
+          nproc
+          free -m
+          ( while true; do echo "[mem $(date +%T)] $(free -m | awk '/Mem:/ {print "used="$3"MB avail="$7"MB"}')"; sleep 15; done ) &
+          watcher=$!
+          bun install --frozen-lockfile --verbose > install.log 2>&1 || status=$?
+          kill $watcher
+          tail -n 60 install.log
+          exit ${status:-0}
+
+      - name: Show install log tail on failure
+        if: failure()
+        run: |
+          tail -n 60 install.log || true
+          sudo dmesg 2>/dev/null | grep -iE "killed process|out of memory|oom" | tail -n 20 || true
+          free -m
 
       - name: Generate route types
         run: bun run codegen
