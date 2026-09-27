@@ -105,52 +105,62 @@ export function transition(fulfilment: Fulfilment, trigger: FulfilmentTrigger): 
   }
 }
 
-function nextFulfilment(fulfilment: Fulfilment, trigger: FulfilmentTrigger): Fulfilment | undefined {
-  switch (fulfilment.state) {
-    case "new":
-      if (isStaff(trigger, "accept")) return { state: "accepted" }
-      if (isStaff(trigger, "reject")) return { state: "rejected", rejectedBy: "seller" }
-      if (isSystem(trigger, "accept_deadline_passed")) {
-        return { state: "rejected", rejectedBy: "accept_deadline" }
-      }
-      return undefined
-    case "accepted":
-      return isStaff(trigger, "start_picking") ? { state: "picking" } : undefined
-    case "picking":
-      if (isStaff(trigger, "mark_packed")) return { state: "packed" }
-      if (isStaff(trigger, "mark_partially_available")) return { state: "partially_available" }
-      return undefined
-    case "partially_available":
-      if (isStaff(trigger, "resume_picking")) return { state: "picking" }
-      if (isStaff(trigger, "mark_packed")) return { state: "packed" }
-      return undefined
-    case "packed":
-      return isProvider(trigger, "label_created") ? { state: "label_booked" } : undefined
-    case "label_booked":
-      if (isProvider(trigger, "confirmed")) return { state: "courier_confirmed", handover: {} }
-      if (isProvider(trigger, "cancelled")) return { state: "packed" }
-      return undefined
-    case "courier_confirmed": {
-      const { handover } = fulfilment
-      if (isProvider(trigger, "cancelled")) return { state: "packed" }
-      if (isStaff(trigger, "confirm_handover") && !handover.staff) {
-        return recordHandover({ ...handover, staff: { actor: trigger.actor, at: trigger.at } })
-      }
-      if (isProvider(trigger, "picked_up") && !handover.pickup) {
-        return recordHandover({ ...handover, pickup: { at: trigger.at } })
-      }
-      return undefined
+type Step<S extends FulfilmentState> = (
+  fulfilment: Extract<Fulfilment, { state: S }>,
+  trigger: FulfilmentTrigger,
+) => Fulfilment | undefined
+
+const done = () => undefined
+
+/** What each state does with a trigger; `undefined` means the trigger is not allowed there. */
+const STEPS: { [S in FulfilmentState]: Step<S> } = {
+  new: (_, trigger) => {
+    if (isStaff(trigger, "accept")) return { state: "accepted" }
+    if (isStaff(trigger, "reject")) return { state: "rejected", rejectedBy: "seller" }
+    if (isSystem(trigger, "accept_deadline_passed")) {
+      return { state: "rejected", rejectedBy: "accept_deadline" }
     }
-    case "handed_to_courier":
-      if (isProvider(trigger, "in_transit")) return { state: "in_transit", handover: fulfilment.handover }
-      return undefined
-    case "in_transit":
-      if (isProvider(trigger, "delivered")) return { state: "delivered", handover: fulfilment.handover }
-      return undefined
-    case "rejected":
-    case "delivered":
-      return undefined
-  }
+    return undefined
+  },
+  accepted: (_, trigger) => (isStaff(trigger, "start_picking") ? { state: "picking" } : undefined),
+  picking: (_, trigger) => {
+    if (isStaff(trigger, "mark_packed")) return { state: "packed" }
+    if (isStaff(trigger, "mark_partially_available")) return { state: "partially_available" }
+    return undefined
+  },
+  partially_available: (_, trigger) => {
+    if (isStaff(trigger, "resume_picking")) return { state: "picking" }
+    if (isStaff(trigger, "mark_packed")) return { state: "packed" }
+    return undefined
+  },
+  packed: (_, trigger) => (isProvider(trigger, "label_created") ? { state: "label_booked" } : undefined),
+  label_booked: (_, trigger) => {
+    if (isProvider(trigger, "confirmed")) return { state: "courier_confirmed", handover: {} }
+    if (isProvider(trigger, "cancelled")) return { state: "packed" }
+    return undefined
+  },
+  courier_confirmed: ({ handover }, trigger) => {
+    if (isProvider(trigger, "cancelled")) return { state: "packed" }
+    if (isStaff(trigger, "confirm_handover") && !handover.staff) {
+      return recordHandover({ ...handover, staff: { actor: trigger.actor, at: trigger.at } })
+    }
+    if (isProvider(trigger, "picked_up") && !handover.pickup) {
+      return recordHandover({ ...handover, pickup: { at: trigger.at } })
+    }
+    return undefined
+  },
+  handed_to_courier: ({ handover }, trigger) =>
+    isProvider(trigger, "in_transit") ? { state: "in_transit", handover } : undefined,
+  in_transit: ({ handover }, trigger) =>
+    isProvider(trigger, "delivered") ? { state: "delivered", handover } : undefined,
+  rejected: done,
+  delivered: done,
+}
+
+function nextFulfilment(fulfilment: Fulfilment, trigger: FulfilmentTrigger): Fulfilment | undefined {
+  // The mapped type pairs each state with its own step; TypeScript can't correlate the union here.
+  const step = STEPS[fulfilment.state] as Step<FulfilmentState>
+  return step(fulfilment, trigger)
 }
 
 function recordHandover(handover: HandoverProgress): Fulfilment {

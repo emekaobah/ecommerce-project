@@ -5,84 +5,76 @@ import {
   type Fulfilment,
   type FulfilmentState,
   type FulfilmentTrigger,
+  type ProviderEventType,
+  type StaffActionType,
 } from "./fulfilment"
 
 const at = "2026-09-26T10:00:00.000Z"
 const actor = "mem_staff_1"
 
 describe("transition", () => {
-  test("a new order is accepted by a staff action", () => {
-    expect(transition(newFulfilment(), { source: "staff", type: "accept", actor, at })).toEqual({
-      ok: true,
-      fulfilment: { state: "accepted" },
-    })
-  })
+  const staff = (type: StaffActionType): FulfilmentTrigger => ({ source: "staff", type, actor, at })
+  const provider = (type: ProviderEventType): FulfilmentTrigger => ({ source: "provider", type, at })
 
-  test("a new order is rejected by the seller", () => {
-    expect(transition(newFulfilment(), { source: "staff", type: "reject", actor, at })).toEqual({
-      ok: true,
-      fulfilment: { state: "rejected", rejectedBy: "seller" },
-    })
-  })
-
-  test("a new order is rejected when the accept deadline passes", () => {
-    expect(transition(newFulfilment(), { source: "system", type: "accept_deadline_passed", at })).toEqual({
-      ok: true,
-      fulfilment: { state: "rejected", rejectedBy: "accept_deadline" },
-    })
-  })
-
-  test("staff start picking an accepted order", () => {
-    expect(transition({ state: "accepted" }, { source: "staff", type: "start_picking", actor, at })).toEqual({
-      ok: true,
-      fulfilment: { state: "picking" },
-    })
-  })
-
-  test("staff mark a picked order packed", () => {
-    expect(transition({ state: "picking" }, { source: "staff", type: "mark_packed", actor, at })).toEqual({
-      ok: true,
-      fulfilment: { state: "packed" },
-    })
-  })
-
-  test("staff flag that items are not all available while picking", () => {
-    expect(
-      transition({ state: "picking" }, { source: "staff", type: "mark_partially_available", actor, at }),
-    ).toEqual({ ok: true, fulfilment: { state: "partially_available" } })
-  })
-
-  test("staff resume picking once the order has been edited", () => {
-    expect(
-      transition({ state: "partially_available" }, { source: "staff", type: "resume_picking", actor, at }),
-    ).toEqual({ ok: true, fulfilment: { state: "picking" } })
-  })
-
-  test("staff pack what is available", () => {
-    expect(
-      transition({ state: "partially_available" }, { source: "staff", type: "mark_packed", actor, at }),
-    ).toEqual({ ok: true, fulfilment: { state: "packed" } })
-  })
-
-  test("the provider creating a label books it for a packed order", () => {
-    expect(transition({ state: "packed" }, { source: "provider", type: "label_created", at })).toEqual({
-      ok: true,
-      fulfilment: { state: "label_booked" },
-    })
-  })
-
-  test("the provider confirming a courier moves a booked label on, with no handover recorded yet", () => {
-    expect(transition({ state: "label_booked" }, { source: "provider", type: "confirmed", at })).toEqual({
-      ok: true,
-      fulfilment: { state: "courier_confirmed", handover: {} },
-    })
-  })
-
-  test("a provider cancellation sends a booked label back to packed for rebooking", () => {
-    expect(transition({ state: "label_booked" }, { source: "provider", type: "cancelled", at })).toEqual({
-      ok: true,
-      fulfilment: { state: "packed" },
-    })
+  test.each<[string, Fulfilment, FulfilmentTrigger, Fulfilment]>([
+    ["a new order is accepted by a staff action", newFulfilment(), staff("accept"), { state: "accepted" }],
+    [
+      "a new order is rejected by the seller",
+      newFulfilment(),
+      staff("reject"),
+      { state: "rejected", rejectedBy: "seller" },
+    ],
+    [
+      "a new order is rejected when the accept deadline passes",
+      newFulfilment(),
+      { source: "system", type: "accept_deadline_passed", at },
+      { state: "rejected", rejectedBy: "accept_deadline" },
+    ],
+    [
+      "staff start picking an accepted order",
+      { state: "accepted" },
+      staff("start_picking"),
+      { state: "picking" },
+    ],
+    ["staff mark a picked order packed", { state: "picking" }, staff("mark_packed"), { state: "packed" }],
+    [
+      "staff flag that items are not all available while picking",
+      { state: "picking" },
+      staff("mark_partially_available"),
+      { state: "partially_available" },
+    ],
+    [
+      "staff resume picking once the order has been edited",
+      { state: "partially_available" },
+      staff("resume_picking"),
+      { state: "picking" },
+    ],
+    [
+      "staff pack what is available",
+      { state: "partially_available" },
+      staff("mark_packed"),
+      { state: "packed" },
+    ],
+    [
+      "the provider creating a label books it for a packed order",
+      { state: "packed" },
+      provider("label_created"),
+      { state: "label_booked" },
+    ],
+    [
+      "the provider confirming a courier moves a booked label on, with no handover recorded yet",
+      { state: "label_booked" },
+      provider("confirmed"),
+      { state: "courier_confirmed", handover: {} },
+    ],
+    [
+      "a provider cancellation sends a booked label back to packed for rebooking",
+      { state: "label_booked" },
+      provider("cancelled"),
+      { state: "packed" },
+    ],
+  ])("%s", (_name, from, trigger, to) => {
+    expect(transition(from, trigger)).toEqual({ ok: true, fulfilment: to })
   })
 
   test("a provider cancellation after courier confirmation drops any half-recorded handover", () => {
