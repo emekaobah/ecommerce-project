@@ -44,16 +44,6 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
 
-      # bun install peaks near 7 GB for this monorepo, more than the 8 GB runner can spare
-      # (#50): extra swap keeps the kernel from killing it. See whether a Bun upgrade drops it.
-      - name: Add swap
-        run: |
-          sudo fallocate -l 8G /swapfile-bun
-          sudo chmod 600 /swapfile-bun
-          sudo mkswap /swapfile-bun
-          sudo swapon /swapfile-bun
-          free -m
-
       - name: Install
         run: bun install --frozen-lockfile
 
