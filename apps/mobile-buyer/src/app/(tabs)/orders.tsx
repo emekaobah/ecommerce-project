@@ -1,5 +1,5 @@
-import { PlaceholderScreen } from '@/components/placeholder-screen';
+import { OrdersScreen } from '@/screens/orders/orders-screen';
 
 export default function OrdersRoute() {
-  return <PlaceholderScreen title="Orders" />;
+  return <OrdersScreen />;
 }
