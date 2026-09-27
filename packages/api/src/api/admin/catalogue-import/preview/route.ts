@@ -24,6 +24,8 @@ type PreviewRow = {
 
 type PreviewResponse = {
   headers: string[]
+  /** Each column's first non-empty cell, to show the operator what it holds. */
+  samples: Record<string, string>
   mapping: ImportMapping
   /** Where the mapping came from: the request, the source's last import, or header names. */
   mapping_origin: "request" | "saved" | "suggested"
@@ -69,6 +71,7 @@ export async function POST(
 
   res.json({
     headers: table.headers,
+    samples: Object.fromEntries(table.headers.map((h, i) => [h, table.rows.find((r) => r[i])?.[i] ?? ""])),
     mapping,
     mapping_origin: origin,
     mapping_errors: problems,

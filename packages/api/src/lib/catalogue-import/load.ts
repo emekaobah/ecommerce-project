@@ -125,7 +125,7 @@ export async function previewMissing(
     category_ids: categoryIds,
     weight,
     // Prices live on shops' offers, which a new product doesn't have yet.
-    variants: product.variants.map((v, i) => ({ id: `preview_${i}`, weight: null, price_amounts: [] })),
+    variants: product.variants.map((_, i) => ({ id: `preview_${i}`, weight: null, price_amounts: [] })),
     attribute_values: Object.fromEntries((product.attributes ?? []).map((a) => [a.id, ["preview"]])),
   }
   return assessProductCompleteness(facts, required).missing.map((m) => m.label)

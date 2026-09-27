@@ -65,6 +65,7 @@ medusaIntegrationTestRunner({
           Image: "images",
         })
         expect(data.mapping.Storage).toMatch(/^attribute:/)
+        expect(data.samples).toMatchObject({ "Product Name": "Yam Flour 1kg", Height: "25cm" })
 
         const [yam, egusi, plantain, blank] = data.rows
         expect(yam).toMatchObject({ row: 2, title: "Yam Flour 1kg", errors: [] })
