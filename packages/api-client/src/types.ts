@@ -31,8 +31,9 @@ type QueryFn<TInput, TOutput> = (input?: WithFetchOptions<TInput>) => Promise<TO
 
 type AddParams<F, TParams> = keyof TParams extends never
   ? F
-  : F extends (input?: infer I) => infer O
-    ? (input: (I extends object ? I : {}) & TParams) => O
+  : // Matches optional inputs (GETs, bodiless routes) and required ones (routes with a body) alike.
+    F extends (input: infer I) => infer O
+    ? (input: (NonNullable<I> extends object ? NonNullable<I> : {}) & TParams) => O
     : F
 
 type Methods<TRoute, TParams> = (TRoute extends { GET: (req: infer Req, res: infer Res) => any }

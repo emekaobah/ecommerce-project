@@ -1,0 +1,161 @@
+import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import seedDemoData from "../../src/scripts/seed"
+import { SEED_PRODUCTS } from "../../src/scripts/seed-data"
+import { fakeClerk } from "../helpers/clerk"
+
+jest.setTimeout(5 * 60 * 1000)
+
+const LANTERN = SEED_PRODUCTS.find((p) => p.title === "Rechargeable LED Lantern")!
+const RICE = SEED_PRODUCTS.find((p) => p.title === "Ofada Rice 5kg")!
+
+const clerk = fakeClerk()
+// Set before the runner loads medusa-config, which registers the Clerk provider only when a key is set.
+process.env.CLERK_JWT_KEY = clerk.jwtKey
+
+medusaIntegrationTestRunner({
+  inApp: true,
+  env: {},
+  testSuite: ({ api, getContainer }) => {
+    let headers: Record<string, string>
+    let regionId: string
+
+    // Seeded once; the runner restores this snapshot before every test.
+    beforeAll(async () => {
+      await seedDemoData({ container: getContainer(), args: [] } as any)
+    })
+
+    beforeEach(async () => {
+      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+      const { data: keys } = await query.graph({ entity: "api_key", fields: ["token"], filters: { type: "publishable" } })
+      headers = { "x-publishable-api-key": keys[0].token }
+      const { data: regions } = await query.graph({ entity: "region", fields: ["id"] })
+      regionId = regions[0].id
+    })
+
+    /** The shop's offer of a product (its first variant). */
+    const offerId = async (shop: string, title: string) => {
+      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+      const { data: sellers } = await query.graph({ entity: "seller", fields: ["id"], filters: { name: shop } })
+      const { data: products } = await query.graph({ entity: "product", fields: ["id"], filters: { title } })
+      const { data: offers } = await query.graph({
+        entity: "offer",
+        fields: ["id"],
+        filters: { seller_id: sellers[0].id, product_id: products[0].id },
+      })
+      return offers[0].id as string
+    }
+
+    const createCart = async () => (await api.post("/store/carts", { region_id: regionId }, { headers })).data.cart
+    const addOffer = (cartId: string, offer: string, quantity = 1) =>
+      api.post(`/store/carts/${cartId}/line-items`, { offer_id: offer, quantity }, { headers })
+    const bySeller = async (cartId: string) => (await api.get(`/store/carts/${cartId}/sellers`, { headers })).data.cart
+
+    describe("Multi-seller cart", () => {
+      it("groups a cart holding two shops' offers into one group per shop, each item at its own shop's price", async () => {
+        const cart = await createCart()
+        await addOffer(cart.id, await offerId("Ikeja Gadget Hub", LANTERN.title))
+        await addOffer(cart.id, await offerId("Iya Bisi Foodstuff", LANTERN.title))
+        await addOffer(cart.id, await offerId("Iya Bisi Foodstuff", RICE.title), 2)
+
+        const grouped = await bySeller(cart.id)
+
+        expect(grouped).toMatchObject({ id: cart.id, currency_code: "ngn", item_count: 4 })
+        const summary = grouped.sellers.map((g: any) => ({
+          shop: g.seller.name,
+          items: g.items.map((i: any) => [i.product_title, i.quantity, i.unit_price]),
+          subtotal: g.item_subtotal,
+        }))
+        expect(summary).toEqual([
+          { shop: "Ikeja Gadget Hub", items: [[LANTERN.title, 1, LANTERN.price]], subtotal: LANTERN.price },
+          {
+            shop: "Iya Bisi Foodstuff",
+            items: [
+              [LANTERN.title, 1, LANTERN.also_at![0].price],
+              [RICE.title, 2, RICE.price],
+            ],
+            subtotal: LANTERN.also_at![0].price + 2 * RICE.price,
+          },
+        ])
+        expect(grouped.item_subtotal).toBe(LANTERN.price + LANTERN.also_at![0].price + 2 * RICE.price)
+      })
+
+      it("adds the same offer twice as one line", async () => {
+        const cart = await createCart()
+        const lantern = await offerId("Iya Bisi Foodstuff", LANTERN.title)
+        await addOffer(cart.id, lantern)
+        await addOffer(cart.id, lantern, 2)
+
+        const [shop] = (await bySeller(cart.id)).sellers
+        expect(shop.items.map((i: any) => [i.quantity, i.unit_price])).toEqual([[3, LANTERN.also_at![0].price]])
+      })
+
+      it("charges the shops' tax-inclusive prices, with no VAT added on top", async () => {
+        const cart = await createCart()
+        await addOffer(cart.id, await offerId("Ikeja Gadget Hub", LANTERN.title))
+        await addOffer(cart.id, await offerId("Iya Bisi Foodstuff", RICE.title))
+
+        const { data } = await api.get(`/store/carts/${cart.id}`, { headers })
+
+        expect(data.cart.total).toBe(LANTERN.price + RICE.price)
+      })
+
+      it("keeps a quantity change, at the item's own shop's price", async () => {
+        const cart = await createCart()
+        await addOffer(cart.id, await offerId("Ikeja Gadget Hub", LANTERN.title))
+        await addOffer(cart.id, await offerId("Iya Bisi Foodstuff", LANTERN.title))
+        const dearer = (await bySeller(cart.id)).sellers[1].items[0]
+
+        await api.post(`/store/carts/${cart.id}/line-items/${dearer.id}`, { quantity: 3 }, { headers })
+
+        const grouped = await bySeller(cart.id)
+        expect(grouped.sellers.map((g: any) => g.items.map((i: any) => [i.quantity, i.unit_price]))).toEqual([
+          [[1, LANTERN.price]],
+          [[3, LANTERN.also_at![0].price]],
+        ])
+        expect(grouped.item_count).toBe(4)
+      })
+
+      it("drops a removed item, and the shop's group with its last item", async () => {
+        const cart = await createCart()
+        await addOffer(cart.id, await offerId("Ikeja Gadget Hub", LANTERN.title))
+        await addOffer(cart.id, await offerId("Iya Bisi Foodstuff", RICE.title))
+        const [gadgets] = (await bySeller(cart.id)).sellers
+
+        await api.delete(`/store/carts/${cart.id}/line-items/${gadgets.items[0].id}`, { headers })
+
+        const grouped = await bySeller(cart.id)
+        expect(grouped.sellers.map((g: any) => g.seller.name)).toEqual(["Iya Bisi Foodstuff"])
+        expect(grouped).toMatchObject({ item_count: 1, item_subtotal: RICE.price })
+      })
+
+      it("is empty for a new cart", async () => {
+        const cart = await createCart()
+
+        expect(await bySeller(cart.id)).toMatchObject({ sellers: [], item_count: 0, item_subtotal: 0 })
+      })
+
+      it("keeps a guest's cart, items and prices when the buyer signs in", async () => {
+        const cart = await createCart()
+        await addOffer(cart.id, await offerId("Ikeja Gadget Hub", LANTERN.title))
+        await addOffer(cart.id, await offerId("Iya Bisi Foodstuff", LANTERN.title))
+        await addOffer(cart.id, await offerId("Iya Bisi Foodstuff", RICE.title), 2)
+        const asGuest = await bySeller(cart.id)
+        const signedIn = { headers: { ...headers, authorization: `Bearer ${clerk.sessionToken({ email: "ada@oja.test" })}` } }
+
+        await api.post(`/store/carts/${cart.id}/customer`, {}, signedIn)
+
+        const { data } = await api.get(`/store/carts/${cart.id}/sellers`, signedIn)
+        const { data: me } = await api.get("/store/customers/me", signedIn)
+        expect(data.cart.customer_id).toBe(me.customer.id)
+        expect(data.cart.sellers).toEqual(asGuest.sellers)
+      })
+
+      it("is not found for an unknown cart", async () => {
+        const res = await api.get("/store/carts/cart_missing/sellers", { headers }).catch((e) => e.response)
+
+        expect(res.status).toBe(404)
+      })
+    })
+  },
+})
