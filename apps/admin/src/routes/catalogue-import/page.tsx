@@ -46,8 +46,11 @@ const CatalogueImportPage = () => {
   })
 
   const reached = STEPS.indexOf(step)
-  const tabStatus = (s: Step) =>
-    STEPS.indexOf(s) < reached ? "completed" : STEPS.indexOf(s) === reached ? "in-progress" : "not-started"
+  const tabStatus = (s: Step) => {
+    const at = STEPS.indexOf(s)
+    if (at < reached) return "completed"
+    return at === reached ? "in-progress" : "not-started"
+  }
 
   const restart = () => {
     setSheet(null)

@@ -116,3 +116,18 @@ describe("parsePrice", () => {
     expect(parsePrice("0")).toEqual({ ok: false, error: expect.stringContaining("price") })
   })
 })
+
+// Cells come from an uploaded file: reading one must stay linear in its length.
+describe("hostile cells", () => {
+  const within = (ms: number, read: () => unknown) => {
+    const started = performance.now()
+    read()
+    expect(performance.now() - started).toBeLessThan(ms)
+  }
+
+  it("refuses a huge run of digits ending in junk without backtracking", () => {
+    const cell = "1".repeat(100_000) + "x"
+    within(250, () => expect(parsePrice(cell).ok).toBe(false))
+    within(250, () => expect(parseWeight(cell).ok).toBe(false))
+  })
+})

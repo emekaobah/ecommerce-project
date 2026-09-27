@@ -46,7 +46,7 @@ function fileGtin(code: string): Barcode {
   }
 }
 
-const GTIN_LENGTHS = [8, 12, 13, 14]
+const GTIN_LENGTHS = new Set([8, 12, 13, 14])
 const TEXT_HINT = "Format the barcode column as text in the spreadsheet and export again."
 
 /**
@@ -83,7 +83,7 @@ export function parseBarcode(input: string): Parsed<Barcode> {
       code = code.padStart(13, "0")
       warning = `Barcode had lost its leading zeros; read it as ${code}.`
     }
-    if (!GTIN_LENGTHS.includes(code.length)) {
+    if (!GTIN_LENGTHS.has(code.length)) {
       return { ok: false, error: `"${input.trim()}" is not a barcode: expected 8, 12, 13 or 14 digits.` }
     }
     if (!gs1CheckDigitValid(code)) {
@@ -105,7 +105,7 @@ export function parseBarcode(input: string): Parsed<Barcode> {
  */
 function readNumber(text: string): number {
   const normalised = text.replace(/,(?=\d{3}(?!\d))/g, "").replace(",", ".")
-  return /^\d*\.?\d+$/.test(normalised) ? Number(normalised) : NaN
+  return /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(normalised) ? Number(normalised) : Number.NaN
 }
 
 /** Reads "<number><unit>" and converts it by the unit's factor; a bare number is in `defaultUnit`. */
@@ -118,7 +118,7 @@ function parseMeasure(
 ): Parsed<number> {
   const match = /^([\d.,]+)\s*([a-z"]*)\.?$/i.exec(input.trim())
   const unit = (match?.[2] || defaultUnit).toLowerCase()
-  const amount = match ? readNumber(match[1]) : NaN
+  const amount = match ? readNumber(match[1]) : Number.NaN
   const factor = factors[unit]
   if (!factor || !(amount > 0)) {
     return {
@@ -138,7 +138,8 @@ const CENTIMETRES: Record<string, number> = { cm: 1, mm: 0.1, m: 100, in: 2.54, 
  */
 export function headerUnit(header: string, kind: "weight" | "length"): string | undefined {
   const unit = /[([]\s*([a-z"]+)\s*[)\]]/i.exec(header)?.[1]?.toLowerCase()
-  return unit && unit in (kind === "weight" ? GRAMS : CENTIMETRES) ? unit : undefined
+  const units = kind === "weight" ? GRAMS : CENTIMETRES
+  return unit && unit in units ? unit : undefined
 }
 
 /** A weight in whole grams: "1.5kg", "300g", "2 lb", "12oz"; a bare number is in `defaultUnit`. */

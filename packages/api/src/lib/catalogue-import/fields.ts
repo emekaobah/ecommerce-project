@@ -93,7 +93,8 @@ export function importFields(attributes: CatalogueAttribute[]): ImportField[] {
 export function normaliseHeader(header: string): string {
   return header
     .toLowerCase()
-    .replace(/\(.*?\)|\[.*?\]/g, " ")
+    // Stops at the next bracket, so unclosed ones in an uploaded header stay linear.
+    .replace(/\([^()]*\)|\[[^[\]]*\]/g, " ")
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
 }

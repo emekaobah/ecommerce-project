@@ -70,7 +70,8 @@ export function mappingErrors(mapping: ImportMapping, headers: string[], catalog
   }
   for (const [key, columns] of columnsByField) {
     if (columns.length > 1) {
-      errors.unshift(`${fields.get(key)!.label} is mapped from more than one column: ${columns.map((c) => `"${c}"`).join(", ")}.`)
+      const quoted = columns.map((c) => `"${c}"`).join(", ")
+      errors.unshift(`${fields.get(key)!.label} is mapped from more than one column: ${quoted}.`)
     }
   }
   for (const column of Object.keys(mapping)) {
@@ -79,8 +80,8 @@ export function mappingErrors(mapping: ImportMapping, headers: string[], catalog
   return errors
 }
 
-const TRUE = ["yes", "y", "true", "1"]
-const FALSE = ["no", "n", "false", "0"]
+const TRUE = new Set(["yes", "y", "true", "1"])
+const FALSE = new Set(["no", "n", "false", "0"])
 const listOf = (cell: string, separator: RegExp) => cell.split(separator).map((s) => s.trim()).filter(Boolean)
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
 
@@ -97,7 +98,7 @@ function readCell(field: ImportField, column: string, cell: string, catalogue: I
       return parseLength(cell, headerUnit(column, "length"))
     case "category": {
       // A path such as "Groceries > Rice & Grains" names its last category.
-      const name = listOf(cell, />|\//).pop() ?? ""
+      const name = listOf(cell, /[>/]/).pop() ?? ""
       const category = catalogue.categories.find((c) => same(c.name, name) || same(c.handle, name))
       return category ? { ok: true, value: category.id } : { ok: false, error: `No category named "${cell}".` }
     }
@@ -122,8 +123,8 @@ function readCell(field: ImportField, column: string, cell: string, catalogue: I
     }
     case "toggle": {
       const answer = cell.trim().toLowerCase()
-      if (TRUE.includes(answer)) return { ok: true, value: true }
-      if (FALSE.includes(answer)) return { ok: true, value: false }
+      if (TRUE.has(answer)) return { ok: true, value: true }
+      if (FALSE.has(answer)) return { ok: true, value: false }
       return { ok: false, error: `"${cell}" is not yes or no.` }
     }
     default:
@@ -142,49 +143,20 @@ export function buildImportRows(table: CsvTable, mapping: ImportMapping, catalog
   const fields = new Map(importFields(catalogue.attributes).map((f) => [f.key, f]))
   const columns = table.headers
     .map((header, index) => ({ header, index, field: fields.get(mapping[header]) }))
-    .filter((c): c is { header: string; index: number; field: ImportField } => !!c.field)
-  const existingSkus = new Set(catalogue.existing.skus)
-  const existingBarcodes = new Set(catalogue.existing.barcodes)
-  const skuRows = new Map<string, number>()
-  const barcodeRows = new Map<string, number>()
+    .filter((c): c is MappedColumn => !!c.field)
+  const columnOf = (key: string) => columns.find((c) => c.field.key === key)?.header ?? key
+  const duplicates = duplicateChecker(catalogue.existing)
 
   return table.rows.map((cells, index) => {
     const row = index + 2
-    const errors: string[] = []
-    const warnings: string[] = []
-    const values = new Map<string, unknown>()
+    const { values, errors, warnings } = readRow(cells, columns, catalogue)
 
-    for (const { header, index: at, field } of columns) {
-      const cell = cells[at]?.trim() ?? ""
-      if (!cell) continue
-      const parsed = readCell(field, header, cell, catalogue)
-      if (!parsed.ok) {
-        errors.push(`${header}: ${parsed.error}`)
-        continue
-      }
-      if (parsed.warning) warnings.push(`${header}: ${parsed.warning}`)
-      values.set(field.key, parsed.value)
-    }
-
-    const columnOf = (key: string) => columns.find((c) => c.field.key === key)?.header ?? key
     const sku = values.get("sku") as string | undefined
     const barcode = values.get("barcode") as Barcode | undefined
-    if (sku) {
-      if (existingSkus.has(sku)) errors.push(`${columnOf("sku")}: ${sku} is already in the catalogue.`)
-      else if (skuRows.has(sku)) errors.push(`${columnOf("sku")}: ${sku} is already on row ${skuRows.get(sku)}.`)
-      else skuRows.set(sku, row)
-    }
-    if (barcode) {
-      const codes = barcodeCodes(barcode)
-      const earlier = codes.map((c) => barcodeRows.get(c)).find((r) => r !== undefined)
-      if (codes.some((c) => existingBarcodes.has(c))) {
-        errors.push(`${columnOf("barcode")}: ${barcode.barcode} is already in the catalogue.`)
-      } else if (earlier !== undefined) {
-        errors.push(`${columnOf("barcode")}: ${barcode.barcode} is already on row ${earlier}.`)
-      } else {
-        codes.forEach((c) => barcodeRows.set(c, row))
-      }
-    }
+    const skuError = sku && duplicates.skuError(sku, row)
+    if (skuError) errors.push(`${columnOf("sku")}: ${skuError}`)
+    const barcodeError = barcode && duplicates.barcodeError(barcode, row)
+    if (barcodeError) errors.push(`${columnOf("barcode")}: ${barcodeError}`)
 
     const title = (values.get("title") as string | undefined) ?? null
     if (!title && !barcode && !cellFailed(errors, columnOf("barcode"))) errors.push("Needs a title or a barcode.")
@@ -196,6 +168,54 @@ export function buildImportRows(table: CsvTable, mapping: ImportMapping, catalog
     const name = title ?? barcode!.barcode
     return { row, title: name, errors, warnings, product: toProduct(name, values, catalogue) }
   })
+}
+
+type MappedColumn = { header: string; index: number; field: ImportField }
+
+/** Reads each mapped cell of a row into its field's value, collecting what couldn't be read. */
+function readRow(cells: string[], columns: MappedColumn[], catalogue: ImportCatalogue) {
+  const errors: string[] = []
+  const warnings: string[] = []
+  const values = new Map<string, unknown>()
+  for (const { header, index, field } of columns) {
+    const cell = cells[index]?.trim() ?? ""
+    if (!cell) continue
+    const parsed = readCell(field, header, cell, catalogue)
+    if (!parsed.ok) {
+      errors.push(`${header}: ${parsed.error}`)
+      continue
+    }
+    if (parsed.warning) warnings.push(`${header}: ${parsed.warning}`)
+    values.set(field.key, parsed.value)
+  }
+  return { values, errors, warnings }
+}
+
+/**
+ * Refuses a SKU or barcode that is already in the catalogue or on an earlier row
+ * of the file; one that isn't is remembered for the rows after it.
+ */
+function duplicateChecker(existing: ImportCatalogue["existing"]) {
+  const existingSkus = new Set(existing.skus)
+  const existingBarcodes = new Set(existing.barcodes)
+  const skuRows = new Map<string, number>()
+  const barcodeRows = new Map<string, number>()
+
+  return {
+    skuError(sku: string, row: number): string | undefined {
+      if (existingSkus.has(sku)) return `${sku} is already in the catalogue.`
+      const earlier = skuRows.get(sku)
+      if (earlier !== undefined) return `${sku} is already on row ${earlier}.`
+      skuRows.set(sku, row)
+    },
+    barcodeError(barcode: Barcode, row: number): string | undefined {
+      const codes = barcodeCodes(barcode)
+      if (codes.some((c) => existingBarcodes.has(c))) return `${barcode.barcode} is already in the catalogue.`
+      const earlier = codes.map((c) => barcodeRows.get(c)).find((r) => r !== undefined)
+      if (earlier !== undefined) return `${barcode.barcode} is already on row ${earlier}.`
+      codes.forEach((c) => barcodeRows.set(c, row))
+    },
+  }
 }
 
 /** Whether a column's cell already failed to read, so its field isn't also reported missing. */

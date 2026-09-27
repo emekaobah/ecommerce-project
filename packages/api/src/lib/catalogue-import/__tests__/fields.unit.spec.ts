@@ -1,4 +1,4 @@
-import { importFields, suggestMapping, type CatalogueAttribute } from "../fields"
+import { importFields, normaliseHeader, suggestMapping, type CatalogueAttribute } from "../fields"
 
 const storage: CatalogueAttribute = {
   id: "attr_storage",
@@ -46,5 +46,20 @@ describe("suggestMapping", () => {
 
   it("maps a field to one column only", () => {
     expect(suggestMapping(["EAN", "UPC"], importFields([]))).toEqual({ EAN: "barcode" })
+  })
+})
+
+describe("normaliseHeader", () => {
+  it("drops a bracketed unit", () => {
+    expect(normaliseHeader("Retail price (₦)")).toBe("retail price")
+    expect(normaliseHeader("Weight [kg]")).toBe("weight")
+  })
+
+  // Headers come from an uploaded file: unclosed brackets must not make it quadratic.
+  it("reads a huge run of unclosed brackets in linear time", () => {
+    const header = "(".repeat(100_000) + "[".repeat(100_000)
+    const started = performance.now()
+    normaliseHeader(header)
+    expect(performance.now() - started).toBeLessThan(250)
   })
 })
