@@ -44,17 +44,18 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
 
-      # Diagnostic (PR #50): the install is killed when memory runs out on the 8 GB runner.
-      # Sample memory and the biggest processes every 5s beside a verbose install, which
-      # streams into the log (timestamped) so the spike can be matched to what Bun is doing.
-      - name: Install
+      # bun install peaks near 7 GB for this monorepo, more than the 8 GB runner can spare
+      # (#50): extra swap keeps the kernel from killing it. See whether a Bun upgrade drops it.
+      - name: Add swap
         run: |
-          set -o pipefail
-          ( while true; do echo "[mem] $(free -m | awk '/Mem:/ {print "used="$3"MB avail="$7"MB"}') top: $(ps -eo rss=,comm= --sort=-rss | head -3 | awk '{printf "%s=%dMB ", $2, $1/1024}')"; sleep 5; done ) &
-          watcher=$!
-          bun install --frozen-lockfile --verbose 2>&1 | grep -vE '^(> HTTP|Cloning|\[[^]]+\] Extract)' || status=$?
-          kill $watcher
-          exit ${status:-0}
+          sudo fallocate -l 8G /swapfile-bun
+          sudo chmod 600 /swapfile-bun
+          sudo mkswap /swapfile-bun
+          sudo swapon /swapfile-bun
+          free -m
+
+      - name: Install
+        run: bun install --frozen-lockfile
 
       - name: Generate route types
         run: bun run codegen
