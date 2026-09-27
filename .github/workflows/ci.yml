@@ -44,25 +44,17 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
 
-      # Diagnostic (PR #50): the install has been killed silently after ~5 min. Log the
-      # runner's memory every 15s alongside a verbose install to see where and why.
+      # Diagnostic (PR #50): the install is killed when memory runs out on the 8 GB runner.
+      # Sample memory and the biggest processes every 5s beside a verbose install, which
+      # streams into the log (timestamped) so the spike can be matched to what Bun is doing.
       - name: Install
         run: |
-          nproc
-          free -m
-          ( while true; do echo "[mem $(date +%T)] $(free -m | awk '/Mem:/ {print "used="$3"MB avail="$7"MB"}')"; sleep 15; done ) &
+          set -o pipefail
+          ( while true; do echo "[mem] $(free -m | awk '/Mem:/ {print "used="$3"MB avail="$7"MB"}') top: $(ps -eo rss=,comm= --sort=-rss | head -3 | awk '{printf "%s=%dMB ", $2, $1/1024}')"; sleep 5; done ) &
           watcher=$!
-          bun install --frozen-lockfile --verbose > install.log 2>&1 || status=$?
+          bun install --frozen-lockfile --verbose 2>&1 | grep -vE '^(> HTTP|Cloning|\[[^]]+\] Extract)' || status=$?
           kill $watcher
-          tail -n 60 install.log
           exit ${status:-0}
-
-      - name: Show install log tail on failure
-        if: failure()
-        run: |
-          tail -n 60 install.log || true
-          sudo dmesg 2>/dev/null | grep -iE "killed process|out of memory|oom" | tail -n 20 || true
-          free -m
 
       - name: Generate route types
         run: bun run codegen
