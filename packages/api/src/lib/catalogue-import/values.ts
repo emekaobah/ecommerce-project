@@ -16,7 +16,8 @@ export const barcodeCodes = (b: { barcode?: string | null; ean?: string | null; 
 function gs1CheckDigitValid(code: string): boolean {
   const digits = [...code].map(Number)
   const check = digits.pop()!
-  const sum = digits.reverse().reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 3 : 1), 0)
+  digits.reverse()
+  const sum = digits.reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 3 : 1), 0)
   return (10 - (sum % 10)) % 10 === check
 }
 
@@ -56,19 +57,10 @@ const TEXT_HINT = "Format the barcode column as text in the spreadsheet and expo
  * otherwise the row is refused rather than stored with a wrong code.
  */
 export function parseBarcode(input: string): Parsed<Barcode> {
-  let code = input.trim().replace(/[\s-]/g, "")
-  let warning: string | undefined
-
-  const scientific = /^(\d)(?:\.(\d+))?e\+?(\d+)$/i.exec(code)
-  if (scientific) {
-    const [, lead, fraction = "", exponent] = scientific
-    if (fraction.length !== Number(exponent)) {
-      return { ok: false, error: `Barcode "${input.trim()}" lost digits to scientific notation. ${TEXT_HINT}` }
-    }
-    code = lead + fraction
-    warning = `Barcode was in scientific notation; read it as ${code}.`
-  }
-  code = code.replace(/\.0+$/, "")
+  const unscientific = undoScientificNotation(input.trim().replace(/[\s-]/g, ""), input)
+  if (!unscientific.ok) return unscientific
+  const code = unscientific.value.replace(/\.0+$/, "")
+  const warning = unscientific.warning
 
   // Ten characters are an ISBN-10 only if its check digit agrees; ten digits
   // could also be a GTIN that lost two leading zeros.
@@ -76,26 +68,41 @@ export function parseBarcode(input: string): Parsed<Barcode> {
     const ean = isbn10ToEan(code)
     return { ok: true, value: { barcode: ean, ean }, ...(warning && { warning }) }
   }
-
-  if (/^\d+$/.test(code)) {
-    // A spreadsheet dropped the leading zeros of a 12- or 13-digit code.
-    if (code.length >= 9 && code.length <= 11 && gs1CheckDigitValid(code)) {
-      code = code.padStart(13, "0")
-      warning = `Barcode had lost its leading zeros; read it as ${code}.`
-    }
-    if (!GTIN_LENGTHS.has(code.length)) {
-      return { ok: false, error: `"${input.trim()}" is not a barcode: expected 8, 12, 13 or 14 digits.` }
-    }
-    if (!gs1CheckDigitValid(code)) {
-      return { ok: false, error: `Barcode "${input.trim()}" has a wrong check digit.` }
-    }
-    return { ok: true, value: fileGtin(code), ...(warning && { warning }) }
-  }
-
+  if (/^\d+$/.test(code)) return parseGtin(code, input, warning)
   if (/^B0[A-Z0-9]{8}$/i.test(code)) {
     return { ok: false, error: `"${input.trim()}" is an Amazon ASIN, which has no EAN or UPC. Use the product's barcode.` }
   }
   return { ok: false, error: `"${input.trim()}" is not a barcode.` }
+}
+
+/** "5.901234123457E+12" back to its digits, refused if the notation dropped any. */
+function undoScientificNotation(code: string, input: string): Parsed<string> {
+  const scientific = /^(\d)(?:\.(\d+))?e\+?(\d+)$/i.exec(code)
+  if (!scientific) return { ok: true, value: code }
+  const [, lead, fraction = "", exponent] = scientific
+  if (fraction.length !== Number(exponent)) {
+    return { ok: false, error: `Barcode "${input.trim()}" lost digits to scientific notation. ${TEXT_HINT}` }
+  }
+  const digits = lead + fraction
+  return { ok: true, value: digits, warning: `Barcode was in scientific notation; read it as ${digits}.` }
+}
+
+/** An all-digit code as a GTIN, restoring leading zeros a spreadsheet dropped. */
+function parseGtin(digits: string, input: string, scientificWarning: string | undefined): Parsed<Barcode> {
+  let code = digits
+  let warning = scientificWarning
+  // A spreadsheet dropped the leading zeros of a 12- or 13-digit code.
+  if (code.length >= 9 && code.length <= 11 && gs1CheckDigitValid(code)) {
+    code = code.padStart(13, "0")
+    warning = `Barcode had lost its leading zeros; read it as ${code}.`
+  }
+  if (!GTIN_LENGTHS.has(code.length)) {
+    return { ok: false, error: `"${input.trim()}" is not a barcode: expected 8, 12, 13 or 14 digits.` }
+  }
+  if (!gs1CheckDigitValid(code)) {
+    return { ok: false, error: `Barcode "${input.trim()}" has a wrong check digit.` }
+  }
+  return { ok: true, value: fileGtin(code), ...(warning && { warning }) }
 }
 
 /**
@@ -120,7 +127,7 @@ function parseMeasure(
   const unit = (match?.[2] || defaultUnit).toLowerCase()
   const amount = match ? readNumber(match[1]) : Number.NaN
   const factor = factors[unit]
-  if (!factor || !(amount > 0)) {
+  if (!factor || Number.isNaN(amount) || amount <= 0) {
     return {
       ok: false,
       error: `"${input.trim()}" is not a ${describe}: use a number with a unit (${Object.keys(factors).join(", ")}).`,
@@ -153,6 +160,6 @@ export const parseLength = (input: string, defaultUnit = "cm") =>
 /** A price in major units: "₦1,500", "NGN 14,500.50", "N2500". */
 export function parsePrice(input: string): Parsed<number> {
   const amount = readNumber(input.trim().replace(/^(₦|ngn|n)\s*/i, ""))
-  if (!(amount > 0)) return { ok: false, error: `"${input.trim()}" is not a price.` }
+  if (Number.isNaN(amount) || amount <= 0) return { ok: false, error: `"${input.trim()}" is not a price.` }
   return { ok: true, value: amount }
 }
