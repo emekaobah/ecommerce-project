@@ -14,6 +14,11 @@ export async function fetchMemberships(client: OjaClient) {
   return seller_members;
 }
 
+/** Every shop the member belongs to, for the shop picker and settings. */
+export function useMemberships() {
+  return useQuery({ queryKey: sellerKeys.memberships(), queryFn: () => fetchMemberships(vendorClient) });
+}
+
 /** The shop the member is acting for. Waits while there is no session. */
 export function useCurrentSeller(sellerId: string | undefined) {
   return useQuery({
