@@ -1,3 +1,5 @@
+import { ProductChangeActionType } from "@mercurjs/types"
+
 /**
  * The publish rule, as pure functions: what a product must have before it can
  * be published, and how complete it is. Everything that enforces or displays the
@@ -25,7 +27,6 @@ export type ProductFacts = {
 export type RequiredAttribute = {
   id: string
   name: string
-  handle: string | null
   category_ids: string[]
 }
 
@@ -93,7 +94,10 @@ export function assessProductCompleteness(facts: ProductFacts, required: Require
 /** A pending edit, in Mercur's product-change action shape. */
 export type PendingAction = { action: string; details?: Record<string, any> | null }
 
-const toNumber = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v))
+/** Stands in for a scalar (text, unit, toggle) value that a pending edit sets. */
+const PENDING_VALUE = "pending_value"
+
+export const toNumber = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v))
 const idsOf = (list: unknown) =>
   Array.isArray(list) ? list.map((c: any) => (typeof c === "string" ? c : c?.id)).filter(Boolean) : []
 const scalarSet = (value: unknown) => value !== undefined && value !== null && value !== ""
@@ -111,10 +115,10 @@ export function withPendingActions(facts: ProductFacts, actions: PendingAction[]
   actions.forEach(({ action, details }, index) => {
     const d = details ?? {}
     switch (action) {
-      case "STATUS_CHANGE":
+      case ProductChangeActionType.STATUS_CHANGE:
         if (d.status !== undefined) next.status = d.status
         break
-      case "UPDATE":
+      case ProductChangeActionType.UPDATE:
         if (d.field === "title") next.title = d.value ?? null
         if (d.field === "images") next.image_count = Array.isArray(d.value) ? d.value.length : 0
         if (d.field === "thumbnail") next.has_thumbnail = !!d.value
@@ -122,37 +126,37 @@ export function withPendingActions(facts: ProductFacts, actions: PendingAction[]
         if (d.field === "categories" || d.field === "category_ids") next.category_ids = idsOf(d.value)
         if (d.field === "status" && d.value !== undefined) next.status = d.value
         break
-      case "VARIANT_ADD":
+      case ProductChangeActionType.VARIANT_ADD:
         next.variants.push({ id: `pending_${index}`, weight: toNumber(d.variant?.weight), price_amounts: [] })
         break
-      case "VARIANT_UPDATE": {
+      case ProductChangeActionType.VARIANT_UPDATE: {
         const variant = next.variants.find((v) => v.id === d.variant_id)
         if (variant && d.fields && "weight" in d.fields) variant.weight = toNumber(d.fields.weight)
         break
       }
-      case "VARIANT_REMOVE":
+      case ProductChangeActionType.VARIANT_REMOVE:
         next.variants = next.variants.filter((v) => v.id !== d.variant_id)
         break
-      case "ATTRIBUTE_ADD": {
+      case ProductChangeActionType.ATTRIBUTE_ADD: {
         const attribute = d.attribute ?? {}
         if (!attribute.id) break
         next.attribute_values[attribute.id] = attribute.value_ids?.length
           ? [...attribute.value_ids]
           : scalarSet(attribute.value)
-            ? ["pending_value"]
+            ? [PENDING_VALUE]
             : []
         break
       }
-      case "ATTRIBUTE_REMOVE":
+      case ProductChangeActionType.ATTRIBUTE_REMOVE:
         delete next.attribute_values[d.attribute_id]
         break
-      case "ATTRIBUTE_UPDATE": {
+      case ProductChangeActionType.ATTRIBUTE_UPDATE: {
         const update = d.update ?? {}
         if (!update.id) break
         let values = new Set(next.attribute_values[update.id] ?? [])
         if (update.value_ids !== undefined) values = new Set(update.value_ids)
-        else if (update.value !== undefined) values = new Set(scalarSet(update.value) ? ["pending_value"] : [])
-        for (const entry of update.add ?? []) values.add(typeof entry === "string" ? entry : "pending_value")
+        else if (update.value !== undefined) values = new Set(scalarSet(update.value) ? [PENDING_VALUE] : [])
+        for (const entry of update.add ?? []) values.add(typeof entry === "string" ? entry : PENDING_VALUE)
         for (const entry of update.remove ?? []) values.delete(entry)
         next.attribute_values[update.id] = [...values]
         break

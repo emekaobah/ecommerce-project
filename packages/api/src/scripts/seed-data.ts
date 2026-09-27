@@ -2,6 +2,8 @@
 // people are invented. Amounts are NGN in major units (₦14,500 = 14500), weights
 // in grams. Every seeded account uses SEED_PASSWORD (documented in the README).
 
+import type { ShippingDefaults } from "../lib/shipping-defaults"
+
 export const SEED_PASSWORD = "supersecret"
 
 export const SEED_REGION = { name: "Nigeria", currency_code: "ngn", countries: ["ng"] }
@@ -131,17 +133,8 @@ export const SEED_CATEGORY_ATTRIBUTES: Record<Department, SeedAttribute[]> = {
 
 /**
  * Shipping defaults a product takes from its category when it is created without
- * its own (values the product is created with win, and stay editable). Grams and
- * centimetres; `package_category` is the parcel class couriers quote on.
+ * its own (see src/lib/shipping-defaults.ts).
  */
-export type ShippingDefaults = {
-  weight: number
-  length: number
-  width: number
-  height: number
-  package_category: string
-}
-
 const DEPARTMENT_SHIPPING: Record<Department, ShippingDefaults> = {
   Groceries: { weight: 1000, length: 30, width: 20, height: 15, package_category: "groceries" },
   Fashion: { weight: 400, length: 35, width: 25, height: 5, package_category: "fashion" },

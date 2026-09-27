@@ -144,7 +144,7 @@ export default async function seedDemoData({ container }: ExecArgs) {
   const offerCount = await seedOffers(container, sellers, productsByHandle, shippingProfileId);
 
   logger.info("Publishing products...");
-  await publishSeedProducts(container, [...productsByHandle.values()].map((p) => p.id), sellers[0].ownerMemberId);
+  await publishSeedProducts(container, [...productsByHandle.values()].map((p) => p.id));
 
   const { data: regions } = await query.graph({ entity: "region", fields: ["id"] });
   logger.info(
@@ -663,9 +663,10 @@ async function seedOffers(
   return wanted.length;
 }
 
-// The operator approves the proposed catalogue once every product is sellable,
-// through the same publish gate as any other product.
-async function publishSeedProducts(container: MedusaContainer, productIds: string[], actorId: string) {
+// The seeded catalogue is approved once every product is sellable, through the
+// same publish gate as any other product. No operator exists in the seed, so the
+// approval is recorded without an actor.
+async function publishSeedProducts(container: MedusaContainer, productIds: string[]) {
   const query = container.resolve(ContainerRegistrationKeys.QUERY);
   const { data } = await query.graph({
     entity: "product",
@@ -674,6 +675,6 @@ async function publishSeedProducts(container: MedusaContainer, productIds: strin
   });
   if (!data.length) return;
   await confirmProductsWorkflow(container).run({
-    input: { product_ids: data.map((p: { id: string }) => p.id), actor_id: actorId },
+    input: { product_ids: data.map((p: { id: string }) => p.id) },
   });
 }

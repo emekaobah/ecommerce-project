@@ -75,7 +75,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 
 - **Shared, operator-owned catalogue.** Products/variants hold content (title, description, images, weight, dimensions, barcode/EAN/UPC, attributes). Each seller's **offer** holds price, stock, seller SKU, lead time, backorder, shipping profile.
 - Sellers can **propose** new products (`proposed` → admin confirm / reject / request changes). Later edits go through the `product-edit` change-request pipeline (low-risk edits auto-confirm).
-- **Product attributes module**: global, category-linked typed attributes (`single_select`, `multi_select`, `unit`, `toggle`, `text`). `is_required` is only enforced client-side. Store filtering works only for variant-axis attributes.
+- **Product attributes module**: global, category-linked typed attributes (`single_select`, `multi_select`, `unit`, `toggle`, `text`). `is_required` is only enforced client-side in Mercur; Oja's publish gate enforces required category attributes server-side (#33). Store filtering works only for variant-axis attributes.
 - **Import:** admin CSV import UI existed in v2.0–v2.1 and was removed in v2.2.0 (2026-07-03, likely because the offer model moved prices off variants). Medusa's `/admin/products/import` API still exists. Vendor import exists only as the optional `product-import-export` registry block, which creates **draft products, not offers**, ignores the seller, and expects Medusa's full CSV format.
 - No barcode lookup or enrichment.
 

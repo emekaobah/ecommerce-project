@@ -1,5 +1,6 @@
 import type { MedusaContainer, ProductDTO } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { StepResponse } from "@medusajs/framework/workflows-sdk"
 import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import {
   confirmProductChangeWorkflow,
@@ -7,25 +8,34 @@ import {
   createProductsWorkflow,
 } from "@mercurjs/core/workflows"
 import { assertPublishable, type PendingAction } from "../../lib/product-completeness"
-import { applyCategoryShippingDefaults } from "../../lib/shipping-defaults"
+import { planCategoryShippingDefaults, type ShippingDefaultsUpdate } from "../../lib/shipping-defaults"
 
 // The publish gate: no product becomes, or stays, published while incomplete.
 // Where a workflow offers a hook before it writes, the gate refuses there; the
 // hooks after a write throw to roll the workflow back.
 
 // Mercur's published typings drop this workflow's hooks; the hook exists at runtime.
+type Context = { container: MedusaContainer }
 type ProductsCreatedHook = (
-  handler: (input: { products: ProductDTO[] }, context: { container: MedusaContainer }) => Promise<void>
+  handler: (input: { products: ProductDTO[] }, context: Context) => Promise<StepResponse<void, ShippingDefaultsUpdate[]>>,
+  compensate: (previous: ShippingDefaultsUpdate[] | undefined, context: Context) => Promise<void>
 ) => void
 const { productsCreated } = createProductsWorkflow.hooks as unknown as { productsCreated: ProductsCreatedHook }
 
 // New products first take their category's shipping defaults, then face the gate
 // if they were created as published (a rollback deletes them).
-productsCreated(async ({ products }, { container }) => {
-  const ids = products.map((p) => p.id)
-  await applyCategoryShippingDefaults(container, ids)
-  await assertPublishable(container, ids, { onlyIfPublished: true })
-})
+productsCreated(
+  async ({ products }, { container }) => {
+    const ids = products.map((p) => p.id)
+    const { updates, previous } = await planCategoryShippingDefaults(container, ids)
+    if (updates.length) await container.resolve(Modules.PRODUCT).upsertProducts(updates)
+    await assertPublishable(container, ids, { onlyIfPublished: true })
+    return new StepResponse(undefined, previous)
+  },
+  async (previous, { container }) => {
+    if (previous?.length) await container.resolve(Modules.PRODUCT).upsertProducts(previous)
+  }
+)
 
 // Operator edits and status changes (POST /admin/products/:id), and any other
 // save that leaves a product published.

@@ -114,6 +114,22 @@ medusaIntegrationTestRunner({
         expect(data).toHaveLength(0)
       })
 
+      it("refuses to publish an incomplete draft through the batch endpoint", async () => {
+        const { data } = await api.post(
+          "/admin/products",
+          { title: "Batch beans", status: "draft", categories: [{ id: await categoryId("Beans & Garri") }] },
+          admin
+        )
+
+        const message = await refusal(
+          api.post("/admin/products/batch", { update: [{ id: data.product.id, status: "published" }] }, admin)
+        )
+        expect(message).toContain("Selling price")
+
+        const { data: after } = await api.get(`/admin/products/${data.product.id}`, admin)
+        expect(after.product.status).toBe("draft")
+      })
+
       it("publishes a complete product", async () => {
         // Mercur master products carry no price of their own: a shop's offer sets it.
         const { data } = await api.post(

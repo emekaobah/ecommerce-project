@@ -2,6 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules, ProductStatus } from "@medusajs/framework/utils"
 import {
   assessProductCompleteness,
+  toNumber,
   withPendingActions,
   type PendingAction,
   type ProductCompleteness,
@@ -22,7 +23,6 @@ type ProductRow = {
   variants?: { id: string; weight: number | string | null; price_set?: { id: string } | null }[] | null
 }
 
-const toNumber = (v: number | string | null | undefined) => (v === null || v === undefined ? null : Number(v))
 
 /**
  * Reads what the publish rule needs for each product. Attribute values and
@@ -101,13 +101,12 @@ export async function loadRequiredAttributes(scope: Scope): Promise<RequiredAttr
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "product_attribute",
-    fields: ["id", "name", "handle", "categories.id"],
+    fields: ["id", "name", "categories.id"],
     filters: { is_required: true, is_active: true, product_id: null } as any,
   })
   return (data as any[]).map((a) => ({
     id: a.id,
     name: a.name,
-    handle: a.handle ?? null,
     category_ids: (Array.isArray(a.categories) ? a.categories : a.categories ? [a.categories] : [])
       .map((c: any) => c?.id)
       .filter(Boolean),

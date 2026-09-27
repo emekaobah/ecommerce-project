@@ -1,5 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 /**
  * Per-category shipping defaults, stored on the category as
@@ -7,11 +7,11 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
  * parcel class couriers quote on.
  */
 export type ShippingDefaults = {
-  weight?: number
-  length?: number
-  width?: number
-  height?: number
-  package_category?: string
+  weight: number
+  length: number
+  width: number
+  height: number
+  package_category: string
 }
 
 const DIMENSIONS = ["weight", "length", "width", "height"] as const
@@ -23,44 +23,78 @@ type ProductRow = {
   width: number | string | null
   height: number | string | null
   metadata: Record<string, unknown> | null
-  categories?: { id: string; rank?: number; metadata?: Record<string, unknown> | null }[] | null
+  categories?: { id: string; parent_category_id?: string | null; metadata?: Record<string, unknown> | null }[] | null
 }
+
+/** A product update that fills in what its category defaults provide. */
+export type ShippingDefaultsUpdate = { id: string } & Partial<Record<(typeof DIMENSIONS)[number], number>> & {
+    metadata?: Record<string, unknown>
+  }
 
 const isBlank = (v: unknown) => v === null || v === undefined || v === "" || Number(v) === 0
 
 /**
- * Fills a newly created product's missing weight, dimensions and package
- * category from its category's shipping defaults. Values the product was created
- * with win, and every field stays editable afterwards (vendor-overridable).
+ * The most specific category wins: a sub-category's defaults over its
+ * department's, then by id so the choice is stable.
  */
-export async function applyCategoryShippingDefaults(
+function defaultsFor(product: ProductRow): Partial<ShippingDefaults> | undefined {
+  return [...(product.categories ?? [])]
+    .sort((a, b) => Number(!a.parent_category_id) - Number(!b.parent_category_id) || a.id.localeCompare(b.id))
+    .map((c) => c.metadata?.shipping_defaults as Partial<ShippingDefaults> | undefined)
+    .find((d) => !!d && typeof d === "object")
+}
+
+/**
+ * Updates that fill newly created products' missing weight, dimensions and
+ * package category from their category's shipping defaults. Values a product was
+ * created with win, and every field stays editable afterwards (vendor-overridable).
+ * Returns the updates to apply and the previous values, for compensation.
+ */
+export async function planCategoryShippingDefaults(
   scope: Pick<MedusaContainer, "resolve">,
   productIds: string[]
-): Promise<void> {
-  if (!productIds.length) return
+): Promise<{ updates: ShippingDefaultsUpdate[]; previous: ShippingDefaultsUpdate[] }> {
+  if (!productIds.length) return { updates: [], previous: [] }
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "product",
-    fields: ["id", "weight", "length", "width", "height", "metadata", "categories.id", "categories.metadata"],
+    fields: [
+      "id",
+      "weight",
+      "length",
+      "width",
+      "height",
+      "metadata",
+      "categories.id",
+      "categories.parent_category_id",
+      "categories.metadata",
+    ],
     filters: { id: productIds },
   })
 
-  const productService = scope.resolve(Modules.PRODUCT)
+  const updates: ShippingDefaultsUpdate[] = []
+  const previous: ShippingDefaultsUpdate[] = []
   for (const product of data as ProductRow[]) {
-    const defaults = (product.categories ?? [])
-      .map((c) => c.metadata?.shipping_defaults as ShippingDefaults | undefined)
-      .find((d) => d && typeof d === "object")
+    const defaults = defaultsFor(product)
     if (!defaults) continue
 
-    const update: Record<string, unknown> = {}
+    const update: ShippingDefaultsUpdate = { id: product.id }
+    const before: ShippingDefaultsUpdate = { id: product.id }
     for (const field of DIMENSIONS) {
-      if (isBlank(product[field]) && typeof defaults[field] === "number") update[field] = defaults[field]
+      const value = defaults[field]
+      if (isBlank(product[field]) && typeof value === "number") {
+        update[field] = value
+        before[field] = product[field] === null ? (null as unknown as number) : Number(product[field])
+      }
     }
     if (defaults.package_category && !product.metadata?.package_category) {
       update.metadata = { ...product.metadata, package_category: defaults.package_category }
+      before.metadata = product.metadata ?? {}
     }
-    if (Object.keys(update).length) {
-      await productService.updateProducts(product.id, update)
+    if (Object.keys(update).length > 1) {
+      updates.push(update)
+      previous.push(before)
     }
   }
+  return { updates, previous }
 }
