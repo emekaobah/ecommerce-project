@@ -24,4 +24,4 @@ export type {
   TransitionResult,
 } from "./fulfilment"
 export { formatWeight, listingPrice, offerPrice, shipsIn } from "./listing"
-export type { DisplayPrice, PricedOffer } from "./listing"
+export type { DisplayPrice, ListingPrice, PricedOffer } from "./listing"

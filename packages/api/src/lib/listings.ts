@@ -35,12 +35,14 @@ export type Listing<P extends ListingProduct = ListingProduct> = {
   product: P
   /** One per variant the shop sells, each at the shop's own price. */
   offers: ListingOffer[]
-  /** Days until the shop ships: the slowest of its offers, else the shop's default. */
-  leadtime_to_ship: number
+  /** Days until the shop ships: the slowest of its offers, else the shop's default; null when neither is set. */
+  leadtime_to_ship: number | null
 }
 
 export type ListingFilters = {
   regionId: string
+  /** The publishable key's sales channels; products outside them are never listed. */
+  salesChannelIds: string[]
   sellerId?: string
   productId?: string
   excludeProductId?: string
@@ -57,6 +59,8 @@ type OfferRow = {
   product_variant?: { id: string; title: string | null; price_set?: { id: string } | null } | null
   calculated_price?: (ListingPrice & Record<string, unknown>) | null
 }
+type PricedOfferRow = OfferRow & { calculated_price: ListingPrice }
+type ProductDetailRow = Omit<ListingProductDetail, "attributes" | "weight"> & { weight: number | string | null }
 
 async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Region> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -88,12 +92,24 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
   return new Map(serving.map((s) => [s.id, s]))
 }
 
-async function publishedProductIds(scope: MedusaContainer, filters: ListingFilters): Promise<string[]> {
+/** Published products in the publishable key's sales channels. */
+async function listableProductIds(scope: MedusaContainer, filters: ListingFilters): Promise<string[]> {
+  if (!filters.salesChannelIds.length) return []
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: inChannels } = await query.graph({
+    entity: "product_sales_channel",
+    fields: ["product_id"],
+    filters: {
+      sales_channel_id: filters.salesChannelIds,
+      ...(filters.productId ? { product_id: filters.productId } : {}),
+    },
+  })
+  const channelProductIds = [...new Set((inChannels as { product_id: string }[]).map((l) => l.product_id))]
+  if (!channelProductIds.length) return []
   const { data } = await query.graph({
     entity: "product",
     fields: ["id"],
-    filters: { status: ProductStatus.PUBLISHED, ...(filters.productId ? { id: filters.productId } : {}) },
+    filters: { status: ProductStatus.PUBLISHED, id: channelProductIds },
   })
   return (data as { id: string }[]).map((p) => p.id).filter((id) => id !== filters.excludeProductId)
 }
@@ -104,8 +120,8 @@ async function publishedProductIds(scope: MedusaContainer, filters: ListingFilte
  */
 async function pricedOffers(scope: MedusaContainer, region: Region, filters: ListingFilters) {
   const sellers = await sellersServing(scope, region, filters.sellerId)
-  const productIds = sellers.size ? await publishedProductIds(scope, filters) : []
-  if (!productIds.length) return { sellers, offers: [] as OfferRow[] }
+  const productIds = sellers.size ? await listableProductIds(scope, filters) : []
+  if (!productIds.length) return { sellers, offers: [] as PricedOfferRow[] }
 
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
@@ -124,21 +140,19 @@ async function pricedOffers(scope: MedusaContainer, region: Region, filters: Lis
     pagination: { order: { created_at: "ASC", id: "ASC" } },
   })
   const offers = data as OfferRow[]
-  await wrapOffersWithCalculatedPrices(
-    { scope, pricingContext: { region_id: region.id, currency_code: region.currency_code } } as any,
-    offers as any
+  // Mercur's helper reads only the request's scope and pricing context.
+  const pricingRequest = { scope, pricingContext: { region_id: region.id, currency_code: region.currency_code } }
+  await wrapOffersWithCalculatedPrices(pricingRequest as never, offers as never)
+  const priced = offers.filter(
+    (o): o is PricedOfferRow =>
+      o.calculated_price?.calculated_amount != null && o.calculated_price.currency_code === region.currency_code
   )
-  return {
-    sellers,
-    offers: offers.filter(
-      (o) => o.calculated_price?.calculated_amount != null && o.calculated_price.currency_code === region.currency_code
-    ),
-  }
+  return { sellers, offers: priced }
 }
 
 /** Groups offers into one listing per shop and product, in the order they were first listed. */
-function groupListings(sellers: Map<string, SellerRow>, offers: OfferRow[]) {
-  const listings = new Map<string, { seller: SellerRow; productId: string; offers: OfferRow[] }>()
+function groupListings(sellers: Map<string, SellerRow>, offers: PricedOfferRow[]) {
+  const listings = new Map<string, { seller: SellerRow; productId: string; offers: PricedOfferRow[] }>()
   for (const offer of offers) {
     const key = `${offer.seller_id}:${offer.product_id}`
     const listing = listings.get(key)
@@ -149,25 +163,27 @@ function groupListings(sellers: Map<string, SellerRow>, offers: OfferRow[]) {
 }
 
 function toListing<P extends ListingProduct>(
-  group: { seller: SellerRow; offers: OfferRow[] },
+  group: { seller: SellerRow; offers: PricedOfferRow[] },
   product: P
 ): Listing<P> {
   const { seller, offers } = group
-  const shopDefault = seller.default_leadtime_to_ship ?? 0
+  const leadTimes = offers
+    .map((o) => o.leadtime_to_ship ?? seller.default_leadtime_to_ship)
+    .filter((days): days is number => days != null)
   return {
     seller: { id: seller.id, name: seller.name, handle: seller.handle },
     product,
-    offers: offers.map((o) => ({
-      id: o.id,
-      variant_id: o.variant_id,
-      variant_title: o.product_variant?.title ?? null,
+    offers: offers.map(({ id, variant_id, product_variant, calculated_price }) => ({
+      id,
+      variant_id,
+      variant_title: product_variant?.title ?? null,
       calculated_price: {
-        calculated_amount: Number(o.calculated_price!.calculated_amount),
-        original_amount: Number(o.calculated_price!.original_amount ?? o.calculated_price!.calculated_amount),
-        currency_code: o.calculated_price!.currency_code,
+        calculated_amount: Number(calculated_price.calculated_amount),
+        original_amount: Number(calculated_price.original_amount ?? calculated_price.calculated_amount),
+        currency_code: calculated_price.currency_code,
       },
     })),
-    leadtime_to_ship: Math.max(...offers.map((o) => o.leadtime_to_ship ?? shopDefault)),
+    leadtime_to_ship: leadTimes.length ? Math.max(...leadTimes) : null,
   }
 }
 
@@ -234,7 +250,9 @@ export async function retrieveListing(
     ],
     filters: { id: filters.productId },
   })
-  const p = product as any
+  const p = product as ProductDetailRow
+  const attributeValues = (withAttributes as { product_attribute_values?: AttributeValueRow[] } | undefined)
+    ?.product_attribute_values
   return toListing(group, {
     id: p.id,
     title: p.title,
@@ -243,8 +261,8 @@ export async function retrieveListing(
     subtitle: p.subtitle ?? null,
     description: p.description ?? null,
     weight: p.weight == null ? null : Number(p.weight),
-    images: (p.images ?? []).map((i: { id: string; url: string }) => ({ id: i.id, url: i.url })),
-    attributes: attributesOf((withAttributes as any)?.product_attribute_values ?? []),
+    images: (p.images ?? []).map(({ id, url }) => ({ id, url })),
+    attributes: attributesOf(attributeValues ?? []),
   })
 }
 

@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { formatWeight, listingPrice, offerPrice, shipsIn } from "./listing"
 
+let nextId = 0
 const offer = (calculated_amount: number, original_amount = calculated_amount) => ({
+  id: `offer_${++nextId}`,
   calculated_price: { calculated_amount, original_amount },
 })
 
@@ -18,19 +20,23 @@ describe("offerPrice", () => {
 
 describe("listingPrice", () => {
   test("is the shop's one price when every variant costs the same", () => {
-    expect(listingPrice([offer(28000), offer(28000)])).toEqual({ amount: 28000, compareAt: null, from: false })
+    const [first, second] = [offer(28000), offer(28000)]
+    expect(listingPrice([first, second])).toEqual({ amount: 28000, compareAt: null, from: false, offerId: first.id })
   })
 
   test("is 'from' the shop's cheapest variant when variant prices differ", () => {
-    expect(listingPrice([offer(30000), offer(28000), offer(32000)])).toEqual({
+    const cheapest = offer(28000)
+    expect(listingPrice([offer(30000), cheapest, offer(32000)])).toEqual({
       amount: 28000,
       compareAt: null,
       from: true,
+      offerId: cheapest.id,
     })
   })
 
   test("carries the cheapest variant's compare-at", () => {
-    expect(listingPrice([offer(30000), offer(25000, 28000)])).toEqual({ amount: 25000, compareAt: 28000, from: true })
+    const onSale = offer(25000, 28000)
+    expect(listingPrice([offer(30000), onSale])).toEqual({ amount: 25000, compareAt: 28000, from: true, offerId: onSale.id })
   })
 
   test("is undefined for a listing without offers", () => {

@@ -2,7 +2,7 @@
 // comparison), so these rules only ever pick between one shop's own variants.
 
 /** An offer's price in the region's currency, as the listings API returns it. */
-export type PricedOffer = { calculated_price: { calculated_amount: number; original_amount: number } }
+export type PricedOffer = { id: string; calculated_price: { calculated_amount: number; original_amount: number } }
 
 export type DisplayPrice = {
   amount: number
@@ -15,17 +15,24 @@ export function offerPrice({ calculated_price }: PricedOffer): DisplayPrice {
   return { amount: calculated_amount, compareAt: original_amount > calculated_amount ? original_amount : null }
 }
 
+export type ListingPrice = DisplayPrice & {
+  /** The shop's variants are priced differently; show "From". */
+  from: boolean
+  /** The cheapest offer, which the product page selects first. */
+  offerId: string
+}
+
 /**
  * A listing's headline price: the shop's cheapest variant, marked "from" when its variants
  * are priced differently.
  */
-export function listingPrice(offers: PricedOffer[]): (DisplayPrice & { from: boolean }) | undefined {
+export function listingPrice(offers: PricedOffer[]): ListingPrice | undefined {
   if (!offers.length) return undefined
   const cheapest = offers.reduce((min, o) =>
     o.calculated_price.calculated_amount < min.calculated_price.calculated_amount ? o : min
   )
   const amounts = new Set(offers.map((o) => o.calculated_price.calculated_amount))
-  return { ...offerPrice(cheapest), from: amounts.size > 1 }
+  return { ...offerPrice(cheapest), from: amounts.size > 1, offerId: cheapest.id }
 }
 
 /** The shop's lead time to ship, in days. */

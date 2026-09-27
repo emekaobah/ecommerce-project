@@ -6,10 +6,15 @@ import { StyleSheet, View } from 'react-native';
 export function Price({
   price,
   currencyCode,
-  from = false,
   variant = 'label',
-}: Readonly<{ price: DisplayPrice; currencyCode: string; from?: boolean; variant?: TextProps['variant'] }>) {
+}: Readonly<{
+  /** `from` marks a listing whose variants are priced differently. */
+  price: DisplayPrice & { from?: boolean };
+  currencyCode: string;
+  variant?: TextProps['variant'];
+}>) {
   const theme = useTheme();
+  const { from = false } = price;
   const amount = formatMoney(price.amount, currencyCode);
   const was = price.compareAt == null ? null : formatMoney(price.compareAt, currencyCode);
   return (

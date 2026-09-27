@@ -1,13 +1,13 @@
 import { listingPrice, PRODUCT_NAME } from '@oja/domain';
 import { EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useListings } from '@/api/listings';
 import { Price } from '@/components/price';
+import { openListing } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
 export function HomeScreen() {
@@ -46,10 +46,8 @@ export function HomeScreen() {
             <ListRow
               title={item.product.title}
               subtitle={item.seller.name}
-              onPress={() =>
-                router.push({ pathname: '/product/[id]', params: { id: item.product.id, seller: item.seller.id } })
-              }
-              trailing={price ? <Price price={price} from={price.from} currencyCode={currency_code} /> : null}
+              onPress={() => openListing(item)}
+              trailing={price ? <Price price={price} currencyCode={currency_code} /> : null}
               leading={
                 item.product.thumbnail ? (
                   <Image

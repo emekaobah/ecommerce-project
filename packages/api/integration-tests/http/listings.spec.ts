@@ -111,6 +111,24 @@ medusaIntegrationTestRunner({
         expect(data).toMatchObject({ listings: [], count: 0 })
       })
 
+      it("hides a product outside the publishable key's sales channel", async () => {
+        const lantern = await productId(LANTERN.title)
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: channels } = await query.graph({ entity: "sales_channel", fields: ["id"] })
+        await getContainer()
+          .resolve(ContainerRegistrationKeys.LINK)
+          .dismiss(
+            channels.map((c: any) => ({
+              [Modules.PRODUCT]: { product_id: lantern },
+              [Modules.SALES_CHANNEL]: { sales_channel_id: c.id },
+            }))
+          )
+
+        const { data } = await list({ limit: 100 })
+
+        expect(data.listings.some((l: any) => l.product.id === lantern)).toBe(false)
+      })
+
       it("hides a closed shop's listings", async () => {
         const seller = await sellerId("Adire House")
         await (getContainer().resolve(MercurModules.SELLER) as any).updateSellers({ id: seller, status: "suspended" })

@@ -1,3 +1,4 @@
+import { ClientError } from '@oja/api-client';
 import { skipToken, useQuery } from '@tanstack/react-query';
 
 import { storeClient } from './client';
@@ -45,5 +46,8 @@ export function useListing(regionId: string | undefined, sellerId: string, produ
   return useQuery({
     queryKey: listingKeys.detail(regionId ?? '', sellerId, productId),
     queryFn: regionId ? () => fetchListing(regionId, sellerId, productId) : skipToken,
+    // Not found is an answer (the shop stopped selling it), not a failure worth retrying.
+    retry: (failures, error) => !(error instanceof ClientError && error.status === 404) && failures < 1,
   });
 }
+

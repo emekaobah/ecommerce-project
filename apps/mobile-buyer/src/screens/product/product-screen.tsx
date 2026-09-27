@@ -1,17 +1,34 @@
 import { ClientError } from '@oja/api-client';
 import { formatWeight, listingPrice, offerPrice, shipsIn } from '@oja/domain';
-import { EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
+import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { useListing, useListings, type Listing, type ListingDetail } from '@/api/listings';
 import { Price } from '@/components/price';
+import { openListing } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
-/** A product in one shop's context: that shop's price and ship time, never another shop's. */
-export function ProductScreen({ sellerId, productId }: Readonly<{ sellerId: string; productId: string }>) {
+/**
+ * A product in one shop's context: that shop's price and ship time, never another shop's.
+ * Without a shop there is nothing to show (docs/design.md).
+ */
+export function ProductScreen({ sellerId, productId }: Readonly<{ sellerId?: string; productId: string }>) {
+  if (!sellerId) {
+    return (
+      <EmptyState
+        title="Pick a shop"
+        message="Open this product from a shop's listing."
+        action={{ label: 'Back to shopping', onPress: () => router.back() }}
+      />
+    );
+  }
+  return <ShopProduct sellerId={sellerId} productId={productId} />;
+}
+
+function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; productId: string }>) {
   const theme = useTheme();
   const region = useRegion();
   const listing = useListing(region.region?.id, sellerId, productId);
@@ -66,7 +83,6 @@ function Gallery({ images }: Readonly<{ images: ListingDetail['product']['images
   return (
     <FlatList
       horizontal
-      pagingEnabled
       data={images}
       keyExtractor={(image) => image.id}
       showsHorizontalScrollIndicator={false}
@@ -90,10 +106,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
   const theme = useTheme();
   const { offers, product, seller } = listing;
   // Starts on the shop's cheapest variant, matching the "from" price in the feed.
-  const [selectedId, setSelectedId] = useState(() => {
-    const cheapest = listingPrice(offers);
-    return offers.find((o) => o.calculated_price.calculated_amount === cheapest?.amount)?.id ?? offers[0]?.id;
-  });
+  const [selectedId, setSelectedId] = useState(() => listingPrice(offers)?.offerId);
   const selected = offers.find((o) => o.id === selectedId) ?? offers[0];
 
   return (
@@ -102,7 +115,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
       {product.subtitle ? <Text tone="secondary">{product.subtitle}</Text> : null}
       {selected ? <Price price={offerPrice(selected)} currencyCode={currencyCode} variant="heading" /> : null}
       <Text tone="secondary">
-        {seller.name} · {shipsIn(listing.leadtime_to_ship)}
+        {listing.leadtime_to_ship == null ? seller.name : `${seller.name} · ${shipsIn(listing.leadtime_to_ship)}`}
       </Text>
       {offers.length > 1 ? (
         <View style={[styles.chips, { gap: theme.space.sm, marginTop: theme.space.sm }]} accessibilityRole="radiogroup">
@@ -172,12 +185,16 @@ function MoreFromShop({
   const content = () => {
     if (suggestions.error) {
       return (
-        <Text tone="secondary" style={{ paddingHorizontal: theme.space.md }}>
-          Couldn't load more from this shop.
-        </Text>
+        <View style={{ paddingHorizontal: theme.space.md, gap: theme.space.xs, alignItems: 'flex-start' }}>
+          <Text tone="secondary">Couldn't load more from this shop.</Text>
+          <Button label="Try again" variant="link" onPress={() => void suggestions.refetch()} />
+        </View>
       );
     }
-    if (!suggestions.data) return <LoadingState />;
+    // Inline, so the shelf doesn't take over the page while it loads.
+    if (!suggestions.data) {
+      return <ActivityIndicator color={theme.colors.ink} style={{ height: TILE }} accessibilityLabel="Loading" />;
+    }
     return (
       <FlatList
         horizontal
@@ -210,9 +227,7 @@ function SuggestionTile({ listing, currencyCode }: Readonly<{ listing: Listing; 
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={() =>
-        router.push({ pathname: '/product/[id]', params: { id: listing.product.id, seller: listing.seller.id } })
-      }
+      onPress={() => openListing(listing)}
       style={({ pressed }) => [{ width: TILE, gap: theme.space.xs }, pressed && styles.pressed]}>
       <Image
         source={listing.product.thumbnail}
@@ -222,7 +237,7 @@ function SuggestionTile({ listing, currencyCode }: Readonly<{ listing: Listing; 
       <Text variant="caption" numberOfLines={2}>
         {listing.product.title}
       </Text>
-      {price ? <Price price={price} from={price.from} currencyCode={currencyCode} /> : null}
+      {price ? <Price price={price} currencyCode={currencyCode} /> : null}
     </Pressable>
   );
 }
