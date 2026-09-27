@@ -1,0 +1,27 @@
+import { z } from "@medusajs/framework/zod"
+
+/**
+ * Rows per import; larger catalogues are imported in several files. Each row
+ * runs its own workflow within the request, so this keeps an import to a
+ * minute or two.
+ */
+export const MAX_IMPORT_ROWS = 500
+
+const Mapping = z.record(z.string(), z.string())
+
+export const AdminPreviewCatalogueImport = z.object({
+  csv: z.string().min(1),
+  /** Who the sheet comes from; a saved mapping for it is reused. */
+  source: z.string().trim().min(1).optional(),
+  /** Column → field. Omitted, the source's saved mapping (or a suggestion) is used. */
+  mapping: Mapping.optional(),
+})
+
+export const AdminRunCatalogueImport = z.object({
+  csv: z.string().min(1),
+  source: z.string().trim().min(1),
+  mapping: Mapping,
+})
+
+export type AdminPreviewCatalogueImportType = z.infer<typeof AdminPreviewCatalogueImport>
+export type AdminRunCatalogueImportType = z.infer<typeof AdminRunCatalogueImport>

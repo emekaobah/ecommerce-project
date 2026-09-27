@@ -17,5 +17,76 @@
       "category": "Category",
       "weight": "Weight"
     }
+  },
+  "catalogueImport": {
+    "title": "Catalogue import",
+    "description": "Add products to the shared catalogue from a supplier's CSV. Products are created as drafts; each shop prices its own offer.",
+    "loadError": "Could not load the import settings.",
+    "steps": {
+      "upload": "Upload",
+      "mapping": "Map columns",
+      "preview": "Preview",
+      "results": "Results"
+    },
+    "back": "Back",
+    "row": "Row",
+    "product": "Product",
+    "status": "Status",
+    "notes": "Notes",
+    "missing": "Needs before publishing: {{fields}}",
+    "upload": {
+      "source": "Source",
+      "sourcePlaceholder": "e.g. Ikeja wholesaler",
+      "sourceHint": "Who the file comes from. Its column mapping is remembered for the next file from the same source.",
+      "file": "CSV file",
+      "fileHint": "Comma, semicolon or tab separated, with a header row. Up to 500 rows.",
+      "continue": "Continue"
+    },
+    "mapping": {
+      "rows_one": "{{count}} row",
+      "rows_other": "{{count}} rows",
+      "origin": {
+        "saved": "Mapping from the last {{source}} import",
+        "suggested": "Suggested from the column names",
+        "request": "Your mapping"
+      },
+      "column": "Column",
+      "sample": "First value",
+      "field": "Imports as",
+      "unmapped": "Don't import",
+      "groups": {
+        "product": "Product",
+        "variant": "Variant",
+        "offer": "Offer",
+        "attribute": "Attributes"
+      },
+      "minimum": "Each row needs a title or a barcode, and a selling price.",
+      "preview": "Preview rows"
+    },
+    "preview": {
+      "valid_one": "{{count}} row ready",
+      "valid_other": "{{count}} rows ready",
+      "invalid_one": "{{count}} row with errors",
+      "invalid_other": "{{count}} rows with errors",
+      "drafts": "Rows with errors are skipped. Products are created as drafts: a product can be published once a shop offers it and nothing else is missing.",
+      "ready": "Ready",
+      "skip": "Will be skipped",
+      "import_one": "Import {{count}} product",
+      "import_other": "Import {{count}} products"
+    },
+    "results": {
+      "created_one": "{{count}} draft created",
+      "created_other": "{{count}} drafts created",
+      "skipped_one": "{{count}} row skipped",
+      "skipped_other": "{{count}} rows skipped",
+      "failed_one": "{{count}} row failed",
+      "failed_other": "{{count}} rows failed",
+      "status": {
+        "created": "Draft created",
+        "skipped": "Skipped",
+        "failed": "Failed"
+      },
+      "again": "Import another file"
+    }
   }
 }
