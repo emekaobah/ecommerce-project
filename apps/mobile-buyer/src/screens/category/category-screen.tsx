@@ -1,5 +1,5 @@
 import { EmptyState, ErrorState, LoadingState, useTheme } from '@oja/ui';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -8,7 +8,7 @@ import { ShopResults } from '@/components/shop-results';
 import { useRegion } from '@/region/region-provider';
 
 /** A category's products (its sub-categories' too), grouped by shop, fastest shops first. */
-export function CategoryScreen({ categoryId }: Readonly<{ categoryId: string }>) {
+export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: string; name?: string }>) {
   const theme = useTheme();
   const region = useRegion();
   const listings = useListings(region.region?.id, { categoryId, limit: 100 });
@@ -44,7 +44,12 @@ export function CategoryScreen({ categoryId }: Readonly<{ categoryId: string }>)
     );
   };
 
-  return <View style={[styles.container, { backgroundColor: theme.colors.background }]}>{content()}</View>;
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Stack.Screen options={{ title: name ?? '' }} />
+      {content()}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

@@ -17,17 +17,19 @@ export type ListingOffer = {
   calculated_price: ListingPrice
 }
 
-export type ListingSeller = { id: string; name: string; handle: string }
-
-/** A shop's page header. */
-export type Shop = ListingSeller & {
-  description: string | null
-  logo: string | null
+/** The shop a listing belongs to, with what its header shows wherever it appears. */
+export type ListingSeller = {
+  id: string
+  name: string
+  handle: string
   /** Where the shop is: its pickup address's LGA or city (ADR 0002). */
   area: string | null
   /** The shop's usual days to ship; null when it hasn't set one. */
-  leadtime_to_ship: number | null
+  default_leadtime_to_ship: number | null
 }
+
+/** A shop's page header. */
+export type Shop = ListingSeller & { description: string | null }
 
 export type ListingProduct = { id: string; title: string; handle: string; thumbnail: string | null }
 
@@ -63,12 +65,7 @@ export type ListingFilters = {
 }
 
 type Region = { id: string; currency_code: string; countries: string[] }
-type SellerRow = ListingSeller & {
-  description: string | null
-  logo: string | null
-  default_leadtime_to_ship: number | null
-  address?: { country_code: string | null; city: string | null } | null
-}
+type SellerRow = Omit<Shop, "area"> & { address?: { country_code: string | null; city: string | null } | null }
 /** Mercur's calculated price; the pricing module's fields beyond `ListingPrice` pass through untyped. */
 type CalculatedOfferPrice = ListingPrice & { is_calculated_price_tax_inclusive?: boolean } & Record<string, unknown>
 type OfferPricingRow = {
@@ -111,7 +108,6 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
       "name",
       "handle",
       "description",
-      "logo",
       "default_leadtime_to_ship",
       "address.country_code",
       "address.city",
@@ -235,16 +231,26 @@ export async function priceOffers<O extends OfferPricingRow>(
   )
 }
 
-type ListingGroup = { seller: SellerRow; productId: string; offers: PricedOfferRow[] }
+type ListingGroup = { seller: SellerRow; productId: string; title: string; offers: PricedOfferRow[] }
 
 /** Groups offers into one listing per shop and product, in the order they were first listed. */
-function groupListings(sellers: Map<string, SellerRow>, offers: PricedOfferRow[]): ListingGroup[] {
+function groupListings(
+  sellers: Map<string, SellerRow>,
+  titles: Map<string, string>,
+  offers: PricedOfferRow[]
+): ListingGroup[] {
   const listings = new Map<string, ListingGroup>()
   for (const offer of offers) {
     const key = `${offer.seller_id}:${offer.product_id}`
     const listing = listings.get(key)
     if (listing) listing.offers.push(offer)
-    else listings.set(key, { seller: sellers.get(offer.seller_id)!, productId: offer.product_id, offers: [offer] })
+    else
+      listings.set(key, {
+        seller: sellers.get(offer.seller_id)!,
+        productId: offer.product_id,
+        title: titles.get(offer.product_id)!,
+        offers: [offer],
+      })
   }
   return [...listings.values()]
 }
@@ -276,22 +282,32 @@ function relevance(title: string, words: string[]): number {
  * ships soonest, then the order listings were first made. Never by price. "Nearest" joins
  * once buyers have a delivery address to measure from.
  */
-function orderListings(groups: ListingGroup[], titles: Map<string, string>, search: string | undefined) {
+function orderListings(groups: ListingGroup[], search: string | undefined) {
   const words = searchWords(search)
   const ranked = groups.map((group, index) => ({
     group,
     index,
-    relevance: relevance(titles.get(group.productId) ?? "", words),
+    relevance: relevance(group.title, words),
     days: leadtimeToShip(group) ?? Number.POSITIVE_INFINITY,
   }))
   ranked.sort((a, b) => b.relevance - a.relevance || a.days - b.days || a.index - b.index)
   return ranked.map((r) => r.group)
 }
 
+function toListingSeller(seller: SellerRow): ListingSeller {
+  return {
+    id: seller.id,
+    name: seller.name,
+    handle: seller.handle,
+    area: seller.address?.city ?? null,
+    default_leadtime_to_ship: seller.default_leadtime_to_ship,
+  }
+}
+
 function toListing<P extends ListingProduct>(group: Pick<ListingGroup, "seller" | "offers">, product: P): Listing<P> {
   const { seller, offers } = group
   return {
-    seller: { id: seller.id, name: seller.name, handle: seller.handle },
+    seller: toListingSeller(seller),
     product,
     offers: offers.map(({ id, variant_id, product_variant, calculated_price }) => ({
       id,
@@ -318,7 +334,7 @@ export async function listListings(
 ): Promise<{ listings: Listing[]; count: number }> {
   const region = await loadRegion(scope, filters.regionId)
   const { sellers, titles, offers } = await pricedOffers(scope, region, filters)
-  const groups = orderListings(groupListings(sellers, offers), titles, filters.search)
+  const groups = orderListings(groupListings(sellers, titles, offers), filters.search)
   const pageGroups = groups.slice(page.offset, page.offset + page.limit)
   if (!pageGroups.length) return { listings: [], count: groups.length }
 
@@ -341,8 +357,8 @@ export async function retrieveListing(
   filters: ListingFilters & { sellerId: string; productId: string }
 ): Promise<Listing<ListingProductDetail>> {
   const region = await loadRegion(scope, filters.regionId)
-  const { sellers, offers } = await pricedOffers(scope, region, filters)
-  const [group] = groupListings(sellers, offers)
+  const { sellers, titles, offers } = await pricedOffers(scope, region, filters)
+  const [group] = groupListings(sellers, titles, offers)
   if (!group) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop doesn't sell that product in your region")
   }
@@ -405,13 +421,5 @@ export async function retrieveShop(scope: MedusaContainer, filters: { regionId: 
   const region = await loadRegion(scope, filters.regionId)
   const seller = (await sellersServing(scope, region, filters.sellerId)).get(filters.sellerId)
   if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop isn't open in your region")
-  return {
-    id: seller.id,
-    name: seller.name,
-    handle: seller.handle,
-    description: seller.description ?? null,
-    logo: seller.logo ?? null,
-    area: seller.address?.city ?? null,
-    leadtime_to_ship: seller.default_leadtime_to_ship ?? null,
-  }
+  return { ...toListingSeller(seller), description: seller.description }
 }

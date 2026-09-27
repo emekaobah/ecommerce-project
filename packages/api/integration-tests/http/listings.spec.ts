@@ -44,6 +44,9 @@ medusaIntegrationTestRunner({
         id: await sellerId(name),
         default_leadtime_to_ship: days,
       })
+    /** The feed as "product @ shop", before any shop sets a ship time: the order listings were first made. */
+    const asListed = async (): Promise<string[]> =>
+      (await list({ limit: 100 })).data.listings.map((l: any) => `${l.product.title} @ ${l.seller.name}`)
     const list = (params: Record<string, string | number> = {}) =>
       api.get(`/store/listings?${new URLSearchParams({ region_id: regionId, ...params } as any)}`, { headers })
     const detail = (seller: string, product: string, region = regionId) =>
@@ -58,7 +61,9 @@ medusaIntegrationTestRunner({
         const pairs = data.listings.map((l: any) => `${l.seller.id}:${l.product.id}`)
         expect(new Set(pairs).size).toBe(pairs.length)
         for (const listing of data.listings) {
-          expect(listing.seller).toEqual(expect.objectContaining({ id: expect.any(String), name: expect.any(String) }))
+          expect(listing.seller).toEqual(
+            expect.objectContaining({ id: expect.any(String), name: expect.any(String), area: expect.any(String) })
+          )
           expect(listing.product).toEqual(expect.objectContaining({ id: expect.any(String), title: expect.any(String) }))
           expect(listing.offers.length).toBeGreaterThan(0)
           for (const offer of listing.offers) {
@@ -158,6 +163,7 @@ medusaIntegrationTestRunner({
       })
 
       it("orders the best name matches first, then the fastest shops, never the cheapest", async () => {
+        const listed = await asListed()
         // The dearer shop ships sooner, so a price order would put it last.
         await shipsIn("Iya Bisi Foodstuff", 1)
         await shipsIn("Ikeja Gadget Hub", 3)
@@ -171,10 +177,12 @@ medusaIntegrationTestRunner({
           "25W USB-C Fast Charger @ Ikeja Gadget Hub",
           "Rechargeable LED Lantern @ Iya Bisi Foodstuff",
         ])
-        expect(found.slice(3).sort()).toEqual([
-          "Rechargeable LED Lantern @ Ikeja Gadget Hub",
-          "Rechargeable Standing Fan 16-inch @ Ikeja Gadget Hub",
-        ])
+        // Equal on match and ship time: the order they were first listed.
+        expect(found.slice(3)).toEqual(
+          listed.filter((l) =>
+            ["Rechargeable LED Lantern @ Ikeja Gadget Hub", "Rechargeable Standing Fan 16-inch @ Ikeja Gadget Hub"].includes(l)
+          )
+        )
       })
     })
 
@@ -188,15 +196,19 @@ medusaIntegrationTestRunner({
         SEED_PRODUCTS.filter((p) => p.category === category || p.department === category).map((p) => p.title)
 
       it("lists only the category's products, fastest shops first, never the cheapest", async () => {
+        const listed = await asListed()
         await shipsIn("Iya Bisi Foodstuff", 1)
         await shipsIn("Ikeja Gadget Hub", 3)
 
         const { data } = await list({ category_id: await categoryId("Power & Lighting"), limit: 100 })
         const found = data.listings.map((l: any) => `${l.product.title} @ ${l.seller.name}`)
 
-        expect(new Set(data.listings.map((l: any) => l.product.title))).toEqual(new Set(titlesIn("Power & Lighting")))
-        // The dearer shop's lantern leads: it ships in a day.
-        expect(found[0]).toBe("Rechargeable LED Lantern @ Iya Bisi Foodstuff")
+        // The dearer shop's lantern leads: it ships in a day. The rest, equal, keep the order they were listed.
+        const atIkeja = titlesIn("Power & Lighting").map((title) => `${title} @ Ikeja Gadget Hub`)
+        expect(found).toEqual([
+          "Rechargeable LED Lantern @ Iya Bisi Foodstuff",
+          ...listed.filter((l) => atIkeja.includes(l)),
+        ])
       })
 
       it("includes a department's sub-categories", async () => {
@@ -221,7 +233,7 @@ medusaIntegrationTestRunner({
           name: "Iya Bisi Foodstuff",
           description: SEED_SELLERS[0].description,
           area: "Surulere",
-          leadtime_to_ship: 2,
+          default_leadtime_to_ship: 2,
         })
       })
 
@@ -235,6 +247,25 @@ medusaIntegrationTestRunner({
         // It also sells the lantern, at its own price.
         const lantern = data.listings.find((l: any) => l.product.title === LANTERN.title)
         expect(lantern.offers[0].calculated_price.calculated_amount).toBe(LANTERN.also_at![0].price)
+      })
+
+      it("orders the shop's listings by what ships soonest, then as first listed, never by price", async () => {
+        const seller = await sellerId("Ikeja Gadget Hub")
+        await shipsIn("Ikeja Gadget Hub", 3)
+        const titles = async () =>
+          (await list({ seller_id: seller, limit: 100 })).data.listings.map((l: any) => l.product.title)
+        const asListed = await titles()
+        // Its dearest product ships sooner than the shop's usual three days.
+        const fan = "Rechargeable Standing Fan 16-inch"
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: offers } = await query.graph({
+          entity: "offer",
+          fields: ["id"],
+          filters: { seller_id: seller, product_id: await productId(fan) },
+        })
+        await (getContainer().resolve(MercurModules.OFFER) as any).updateOffers({ id: offers[0].id, leadtime_to_ship: 1 })
+
+        expect(await titles()).toEqual([fan, ...asListed.filter((t: string) => t !== fan)])
       })
 
       it("is not found for a closed shop", async () => {

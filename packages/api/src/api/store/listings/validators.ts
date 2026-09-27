@@ -15,5 +15,9 @@ export const StoreGetListingsParams = StoreGetListingParams.extend({
   offset: z.coerce.number().int().min(0).default(0),
 })
 
+/** A shop page's header is scoped to the region like a listing. */
+export const StoreGetShopParams = StoreGetListingParams
+
+export type StoreGetShopParamsType = z.infer<typeof StoreGetShopParams>
 export type StoreGetListingParamsType = z.infer<typeof StoreGetListingParams>
 export type StoreGetListingsParamsType = z.infer<typeof StoreGetListingsParams>

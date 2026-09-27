@@ -1,4 +1,4 @@
-import { listingPrice, shipsIn } from '@oja/domain';
+import { listingPrice } from '@oja/domain';
 import { EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -9,6 +9,7 @@ import { isNotFound } from '@/api/errors';
 import { useListings } from '@/api/listings';
 import { useShop, type Shop } from '@/api/shops';
 import { Price } from '@/components/price';
+import { ShopFacts } from '@/components/shop-facts';
 import { openListing } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
@@ -76,11 +77,10 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
 
 function ShopHeader({ shop }: Readonly<{ shop: Shop }>) {
   const theme = useTheme();
-  const facts = [shop.area, shop.leadtime_to_ship == null ? null : shipsIn(shop.leadtime_to_ship)].filter(Boolean);
   return (
     <View style={{ gap: theme.space.xs, paddingVertical: theme.space.md }}>
       <Text variant="title">{shop.name}</Text>
-      {facts.length ? <Text tone="secondary">{facts.join(' · ')}</Text> : null}
+      <ShopFacts seller={shop} />
       {shop.description ? <Text style={{ marginTop: theme.space.xs }}>{shop.description}</Text> : null}
     </View>
   );

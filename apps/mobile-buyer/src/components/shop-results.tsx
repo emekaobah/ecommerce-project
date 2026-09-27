@@ -1,4 +1,4 @@
-import { groupByShop, shipsIn, type ShopGroup } from '@oja/domain';
+import { groupByShop, type ShopGroup } from '@oja/domain';
 import { Button, Text, useTheme } from '@oja/ui';
 import type { ReactElement } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
@@ -7,6 +7,7 @@ import type { Listing } from '@/api/listings';
 import { openShop } from '@/navigation';
 
 import { ListingTile } from './listing-tile';
+import { ShopFacts } from './shop-facts';
 
 /**
  * Search and category results grouped by shop: a shop header, then a shelf of that shop's
@@ -48,10 +49,6 @@ export function ShopResults({
 
 function ShopShelf({ group, currencyCode }: Readonly<{ group: ShopGroup<Listing>; currencyCode: string }>) {
   const theme = useTheme();
-  const days = group.listings
-    .map((l) => l.leadtime_to_ship)
-    .filter((d): d is number => d != null)
-    .reduce<number | null>((min, d) => (min == null || d < min ? d : min), null);
   return (
     <View style={{ gap: theme.space.sm }}>
       <View style={[styles.header, { paddingHorizontal: theme.space.md, gap: theme.space.sm }]}>
@@ -59,11 +56,7 @@ function ShopShelf({ group, currencyCode }: Readonly<{ group: ShopGroup<Listing>
           <Text variant="heading" numberOfLines={1}>
             {group.seller.name}
           </Text>
-          {days == null ? null : (
-            <Text variant="caption" tone="secondary">
-              {shipsIn(days)}
-            </Text>
-          )}
+          <ShopFacts seller={group.seller} variant="caption" />
         </View>
         <Button label="See all" variant="link" onPress={() => openShop(group.seller)} />
       </View>

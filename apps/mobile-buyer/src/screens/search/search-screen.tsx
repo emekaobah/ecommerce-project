@@ -1,9 +1,10 @@
+import { departments } from '@oja/domain';
 import { EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
 import { Pressable, SectionList, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useCategories, type Category } from '@/api/categories';
+import { useCategories } from '@/api/categories';
 import { useListings } from '@/api/listings';
 import { ShopResults } from '@/components/shop-results';
 import { openCategory } from '@/navigation';
@@ -87,22 +88,6 @@ function Results({ search, onClear }: Readonly<{ search: string; onClear: () => 
   );
 }
 
-type Department = { title: string; department: Category; data: Category[] };
-
-const byRank = (a: Category, b: Category) => a.rank - b.rank || a.name.localeCompare(b.name);
-
-/** Departments, each with a row for everything in it and one per sub-category. */
-function departmentsOf(categories: Category[]): Department[] {
-  return categories
-    .filter((c) => !c.parent_category_id)
-    .sort(byRank)
-    .map((department) => ({
-      title: department.name,
-      department,
-      data: [department, ...categories.filter((c) => c.parent_category_id === department.id).sort(byRank)],
-    }));
-}
-
 function Browse() {
   const theme = useTheme();
   const categories = useCategories();
@@ -118,7 +103,12 @@ function Browse() {
   }
   if (!categories.data) return <LoadingState />;
 
-  const sections = departmentsOf(categories.data);
+  // A row for everything in the department, then one per sub-category.
+  const sections = departments(categories.data).map(({ department, categories: subCategories }) => ({
+    title: department.name,
+    department,
+    data: [department, ...subCategories],
+  }));
   return (
     <SectionList
       sections={sections}

@@ -1,7 +1,7 @@
 import { defineMiddlewares } from "@medusajs/medusa";
 import { authenticate, validateAndTransformBody, validateAndTransformQuery } from "@medusajs/framework/http";
 import { clerkCustomerAuth } from "./store/clerk-customer-auth";
-import { StoreGetListingParams, StoreGetListingsParams } from "./store/listings/validators";
+import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
 
@@ -22,7 +22,7 @@ export default defineMiddlewares({
         {
             method: ["GET"],
             matcher: "/store/shops/:seller_id",
-            middlewares: [validateAndTransformQuery(StoreGetListingParams, {})],
+            middlewares: [validateAndTransformQuery(StoreGetShopParams, {})],
         },
         {
             method: ["POST"],
