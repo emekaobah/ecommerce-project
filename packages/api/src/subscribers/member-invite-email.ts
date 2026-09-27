@@ -29,15 +29,16 @@ export default async function memberInviteEmailHandler({
 
     const inviteUrl = `${vendorUrl}/invite?token=${encodeURIComponent(token)}`
     const sellerName = seller?.name ?? "a shop"
+    const roleName = role?.name ?? invite.role_id
     await container.resolve(Modules.NOTIFICATION).createNotifications({
       to: invite.email,
       channel: "email",
       template: "member-invite",
-      data: { invite_url: inviteUrl, seller_name: sellerName, role: role?.name ?? invite.role_id },
+      data: { invite_url: inviteUrl, seller_name: sellerName, role: roleName },
       content: {
         subject: `You've been invited to join ${sellerName}`,
         html: `<p>You've been invited to join <strong>${escapeHtml(sellerName)}</strong> as ${escapeHtml(
-          role?.name ?? "a team member"
+          roleName
         )}.</p><p><a href="${escapeHtml(inviteUrl)}">Accept the invite</a></p>`,
       },
     })

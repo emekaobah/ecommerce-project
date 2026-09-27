@@ -133,15 +133,13 @@ medusaIntegrationTestRunner({
           { email: grocery.staff.email, role_id: SellerRole.ORDER_MANAGEMENT },
           fashionOwner
         )
-        const { data: login } = await api.post("/auth/member/emailpass", {
-          email: grocery.staff.email,
-          password: SEED_PASSWORD,
-        })
-        await api.post(
-          "/vendor/members/invites/accept",
-          { invite_token: data.member_invite.token },
-          { headers: { authorization: `Bearer ${login.token}` } }
-        )
+        await api.post("/vendor/members/invites/accept", { invite_token: data.member_invite.token }, await staffLogin())
+      }
+
+      /** The grocery staff member's login, before any shop is chosen. */
+      const staffLogin = async () => {
+        const { data } = await api.post("/auth/member/emailpass", { email: grocery.staff.email, password: SEED_PASSWORD })
+        return { headers: { authorization: `Bearer ${data.token}` } }
       }
 
       const orderIds = async (headers: { headers: Record<string, string> }) => {
@@ -154,11 +152,7 @@ medusaIntegrationTestRunner({
         const fashionOrder = await orderWith(fashion, "Adire Kaftan")
         await joinFashion()
 
-        const { data: login } = await api.post("/auth/member/emailpass", {
-          email: grocery.staff.email,
-          password: SEED_PASSWORD,
-        })
-        const { data } = await api.get("/vendor/sellers", { headers: { authorization: `Bearer ${login.token}` } })
+        const { data } = await api.get("/vendor/sellers", await staffLogin())
         expect((data.seller_members as { seller_id: string }[]).map((m) => m.seller_id).sort()).toEqual(
           [await sellerId(grocery), await sellerId(fashion)].sort()
         )
