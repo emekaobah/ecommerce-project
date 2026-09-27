@@ -85,6 +85,20 @@ module.exports = withMercur({
         providers: [{ resolve: '@medusajs/medusa/auth-emailpass', id: 'emailpass' }, ...clerkAuthProviders],
       },
     },
+    // Medusa's default only has the admin "feed" channel. Emails (staff invites)
+    // are logged by the local provider until a real email provider is configured.
+    {
+      resolve: '@medusajs/medusa/notification',
+      options: {
+        providers: [
+          {
+            resolve: '@medusajs/medusa/notification-local',
+            id: 'local',
+            options: { name: 'Local Notification Provider', channels: ['feed', 'email'] },
+          },
+        ],
+      },
+    },
     {
       resolve: '@mercurjs/core/modules/admin-ui',
       options: {
