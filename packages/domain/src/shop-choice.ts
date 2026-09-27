@@ -15,3 +15,15 @@ export function shopChoice<M extends MembershipLike>(memberships: readonly M[]):
   const name = (m: M) => m.seller?.name ?? ""
   return { kind: "pick", shops: [...memberships].sort((a, b) => name(a).localeCompare(name(b))) }
 }
+
+/**
+ * Whether a member can go on acting for the shop the app saved, or, once removed
+ * from it, which shop they act for instead.
+ */
+export function currentShop<M extends MembershipLike>(
+  memberships: readonly M[],
+  savedSellerId: string
+): { kind: "keep" } | ShopChoice<M> {
+  if (memberships.some((m) => m.seller_id === savedSellerId)) return { kind: "keep" }
+  return shopChoice(memberships)
+}

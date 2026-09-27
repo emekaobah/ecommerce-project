@@ -167,6 +167,27 @@ medusaIntegrationTestRunner({
         expect(await status(api.get("/vendor/orders", inFashion))).toBe(200)
         expect(await status(api.get("/vendor/payouts", inFashion))).toBe(403)
       })
+
+      // The app keeps acting for its saved shop; once the member is removed from it,
+      // the app must tell that apart from an expired sign-in and find the member's shops.
+      it("once removed from a shop, is refused it without being signed out and still lists its other shop", async () => {
+        await joinFashion()
+        const fashionOwner = await signedIn(fashion.owner.email, fashion)
+        const { data } = await api.get(`/vendor/sellers/${await sellerId(fashion)}/members`, fashionOwner)
+        const membership = (data.seller_members as { id: string; member: { email: string } }[]).find(
+          (m) => m.member.email === grocery.staff.email
+        )!
+        await api.delete(`/vendor/sellers/${await sellerId(fashion)}/members/${membership.id}`, fashionOwner)
+
+        const stale = await signedIn(grocery.staff.email, fashion)
+        const refused = await api.get("/vendor/orders", stale).catch((e: any) => e.response)
+        expect(refused.status).toBe(400)
+        expect(refused.data.message).toBe("You are not a member of this seller account")
+        const { data: shops } = await api.get("/vendor/sellers", stale)
+        expect((shops.seller_members as { seller_id: string }[]).map((m) => m.seller_id)).toEqual([
+          await sellerId(grocery),
+        ])
+      })
     })
 
     describe("a shop it doesn't belong to", () => {
