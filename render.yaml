@@ -41,9 +41,9 @@ services:
     region: frankfurt
     plan: starter
     buildCommand: >-
-      npx -y bun@1.3.11 install --frozen-lockfile &&
-      npx -y bun@1.3.11 run codegen &&
-      npx -y bun@1.3.11 x turbo run build --filter=@acme/api &&
+      npx -y bun@1.4.2 install --frozen-lockfile &&
+      npx -y bun@1.4.2 run codegen &&
+      npx -y bun@1.4.2 x turbo run build --filter=@acme/api &&
       cd packages/api/.medusa/server && npm install --omit=dev
     autoDeploy: true
     branch: main
@@ -70,9 +70,9 @@ services:
     region: frankfurt
     plan: starter
     buildCommand: >-
-      npx -y bun@1.3.11 install --frozen-lockfile &&
-      npx -y bun@1.3.11 run codegen &&
-      npx -y bun@1.3.11 x turbo run build --filter=@acme/api &&
+      npx -y bun@1.4.2 install --frozen-lockfile &&
+      npx -y bun@1.4.2 run codegen &&
+      npx -y bun@1.4.2 x turbo run build --filter=@acme/api &&
       cd packages/api/.medusa/server && npm install --omit=dev
     autoDeploy: true
     branch: main

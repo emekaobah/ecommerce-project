@@ -14,7 +14,7 @@ Multi-vendor marketplace on [Mercur](https://mercurjs.com) (Medusa v2) with Expo
 
 ## Local development
 
-Requires Bun 1.3, Node 22 and Docker.
+Requires Bun 1.4, Node 22 and Docker.
 
 ```bash
 bun install
