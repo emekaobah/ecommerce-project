@@ -12,6 +12,7 @@ type Scope = Pick<MedusaContainer, "resolve">
 
 type StoreRow = {
   id: string
+  default_sales_channel_id: string | null
   metadata: Record<string, unknown> | null
   supported_currencies?: { currency_code: string; is_default: boolean }[] | null
 }
@@ -19,7 +20,13 @@ type StoreRow = {
 async function loadStore(scope: Scope): Promise<StoreRow> {
   const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
     entity: "store",
-    fields: ["id", "metadata", "supported_currencies.currency_code", "supported_currencies.is_default"],
+    fields: [
+      "id",
+      "metadata",
+      "default_sales_channel_id",
+      "supported_currencies.currency_code",
+      "supported_currencies.is_default",
+    ],
   })
   const store = data[0] as StoreRow | undefined
   if (!store) throw new MedusaError(MedusaError.Types.NOT_FOUND, "The store is not set up.")
@@ -74,6 +81,7 @@ export async function loadImportCatalogue(scope: Scope): Promise<ImportCatalogue
   const currency = currencies.find((c) => c.is_default) ?? currencies[0]
   return {
     currency_code: currency?.currency_code ?? "ngn",
+    sales_channel_id: store.default_sales_channel_id,
     categories: categories as ImportCatalogue["categories"],
     attributes,
     existing: { skus: [], barcodes: [] },

@@ -2,6 +2,8 @@
 .env
 .DS_Store
 /uploads
+# The local file provider's uploads (product images copied by enrichment, among others).
+/static
 /node_modules
 yarn-error.log
 

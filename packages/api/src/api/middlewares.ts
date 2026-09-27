@@ -4,6 +4,7 @@ import { clerkCustomerAuth } from "./store/clerk-customer-auth";
 import { StoreGetListingParams, StoreGetListingsParams } from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
+import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
 
 export default defineMiddlewares({
     routes: [
@@ -36,6 +37,11 @@ export default defineMiddlewares({
             matcher: "/admin/catalogue-import/preview",
             bodyParser: { sizeLimit: "5mb" },
             middlewares: [validateAndTransformBody(AdminPreviewCatalogueImport)],
+        },
+        {
+            method: ["GET"],
+            matcher: "/admin/catalogue-enrichment",
+            middlewares: [validateAndTransformQuery(AdminListEnrichments, {})],
         },
     ],
 });

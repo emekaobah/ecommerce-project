@@ -13,7 +13,6 @@
     "pendingNote": "Includes the changes you've submitted for review.",
     "fields": {
       "title": "Title",
-      "selling_price": "Selling price",
       "image": "Image",
       "category": "Category",
       "weight": "Weight"

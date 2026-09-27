@@ -12,7 +12,6 @@
     "missingIntro": "Add these before the product can be published:",
     "fields": {
       "title": "Title",
-      "selling_price": "Selling price",
       "image": "Image",
       "category": "Category",
       "weight": "Weight"
@@ -20,7 +19,7 @@
   },
   "catalogueImport": {
     "title": "Catalogue import",
-    "description": "Add products to the shared catalogue from a supplier's CSV. Products are created as drafts; each shop prices its own offer.",
+    "description": "Add products to the shared catalogue from a supplier's CSV. Each product is then enriched in the background and published once complete; each shop prices its own offer.",
     "loadError": "Could not load the import settings.",
     "steps": {
       "upload": "Upload",
@@ -68,25 +67,57 @@
       "valid_other": "{{count}} rows ready",
       "invalid_one": "{{count}} row with errors",
       "invalid_other": "{{count}} rows with errors",
-      "drafts": "Rows with errors are skipped. Products are created as drafts: a product can be published once a shop offers it and nothing else is missing.",
+      "drafts": "Rows with errors are skipped. Each product is enriched in the background: empty fields are filled from product databases, then it is published if complete, or sent for review when data came from an untrusted source.",
       "ready": "Ready",
       "skip": "Will be skipped",
       "import_one": "Import {{count}} product",
       "import_other": "Import {{count}} products"
     },
     "results": {
-      "created_one": "{{count}} draft created",
-      "created_other": "{{count}} drafts created",
+      "created_one": "{{count}} product created",
+      "created_other": "{{count}} products created",
       "skipped_one": "{{count}} row skipped",
       "skipped_other": "{{count}} rows skipped",
       "failed_one": "{{count}} row failed",
       "failed_other": "{{count}} rows failed",
       "status": {
-        "created": "Draft created",
+        "created": "Created, enriching",
         "skipped": "Skipped",
         "failed": "Failed"
       },
-      "again": "Import another file"
+      "again": "Import another file",
+      "enriching": "Enrichment runs in the background. See Products → Enrichment for what was published or needs review."
+    }
+  },
+  "catalogueEnrichment": {
+    "title": "Enrichment",
+    "description": "What background enrichment did to imported products, and where each field came from. Spot-check what it published.",
+    "loadError": "Could not load enrichment results.",
+    "empty": "Nothing here.",
+    "product": "Product",
+    "outcome": "Outcome",
+    "sources": "Where fields came from",
+    "notes": "Notes",
+    "filters": {
+      "published": "Auto-published",
+      "needs_review": "Needs review",
+      "incomplete": "Incomplete",
+      "queued": "Enriching",
+      "failed": "Failed"
+    },
+    "fields": {
+      "title": "Title",
+      "description": "Description",
+      "weight": "Weight",
+      "images": "Images",
+      "categories": "Category"
+    },
+    "sourceNames": {
+      "supplied": "Supplied",
+      "catalogue": "Catalogue",
+      "open_food_facts": "Open Food Facts",
+      "open_beauty_facts": "Open Beauty Facts",
+      "open_products_facts": "Open Products Facts"
     }
   }
 }

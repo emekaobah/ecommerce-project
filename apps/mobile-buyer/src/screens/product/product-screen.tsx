@@ -3,7 +3,16 @@ import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@o
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { useAddToCart } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
@@ -66,6 +75,7 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
       <View style={{ paddingHorizontal: theme.space.md, gap: theme.space.lg }}>
         <Summary listing={listing.data} currencyCode={region.region.currency_code} />
         <Details product={listing.data.product} />
+        <Attribution credits={listing.data.product.attribution} />
       </View>
       <MoreFromShop
         regionId={region.region.id}
@@ -202,6 +212,28 @@ function Details({ product }: Readonly<{ product: ListingDetail['product'] }>) {
           </Text>
           <Text style={styles.detailValue}>{row.value}</Text>
         </View>
+      ))}
+    </View>
+  );
+}
+
+/** Credits for product data taken from databases whose licence requires it (e.g. Open Food Facts). */
+function Attribution({ credits }: Readonly<{ credits: ListingDetail['product']['attribution'] }>) {
+  const theme = useTheme();
+  if (!credits.length) return null;
+  return (
+    <View style={{ gap: theme.space.xs }}>
+      {credits.map((credit) => (
+        <Pressable
+          key={credit.name}
+          accessibilityRole="link"
+          accessibilityHint="Opens the source in your browser"
+          onPress={() => void Linking.openURL(credit.url)}
+          style={{ minHeight: theme.touchTarget, justifyContent: 'center' }}>
+          <Text variant="caption" tone="secondary">
+            Product information from <Text variant="caption" tone="accent">{credit.name}</Text> ({credit.license})
+          </Text>
+        </Pressable>
       ))}
     </View>
   );

@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { adminHeaders, vendorHeaders } from "../helpers/auth"
+import { groceryVendor as groceryVendorOf, offerOn as offerOnProduct } from "../helpers/offers"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -53,39 +54,8 @@ medusaIntegrationTestRunner({
       variants: [{ title, sku: title.toUpperCase().replace(/\W+/g, "-") }],
     })
 
-    /** Request config for the seeded grocery shop's owner. */
-    const groceryVendor = async () => {
-      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
-      const shop = SEED_SELLERS[0]
-      const { data: [seller] } = await query.graph({ entity: "seller", fields: ["id"], filters: { email: shop.owner.email } })
-      return vendorHeaders(api, shop.owner.email, SEED_PASSWORD, seller.id)
-    }
-
-    /** The grocery shop lists every variant of the product at ₦3,500. */
-    const offerOn = async (product: { id: string }) => {
-      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
-      const { data: [profile] } = await query.graph({
-        entity: "shipping_profile",
-        fields: ["id"],
-        filters: { name: "Marketplace Shipping" },
-      })
-      const { data: [full] } = await query.graph({ entity: "product", fields: ["variants.id"], filters: { id: product.id } })
-      const vendor = await groceryVendor()
-      for (const variant of full.variants as { id: string }[]) {
-        const sku = `OFFER-${variant.id}`
-        await api.post(
-          "/vendor/offers",
-          {
-            sku,
-            variant_id: variant.id,
-            shipping_profile_id: profile.id,
-            inventory_items: [{ sku }],
-            prices: [{ amount: 3500, currency_code: "ngn" }],
-          },
-          vendor
-        )
-      }
-    }
+    const groceryVendor = () => groceryVendorOf(getContainer(), api)
+    const offerOn = (product: { id: string }) => offerOnProduct(getContainer(), api, product)
 
     const refusal = async (request: Promise<unknown>) => {
       const error = await request.then(

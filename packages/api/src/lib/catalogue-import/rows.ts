@@ -6,6 +6,8 @@ import { barcodeCodes, headerUnit, parseBarcode, parseLength, parsePrice, parseW
 export type ImportCatalogue = {
   /** The currency the sheet's prices are in. */
   currency_code: string
+  /** The store's default sales channel, which buyers browse; imported products join it. */
+  sales_channel_id?: string | null
   categories: { id: string; name: string; handle: string }[]
   attributes: CatalogueAttribute[]
   /** SKUs and barcodes (barcode, EAN and UPC) already on catalogue variants. */
@@ -31,6 +33,7 @@ export type ImportProduct = {
   thumbnail?: string
   images?: { url: string }[]
   categories?: { id: string }[]
+  sales_channels?: { id: string }[]
   attributes?: AttributeInput[]
   variants: [
     {
@@ -261,6 +264,7 @@ function toProduct(title: string, values: Map<string, unknown>, catalogue: Impor
     product.images = images.map((url) => ({ url }))
   }
   if (category) product.categories = [{ id: category }]
+  if (catalogue.sales_channel_id) product.sales_channels = [{ id: catalogue.sales_channel_id }]
   if (attributes.length) product.attributes = attributes
   return product
 }

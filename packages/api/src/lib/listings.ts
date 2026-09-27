@@ -3,6 +3,9 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
 import { resolveVisibleSellerIds } from "@mercurjs/core/api/utils/sellers"
 import { ProductStatus } from "@mercurjs/types"
+import type { Attribution } from "./enrichment"
+import { PRODUCT_ENRICHMENT_MODULE } from "../modules/product-enrichment"
+import type ProductEnrichmentModuleService from "../modules/product-enrichment/service"
 
 // A listing is one shop's offer of one product: the product page and the feed are always
 // in a shop's context, and prices are never compared across shops (docs/design.md).
@@ -28,6 +31,8 @@ export type ListingProductDetail = ListingProduct & {
   weight: number | null
   images: { id: string; url: string }[]
   attributes: { name: string; values: string[] }[]
+  /** Credits the product page must show for data it took from product databases (#35). */
+  attribution: Attribution[]
 }
 
 export type Listing<P extends ListingProduct = ListingProduct> = {
@@ -65,7 +70,7 @@ type OfferRow = OfferPricingRow & {
   product_variant?: { id: string; title: string | null; price_set?: { id: string } | null } | null
 }
 type PricedOfferRow = OfferRow & { calculated_price: CalculatedOfferPrice }
-type ProductDetailRow = Omit<ListingProductDetail, "attributes" | "weight"> & { weight: number | string | null }
+type ProductDetailRow = Omit<ListingProductDetail, "attributes" | "attribution" | "weight"> & { weight: number | string | null }
 
 async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Region> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -279,7 +284,19 @@ export async function retrieveListing(
     weight: p.weight == null ? null : Number(p.weight),
     images: (p.images ?? []).map(({ id, url }) => ({ id, url })),
     attributes: attributesOf(attributeValues ?? []),
+    attribution: await attributionOf(scope, p.id),
   })
+}
+
+/** The credits enrichment recorded for the product; none if it wasn't enriched. */
+async function attributionOf(scope: MedusaContainer, productId: string): Promise<Attribution[]> {
+  const enrichments = scope.resolve<ProductEnrichmentModuleService>(PRODUCT_ENRICHMENT_MODULE)
+  const [enrichment] = await enrichments.listProductEnrichments({ product_id: productId })
+  return ((enrichment?.attribution as { items?: Attribution[] } | undefined)?.items ?? []).map(({ name, url, license }) => ({
+    name,
+    url,
+    license,
+  }))
 }
 
 type AttributeValueRow = { name: string; attribute?: { id: string; name: string; rank: number | null } | null }
