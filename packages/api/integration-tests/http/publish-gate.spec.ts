@@ -315,6 +315,76 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("category shipping defaults on a later category", () => {
+      const uncategorised = async (title: string, extra: Record<string, unknown> = {}) => {
+        const { data } = await api.post("/admin/products", { title, status: "draft", ...extra }, admin)
+        return data.product as { id: string }
+      }
+      const shipping = async (id: string) => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: [product] } = await query.graph({
+          entity: "product",
+          fields: ["weight", "length", "width", "height", "metadata"],
+          filters: { id },
+        })
+        return {
+          weight: product.weight === null ? null : Number(product.weight),
+          dims: [product.length, product.width, product.height].map((v: unknown) => (v === null ? null : Number(v))),
+          package_category: (product.metadata as Record<string, unknown> | null)?.package_category ?? null,
+        }
+      }
+
+      it("fills what an operator's update leaves blank when it adds a category, keeping the product's own values", async () => {
+        const product = await uncategorised("Torch", { weight: 250 })
+        expect(await shipping(product.id)).toEqual({ weight: 250, dims: [null, null, null], package_category: null })
+
+        await api.post(`/admin/products/${product.id}`, { categories: [{ id: await categoryId("Power & Lighting") }] }, admin)
+
+        expect(await shipping(product.id)).toEqual({ weight: 250, dims: [35, 30, 25], package_category: "electronics" })
+      })
+
+      it("fills them through the batch endpoint", async () => {
+        const product = await uncategorised("Head Wrap")
+        await api.post(
+          "/admin/products/batch",
+          { update: [{ id: product.id, categories: [{ id: await categoryId("Bags & Accessories") }] }] },
+          admin
+        )
+        expect(await shipping(product.id)).toEqual({ weight: 350, dims: [40, 35, 8], package_category: "fashion" })
+      })
+
+      it("fills them when a vendor's change request adding the category is confirmed", async () => {
+        const vendor = await groceryVendor()
+        const { data } = await api.post(
+          "/vendor/products",
+          { title: "Suya Spice 100g", variants: [{ title: "Suya Spice 100g", sku: "SUYA-100G" }] },
+          vendor
+        )
+        const { data: change } = await api.post(
+          `/vendor/products/${data.product.id}`,
+          { categories: [{ id: await categoryId("Oils & Spices") }] },
+          vendor
+        )
+        expect((await shipping(data.product.id)).weight).toBeNull()
+
+        await api.post(`/admin/product-changes/${change.product_change.id}/confirm`, {}, admin)
+
+        expect(await shipping(data.product.id)).toEqual({ weight: 1000, dims: [30, 20, 15], package_category: "groceries" })
+      })
+
+      it("leaves them unset when the update is refused by the publish gate", async () => {
+        const product = await uncategorised("Extension Box")
+        await refusal(
+          api.post(
+            `/admin/products/${product.id}`,
+            { categories: [{ id: await categoryId("Power & Lighting") }], status: "published" },
+            admin
+          )
+        )
+        expect(await shipping(product.id)).toEqual({ weight: null, dims: [null, null, null], package_category: null })
+      })
+    })
+
     describe("completeness", () => {
       const incompleteBeans = async () => {
         const { data } = await api.post(
@@ -345,6 +415,42 @@ medusaIntegrationTestRunner({
 
         const { data } = await api.get(`/admin/products/${product.id}/completeness`, admin)
         expect(data.completeness).toMatchObject({ score: 100, is_complete: true, missing: [] })
+      })
+
+      it("reports a vendor its product as its pending change request would leave it, and says so", async () => {
+        const vendor = await groceryVendor()
+        const { data } = await api.post(
+          "/vendor/products",
+          { title: "Tiger Nuts 500g", variants: [{ title: "Tiger Nuts 500g", sku: "TIGER-NUTS-500G" }] },
+          vendor
+        )
+        const { data: before } = await api.get(`/vendor/products/${data.product.id}/completeness`, vendor)
+        expect(before.pending_change).toBeNull()
+        expect(before.completeness.missing.map((m: { label: string }) => m.label)).toEqual([
+          "Selling price",
+          "Image",
+          "Category",
+          "Weight",
+        ])
+
+        const { data: change } = await api.post(
+          `/vendor/products/${data.product.id}`,
+          {
+            categories: [{ id: await categoryId("Snacks & Drinks") }],
+            images: [{ url: "https://placehold.co/800x800/png?text=Tiger+Nuts" }],
+          },
+          vendor
+        )
+
+        const { data: after } = await api.get(`/vendor/products/${data.product.id}/completeness`, vendor)
+        expect(after.pending_change).toEqual({ id: change.product_change.id })
+        // Category, image and (from the category's defaults) weight are covered by
+        // the pending change; the category brings its required Storage attribute.
+        expect(after.completeness.missing.map((m: { label: string }) => m.label)).toEqual(["Selling price", "Storage"])
+
+        // The operator still sees the product as stored.
+        const { data: stored } = await api.get(`/admin/products/${data.product.id}/completeness`, admin)
+        expect(stored.completeness.missing.map((m: { label: string }) => m.label)).toContain("Category")
       })
 
       it("reports a vendor the completeness of its own proposal, but not of another shop's", async () => {

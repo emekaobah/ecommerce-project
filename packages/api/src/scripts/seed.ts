@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/utils";
 import {
   AttributeType,
+  MercurModules,
   ProductStatus,
   SellerRole,
   type CreateOfferDTO,
@@ -17,6 +18,7 @@ import {
   createProductAttributesWorkflow,
   confirmProductsWorkflow,
   createProductsWorkflow,
+  updateProductAttributesWorkflow,
   createSellerAccountWorkflow,
   createSellerMembersStep,
   createSellerShippingOptionsWorkflow,
@@ -30,6 +32,8 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import {
   createApiKeysWorkflow,
+  createLinksWorkflow,
+  dismissLinksWorkflow,
   createLocationFulfillmentSetWorkflow,
   createProductCategoriesWorkflow,
   updateProductCategoriesWorkflow,
@@ -278,10 +282,19 @@ async function seedCategories(container: MedusaContainer): Promise<Map<string, s
 
 type SizeAttribute = { id: string; values: { id: string; name: string }[] };
 
-type CategoryAttribute = { id: string; handle: string; type: string; values: { id: string; name: string }[] };
+type CategoryAttribute = {
+  id: string;
+  handle: string;
+  type: string;
+  is_required: boolean;
+  values: { id: string; name: string }[];
+  categories?: ({ id: string } | null)[] | null;
+};
 
 // Each department's starter attributes, linked to the department and every one
 // of its sub-categories so they surface on the product form for all of them.
+// Attributes that already exist are brought back in line with the seed data:
+// their required flag and category links.
 async function seedCategoryAttributes(
   container: MedusaContainer,
   categoryIds: Map<string, string>
@@ -292,13 +305,17 @@ async function seedCategoryAttributes(
   const load = async () => {
     const { data } = await query.graph({
       entity: "product_attribute",
-      fields: ["id", "handle", "type", "values.id", "values.name"],
+      fields: ["id", "handle", "type", "is_required", "values.id", "values.name", "categories.id"],
       filters: { handle: handles, product_id: null } as any,
     });
     return new Map((data as CategoryAttribute[]).map((a) => [a.handle, a]));
   };
 
+  const categoryIdsFor = (department: Department) =>
+    [department, ...SEED_CATEGORIES[department]].map((name) => categoryIds.get(name)!);
+
   const existing = await load();
+  await syncCategoryAttributes(container, existing, categoryIdsFor);
   const missing = departments.flatMap((department) =>
     SEED_CATEGORY_ATTRIBUTES[department]
       .filter((a) => !existing.has(a.handle))
@@ -310,12 +327,43 @@ async function seedCategoryAttributes(
         is_filterable: a.type !== "text",
         rank: SEED_CATEGORY_ATTRIBUTES[department].indexOf(a) + 1,
         values: (a.values ?? []).map((name, rank) => ({ name, rank })),
-        category_ids: [department, ...SEED_CATEGORIES[department]].map((name) => categoryIds.get(name)!),
+        category_ids: categoryIdsFor(department),
       }))
   );
   if (!missing.length) return existing;
   await createProductAttributesWorkflow(container).run({ input: { attributes: missing } });
   return load();
+}
+
+async function syncCategoryAttributes(
+  container: MedusaContainer,
+  existing: Map<string, CategoryAttribute>,
+  categoryIdsFor: (department: Department) => string[]
+) {
+  const pair = (attributeId: string, categoryId: string) => ({
+    [MercurModules.PRODUCT_ATTRIBUTE]: { product_attribute_id: attributeId },
+    [Modules.PRODUCT]: { product_category_id: categoryId },
+  });
+  const toLink: ReturnType<typeof pair>[] = [];
+  const toUnlink: ReturnType<typeof pair>[] = [];
+
+  for (const department of Object.keys(SEED_CATEGORY_ATTRIBUTES) as Department[]) {
+    const wanted = new Set(categoryIdsFor(department));
+    for (const seedAttribute of SEED_CATEGORY_ATTRIBUTES[department]) {
+      const attribute = existing.get(seedAttribute.handle);
+      if (!attribute) continue;
+      if (attribute.is_required !== seedAttribute.is_required) {
+        await updateProductAttributesWorkflow(container).run({
+          input: { selector: { id: attribute.id }, update: { is_required: seedAttribute.is_required } },
+        });
+      }
+      const linked = new Set((attribute.categories ?? []).flatMap((c) => (c?.id ? [c.id] : [])));
+      wanted.forEach((id) => !linked.has(id) && toLink.push(pair(attribute.id, id)));
+      linked.forEach((id) => !wanted.has(id) && toUnlink.push(pair(attribute.id, id)));
+    }
+  }
+  if (toUnlink.length) await dismissLinksWorkflow(container).run({ input: toUnlink });
+  if (toLink.length) await createLinksWorkflow(container).run({ input: toLink });
 }
 
 // A global Size attribute that is a variant axis, so sized products get a native

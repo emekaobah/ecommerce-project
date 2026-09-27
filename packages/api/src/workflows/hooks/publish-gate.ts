@@ -1,5 +1,4 @@
 import type { MedusaContainer, ProductDTO } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { StepResponse } from "@medusajs/framework/workflows-sdk"
 import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import {
@@ -7,8 +6,12 @@ import {
   confirmProductsWorkflow,
   createProductsWorkflow,
 } from "@mercurjs/core/workflows"
-import { assertPublishable, type PendingAction } from "../../lib/product-completeness"
-import { planCategoryShippingDefaults, type ShippingDefaultsUpdate } from "../../lib/shipping-defaults"
+import { assertPublishable, loadPendingActions } from "../../lib/product-completeness"
+import {
+  applyCategoryShippingDefaults,
+  restoreShippingFields,
+  type ShippingDefaultsUpdate,
+} from "../../lib/shipping-defaults"
 
 // The publish gate: no product becomes, or stays, published while incomplete.
 // Where a workflow offers a hook before it writes, the gate refuses there; the
@@ -22,30 +25,37 @@ type ProductsCreatedHook = (
 ) => void
 const { productsCreated } = createProductsWorkflow.hooks as unknown as { productsCreated: ProductsCreatedHook }
 
-// New products first take their category's shipping defaults, then face the gate
-// if they were created as published (a rollback deletes them).
-productsCreated(
-  async ({ products }, { container }) => {
-    const ids = products.map((p) => p.id)
-    const { updates, previous } = await planCategoryShippingDefaults(container, ids)
-    if (updates.length) await container.resolve(Modules.PRODUCT).upsertProducts(updates)
+/**
+ * Fills the products' blank shipping fields from their categories, then runs the
+ * gate. A failing hook step gets no compensation of its own, so a refusal undoes
+ * the fill here before it propagates.
+ */
+async function fillDefaultsThenGate(container: MedusaContainer, ids: string[]) {
+  const previous = await applyCategoryShippingDefaults(container, ids)
+  try {
     await assertPublishable(container, ids, { onlyIfPublished: true })
-    return new StepResponse(undefined, previous)
-  },
-  async (previous, { container }) => {
-    if (previous?.length) await container.resolve(Modules.PRODUCT).upsertProducts(previous)
+  } catch (error) {
+    await restoreShippingFields(container, previous)
+    throw error
   }
-)
+  return new StepResponse(undefined, previous)
+}
 
-// Operator edits and status changes (POST /admin/products/:id), and any other
-// save that leaves a product published.
-updateProductsWorkflow.hooks.productsUpdated(async ({ products }, { container }) => {
-  await assertPublishable(
-    container,
-    products.map((p) => p.id),
-    { onlyIfPublished: true }
-  )
-})
+const undoFill = async (previous: ShippingDefaultsUpdate[] | undefined, { container }: Context) =>
+  restoreShippingFields(container, previous)
+
+// New products take their category's shipping defaults, then face the gate if
+// they were created as published (a rollback deletes them).
+productsCreated(async ({ products }, { container }) => fillDefaultsThenGate(container, products.map((p) => p.id)), undoFill)
+
+// Every product save: operator edits and status changes, the admin batch
+// endpoint, and applied vendor change requests (which run this workflow). A
+// product that gains a category takes its defaults for fields still blank; the
+// gate then refuses a save that leaves a product published but incomplete.
+updateProductsWorkflow.hooks.productsUpdated(
+  async ({ products }, { container }) => fillDefaultsThenGate(container, products.map((p) => p.id)),
+  undoFill
+)
 
 // The operator approving a proposed product.
 confirmProductsWorkflow.hooks.productsConfirmed(async ({ product_ids }, { container }) => {
@@ -56,18 +66,6 @@ confirmProductsWorkflow.hooks.productsConfirmed(async ({ product_ids }, { contai
 // the product as it will be once the change applies, before anything is written:
 // rolling back an applied change would not restore every relation it touched.
 confirmProductChangeWorkflow.hooks.validate(async ({ input }, { container }) => {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "product_change_action",
-    fields: ["product_id", "action", "details", "ordering"],
-    filters: { product_change_id: input.ids, applied: false } as any,
-  })
-  const rows = (data as (PendingAction & { product_id: string; ordering: number })[]).sort(
-    (a, b) => a.ordering - b.ordering
-  )
-  const pending = new Map<string, PendingAction[]>()
-  for (const row of rows) {
-    pending.set(row.product_id, [...(pending.get(row.product_id) ?? []), row])
-  }
+  const pending = await loadPendingActions(container, input.ids)
   await assertPublishable(container, [...pending.keys()], { pending, onlyIfPublished: true })
 })

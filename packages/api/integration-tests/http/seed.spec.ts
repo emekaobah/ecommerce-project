@@ -1,6 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules, SellerRole } from "@mercurjs/types"
+import { updateProductAttributesWorkflow } from "@mercurjs/core/workflows"
 import seedDemoData from "../../src/scripts/seed"
 import {
   SEED_CATEGORIES,
@@ -193,6 +194,43 @@ medusaIntegrationTestRunner({
           expect(Number(product.height)).toBeGreaterThan(0)
         }
         expect(completeness.filter((c) => !c.is_complete)).toEqual([])
+      })
+
+      it("brings an existing starter attribute's required flag and category links back in line on re-run", async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const load = async () =>
+          (
+            await query.graph({
+              entity: "product_attribute",
+              fields: ["id", "is_required", "categories.id"],
+              filters: { handle: "fabric", product_id: null } as any,
+            })
+          ).data[0] as any
+        const before = await load()
+        const linked = (before.categories as { id: string }[]).map((c) => c.id).sort()
+        const { data: [groceries] } = await query.graph({
+          entity: "product_category",
+          fields: ["id"],
+          filters: { name: "Groceries" },
+        })
+
+        // Drift the attribute: optional, one category link lost, one stray link added.
+        await updateProductAttributesWorkflow(getContainer()).run({
+          input: { selector: { id: before.id }, update: { is_required: false } },
+        })
+        const link = getContainer().resolve(ContainerRegistrationKeys.LINK)
+        const pair = (categoryId: string) => ({
+          [MercurModules.PRODUCT_ATTRIBUTE]: { product_attribute_id: before.id },
+          [Modules.PRODUCT]: { product_category_id: categoryId },
+        })
+        await link.dismiss(pair(linked[0]))
+        await link.create(pair(groceries.id))
+
+        await seed()
+
+        const after = await load()
+        expect(after.is_required).toBe(true)
+        expect((after.categories as { id: string }[]).map((c) => c.id).sort()).toEqual(linked)
       })
 
       it("serves the catalogue in NGN to the buyer app's publishable key", async () => {

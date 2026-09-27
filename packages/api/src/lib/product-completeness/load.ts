@@ -1,5 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules, ProductStatus } from "@medusajs/framework/utils"
+import { ProductChangeStatus } from "@mercurjs/types"
+import { loadCategoryDefaults } from "../shipping-defaults"
 import {
   assessProductCompleteness,
   toNumber,
@@ -113,17 +115,93 @@ export async function loadRequiredAttributes(scope: Scope): Promise<RequiredAttr
   }))
 }
 
-export async function getProductsCompleteness(scope: Scope, productIds: string[]): Promise<ProductCompleteness[]> {
-  const [facts, required] = await Promise.all([loadProductFacts(scope, productIds), loadRequiredAttributes(scope)])
+/**
+ * Pending edits applied on top of the stored products, with a blank weight then
+ * taken from the (possibly new) categories' shipping defaults, as the save that
+ * applies the edits will do.
+ */
+async function projectedFacts(
+  scope: Scope,
+  stored: ProductFacts[],
+  pending?: Map<string, PendingAction[]>
+): Promise<ProductFacts[]> {
+  return Promise.all(
+    stored.map(async (f) => {
+      const actions = pending?.get(f.id)
+      if (!actions?.length) return f
+      const projected = withPendingActions(f, actions)
+      if (!(projected.weight && projected.weight > 0)) {
+        const defaults = await loadCategoryDefaults(scope, projected.category_ids)
+        if (typeof defaults?.weight === "number") projected.weight = defaults.weight
+      }
+      return projected
+    })
+  )
+}
+
+export async function getProductsCompleteness(
+  scope: Scope,
+  productIds: string[],
+  pending?: Map<string, PendingAction[]>
+): Promise<ProductCompleteness[]> {
+  const [stored, required] = await Promise.all([loadProductFacts(scope, productIds), loadRequiredAttributes(scope)])
+  const facts = await projectedFacts(scope, stored, pending)
   return facts.map((f) => assessProductCompleteness(f, required))
 }
 
-export async function getProductCompleteness(scope: Scope, productId: string): Promise<ProductCompleteness> {
-  const [report] = await getProductsCompleteness(scope, [productId])
+/**
+ * A product's completeness, as stored or, given its pending edits, as those edits
+ * would leave it.
+ */
+export async function getProductCompleteness(
+  scope: Scope,
+  productId: string,
+  pendingActions?: PendingAction[]
+): Promise<ProductCompleteness> {
+  const pending = pendingActions ? new Map([[productId, pendingActions]]) : undefined
+  const [report] = await getProductsCompleteness(scope, [productId], pending)
   if (!report) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `Product with id ${productId} was not found`)
   }
   return report
+}
+
+/**
+ * Unapplied actions of the given product changes, grouped by product in the
+ * order they will apply.
+ */
+export async function loadPendingActions(scope: Scope, changeIds: string[]): Promise<Map<string, PendingAction[]>> {
+  const pending = new Map<string, PendingAction[]>()
+  if (!changeIds.length) return pending
+  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
+    entity: "product_change_action",
+    fields: ["product_id", "action", "details", "ordering"],
+    filters: { product_change_id: changeIds, applied: false } as any,
+  })
+  const rows = (data as (PendingAction & { product_id: string; ordering: number })[]).sort(
+    (a, b) => a.ordering - b.ordering
+  )
+  for (const row of rows) {
+    pending.set(row.product_id, [...(pending.get(row.product_id) ?? []), row])
+  }
+  return pending
+}
+
+/** The pending change request a seller has open on a product, if any. */
+export async function findPendingChange(
+  scope: Scope,
+  productId: string,
+  createdBy: string
+): Promise<{ id: string; actions: PendingAction[] } | null> {
+  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
+    entity: "product_change",
+    fields: ["id"],
+    filters: { product_id: productId, created_by: createdBy, status: ProductChangeStatus.PENDING } as any,
+  })
+  const change = data[0] as { id: string } | undefined
+  if (!change) return null
+  const pending = await loadPendingActions(scope, [change.id])
+  return { id: change.id, actions: pending.get(productId) ?? [] }
 }
 
 /** Throws a 400 naming each incomplete product and what it is missing. */
@@ -154,9 +232,9 @@ export async function assertPublishable(
 ): Promise<void> {
   if (!productIds.length) return
   const [stored, required] = await Promise.all([loadProductFacts(scope, productIds), loadRequiredAttributes(scope)])
-  const facts = stored
-    .map((f) => withPendingActions(f, options.pending?.get(f.id) ?? []))
-    .filter((f) => !options.onlyIfPublished || f.status === ProductStatus.PUBLISHED)
+  const facts = (await projectedFacts(scope, stored, options.pending)).filter(
+    (f) => !options.onlyIfPublished || f.status === ProductStatus.PUBLISHED
+  )
   refuse(
     facts,
     facts.map((f) => assessProductCompleteness(f, required))

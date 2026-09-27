@@ -1,7 +1,11 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, ProductStatus } from "@medusajs/framework/utils"
 import { ProductChangeActionType } from "@mercurjs/types"
-import { getProductCompleteness, type ProductCompleteness } from "../../../../../lib/product-completeness"
+import {
+  findPendingChange,
+  getProductCompleteness,
+  type ProductCompleteness,
+} from "../../../../../lib/product-completeness"
 
 type VendorRequest = AuthenticatedMedusaRequest & { seller_context?: { seller_id: string } }
 
@@ -33,12 +37,23 @@ async function isVisibleToSeller(req: VendorRequest, productId: string, sellerId
   return !eligibility.length || eligibility.some((link: { seller_id: string }) => link.seller_id === sellerId)
 }
 
-/** A product's completeness score and what it still needs before it can be published. */
-export async function GET(req: VendorRequest, res: MedusaResponse<{ completeness: ProductCompleteness }>) {
+type VendorCompletenessResponse = {
+  completeness: ProductCompleteness
+  /** The seller's open change request, when the completeness reflects it. */
+  pending_change: { id: string } | null
+}
+
+/**
+ * A product's completeness score and what it still needs before it can be
+ * published. While the seller has a change request pending on the product, the
+ * report is for the product as that request would leave it.
+ */
+export async function GET(req: VendorRequest, res: MedusaResponse<VendorCompletenessResponse>) {
   const sellerId = req.seller_context?.seller_id
   if (!sellerId || !(await isVisibleToSeller(req, req.params.id, sellerId))) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `Product with id ${req.params.id} was not found`)
   }
-  const completeness = await getProductCompleteness(req.scope, req.params.id)
-  res.json({ completeness })
+  const pending = await findPendingChange(req.scope, req.params.id, sellerId)
+  const completeness = await getProductCompleteness(req.scope, req.params.id, pending?.actions)
+  res.json({ completeness, pending_change: pending ? { id: pending.id } : null })
 }

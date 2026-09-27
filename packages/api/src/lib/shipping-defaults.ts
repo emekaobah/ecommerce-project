@@ -1,5 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+
+type Scope = Pick<MedusaContainer, "resolve">
 
 /**
  * Per-category shipping defaults, stored on the category as
@@ -23,8 +25,10 @@ type ProductRow = {
   width: number | string | null
   height: number | string | null
   metadata: Record<string, unknown> | null
-  categories?: { id: string; parent_category_id?: string | null; metadata?: Record<string, unknown> | null }[] | null
+  categories?: CategoryRow[] | null
 }
+
+type CategoryRow = { id: string; parent_category_id?: string | null; metadata?: Record<string, unknown> | null }
 
 /** A product update that fills in what its category defaults provide. */
 export type ShippingDefaultsUpdate = { id: string } & Partial<Record<(typeof DIMENSIONS)[number], number>> & {
@@ -37,21 +41,49 @@ const isBlank = (v: unknown) => v === null || v === undefined || v === "" || Num
  * The most specific category wins: a sub-category's defaults over its
  * department's, then by id so the choice is stable.
  */
-function defaultsFor(product: ProductRow): Partial<ShippingDefaults> | undefined {
-  return [...(product.categories ?? [])]
+function pickCategoryDefaults(categories: CategoryRow[]): Partial<ShippingDefaults> | undefined {
+  return [...categories]
     .sort((a, b) => Number(!a.parent_category_id) - Number(!b.parent_category_id) || a.id.localeCompare(b.id))
     .map((c) => c.metadata?.shipping_defaults as Partial<ShippingDefaults> | undefined)
     .find((d) => !!d && typeof d === "object")
 }
 
+/** The shipping defaults the given categories give a product, if any. */
+export async function loadCategoryDefaults(
+  scope: Scope,
+  categoryIds: string[]
+): Promise<Partial<ShippingDefaults> | undefined> {
+  if (!categoryIds.length) return undefined
+  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
+    entity: "product_category",
+    fields: ["id", "parent_category_id", "metadata"],
+    filters: { id: categoryIds },
+  })
+  return pickCategoryDefaults(data as CategoryRow[])
+}
+
 /**
- * Updates that fill newly created products' missing weight, dimensions and
+ * Fills the given products' blank shipping fields from their categories and
+ * returns what they held before, for `restoreShippingFields`.
+ */
+export async function applyCategoryShippingDefaults(scope: Scope, productIds: string[]): Promise<ShippingDefaultsUpdate[]> {
+  const { updates, previous } = await planCategoryShippingDefaults(scope, productIds)
+  if (updates.length) await scope.resolve(Modules.PRODUCT).upsertProducts(updates)
+  return previous
+}
+
+export async function restoreShippingFields(scope: Scope, previous: ShippingDefaultsUpdate[] | undefined): Promise<void> {
+  if (previous?.length) await scope.resolve(Modules.PRODUCT).upsertProducts(previous)
+}
+
+/**
+ * Updates that fill products' missing weight, dimensions and
  * package category from their category's shipping defaults. Values a product was
  * created with win, and every field stays editable afterwards (vendor-overridable).
  * Returns the updates to apply and the previous values, for compensation.
  */
 export async function planCategoryShippingDefaults(
-  scope: Pick<MedusaContainer, "resolve">,
+  scope: Scope,
   productIds: string[]
 ): Promise<{ updates: ShippingDefaultsUpdate[]; previous: ShippingDefaultsUpdate[] }> {
   if (!productIds.length) return { updates: [], previous: [] }
@@ -75,7 +107,7 @@ export async function planCategoryShippingDefaults(
   const updates: ShippingDefaultsUpdate[] = []
   const previous: ShippingDefaultsUpdate[] = []
   for (const product of data as ProductRow[]) {
-    const defaults = defaultsFor(product)
+    const defaults = pickCategoryDefaults(product.categories ?? [])
     if (!defaults) continue
 
     const update: ShippingDefaultsUpdate = { id: product.id }
