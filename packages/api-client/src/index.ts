@@ -1,5 +1,4 @@
 import { ClientError, createClient } from "@mercurjs/client"
-import type { HttpTypes } from "@medusajs/types"
 import type { Routes } from "@acme/api/_generated"
 import type { TypedClient } from "./types"
 
@@ -108,19 +107,4 @@ export async function loginMember(
     throw new ClientError("Login did not return a token")
   }
   return result.token
-}
-
-/**
- * Lists catalogue products priced for a region. Mercur's store products handler
- * doesn't type its response, so the Medusa list shape is applied here.
- */
-export async function listStoreProducts(
-  client: OjaClient,
-  params: { regionId: string; limit?: number; offset?: number }
-): Promise<HttpTypes.StoreProductListResponse> {
-  return (await client.store.products.query({
-    region_id: params.regionId,
-    limit: params.limit ?? 20,
-    offset: params.offset ?? 0,
-  })) as HttpTypes.StoreProductListResponse
 }
