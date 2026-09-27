@@ -32,10 +32,7 @@ export function clerkProfileOf(authIdentity: AuthIdentityDTO): ClerkProfile {
 
 function bearerToken(data: AuthenticationInput): string | undefined {
   const header = data.headers?.authorization
-  const match = typeof header === "string" ? /^Bearer\s+(\S+)$/i.exec(header) : null
-  if (match) return match[1]
-  const bodyToken = (data.body as { token?: unknown } | undefined)?.token
-  return typeof bodyToken === "string" ? bodyToken : undefined
+  return typeof header === "string" ? /^Bearer\s+(\S+)$/i.exec(header)?.[1] : undefined
 }
 
 function profileFrom(claims: Record<string, unknown>): ClerkProfile {
@@ -110,9 +107,11 @@ export class ClerkAuthProviderService extends AbstractAuthModuleProvider {
       if ((error as MedusaError).type !== MedusaError.Types.NOT_FOUND) throw error
       try {
         return await authIdentityService.create({ entity_id: clerkUserId, user_metadata: profile })
-      } catch {
-        // A concurrent first request for the same user created it first.
-        existing = await find()
+      } catch (createError) {
+        // A concurrent first request for the same user may have created it first.
+        existing = await find().catch(() => {
+          throw createError
+        })
       }
     }
     const stored = clerkProfileOf(existing)

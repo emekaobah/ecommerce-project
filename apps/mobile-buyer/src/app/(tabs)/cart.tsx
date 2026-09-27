@@ -1,7 +1,5 @@
-import { router } from 'expo-router';
-
-import { PlaceholderScreen } from '@/components/placeholder-screen';
+import { CartScreen } from '@/screens/cart/cart-screen';
 
 export default function CartRoute() {
-  return <PlaceholderScreen title="Cart" action={{ label: 'Checkout', onPress: () => router.push('/checkout') }} />;
+  return <CartScreen />;
 }

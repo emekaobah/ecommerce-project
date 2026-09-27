@@ -64,10 +64,12 @@ module.exports = withMercur({
       authCors: process.env.AUTH_CORS!,
       jwtSecret: process.env.JWT_SECRET || "supersecret",
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
-      // Clerk is the sole customer identity; customer email/password is off. Operators and
-      // seller members keep email/password.
+      // Clerk is the sole customer identity, verified on every store request by the
+      // clerkCustomerAuth middleware. No /auth route issues customer tokens: not
+      // email/password, and not a Clerk-for-Medusa token swap, which would outlive a Clerk
+      // sign-out. Operators and seller members keep email/password.
       authMethodsPerActor: {
-        customer: ['clerk'],
+        customer: [],
       },
     }
   },

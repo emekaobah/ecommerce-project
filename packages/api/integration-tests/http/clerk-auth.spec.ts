@@ -123,6 +123,31 @@ medusaIntegrationTestRunner({
         expect(login.data.token).toBeUndefined()
       })
 
+      it("never trades a Clerk token for a long-lived Medusa customer token", async () => {
+        const token = clerk.sessionToken({ email: "swap@oja.test" })
+
+        const viaHeader = await api
+          .post("/auth/customer/clerk", {}, { headers: { authorization: `Bearer ${token}` } })
+          .catch((e) => e.response)
+        const viaBody = await api.post("/auth/customer/clerk", { token }).catch((e) => e.response)
+
+        for (const res of [viaHeader, viaBody]) {
+          expect(res.status).toBeGreaterThanOrEqual(400)
+          expect(res.data.token).toBeUndefined()
+        }
+      })
+
+      it("refuses a new Clerk user whose email already has a customer account", async () => {
+        await api.get("/store/customers/me", asBuyer(clerk.sessionToken({ sub: "user_original", email: "taken@oja.test" })))
+
+        const res = await api
+          .get("/store/customers/me", asBuyer(clerk.sessionToken({ sub: "user_newcomer", email: "taken@oja.test" })))
+          .catch((e) => e.response)
+
+        expect(res.status).toBe(409)
+        expect(res.data.message).toMatch(/already has an account/)
+      })
+
       it("leaves seller member email/password login working", async () => {
         const credentials = { email: "member@oja.test", password: "supersecret" }
         const register = await api.post("/auth/member/emailpass/register", credentials)

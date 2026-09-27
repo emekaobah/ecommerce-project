@@ -1,29 +1,21 @@
 import { useAuth, useClerk } from '@clerk/expo';
-import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
-import { useQueryClient } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { Button, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { customerKeys, useCustomer, type Customer } from '@/api/customer';
+import { useCustomer, type Customer } from '@/api/customer';
+import { SignInPrompt } from '@/components/sign-in-prompt';
 
 export function AccountScreen() {
   const theme = useTheme();
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { isSignedIn, userId } = useAuth();
   const customer = useCustomer(isSignedIn ? userId : null);
 
   const content = () => {
-    // Clerk restores the session from the keychain first; don't flash the signed-out state.
-    if (!isLoaded) return <LoadingState />;
+    // The root layout waits for Clerk to restore the session, so this is never a false "signed out".
     if (!isSignedIn) {
-      return (
-        <EmptyState
-          title="Sign in to Oja"
-          message="Check out, track your orders and save favourites."
-          action={{ label: 'Sign in', onPress: () => router.push('/sign-in') }}
-        />
-      );
+      return <SignInPrompt title="Sign in to Oja" message="Check out, track your orders and save favourites." />;
     }
     if (customer.error && !customer.data) {
       return (
@@ -53,15 +45,14 @@ export function AccountScreen() {
 function SignedIn({ customer }: Readonly<{ customer: Customer }>) {
   const theme = useTheme();
   const { signOut } = useClerk();
-  const queryClient = useQueryClient();
   const [signingOut, setSigningOut] = useState(false);
   const name = [customer.first_name, customer.last_name].filter(Boolean).join(' ');
 
   const onSignOut = async () => {
     setSigningOut(true);
     try {
+      // The root layout clears cached data when the buyer changes.
       await signOut();
-      queryClient.removeQueries({ queryKey: customerKeys.all });
     } finally {
       setSigningOut(false);
     }

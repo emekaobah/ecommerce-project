@@ -1,6 +1,6 @@
 import type { MedusaNextFunction, MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import type { AuthIdentityDTO, MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, generateJwtToken, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, generateJwtToken, MedusaError, Modules } from "@medusajs/framework/utils"
 import { createCustomerAccountWorkflow } from "@medusajs/medusa/core-flows"
 import { clerkProfileOf } from "../../modules/clerk-auth/service"
 
@@ -8,7 +8,7 @@ const PROVIDER = "clerk"
 /** The Medusa token below only has to outlive the request it is minted for. */
 const REQUEST_TOKEN_TTL_SECONDS = 60
 
-type AuthedRequest = MedusaRequest & { auth_context?: { actor_id?: string } }
+type AuthedRequest = MedusaRequest & { auth_context?: Record<string, unknown> }
 
 /**
  * Store requests from the buyer app carry the Clerk session token (ADR 0001). Medusa's store
@@ -21,11 +21,8 @@ type AuthedRequest = MedusaRequest & { auth_context?: { actor_id?: string } }
  * rejected rather than silently downgraded to a guest.
  */
 export async function clerkCustomerAuth(req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) {
-  const header = req.headers.authorization
-  // Already authenticated by Medusa's own store middleware (a Medusa customer token).
-  if (!header || !/^Bearer\s/i.test(header) || (req as AuthedRequest).auth_context?.actor_id) {
-    return next()
-  }
+  // Customers get no Medusa tokens (authMethodsPerActor), so any bearer here is Clerk's.
+  if (!req.headers.authorization) return next()
 
   const auth = req.scope.resolve(Modules.AUTH)
   const { success, authIdentity, error } = await auth.authenticate(PROVIDER, {
@@ -40,7 +37,17 @@ export async function clerkCustomerAuth(req: MedusaRequest, res: MedusaResponse,
     return
   }
 
-  const customerId = await customerFor(req.scope, authIdentity)
+  let customerId: string | undefined
+  try {
+    customerId = await customerFor(req.scope, authIdentity)
+  } catch (error) {
+    // The email belongs to another Clerk user's customer (e.g. a deleted and recreated Clerk account).
+    if ((error as MedusaError).type === MedusaError.Types.DUPLICATE_ERROR) {
+      res.status(409).json({ message: (error as Error).message })
+      return
+    }
+    throw error
+  }
   if (!customerId) {
     res.status(401).json({
       message: "The Clerk session token has no email claim. Add it to the session token template (see the API README).",
