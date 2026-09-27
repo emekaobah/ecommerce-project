@@ -113,7 +113,7 @@ async function addPricedLines(
         // Mercur's pricing and validation hooks read `offer_id` from the item; its
         // cart refresh links the line to the offer from the metadata.
         offer_id: line.offer_id,
-        metadata: { ...(line.metadata ?? {}), offer_id: line.offer_id },
+        metadata: { ...line.metadata, offer_id: line.offer_id },
       })) as never,
       additional_data: additionalData,
     },
