@@ -14,7 +14,7 @@ import { signOut } from '@/session/sign-out';
  * Picks the shop to act for: straight after signing in to several shops
  * (`signIn`), and from settings (`switch`).
  */
-export function ShopPickerScreen({ mode }: { mode: 'signIn' | 'switch' }) {
+export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' }>) {
   const theme = useTheme();
   const router = useRouter();
   const memberships = useMemberships();
