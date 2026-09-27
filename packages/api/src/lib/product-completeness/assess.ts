@@ -112,56 +112,78 @@ export function withPendingActions(facts: ProductFacts, actions: PendingAction[]
     variants: facts.variants.map((v) => ({ ...v })),
     attribute_values: { ...facts.attribute_values },
   }
-  actions.forEach(({ action, details }, index) => {
-    const d = details ?? {}
-    switch (action) {
-      case ProductChangeActionType.STATUS_CHANGE:
-        if (d.status !== undefined) next.status = d.status
-        break
-      case ProductChangeActionType.UPDATE:
-        if (d.field === "title") next.title = d.value ?? null
-        if (d.field === "images") next.image_count = Array.isArray(d.value) ? d.value.length : 0
-        if (d.field === "thumbnail") next.has_thumbnail = !!d.value
-        if (d.field === "weight") next.weight = toNumber(d.value)
-        if (d.field === "categories" || d.field === "category_ids") next.category_ids = idsOf(d.value)
-        if (d.field === "status" && d.value !== undefined) next.status = d.value
-        break
-      case ProductChangeActionType.VARIANT_ADD:
-        next.variants.push({ id: `pending_${index}`, weight: toNumber(d.variant?.weight), price_amounts: [] })
-        break
-      case ProductChangeActionType.VARIANT_UPDATE: {
-        const variant = next.variants.find((v) => v.id === d.variant_id)
-        if (variant && d.fields && "weight" in d.fields) variant.weight = toNumber(d.fields.weight)
-        break
-      }
-      case ProductChangeActionType.VARIANT_REMOVE:
-        next.variants = next.variants.filter((v) => v.id !== d.variant_id)
-        break
-      case ProductChangeActionType.ATTRIBUTE_ADD: {
-        const attribute = d.attribute ?? {}
-        if (!attribute.id) break
-        next.attribute_values[attribute.id] = attribute.value_ids?.length
-          ? [...attribute.value_ids]
-          : scalarSet(attribute.value)
-            ? [PENDING_VALUE]
-            : []
-        break
-      }
-      case ProductChangeActionType.ATTRIBUTE_REMOVE:
-        delete next.attribute_values[d.attribute_id]
-        break
-      case ProductChangeActionType.ATTRIBUTE_UPDATE: {
-        const update = d.update ?? {}
-        if (!update.id) break
-        let values = new Set(next.attribute_values[update.id] ?? [])
-        if (update.value_ids !== undefined) values = new Set(update.value_ids)
-        else if (update.value !== undefined) values = new Set(scalarSet(update.value) ? [PENDING_VALUE] : [])
-        for (const entry of update.add ?? []) values.add(typeof entry === "string" ? entry : PENDING_VALUE)
-        for (const entry of update.remove ?? []) values.delete(entry)
-        next.attribute_values[update.id] = [...values]
-        break
-      }
-    }
-  })
+  actions.forEach(({ action, details }, index) => APPLY[action]?.(next, details ?? {}, index))
   return next
+}
+
+type Apply = (next: ProductFacts, d: Record<string, any>, index: number) => void
+
+/** How each kind of pending action changes the facts the rule reads. */
+const APPLY: Partial<Record<string, Apply>> = {
+  [ProductChangeActionType.STATUS_CHANGE]: (next, d) => {
+    if (d.status !== undefined) next.status = d.status
+  },
+  [ProductChangeActionType.UPDATE]: (next, d) => applyFieldUpdate(next, d.field, d.value),
+  [ProductChangeActionType.VARIANT_ADD]: (next, d, index) => {
+    next.variants.push({ id: `pending_${index}`, weight: toNumber(d.variant?.weight), price_amounts: [] })
+  },
+  [ProductChangeActionType.VARIANT_UPDATE]: (next, d) => {
+    const variant = next.variants.find((v) => v.id === d.variant_id)
+    if (variant && d.fields && "weight" in d.fields) variant.weight = toNumber(d.fields.weight)
+  },
+  [ProductChangeActionType.VARIANT_REMOVE]: (next, d) => {
+    next.variants = next.variants.filter((v) => v.id !== d.variant_id)
+  },
+  [ProductChangeActionType.ATTRIBUTE_ADD]: (next, d) => {
+    const attribute = d.attribute ?? {}
+    if (attribute.id) next.attribute_values[attribute.id] = addedValues(attribute)
+  },
+  [ProductChangeActionType.ATTRIBUTE_REMOVE]: (next, d) => {
+    delete next.attribute_values[d.attribute_id]
+  },
+  [ProductChangeActionType.ATTRIBUTE_UPDATE]: (next, d) => {
+    const update = d.update ?? {}
+    if (update.id) next.attribute_values[update.id] = updatedValues(next.attribute_values[update.id], update)
+  },
+}
+
+function applyFieldUpdate(next: ProductFacts, field: unknown, value: any): void {
+  switch (field) {
+    case "title":
+      next.title = value ?? null
+      break
+    case "images":
+      next.image_count = Array.isArray(value) ? value.length : 0
+      break
+    case "thumbnail":
+      next.has_thumbnail = !!value
+      break
+    case "weight":
+      next.weight = toNumber(value)
+      break
+    case "categories":
+    case "category_ids":
+      next.category_ids = idsOf(value)
+      break
+    case "status":
+      if (value !== undefined) next.status = value
+      break
+  }
+}
+
+function addedValues(attribute: { value_ids?: string[]; value?: unknown }): string[] {
+  if (attribute.value_ids?.length) return [...attribute.value_ids]
+  return scalarSet(attribute.value) ? [PENDING_VALUE] : []
+}
+
+function updatedValues(
+  current: string[] | undefined,
+  update: { value_ids?: string[]; value?: unknown; add?: unknown[]; remove?: string[] }
+): string[] {
+  let values = new Set(current ?? [])
+  if (update.value_ids !== undefined) values = new Set(update.value_ids)
+  else if (update.value !== undefined) values = new Set(scalarSet(update.value) ? [PENDING_VALUE] : [])
+  for (const entry of update.add ?? []) values.add(typeof entry === "string" ? entry : PENDING_VALUE)
+  for (const entry of update.remove ?? []) values.delete(entry)
+  return [...values]
 }

@@ -63,7 +63,9 @@ export async function loadProductFacts(scope: Scope, productIds: string[]): Prom
     for (const value of row.product_attribute_values ?? []) {
       const attributeId = value?.attribute?.id
       if (!attributeId) continue
-      ;(byAttribute[attributeId] ??= []).push(value.id)
+      const values = byAttribute[attributeId] ?? []
+      values.push(value.id)
+      byAttribute[attributeId] = values
     }
     attributeValuesByProduct.set(row.id, byAttribute)
   }
@@ -98,6 +100,12 @@ export async function loadProductFacts(scope: Scope, productIds: string[]): Prom
   }))
 }
 
+/** A link Query may return as one object or a list, as a list. */
+function asList<T>(value: T | T[] | null | undefined): T[] {
+  if (Array.isArray(value)) return value
+  return value ? [value] : []
+}
+
 /** Active, global attributes marked required, with the categories they apply to. */
 export async function loadRequiredAttributes(scope: Scope): Promise<RequiredAttribute[]> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -109,7 +117,7 @@ export async function loadRequiredAttributes(scope: Scope): Promise<RequiredAttr
   return (data as any[]).map((a) => ({
     id: a.id,
     name: a.name,
-    category_ids: (Array.isArray(a.categories) ? a.categories : a.categories ? [a.categories] : [])
+    category_ids: asList(a.categories)
       .map((c: any) => c?.id)
       .filter(Boolean),
   }))

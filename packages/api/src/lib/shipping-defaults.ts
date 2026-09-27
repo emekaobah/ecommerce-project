@@ -107,26 +107,33 @@ export async function planCategoryShippingDefaults(
   const updates: ShippingDefaultsUpdate[] = []
   const previous: ShippingDefaultsUpdate[] = []
   for (const product of data as ProductRow[]) {
-    const defaults = pickCategoryDefaults(product.categories ?? [])
-    if (!defaults) continue
-
-    const update: ShippingDefaultsUpdate = { id: product.id }
-    const before: ShippingDefaultsUpdate = { id: product.id }
-    for (const field of DIMENSIONS) {
-      const value = defaults[field]
-      if (isBlank(product[field]) && typeof value === "number") {
-        update[field] = value
-        before[field] = product[field] === null ? (null as unknown as number) : Number(product[field])
-      }
-    }
-    if (defaults.package_category && !product.metadata?.package_category) {
-      update.metadata = { ...product.metadata, package_category: defaults.package_category }
-      before.metadata = product.metadata ?? {}
-    }
-    if (Object.keys(update).length > 1) {
-      updates.push(update)
-      previous.push(before)
-    }
+    const planned = planProductDefaults(product)
+    if (!planned) continue
+    updates.push(planned.update)
+    previous.push(planned.before)
   }
   return { updates, previous }
+}
+
+/** The fields one product takes from its categories' defaults, and their values before. */
+function planProductDefaults(
+  product: ProductRow
+): { update: ShippingDefaultsUpdate; before: ShippingDefaultsUpdate } | undefined {
+  const defaults = pickCategoryDefaults(product.categories ?? [])
+  if (!defaults) return undefined
+
+  const update: ShippingDefaultsUpdate = { id: product.id }
+  const before: ShippingDefaultsUpdate = { id: product.id }
+  for (const field of DIMENSIONS) {
+    const value = defaults[field]
+    if (isBlank(product[field]) && typeof value === "number") {
+      update[field] = value
+      before[field] = product[field] === null ? (null as unknown as number) : Number(product[field])
+    }
+  }
+  if (defaults.package_category && !product.metadata?.package_category) {
+    update.metadata = { ...product.metadata, package_category: defaults.package_category }
+    before.metadata = product.metadata ?? {}
+  }
+  return Object.keys(update).length > 1 ? { update, before } : undefined
 }
