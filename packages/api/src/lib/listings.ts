@@ -167,8 +167,9 @@ async function categoryTree(scope: MedusaContainer, categoryId: string): Promise
   const categories = data as { id: string; parent_category_id: string | null }[]
   if (!categories.some((c) => c.id === categoryId)) return []
   const tree = [categoryId]
-  for (let i = 0; i < tree.length; i++) {
-    tree.push(...categories.filter((c) => c.parent_category_id === tree[i]).map((c) => c.id))
+  // An array's iterator also visits what is pushed during the loop, so this walks every level.
+  for (const id of tree) {
+    tree.push(...categories.filter((c) => c.parent_category_id === id).map((c) => c.id))
   }
   return tree
 }
