@@ -1,21 +1,25 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { createProductsWorkflow } from "@mercurjs/core/workflows"
+import { errorMessage } from "../errors"
+import { queueEnrichment, type EnrichableField } from "../enrichment"
 import { getProductCompleteness } from "../product-completeness"
-import type { ImportRow } from "./rows"
+import type { ImportProduct, ImportRow } from "./rows"
 
 export type ImportResult = {
   row: number
   title: string | null
-  /** `created`: a draft product; `skipped`: the row had errors; `failed`: the catalogue refused it. */
+  /**
+   * `created`: a draft product, queued for enrichment; `skipped`: the row had
+   * errors; `failed`: the catalogue refused it.
+   */
   status: "created" | "skipped" | "failed"
   product_id: string | null
   errors: string[]
   warnings: string[]
-  /** What the product still needs before it can be published. */
+  /** What the product still needs before it can be published, before enrichment fills what it can. */
   missing: string[]
 }
 
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /**
  * Creates each valid row as a draft through Mercur's create-products workflow,
@@ -23,9 +27,10 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
  * product. Rows run one at a time and independently: one refused row rolls back
  * only itself.
  *
- * Imported products are never published here. A master product's price comes
- * from a shop's offer, so a new product can't pass the publish gate until a shop
- * lists it; each result says what the product still needs.
+ * Imported products are never published here: each is queued for enrichment,
+ * which fills its empty fields in the background and then publishes it or sends
+ * it for review (lib/enrichment). The operator reviewed the sheet at preview, so
+ * its own data needs no second review.
  */
 export async function importRows(
   scope: MedusaContainer,
@@ -43,6 +48,8 @@ export async function importRows(
       const { result } = await createProductsWorkflow(scope).run({
         input: { products: [row.product], created_by: options.created_by },
       })
+      // Queued as soon as it exists, so a request cut short leaves nothing un-enriched.
+      await queueEnrichment(scope, [{ product_id: result[0].id, supplied: suppliedFields(row.product) }], "operator")
       const completeness = await getProductCompleteness(scope, result[0].id)
       results.push({
         ...base,
@@ -51,10 +58,26 @@ export async function importRows(
         missing: completeness.missing.map((m) => m.label),
       })
     } catch (error) {
-      results.push({ ...base, status: "failed", product_id: null, errors: [message(error)] })
+      results.push({ ...base, status: "failed", product_id: null, errors: [errorMessage(error)] })
     }
   }
   return results
+}
+
+/**
+ * The enrichable fields the sheet filled in. A row without a title is named after
+ * its barcode until a source names it, so that title isn't supplied.
+ */
+function suppliedFields(product: ImportProduct): EnrichableField[] {
+  const [variant] = product.variants
+  const standIn = [variant.barcode, variant.ean, variant.upc].includes(product.title)
+  const supplied: EnrichableField[] = []
+  if (!standIn) supplied.push("title")
+  if (product.description) supplied.push("description")
+  if (product.weight) supplied.push("weight")
+  if (product.images?.length) supplied.push("images")
+  if (product.categories?.length) supplied.push("categories")
+  return supplied
 }
 
 export function summarise(results: ImportResult[]) {

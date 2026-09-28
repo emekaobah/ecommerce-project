@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { adminHeaders, vendorHeaders } from "../helpers/auth"
+import { groceryVendor as groceryVendorOf, offerOn as offerOnProduct } from "../helpers/offers"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -53,39 +54,8 @@ medusaIntegrationTestRunner({
       variants: [{ title, sku: title.toUpperCase().replace(/\W+/g, "-") }],
     })
 
-    /** Request config for the seeded grocery shop's owner. */
-    const groceryVendor = async () => {
-      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
-      const shop = SEED_SELLERS[0]
-      const { data: [seller] } = await query.graph({ entity: "seller", fields: ["id"], filters: { email: shop.owner.email } })
-      return vendorHeaders(api, shop.owner.email, SEED_PASSWORD, seller.id)
-    }
-
-    /** The grocery shop lists every variant of the product at ₦3,500. */
-    const offerOn = async (product: { id: string }) => {
-      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
-      const { data: [profile] } = await query.graph({
-        entity: "shipping_profile",
-        fields: ["id"],
-        filters: { name: "Marketplace Shipping" },
-      })
-      const { data: [full] } = await query.graph({ entity: "product", fields: ["variants.id"], filters: { id: product.id } })
-      const vendor = await groceryVendor()
-      for (const variant of full.variants as { id: string }[]) {
-        const sku = `OFFER-${variant.id}`
-        await api.post(
-          "/vendor/offers",
-          {
-            sku,
-            variant_id: variant.id,
-            shipping_profile_id: profile.id,
-            inventory_items: [{ sku }],
-            prices: [{ amount: 3500, currency_code: "ngn" }],
-          },
-          vendor
-        )
-      }
-    }
+    const groceryVendor = () => groceryVendorOf(getContainer(), api)
+    const offerOn = (product: { id: string }) => offerOnProduct(getContainer(), api, product)
 
     const refusal = async (request: Promise<unknown>) => {
       const error = await request.then(
@@ -103,11 +73,12 @@ medusaIntegrationTestRunner({
         const message = await refusal(
           api.post("/admin/products", { title: "Bare product", status: "published" }, admin)
         )
-        expect(message).toContain("Selling price")
         expect(message).toContain("Image")
         expect(message).toContain("Category")
         expect(message).toContain("Weight")
         expect(message).not.toContain("Title")
+        // A shop's offer prices a product; buyers only see priced offers, so publishing doesn't wait for one.
+        expect(message).not.toContain("Selling price")
 
         const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
         const { data } = await query.graph({ entity: "product", fields: ["id"], filters: { title: "Bare product" } })
@@ -124,20 +95,19 @@ medusaIntegrationTestRunner({
         const message = await refusal(
           api.post("/admin/products/batch", { update: [{ id: data.product.id, status: "published" }] }, admin)
         )
-        expect(message).toContain("Selling price")
+        expect(message).toContain("Image")
 
         const { data: after } = await api.get(`/admin/products/${data.product.id}`, admin)
         expect(after.product.status).toBe("draft")
       })
 
-      it("publishes a complete product", async () => {
+      it("publishes a complete product before any shop has priced it, so shops can find it to offer", async () => {
         // Mercur master products carry no price of their own: a shop's offer sets it.
         const { data } = await api.post(
           "/admin/products",
           { ...(await completeGrocery(await categoryId("Rice & Grains"))), status: "draft" },
           admin
         )
-        await offerOn(data.product)
 
         const { data: published } = await api.post(`/admin/products/${data.product.id}`, { status: "published" }, admin)
         expect(published.product.status).toBe("published")
@@ -152,7 +122,6 @@ medusaIntegrationTestRunner({
         expect(data.product.status).toBe("draft")
 
         const message = await refusal(api.post(`/admin/products/${data.product.id}`, { status: "published" }, admin))
-        expect(message).toContain("Selling price")
         expect(message).toContain("Image")
         expect(message).not.toContain("Category")
 
@@ -175,12 +144,10 @@ medusaIntegrationTestRunner({
         expect(data.product.status).toBe("proposed")
 
         const message = await refusal(api.post(`/admin/products/${data.product.id}/confirm`, {}, admin))
-        expect(message).toContain("Selling price")
         expect(message).toContain("Image")
         const { data: still } = await api.get(`/admin/products/${data.product.id}`, admin)
         expect(still.product.status).toBe("proposed")
 
-        await offerOn(data.product)
         await api.post(
           `/admin/products/${data.product.id}`,
           { images: [{ url: "https://placehold.co/800x800/png?text=Bread" }] },
@@ -400,10 +367,9 @@ medusaIntegrationTestRunner({
         const storage = await attribute("storage")
 
         const { data } = await api.get(`/admin/products/${product.id}/completeness`, admin)
-        // Title, category and weight (a category default) pass; price, image and Storage do not.
-        expect(data.completeness).toMatchObject({ product_id: product.id, score: 50, is_complete: false })
+        // Title, category and weight (a category default) pass; image and Storage do not.
+        expect(data.completeness).toMatchObject({ product_id: product.id, score: 60, is_complete: false })
         expect(data.completeness.missing).toEqual([
-          { key: "selling_price", label: "Selling price" },
           { key: "image", label: "Image" },
           { key: `attribute:${storage.id}`, label: "Storage" },
         ])
@@ -427,7 +393,6 @@ medusaIntegrationTestRunner({
         const { data: before } = await api.get(`/vendor/products/${data.product.id}/completeness`, vendor)
         expect(before.pending_change).toBeNull()
         expect(before.completeness.missing.map((m: { label: string }) => m.label)).toEqual([
-          "Selling price",
           "Image",
           "Category",
           "Weight",
@@ -446,7 +411,7 @@ medusaIntegrationTestRunner({
         expect(after.pending_change).toEqual({ id: change.product_change.id })
         // Category, image and (from the category's defaults) weight are covered by
         // the pending change; the category brings its required Storage attribute.
-        expect(after.completeness.missing.map((m: { label: string }) => m.label)).toEqual(["Selling price", "Storage"])
+        expect(after.completeness.missing.map((m: { label: string }) => m.label)).toEqual(["Storage"])
 
         // The operator still sees the product as stored.
         const { data: stored } = await api.get(`/admin/products/${data.product.id}/completeness`, admin)
@@ -468,7 +433,6 @@ medusaIntegrationTestRunner({
         const { data: own } = await api.get(`/vendor/products/${data.product.id}/completeness`, vendor)
         expect(own.completeness.is_complete).toBe(false)
         expect(own.completeness.missing.map((m: { label: string }) => m.label)).toEqual([
-          "Selling price",
           "Image",
           "Storage",
         ])

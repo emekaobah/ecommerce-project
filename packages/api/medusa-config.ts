@@ -113,6 +113,8 @@ module.exports = withMercur({
         path: '/seller',
       }
     },
+    // Where each enriched product's data came from, and what enrichment decided (#35).
+    { resolve: './src/modules/product-enrichment' },
     {
       resolve: '@medusajs/medusa/file',
       options: {

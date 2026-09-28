@@ -1,4 +1,4 @@
-import { Button, StatusBadge, Table } from "@medusajs/ui"
+import { Button, StatusBadge, Table, Text } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 import { RowIssues } from "./row-issues"
@@ -6,7 +6,7 @@ import type { ImportOutcome } from "./types"
 
 const STATUS_COLOR = { created: "green", skipped: "grey", failed: "red" } as const
 
-/** What happened to each row, with links to the draft products created. */
+/** What happened to each row, with links to the products created. */
 export const ResultsStep = ({ outcome, onRestart }: { outcome: ImportOutcome; onRestart: () => void }) => {
   const { t } = useTranslation()
   const { created, skipped, failed } = outcome.summary
@@ -50,6 +50,11 @@ export const ResultsStep = ({ outcome, onRestart }: { outcome: ImportOutcome; on
           ))}
         </Table.Body>
       </Table>
+      {created > 0 && (
+        <Text size="small" className="text-ui-fg-subtle">
+          {t("catalogueImport.results.enriching")}
+        </Text>
+      )}
       <div>
         <Button variant="secondary" size="small" onClick={onRestart}>
           {t("catalogueImport.results.again")}

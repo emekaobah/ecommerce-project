@@ -2,6 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
+import { enrichmentOf, fakeImageHosts } from "../helpers/enrichment"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -27,13 +28,27 @@ medusaIntegrationTestRunner({
 
     beforeEach(async () => {
       admin = await adminHeaders(getContainer(), api)
+      // Enrichment copies the sheet's images into storage; serve them without the network.
+      fakeImageHosts(["placehold.co"])
     })
+
+    afterEach(() => jest.restoreAllMocks())
 
     const productsTitled = async (titles: string[]) => {
       const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
       const { data } = await query.graph({
         entity: "product",
-        fields: ["id", "title", "status", "weight", "height", "categories.name", "variants.ean", "variants.metadata"],
+        fields: [
+          "id",
+          "title",
+          "status",
+          "weight",
+          "height",
+          "categories.name",
+          "sales_channels.id",
+          "variants.ean",
+          "variants.metadata",
+        ],
         filters: { title: titles },
       })
       return data as any[]
@@ -70,8 +85,8 @@ medusaIntegrationTestRunner({
         const [yam, egusi, plantain, blank] = data.rows
         expect(yam).toMatchObject({ row: 2, title: "Yam Flour 1kg", errors: [] })
         expect(yam.warnings).toEqual([expect.stringContaining("scientific notation")])
-        // Only a shop's offer can price a product, so the price stays missing until then.
-        expect(yam.missing).toEqual(["Selling price"])
+        // Complete enough to publish: a shop's offer prices it later.
+        expect(yam.missing).toEqual([])
 
         // "Cool dry place" (no comma) isn't one of Storage's values.
         expect(egusi.errors).toEqual([expect.stringMatching(/^Storage: "Cool dry place" is not one of/)])
@@ -85,7 +100,7 @@ medusaIntegrationTestRunner({
     })
 
     describe("import", () => {
-      it("creates the valid rows as draft products through the catalogue's workflows, and none of the invalid ones", async () => {
+      it("creates the valid rows through the catalogue's workflows, and none of the invalid ones, then enriches them", async () => {
         const csv = SUPPLIER_CSV.replace("Cool dry place", '"Cool, dry place"')
         const { data } = await api.post(
           "/admin/catalogue-import",
@@ -100,15 +115,23 @@ medusaIntegrationTestRunner({
           [5, "skipped"],
         ])
         expect(data.summary).toEqual({ total: 4, created: 2, skipped: 2, failed: 0 })
+        const created = data.results.filter((r: any) => r.status === "created")
+        const outcomes = await Promise.all(created.map(async (r: any) => (await enrichmentOf(api, admin, r.product_id)).outcome))
+        // The operator reviewed the sheet: the complete row is published, the one without an image waits as a draft.
+        expect(outcomes).toEqual(["published", "incomplete"])
 
         const products = await productsTitled(["Yam Flour 1kg", "Egusi 500g", "Plantain Flour"])
         expect(products.map((p) => p.title).sort()).toEqual(["Egusi 500g", "Yam Flour 1kg"])
         const yam = products.find((p) => p.title === "Yam Flour 1kg")
-        expect(yam).toMatchObject({ status: "draft", categories: [{ name: "Beans & Garri" }] })
+        expect(yam).toMatchObject({ status: "published", categories: [{ name: "Beans & Garri" }] })
         expect(Number(yam.weight)).toBe(1000)
         expect(Number(yam.height)).toBe(25)
         expect(yam.variants[0].ean).toBe("5901234123457")
         expect(yam.variants[0].metadata.import_price).toEqual({ amount: 2300, currency_code: "ngn" })
+        // In the sales channel buyers browse, so shops' offers on it can be listed.
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: [store] } = await query.graph({ entity: "store", fields: ["default_sales_channel_id"] })
+        expect(yam.sales_channels.map((c: any) => c.id)).toEqual([store.default_sales_channel_id])
 
         const egusi = products.find((p) => p.title === "Egusi 500g")
         expect(Number(egusi.weight)).toBe(500)
@@ -127,10 +150,11 @@ medusaIntegrationTestRunner({
         )
 
         expect(data.results).toEqual([
-          expect.objectContaining({ row: 2, status: "created", missing: ["Selling price", "Image", "Storage"] }),
+          expect.objectContaining({ row: 2, status: "created", missing: ["Image", "Storage"] }),
         ])
         const [kilishi] = await productsTitled(["Kilishi 200g"])
-        expect(kilishi.status).toBe("draft")
+        expect((await enrichmentOf(api, admin, kilishi.id)).outcome).toBe("incomplete")
+        expect((await productsTitled(["Kilishi 200g"]))[0].status).toBe("draft")
 
         // Created through Mercur's workflow, which records who added it.
         const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
@@ -143,7 +167,7 @@ medusaIntegrationTestRunner({
 
         // The publish gate refuses it for the same reasons the import reported.
         const message = await refusal(api.post(`/admin/products/${kilishi.id}`, { status: "published" }, admin))
-        expect(message).toContain("Selling price, Image, Storage")
+        expect(message).toContain("Image, Storage")
       })
 
       it("refuses a mapping that names a column twice or a field that doesn't exist, creating nothing", async () => {

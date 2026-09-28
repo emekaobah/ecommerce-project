@@ -1,5 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, MedusaError, Modules, ProductStatus } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, ProductStatus } from "@medusajs/framework/utils"
 import { ProductChangeStatus } from "@mercurjs/types"
 import { loadCategoryDefaults } from "../shipping-defaults"
 import {
@@ -22,14 +22,14 @@ type ProductRow = {
   weight: number | string | null
   images?: { id: string }[] | null
   categories?: { id: string }[] | null
-  variants?: { id: string; weight: number | string | null; price_set?: { id: string } | null }[] | null
+  variants?: { id: string; weight: number | string | null }[] | null
 }
 
 
 /**
- * Reads what the publish rule needs for each product. Attribute values and
- * prices are fetched separately: Mercur notes that mixing attribute-value links
- * with nested product-module relations in one graph query is unreliable.
+ * Reads what the publish rule needs for each product. Attribute values are
+ * fetched separately: Mercur notes that mixing attribute-value links with nested
+ * product-module relations in one graph query is unreliable.
  */
 export async function loadProductFacts(scope: Scope, productIds: string[]): Promise<ProductFacts[]> {
   if (!productIds.length) return []
@@ -47,7 +47,6 @@ export async function loadProductFacts(scope: Scope, productIds: string[]): Prom
       "categories.id",
       "variants.id",
       "variants.weight",
-      "variants.price_set.id",
     ],
     filters: { id: productIds },
   })
@@ -70,19 +69,6 @@ export async function loadProductFacts(scope: Scope, productIds: string[]): Prom
     attributeValuesByProduct.set(row.id, byAttribute)
   }
 
-  const priceSetIds = (products as ProductRow[]).flatMap((p) =>
-    (p.variants ?? []).map((v) => v.price_set?.id).filter((id): id is string => !!id)
-  )
-  const prices = priceSetIds.length
-    ? await scope.resolve(Modules.PRICING).listPrices({ price_set_id: priceSetIds })
-    : []
-  const amountsByPriceSet = new Map<string, number[]>()
-  for (const price of prices) {
-    const priceSetId = (price as { price_set_id?: string }).price_set_id
-    if (!priceSetId) continue
-    amountsByPriceSet.set(priceSetId, [...(amountsByPriceSet.get(priceSetId) ?? []), Number(price.amount)])
-  }
-
   return (products as ProductRow[]).map((p) => ({
     id: p.id,
     status: p.status,
@@ -91,11 +77,7 @@ export async function loadProductFacts(scope: Scope, productIds: string[]): Prom
     has_thumbnail: !!p.thumbnail,
     category_ids: (p.categories ?? []).map((c) => c.id),
     weight: toNumber(p.weight),
-    variants: (p.variants ?? []).map((v) => ({
-      id: v.id,
-      weight: toNumber(v.weight),
-      price_amounts: v.price_set ? amountsByPriceSet.get(v.price_set.id) ?? [] : [],
-    })),
+    variants: (p.variants ?? []).map((v) => ({ id: v.id, weight: toNumber(v.weight) })),
     attribute_values: attributeValuesByProduct.get(p.id) ?? {},
   }))
 }

@@ -17,8 +17,8 @@ export type ProductFacts = {
   category_ids: string[]
   /** Product weight in grams. */
   weight: number | null
-  /** Each variant's weight (grams) and every price on it, offer prices included. */
-  variants: { id: string; weight: number | null; price_amounts: number[] }[]
+  /** Each variant's weight (grams). */
+  variants: { id: string; weight: number | null }[]
   /** Global and scoped attributes the product holds, with their value ids. */
   attribute_values: Record<string, string[]>
 }
@@ -31,7 +31,7 @@ export type RequiredAttribute = {
 }
 
 export type CompletenessCheck = {
-  /** Stable key: `title`, `selling_price`, `image`, `category`, `weight`, or `attribute:<id>`. */
+  /** Stable key: `title`, `image`, `category`, `weight`, or `attribute:<id>`. */
   key: string
   label: string
   passed: boolean
@@ -65,7 +65,6 @@ export function assessProductCompleteness(facts: ProductFacts, required: Require
   const { variants } = facts
   const checks: CompletenessCheck[] = [
     { key: "title", label: "Title", passed: !!facts.title?.trim() },
-    { key: "selling_price", label: "Selling price", passed: variants.some((v) => v.price_amounts.some(positive)) },
     { key: "image", label: "Image", passed: facts.image_count > 0 || facts.has_thumbnail },
     { key: "category", label: "Category", passed: facts.category_ids.length > 0 },
     {
@@ -125,7 +124,7 @@ const APPLY: Partial<Record<string, Apply>> = {
   },
   [ProductChangeActionType.UPDATE]: (next, d) => applyFieldUpdate(next, d.field, d.value),
   [ProductChangeActionType.VARIANT_ADD]: (next, d, index) => {
-    next.variants.push({ id: `pending_${index}`, weight: toNumber(d.variant?.weight), price_amounts: [] })
+    next.variants.push({ id: `pending_${index}`, weight: toNumber(d.variant?.weight) })
   },
   [ProductChangeActionType.VARIANT_UPDATE]: (next, d) => {
     const variant = next.variants.find((v) => v.id === d.variant_id)

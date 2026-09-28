@@ -620,8 +620,7 @@ async function seedProducts(
       title: item.title,
       handle,
       description: item.description,
-      // Proposed until the shops' offers give it a selling price; the publish
-      // gate refuses a product without one (see publishSeedProducts).
+      // Proposed until the shops have listed it, then approved (see publishSeedProducts).
       status: ProductStatus.PROPOSED,
       category_ids: [ctx.categoryIds.get(item.category)!],
       sales_channels: [{ id: ctx.salesChannelId }],
