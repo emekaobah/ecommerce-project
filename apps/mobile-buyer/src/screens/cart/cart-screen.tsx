@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, SectionList, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCart, useSetCartItemQuantity, type Cart, type CartItem } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
@@ -56,6 +56,8 @@ export function CartScreen() {
 function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>) {
   const theme = useTheme();
   const { isSignedIn } = useAuth();
+  // The floating tab bar overlays the screen; its height is in the bottom inset.
+  const { bottom } = useSafeAreaInsets();
   const setQuantity = useSetCartItemQuantity(cartId);
   const pendingItemId = setQuantity.isPending ? setQuantity.variables?.itemId : undefined;
   const currency = cart.currency_code;
@@ -97,6 +99,7 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
       <View
         style={{
           padding: theme.space.md,
+          paddingBottom: theme.space.md + bottom,
           gap: theme.space.sm,
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: theme.colors.divider,
