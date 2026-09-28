@@ -1,25 +1,18 @@
-import { listingPrice, PRODUCT_NAME } from '@oja/domain';
-import { EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
-import { Image } from 'expo-image';
-import { useState } from 'react';
+import { PRODUCT_NAME } from '@oja/domain';
+import { EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useListings } from '@/api/listings';
-import { Price } from '@/components/price';
-import { openListing } from '@/navigation';
+import { ListingRow } from '@/components/listing-row';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useRegion } from '@/region/region-provider';
 
 export function HomeScreen() {
   const theme = useTheme();
   const region = useRegion();
   const listings = useListings(region.region?.id);
-  // Only a pull shows the spinner; background refetches stay silent.
-  const [pulling, setPulling] = useState(false);
-  const refresh = () => {
-    setPulling(true);
-    void listings.refetch().finally(() => setPulling(false));
-  };
+  const { refreshing, refresh } = usePullToRefresh(listings.refetch);
 
   const content = () => {
     if (region.error) {
@@ -38,28 +31,9 @@ export function HomeScreen() {
         keyExtractor={(l) => `${l.seller.id}:${l.product.id}`}
         contentContainerStyle={listings.data.length === 0 && styles.emptyList}
         ListEmptyComponent={<EmptyState title="No products yet" message="Check back soon." />}
-        refreshing={pulling}
+        refreshing={refreshing}
         onRefresh={refresh}
-        renderItem={({ item }) => {
-          const price = listingPrice(item.offers);
-          return (
-            <ListRow
-              title={item.product.title}
-              subtitle={item.seller.name}
-              onPress={() => openListing(item)}
-              trailing={price ? <Price price={price} currencyCode={currency_code} /> : null}
-              leading={
-                item.product.thumbnail ? (
-                  <Image
-                    source={item.product.thumbnail}
-                    contentFit="contain"
-                    style={[styles.thumb, { backgroundColor: theme.colors.surface, borderRadius: theme.radius.sm }]}
-                  />
-                ) : null
-              }
-            />
-          );
-        }}
+        renderItem={({ item }) => <ListingRow listing={item} currencyCode={currency_code} showShop />}
       />
     );
   };
@@ -79,5 +53,4 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   emptyList: { flexGrow: 1 },
-  thumb: { width: 64, height: 64 },
 });

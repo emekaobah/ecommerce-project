@@ -1,10 +1,10 @@
 import { EmptyState, ErrorState, LoadingState, useTheme } from '@oja/ui';
 import { router, Stack } from 'expo-router';
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useListings } from '@/api/listings';
 import { ShopResults } from '@/components/shop-results';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useRegion } from '@/region/region-provider';
 
 /** A category's products (its sub-categories' too), grouped by shop, fastest shops first. */
@@ -12,11 +12,7 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
   const theme = useTheme();
   const region = useRegion();
   const listings = useListings(region.region?.id, { categoryId, limit: 100 });
-  const [pulling, setPulling] = useState(false);
-  const refresh = () => {
-    setPulling(true);
-    void listings.refetch().finally(() => setPulling(false));
-  };
+  const { refreshing, refresh } = usePullToRefresh(listings.refetch);
 
   const content = () => {
     if (region.error) {
@@ -30,7 +26,7 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
       <ShopResults
         listings={listings.data}
         currencyCode={region.region.currency_code}
-        refreshing={pulling}
+        refreshing={refreshing}
         onRefresh={refresh}
         header={<View style={{ height: theme.space.md }} />}
         empty={

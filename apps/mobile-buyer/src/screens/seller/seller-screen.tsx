@@ -1,16 +1,13 @@
-import { listingPrice } from '@oja/domain';
-import { EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
-import { Image } from 'expo-image';
+import { EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
-import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import { isNotFound } from '@/api/errors';
 import { useListings } from '@/api/listings';
 import { useShop, type Shop } from '@/api/shops';
-import { Price } from '@/components/price';
+import { ListingRow } from '@/components/listing-row';
 import { ShopFacts } from '@/components/shop-facts';
-import { openListing } from '@/navigation';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useRegion } from '@/region/region-provider';
 
 /** A shop's page: its header, then only its own products at its own prices. */
@@ -19,11 +16,7 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
   const region = useRegion();
   const shop = useShop(region.region?.id, sellerId);
   const listings = useListings(region.region?.id, { sellerId, limit: 100 });
-  const [pulling, setPulling] = useState(false);
-  const refresh = () => {
-    setPulling(true);
-    void Promise.all([shop.refetch(), listings.refetch()]).finally(() => setPulling(false));
-  };
+  const { refreshing, refresh } = usePullToRefresh(() => Promise.all([shop.refetch(), listings.refetch()]));
 
   if (region.error) {
     return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
@@ -48,29 +41,11 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
       keyExtractor={(l) => l.product.id}
       style={{ backgroundColor: theme.colors.background }}
       contentContainerStyle={[{ paddingHorizontal: theme.space.md }, !listings.data.length && styles.grow]}
-      refreshing={pulling}
+      refreshing={refreshing}
       onRefresh={refresh}
       ListHeaderComponent={<ShopHeader shop={shop.data} />}
       ListEmptyComponent={<EmptyState title="Nothing for sale yet" message="Check back soon." />}
-      renderItem={({ item }) => {
-        const price = listingPrice(item.offers);
-        return (
-          <ListRow
-            title={item.product.title}
-            onPress={() => openListing(item)}
-            trailing={price ? <Price price={price} currencyCode={currency_code} /> : null}
-            leading={
-              item.product.thumbnail ? (
-                <Image
-                  source={item.product.thumbnail}
-                  contentFit="contain"
-                  style={[styles.thumb, { backgroundColor: theme.colors.surface, borderRadius: theme.radius.sm }]}
-                />
-              ) : null
-            }
-          />
-        );
-      }}
+      renderItem={({ item }) => <ListingRow listing={item} currencyCode={currency_code} />}
     />
   );
 }
@@ -88,5 +63,4 @@ function ShopHeader({ shop }: Readonly<{ shop: Shop }>) {
 
 const styles = StyleSheet.create({
   grow: { flexGrow: 1 },
-  thumb: { width: 64, height: 64 },
 });
