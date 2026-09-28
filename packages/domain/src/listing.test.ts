@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { formatWeight, listingPrice, offerPrice, shipsIn } from "./listing"
+import { formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
 
 let nextId = 0
 const offer = (calculated_amount: number, original_amount = calculated_amount) => ({
@@ -57,5 +57,28 @@ describe("formatWeight", () => {
     expect(formatWeight(450, "en-NG")).toBe("450 g")
     expect(formatWeight(1000, "en-NG")).toBe("1 kg")
     expect(formatWeight(1500, "en-NG")).toBe("1.5 kg")
+  })
+})
+
+describe("groupByShop", () => {
+  const listing = (shop: string, product: string) => ({ seller: { id: shop, name: `Shop ${shop}` }, product })
+
+  test("gathers each shop's listings under it, shops in the order their best result came", () => {
+    const [bCharger, aCharger, bLantern, cFan] = [
+      listing("b", "charger"),
+      listing("a", "charger"),
+      listing("b", "lantern"),
+      listing("c", "fan"),
+    ]
+
+    expect(groupByShop([bCharger, aCharger, bLantern, cFan])).toEqual([
+      { seller: { id: "b", name: "Shop b" }, listings: [bCharger, bLantern] },
+      { seller: { id: "a", name: "Shop a" }, listings: [aCharger] },
+      { seller: { id: "c", name: "Shop c" }, listings: [cFan] },
+    ])
+  })
+
+  test("is empty for no results", () => {
+    expect(groupByShop([])).toEqual([])
   })
 })

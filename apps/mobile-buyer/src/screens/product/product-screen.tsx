@@ -18,8 +18,9 @@ import { useAddToCart } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
 import { useListing, useListings, type Listing, type ListingDetail } from '@/api/listings';
 import { useCartSession } from '@/cart/cart-provider';
+import { ListingTile, LISTING_TILE_SIZE } from '@/components/listing-tile';
 import { Price } from '@/components/price';
-import { openListing } from '@/navigation';
+import { openShop } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
 /**
@@ -126,9 +127,10 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
       <Text variant="title">{product.title}</Text>
       {product.subtitle ? <Text tone="secondary">{product.subtitle}</Text> : null}
       {selected ? <Price price={offerPrice(selected)} currencyCode={currencyCode} variant="heading" /> : null}
-      <Text tone="secondary">
-        {listing.leadtime_to_ship == null ? seller.name : `${seller.name} · ${shipsIn(listing.leadtime_to_ship)}`}
-      </Text>
+      <View style={[styles.shopRow, { gap: theme.space.xs }]}>
+        <Button label={seller.name} variant="link" onPress={() => openShop(seller)} style={styles.inlineLink} />
+        {listing.leadtime_to_ship == null ? null : <Text tone="secondary">· {shipsIn(listing.leadtime_to_ship)}</Text>}
+      </View>
       {offers.length > 1 ? (
         <View style={[styles.chips, { gap: theme.space.sm, marginTop: theme.space.sm }]} accessibilityRole="radiogroup">
           {offers.map((offer) => {
@@ -259,7 +261,7 @@ function MoreFromShop({
     }
     // Inline, so the shelf doesn't take over the page while it loads.
     if (!suggestions.data) {
-      return <ActivityIndicator color={theme.colors.ink} style={{ height: TILE }} accessibilityLabel="Loading" />;
+      return <ActivityIndicator color={theme.colors.ink} style={{ height: LISTING_TILE_SIZE }} accessibilityLabel="Loading" />;
     }
     return (
       <FlatList
@@ -268,7 +270,7 @@ function MoreFromShop({
         keyExtractor={(l) => l.product.id}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: theme.space.md, gap: theme.space.md }}
-        renderItem={({ item }) => <SuggestionTile listing={item} currencyCode={currencyCode} />}
+        renderItem={({ item }) => <ListingTile listing={item} currencyCode={currencyCode} />}
       />
     );
   };
@@ -285,35 +287,13 @@ function MoreFromShop({
   );
 }
 
-const TILE = 140;
-
-function SuggestionTile({ listing, currencyCode }: Readonly<{ listing: Listing; currencyCode: string }>) {
-  const theme = useTheme();
-  const price = listingPrice(listing.offers);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => openListing(listing)}
-      style={({ pressed }) => [{ width: TILE, gap: theme.space.xs }, pressed && styles.pressed]}>
-      <Image
-        source={listing.product.thumbnail}
-        contentFit="contain"
-        style={{ width: TILE, height: TILE, backgroundColor: theme.colors.surface, borderRadius: theme.radius.md }}
-      />
-      <Text variant="caption" numberOfLines={2}>
-        {listing.product.title}
-      </Text>
-      {price ? <Price price={price} currencyCode={currencyCode} /> : null}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap' },
   chip: { alignItems: 'center', justifyContent: 'center' },
   addedRow: { flexDirection: 'row', alignItems: 'center' },
+  shopRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+  inlineLink: { paddingHorizontal: 0 },
   detailRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
   detailLabel: { flex: 1 },
   detailValue: { flex: 2 },
-  pressed: { opacity: 0.6 },
 });

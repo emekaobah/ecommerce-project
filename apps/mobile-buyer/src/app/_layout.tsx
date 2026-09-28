@@ -53,6 +53,7 @@ function RootStack() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="product/[id]" options={{ title: '' }} />
       <Stack.Screen name="seller/[id]" options={{ title: '' }} />
+      <Stack.Screen name="category/[id]" options={{ title: '' }} />
       {/* Guests browse freely; checkout needs a signed-in buyer (ADR 0001). */}
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="checkout" options={{ title: 'Checkout' }} />
