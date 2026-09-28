@@ -29,9 +29,6 @@ type Scope = Pick<MedusaContainer, "resolve">
 
 type ProductRow = {
   id: string
-  title: string
-  description: string | null
-  weight: number | string | null
   images?: { url: string }[] | null
   variants?: { barcode: string | null; ean: string | null; upc: string | null }[] | null
 }
@@ -49,7 +46,7 @@ type Category = { id: string; name: string; handle: string }
 export async function enrichProduct(container: MedusaContainer, productId: string): Promise<void> {
   const enrichments = enrichmentService(container)
   const record = await enrichmentOf(container, productId)
-  if (!record || record.status !== "queued") return
+  if (record?.status !== "queued") return
   try {
     const supplied = (record.supplied as { items?: EnrichableField[] }).items ?? []
     const result = await fill(container, productId, supplied)
@@ -84,79 +81,103 @@ type FillResult = {
   contributors: ConfiguredSource[]
 }
 
+/** What filling has gathered so far: each field's provenance and the product update to write. */
+type FillState = FillResult & {
+  /** Credits carried by a match's data itself (a catalogue product that took Open Facts data). */
+  credits: Attribution[]
+  update: Record<string, unknown>
+  categories: Category[]
+}
+
 async function fill(container: MedusaContainer, productId: string, supplied: EnrichableField[]): Promise<FillResult> {
+  const { product, categories } = await loadProduct(container, productId)
+  const state: FillState = {
+    fields: Object.fromEntries(supplied.map((f) => [f, { source: "supplied", url: null }])),
+    images: [],
+    attribution: [],
+    errors: [],
+    contributors: [],
+    credits: [],
+    update: {},
+    categories,
+  }
+
+  // The submitter's own images are copied too: nothing is hotlinked, so one that
+  // can't be copied is dropped, and a source may fill the gap.
+  if (state.fields.images) {
+    state.images = await copyAll(container, (product.images ?? []).map((i) => i.url), "supplied", state.errors)
+    state.update.images = state.images
+    if (!state.images.length) delete state.fields.images
+  }
+
+  const barcode = product.variants?.map((v) => v.barcode ?? v.ean ?? v.upc).find(Boolean) ?? null
+  for (const configured of configuredSources(container)) {
+    if (!neededFields(state).length) break
+    const match = await ask(configured.source, barcode, state.errors)
+    if (match) await applyMatch(container, state, configured, match)
+  }
+
+  if (Object.keys(state.update).length) {
+    await updateProductsWorkflow(container).run({
+      input: { selector: { id: productId }, update: toProductUpdate(state.update) },
+    })
+  }
+
+  const { fields, images, errors, contributors, credits } = state
+  const attribution = uniqueByName([
+    ...contributors.map((c) => c.source.policy.attribution).filter((a): a is Attribution => !!a),
+    ...credits,
+  ])
+  return { fields, images, attribution, errors, contributors }
+}
+
+async function loadProduct(container: MedusaContainer, productId: string) {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const {
     data: [product],
   } = (await query.graph({
     entity: "product",
-    fields: ["id", "title", "description", "weight", "images.url", "variants.barcode", "variants.ean", "variants.upc"],
+    fields: ["id", "images.url", "variants.barcode", "variants.ean", "variants.upc"],
     filters: { id: productId },
   })) as { data: ProductRow[] }
   const { data: categories } = (await query.graph({
     entity: "product_category",
     fields: ["id", "name", "handle"],
   })) as { data: Category[] }
+  return { product, categories }
+}
 
-  const fields: FillResult["fields"] = Object.fromEntries(supplied.map((f) => [f, { source: "supplied", url: null }]))
-  const errors: string[] = []
-  const contributors: ConfiguredSource[] = []
-  /** Credits carried by a match's data itself (a catalogue product that took Open Facts data). */
-  const credits: Attribution[] = []
-  const update: Record<string, unknown> = {}
-  let images: StoredImage[] = []
+const neededFields = (state: FillState) => ENRICHABLE_FIELDS.filter((f) => !state.fields[f])
 
-  // The submitter's own images are copied too: nothing is hotlinked, so one that
-  // can't be copied is dropped, and a source may fill the gap.
-  if (fields.images) {
-    images = await copyAll(container, (product.images ?? []).map((i) => i.url), "supplied", errors)
-    update.images = images
-    if (!images.length) delete fields.images
+/** The source's record of the product, or null when it has none, may not be shown, or fails to answer (recorded). */
+async function ask(source: EnrichmentSource, barcode: string | null, errors: string[]): Promise<SourceMatch | null> {
+  if (!source.policy.public_data) return null
+  try {
+    await rateLimit(source)
+    return await source.lookup({ barcode })
+  } catch (error) {
+    errors.push(`${source.name}: ${message(error)}`)
+    return null
   }
+}
 
-  const barcode = product.variants?.map((v) => v.barcode ?? v.ean ?? v.upc).find(Boolean) ?? null
-  const needed = () => ENRICHABLE_FIELDS.filter((f) => !fields[f])
-  for (const configured of configuredSources(container)) {
-    if (!needed().length) break
-    const { source } = configured
-    if (!source.policy.public_data) continue
-    let match: SourceMatch | null
-    try {
-      await rateLimit(source)
-      match = await source.lookup({ barcode })
-    } catch (error) {
-      errors.push(`${source.name}: ${message(error)}`)
-      continue
-    }
-    if (!match) continue
-
-    let contributed = false
-    const provenance = { source: source.id, url: match.url }
-    for (const field of needed()) {
-      const value = await valueOf(container, field, match, source, categories, errors)
-      if (value === undefined) continue
-      if (field === "images") images = value as StoredImage[]
-      update[field] = value
-      fields[field] = provenance
-      contributed = true
-    }
-    if (contributed) {
-      contributors.push(configured)
-      credits.push(...(match.attribution ?? []))
-    }
+/** Fills each still-empty field the match has, recording the source as its provenance. */
+async function applyMatch(container: MedusaContainer, state: FillState, configured: ConfiguredSource, match: SourceMatch) {
+  const { source } = configured
+  const provenance = { source: source.id, url: match.url }
+  let contributed = false
+  for (const field of neededFields(state)) {
+    const value = await valueOf(container, field, match, source, state.categories, state.errors)
+    if (value === undefined) continue
+    if (field === "images") state.images = value as StoredImage[]
+    state.update[field] = value
+    state.fields[field] = provenance
+    contributed = true
   }
-
-  if (Object.keys(update).length) {
-    await updateProductsWorkflow(container).run({
-      input: { selector: { id: productId }, update: toProductUpdate(update) },
-    })
+  if (contributed) {
+    state.contributors.push(configured)
+    state.credits.push(...(match.attribution ?? []))
   }
-
-  const attribution = uniqueByName([
-    ...contributors.map((c) => c.source.policy.attribution).filter((a): a is Attribution => !!a),
-    ...credits,
-  ])
-  return { fields, images, attribution, errors, contributors }
 }
 
 const uniqueByName = (credits: Attribution[]) => [...new Map(credits.map((c) => [c.name, c])).values()]
@@ -223,7 +244,7 @@ function singular(word: string): string {
 const nameParts = (name: string) =>
   name
     .toLowerCase()
-    .split(/\s*(?:&|,|\band\b)\s*/)
+    .split(/[&,]|\band\b/)
     .map((w) => singular(w.trim()))
     .filter(Boolean)
 
