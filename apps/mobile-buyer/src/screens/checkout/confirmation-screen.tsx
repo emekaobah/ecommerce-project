@@ -1,5 +1,5 @@
 import { formatMoney } from '@oja/domain';
-import { Button, EmptyState, LoadingState, Text, useTheme } from '@oja/ui';
+import { Button, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -45,15 +45,32 @@ export function ConfirmationScreen() {
     <>
       {header}
       {slow ? (
-        <EmptyState
-          title="Still confirming your payment"
-          message="Paystack hasn't confirmed it yet. If you were charged, your order appears in Orders as soon as it's confirmed."
-          action={{ label: 'Check again', onPress: () => void checkout.refetch() }}
-        />
+        <StillConfirming onCheckAgain={() => void checkout.refetch()} />
       ) : (
         <LoadingState label="Confirming your payment with Paystack" />
       )}
     </>
+  );
+}
+
+/**
+ * Paystack is slow to confirm, or the buyer didn't finish paying. Waiting stays the default:
+ * paying again could charge twice if the first payment went through.
+ */
+function StillConfirming({ onCheckAgain }: Readonly<{ onCheckAgain: () => void }>) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.fill, styles.centered, { padding: theme.space.lg, gap: theme.space.md }]}>
+      <Text variant="heading" style={styles.center}>
+        Still confirming your payment
+      </Text>
+      <Text tone="secondary" style={styles.center}>
+        Paystack hasn&apos;t confirmed it yet. If you were charged, your order appears in Orders as soon as
+        it&apos;s confirmed. If you didn&apos;t finish paying, go back to checkout and pay again.
+      </Text>
+      <Button label="Check again" onPress={onCheckAgain} />
+      <Button label="Back to checkout" variant="secondary" onPress={() => router.dismissTo('/checkout')} />
+    </View>
   );
 }
 
@@ -65,6 +82,41 @@ function OrderPlaced({ orderGroupId }: Readonly<{ orderGroupId: string }>) {
     router.navigate(to);
   };
 
+  // The order is placed either way; its details are a nice-to-have.
+  const details = () => {
+    if (group.error && !group.data) {
+      return (
+        <ErrorState
+          title="Couldn't load the order details"
+          message={group.error.message}
+          onRetry={() => void group.refetch()}
+        />
+      );
+    }
+    if (!group.data) return <LoadingState label="Loading your orders" />;
+    return group.data.orders.map((order) => (
+      <View
+        key={order.id}
+        style={{
+          gap: theme.space.xs,
+          paddingTop: theme.space.md,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: theme.colors.divider,
+        }}>
+        <View style={styles.spread}>
+          <Text variant="heading">{order.seller?.name ?? 'Shop'}</Text>
+          <Text tone="secondary">#{order.display_id}</Text>
+        </View>
+        {order.items.map((item) => (
+          <Text key={item.id} tone="secondary">
+            {item.quantity} × {item.product_title}
+          </Text>
+        ))}
+        <Text variant="label">{formatMoney(order.total, order.currency_code)}</Text>
+      </View>
+    ));
+  };
+
   return (
     <View style={[styles.fill, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
@@ -74,30 +126,7 @@ function OrderPlaced({ orderGroupId }: Readonly<{ orderGroupId: string }>) {
             Paystack confirmed your payment. Each shop prepares and delivers its own order.
           </Text>
         </View>
-        {group.data
-          ? group.data.orders.map((order) => (
-                <View
-                  key={order.id}
-                  style={{
-                    gap: theme.space.xs,
-                    paddingTop: theme.space.md,
-                    borderTopWidth: StyleSheet.hairlineWidth,
-                    borderTopColor: theme.colors.divider,
-                  }}>
-                  <View style={styles.spread}>
-                    <Text variant="heading">{order.seller?.name ?? 'Shop'}</Text>
-                    <Text tone="secondary">#{order.display_id}</Text>
-                  </View>
-                  {order.items.map((item) => (
-                    <Text key={item.id} tone="secondary">
-                      {item.quantity} × {item.product_title}
-                    </Text>
-                  ))}
-                  <Text variant="label">{formatMoney(order.total, order.currency_code)}</Text>
-                </View>
-            ))
-          : null}
-        {group.error ? <Text tone="secondary">Couldn't load the order details: {group.error.message}</Text> : null}
+        {details()}
       </ScrollView>
       <View style={{ padding: theme.space.md, gap: theme.space.sm }}>
         <Button label="View orders" onPress={() => finish('/orders')} />
@@ -120,4 +149,6 @@ function useElapsed(ms: number) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  centered: { justifyContent: 'center' },
+  center: { textAlign: 'center' },
 });

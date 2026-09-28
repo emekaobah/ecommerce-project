@@ -6,8 +6,9 @@ import {
   getAddressConfig,
   type AddressFieldKey,
   type AddressFormValues,
+  type PaymentReturn,
 } from '@oja/domain';
-import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
+import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -38,15 +39,14 @@ export function CheckoutScreen() {
   const { region } = useRegion();
   const checkout = useCheckout(cartId);
 
-  if (cartId === null) {
-    return (
-      <EmptyState
-        title="Your cart is empty"
-        message="Add something from a shop to check out."
-        action={{ label: 'Start shopping', onPress: () => router.navigate('/') }}
-      />
-    );
-  }
+  const emptyCart = (
+    <EmptyState
+      title="Your cart is empty"
+      message="Add something from a shop to check out."
+      action={{ label: 'Start shopping', onPress: () => router.navigate('/') }}
+    />
+  );
+  if (cartId === null) return emptyCart;
   if (checkout.error && !checkout.data) {
     return (
       <ErrorState title="Couldn't load checkout" message={checkout.error.message} onRetry={() => void checkout.refetch()} />
@@ -54,15 +54,7 @@ export function CheckoutScreen() {
   }
   const countryCode = region?.countries?.[0]?.iso_2;
   if (!cartId || !checkout.data || !countryCode) return <LoadingState />;
-  if (checkout.data.sellers.length === 0) {
-    return (
-      <EmptyState
-        title="Your cart is empty"
-        message="Add something from a shop to check out."
-        action={{ label: 'Start shopping', onPress: () => router.navigate('/') }}
-      />
-    );
-  }
+  if (checkout.data.sellers.length === 0) return emptyCart;
   return <CheckoutForm cartId={cartId} checkout={checkout.data} countryCode={countryCode} />;
 }
 
@@ -74,10 +66,9 @@ function CheckoutForm({
   const theme = useTheme();
   const { userId } = useAuth();
   const customer = useCustomer(userId);
-  const { payment: returned } = useLocalSearchParams<{ payment?: string }>();
+  const { payment: returned } = useLocalSearchParams<{ payment?: PaymentReturn['kind'] }>();
   const config = getAddressConfig(countryCode);
-  const ready = !!checkout.shipping_address && checkout.sellers.every((g) => g.shipping);
-  const [editing, setEditing] = useState(!ready);
+  const [editing, setEditing] = useState(!checkout.ready_to_pay);
   const [values, setValues] = useState<AddressFormValues>(() =>
     addressFormValues(checkout.shipping_address, countryCode, customer.data ?? undefined)
   );
@@ -100,10 +91,7 @@ function CheckoutForm({
   const pay = () =>
     startPayment.mutate(PAYMENT_RETURN_URL, {
       onSuccess: ({ authorization_url }) =>
-        router.push({
-          pathname: '/checkout/pay',
-          params: { cartId, url: authorization_url, returnUrl: PAYMENT_RETURN_URL },
-        }),
+        router.push({ pathname: '/checkout/pay', params: { cartId, url: authorization_url } }),
     });
 
   const notice = startPayment.error
@@ -246,6 +234,6 @@ function Line({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 16 },
+  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: buyerTheme.space.md },
   shrink: { flexShrink: 1 },
 });

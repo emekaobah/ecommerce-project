@@ -134,6 +134,22 @@ medusaIntegrationTestRunner({
       }
       return paymentOf(cartId)
     }
+    /** The cart's payment session for a transaction, once the webhook has had Paystack verify it. */
+    const verifiedSession = async (cartId: string, reference: string) => {
+      for (let attempt = 0; attempt < 200; attempt++) {
+        const { data } = await query().graph({
+          entity: "cart",
+          fields: ["payment_collection.payment_sessions.status", "payment_collection.payment_sessions.data"],
+          filters: { id: cartId },
+        })
+        const session = (data[0].payment_collection?.payment_sessions ?? []).find(
+          (s: any) => s?.data?.reference === reference
+        ) as any
+        if (session?.data?.transaction) return session
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+      throw new Error(`the webhook for ${reference} was never verified`)
+    }
     const ordersOfCart = async (cartId: string) => {
       const { data } = await query().graph({ entity: "order_cart", fields: ["order_id"], filters: { cart_id: cartId } })
       return data
@@ -153,6 +169,7 @@ medusaIntegrationTestRunner({
           item_subtotal: LANTERN.price + 2 * RICE.price,
           shipping_total: 2 * SEED_DELIVERY_FEE,
           total: TOTAL,
+          ready_to_pay: true,
           order_group_id: null,
         })
         expect(
@@ -240,6 +257,7 @@ medusaIntegrationTestRunner({
           .catch((e) => e.response)
 
         expect(res.status).toBe(400)
+        expect((await checkout(cartId)).ready_to_pay).toBe(false)
       })
 
       it("splits a paid cart into one order group with an order per shop, once Paystack's webhook confirms it", async () => {
@@ -302,46 +320,62 @@ medusaIntegrationTestRunner({
         expect(await paymentOf(cartId)).toBeNull()
       })
 
-      it("captures only after the webhook, even when the cart is completed first", async () => {
+      it("won't place the order from the store's complete route: only Paystack's webhook does", async () => {
         const cartId = await adasCart()
         await prepare(cartId)
         const { reference } = await startPayment(cartId)
         paystack.pay(reference)
 
-        const { data } = await api.post(`/store/carts/${cartId}/complete`, {}, ada())
+        const res = await api.post(`/store/carts/${cartId}/complete`, {}, ada()).catch((e) => e.response)
 
-        expect(data.type).toBe("order_group")
-        expect((await paymentOf(cartId)).captured_at).toBeNull()
+        expect(res.status).toBe(409)
+        expect(await ordersOfCart(cartId)).toHaveLength(0)
+        expect(await paymentOf(cartId)).toBeNull()
 
         await postWebhook(paystack.chargeSuccess(reference))
 
+        expect(await orderGroupOf(cartId)).toMatch(/^og_/)
         expect((await capturedWithin(cartId)).captures.map((c: any) => c.amount)).toEqual([TOTAL])
-        expect(await ordersOfCart(cartId)).toHaveLength(2)
       })
 
-      it("places no order for an abandoned or declined payment, and the buyer can pay again", async () => {
+      it("places no order for an abandoned or declined payment, even on a signed webhook, and the buyer can pay again", async () => {
         const cartId = await adasCart()
         await prepare(cartId)
-        const abandoned = await startPayment(cartId)
 
-        // Completing without paying: Paystack says the transaction was abandoned.
-        const unpaid = await api.post(`/store/carts/${cartId}/complete`, {}, ada()).catch((e) => e.response)
+        // Signed, but Paystack's API says the transaction took no money.
+        const abandoned = await startPayment(cartId)
+        await postWebhook(paystack.chargeSuccess(abandoned.reference))
+        expect(await verifiedSession(cartId, abandoned.reference)).toMatchObject({ status: "pending" })
         const declined = await startPayment(cartId)
         paystack.fail(declined.reference)
-        const failed = await api.post(`/store/carts/${cartId}/complete`, {}, ada()).catch((e) => e.response)
+        await postWebhook(paystack.chargeSuccess(declined.reference))
+        expect(await verifiedSession(cartId, declined.reference)).toMatchObject({ status: "error" })
 
-        expect(unpaid.data.type).not.toBe("order_group")
-        expect(failed.data.type).not.toBe("order_group")
         expect(await ordersOfCart(cartId)).toHaveLength(0)
         expect((await checkout(cartId)).order_group_id).toBeNull()
+        expect(await paymentOf(cartId)).toBeNull()
 
         const retry = await startPayment(cartId)
-        expect(retry.reference).not.toBe(abandoned.reference)
         paystack.pay(retry.reference)
         await postWebhook(paystack.chargeSuccess(retry.reference))
 
         expect(await orderGroupOf(cartId)).toMatch(/^og_/)
         expect((await capturedWithin(cartId)).captures.map((c: any) => c.amount)).toEqual([TOTAL])
+      })
+
+      it("charges each line at its shop's price when the payment starts, not when the address was set", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        await updateOffersWorkflow(getContainer()).run({
+          input: {
+            offers: [{ id: await offerId(GADGETS, LANTERN.title), prices: [{ amount: LANTERN.price + 1000, currency_code: "ngn" }] }],
+          },
+        })
+
+        const { reference } = await startPayment(cartId)
+
+        expect(paystack.transaction(reference).amount).toBe((TOTAL + 1000) * 100)
+        expect((await checkout(cartId)).total).toBe(TOTAL + 1000)
       })
     })
 
@@ -366,8 +400,8 @@ medusaIntegrationTestRunner({
         await prepare(cartId)
         const { reference } = await startPayment(cartId)
         paystack.pay(reference)
-        await api.post(`/store/carts/${cartId}/complete`, {}, ada())
-        const payment = await paymentOf(cartId)
+        await postWebhook(paystack.chargeSuccess(reference))
+        await orderGroupOf(cartId)
         const { data } = await query().graph({
           entity: "cart",
           fields: ["payment_collection.payments.id"],
@@ -380,8 +414,6 @@ medusaIntegrationTestRunner({
           .catch((e) => e.response)
 
         expect(res.status).toBe(403)
-        expect(payment.captured_at).toBeNull()
-        expect((await paymentOf(cartId)).captured_at).toBeNull()
       })
     })
   },

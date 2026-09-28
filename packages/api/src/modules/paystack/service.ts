@@ -104,16 +104,13 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
     return { status, data }
   }
 
+  /** Runs when the webhook's workflow completes the cart; the webhook alone isn't taken on trust. */
   async authorizePayment({ data }: AuthorizePaymentInput): Promise<AuthorizePaymentOutput> {
-    const session = data as PaystackSessionData
-    const transaction = await this.paystack.verify(session.reference)
-    return { status: this.statusOf(session, transaction), data: { ...session, transaction } }
+    return this.verified(data as PaystackSessionData)
   }
 
   async getPaymentStatus({ data }: GetPaymentStatusInput): Promise<GetPaymentStatusOutput> {
-    const session = data as PaystackSessionData
-    const transaction = await this.paystack.verify(session.reference)
-    return { status: this.statusOf(session, transaction), data: { ...session, transaction } }
+    return this.verified(data as PaystackSessionData)
   }
 
   async retrievePayment({ data }: RetrievePaymentInput): Promise<RetrievePaymentOutput> {
@@ -151,6 +148,12 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
       return { action: PaymentActions.NOT_SUPPORTED }
     }
     return { action: PaymentActions.SUCCESSFUL, data: { session_id: sessionId, amount: fromSubunit(transaction.amount) } }
+  }
+
+  /** Paystack's own word on the session's transaction. */
+  private async verified(session: PaystackSessionData) {
+    const transaction = await this.paystack.verify(session.reference)
+    return { status: this.statusOf(session, transaction), data: { ...session, transaction } }
   }
 
   /** Authorised only when Paystack took exactly what this session started, in its currency. */

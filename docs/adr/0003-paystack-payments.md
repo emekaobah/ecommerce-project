@@ -24,14 +24,14 @@ What we found (checked 2026-09-28):
   - `authorizePayment` verifies the transaction with Paystack. It is authorised only if Paystack reports `success` for exactly the amount and currency started. It never returns `captured`.
   - `getWebhookActionAndData` checks the HMAC-SHA512 signature (timing-safe) and maps `charge.success` to `SUCCESSFUL`, with the amount in naira.
   - `capturePayment` only records the capture, since Paystack settles a charge itself. `refundPayment` calls Paystack's refund API.
-- **The webhook places the order.** The app never completes the cart. After Paystack redirects back, it polls `GET /store/carts/:id/checkout` until `order_group_id` is set. If the store's complete route is called anyway, the order is placed with the payment authorised (verified with Paystack), and the webhook still does the capture.
+- **Only the webhook places the order.** After Paystack redirects back, the app polls `GET /store/carts/:id/checkout` until `order_group_id` is set. The store's `POST /store/carts/:id/complete` answers `409` for a cart with a Paystack session, so no shop sees an order before the money is confirmed. The webhook isn't taken on trust either: completing the cart verifies the transaction with Paystack (`authorizePayment`), so a replayed or mistaken `charge.success` for an unpaid transaction places nothing.
 - A **middleware** answers a Paystack webhook with a bad signature with `401` before Medusa queues it. The provider checks the signature again.
 - **Vendors can't capture.** `POST /vendor/payments/:id/capture` returns `403`.
 - **Paystack is the region's only payment provider** once `PAYSTACK_SECRET_KEY` is set (seed). The system provider is kept only when Paystack isn't configured, for local tries.
 - Checkout routes (signed-in buyer, own cart only):
   - `POST /store/carts/:id/checkout` reprices every line from its offer, sets the email and address, and adds each shop's cheapest delivery option (the flat rate until #23).
-  - `POST /store/carts/:id/checkout/payment` starts a new Paystack transaction each time, which is how a buyer retries after a failed or abandoned payment.
-  - `GET /store/carts/:id/checkout` returns the checkout and, once the cart is completed, its order group.
+  - `POST /store/carts/:id/checkout/payment` reprices the lines again, since the cart or a shop's price may have changed since the address was set. It then starts a new Paystack transaction each time, which is how a buyer retries after a failed or abandoned payment.
+  - `GET /store/carts/:id/checkout` returns the checkout, whether it is `ready_to_pay`, and, once the cart is completed, its order group.
 
 ## Consequences
 

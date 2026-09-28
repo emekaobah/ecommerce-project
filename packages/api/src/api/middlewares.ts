@@ -8,6 +8,7 @@ import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
 import { StorePrepareCheckout, StoreStartCheckoutPayment } from "./store/carts/[id]/checkout/validators";
 import { verifyPaystackSignature } from "./hooks/paystack-signature";
 import { refuseVendorCapture } from "./vendor/payments/no-capture";
+import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 
 export default defineMiddlewares({
     routes: [
@@ -48,6 +49,7 @@ export default defineMiddlewares({
             matcher: "/store/carts/:id/checkout/payment",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreStartCheckoutPayment)],
         },
+        { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
         // Paystack signs the raw body, so it is kept for the check.
         {
             method: ["POST"],

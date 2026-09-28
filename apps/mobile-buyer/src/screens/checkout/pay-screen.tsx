@@ -1,9 +1,11 @@
-import { paymentReturn } from '@oja/domain';
+import { paymentReturn, type PaymentReturn } from '@oja/domain';
 import { Button, ErrorState, LoadingState, useTheme } from '@oja/ui';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
+
+import { PAYMENT_RETURN_URL } from './checkout-screen';
 
 /**
  * Paystack's payment page in a WebView. Paystack sends the buyer to the checkout's return URL
@@ -12,17 +14,17 @@ import { WebView } from 'react-native-webview';
  */
 export function PayScreen() {
   const theme = useTheme();
-  const { cartId, url, returnUrl } = useLocalSearchParams<{ cartId: string; url: string; returnUrl: string }>();
+  const { cartId, url } = useLocalSearchParams<{ cartId: string; url: string }>();
   const [loadError, setLoadError] = useState<string | null>(null);
   const done = useRef(false);
 
-  const leave = (outcome: 'paid' | 'cancelled') => {
+  const leave = (outcome: PaymentReturn['kind']) => {
     if (done.current) return;
     done.current = true;
     if (outcome === 'paid') {
       router.replace({ pathname: '/checkout/confirmation', params: { cartId } });
     } else {
-      router.dismissTo({ pathname: '/checkout', params: { payment: 'cancelled' } });
+      router.dismissTo({ pathname: '/checkout', params: { payment: outcome } });
     }
   };
 
@@ -58,7 +60,7 @@ export function PayScreen() {
         startInLoadingState
         renderLoading={() => <LoadingState label="Opening Paystack" />}
         onShouldStartLoadWithRequest={(request) => {
-          const outcome = paymentReturn(request.url, returnUrl);
+          const outcome = paymentReturn(request.url, PAYMENT_RETURN_URL);
           if (!outcome) return true;
           leave(outcome.kind);
           return false;

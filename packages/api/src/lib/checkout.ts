@@ -51,6 +51,8 @@ export type Checkout = {
   shipping_total: number
   /** What the buyer pays: prices are VAT-inclusive, so items plus delivery. */
   total: number
+  /** The address is set and every item's shop delivers there, so payment can start. */
+  ready_to_pay: boolean
   /** Set once payment is confirmed and the cart has become orders. */
   order_group_id: string | null
 }
@@ -143,6 +145,10 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
     : { data: [] }
 
   const address = cart.shipping_address
+  const sellers = grouped.sellers.map((group) => ({
+    ...group,
+    shipping: (group.seller && shippingBySeller.get(group.seller.id)) || null,
+  }))
   return {
     cart_id: cart.id,
     currency_code: cart.currency_code,
@@ -150,14 +156,13 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
     shipping_address: address
       ? (Object.fromEntries(ADDRESS_FIELDS.map((f) => [f, address[f] ?? null])) as CheckoutAddress)
       : null,
-    sellers: grouped.sellers.map((group) => ({
-      ...group,
-      shipping: (group.seller && shippingBySeller.get(group.seller.id)) || null,
-    })),
+    sellers,
     // The shops' own prices, VAT included; Medusa's `item_subtotal` excludes the VAT.
     item_subtotal: grouped.item_subtotal,
     shipping_total: Number(cart.shipping_total),
     total: Number(cart.total),
+    ready_to_pay:
+      !!address && !!cart.email && sellers.length > 0 && sellers.every((g) => g.seller && g.shipping),
     order_group_id: (groups[0] as { id: string } | undefined)?.id ?? null,
   }
 }
@@ -245,11 +250,12 @@ export async function startCheckoutPayment(
 ): Promise<CheckoutPayment> {
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
+  // The cart may have changed since its address was set, and shops change prices.
+  await repriceLines(scope, cartId)
   const checkout = await retrieveCheckout(scope, cartId, customerId)
-  if (!checkout.shipping_address || !checkout.email || checkout.sellers.some((g) => !g.seller || !g.shipping)) {
+  if (!checkout.ready_to_pay) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Set the delivery address before paying")
   }
-  if (!checkout.sellers.length) throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "The cart is empty")
 
   let paymentCollectionId = cart.payment_collection?.id
   if (!paymentCollectionId) {
@@ -262,7 +268,7 @@ export async function startCheckoutPayment(
       payment_collection_id: paymentCollectionId,
       provider_id: PAYSTACK_PROVIDER_ID,
       customer_id: customerId,
-      data: { email: checkout.email, callback_url: returnUrl },
+      data: { email: checkout.email!, callback_url: returnUrl },
     },
   })
   const data = session.data as unknown as PaystackSessionData
