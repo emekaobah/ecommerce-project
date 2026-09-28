@@ -33,6 +33,9 @@ envVarGroups:
       # Clerk PEM public key; verifies buyer session tokens without a network call.
       - key: CLERK_JWT_KEY
         sync: false
+      # Paystack secret key; starts and verifies payments and checks webhook signatures.
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
 
 services:
   - type: web

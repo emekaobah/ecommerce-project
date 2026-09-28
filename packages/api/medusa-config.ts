@@ -47,6 +47,18 @@ const clerkAuthProviders =
       ]
     : []
 
+// Buyers pay with Paystack (docs/adr/0003-paystack-payments.md). Without a secret key the
+// provider isn't registered and checkout can't take payment.
+const paymentProviders = process.env.PAYSTACK_SECRET_KEY
+  ? [
+      {
+        resolve: './src/modules/paystack',
+        id: 'paystack',
+        options: { secretKey: process.env.PAYSTACK_SECRET_KEY, apiUrl: process.env.PAYSTACK_API_URL || undefined },
+      },
+    ]
+  : []
+
 const dashboardAppDir = (name: string) => {
   const bundled = path.join(__dirname, 'dashboards', name)
   return fs.existsSync(bundled) ? bundled : path.join(__dirname, `../../apps/${name}`)
@@ -85,6 +97,7 @@ module.exports = withMercur({
         providers: [{ resolve: '@medusajs/medusa/auth-emailpass', id: 'emailpass' }, ...clerkAuthProviders],
       },
     },
+    { resolve: '@medusajs/medusa/payment', options: { providers: paymentProviders } },
     // Medusa's default only has the admin "feed" channel. Emails (staff invites)
     // are logged by the local provider until a real email provider is configured.
     {

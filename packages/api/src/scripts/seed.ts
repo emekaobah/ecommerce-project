@@ -46,6 +46,7 @@ import {
   linkSalesChannelsToStockLocationWorkflow,
   setAuthAppMetadataStep,
   updateSalesChannelsWorkflow,
+  updateRegionsWorkflow,
   updateStoresWorkflow,
 } from "@medusajs/medusa/core-flows";
 import {
@@ -64,6 +65,7 @@ import {
   type Department,
   type SeedSeller,
 } from "./seed-data";
+import { PAYSTACK_PROVIDER_ID } from "../modules/paystack";
 
 // Seeds Oja's demo world (see seed-data.ts). Every section looks up what already
 // exists and creates only what is missing, so the seed is safe to re-run.
@@ -207,19 +209,29 @@ async function seedPublishableKey(container: MedusaContainer, salesChannelId: st
 async function seedRegion(container: MedusaContainer) {
   const regionService = container.resolve(Modules.REGION);
   const [existing] = await regionService.listRegions({ name: SEED_REGION.name });
+  // Buyers pay with Paystack only. Medusa's system provider takes no money, so it is offered
+  // only while Paystack isn't configured (PAYSTACK_SECRET_KEY), to let checkout be tried.
+  const [paystack] = await container
+    .resolve(Modules.PAYMENT)
+    .listPaymentProviders({ id: PAYSTACK_PROVIDER_ID, is_enabled: true });
+  const payment_providers = paystack ? [PAYSTACK_PROVIDER_ID] : ["pp_system_default"];
   if (!existing) {
     await createRegionsWorkflow(container).run({
       input: {
         regions: [
           {
             ...SEED_REGION,
-            payment_providers: ["pp_system_default"],
+            payment_providers,
             automatic_taxes: true,
             // Nigerian shelf prices include VAT.
             is_tax_inclusive: true,
           },
         ],
       },
+    });
+  } else {
+    await updateRegionsWorkflow(container).run({
+      input: { selector: { id: existing.id }, update: { payment_providers } },
     });
   }
 

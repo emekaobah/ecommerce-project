@@ -48,6 +48,29 @@ The app sends the Clerk session token on every store request. The API verifies i
 
 If a web client is ever added on the same Clerk instance, set the API's `CLERK_AUTHORIZED_PARTIES` to its origin (comma-separated for several) so the API accepts that site's tokens only from it. Native app tokens carry no origin and are unaffected, so it stays empty until then.
 
+### Payments (Paystack)
+
+Buyers pay with Paystack (`docs/adr/0003-paystack-payments.md`). Put the test secret key from Paystack's dashboard (Settings → API Keys & Webhooks) in the API's `PAYSTACK_SECRET_KEY`, then re-run `bun run seed`: it makes Paystack the Nigeria region's only payment provider. Without the key, the region keeps Medusa's no-charge system provider and checkout can't take payment.
+
+Checkout starts a Paystack transaction and the app opens its payment page in a WebView. **An order is placed only when Paystack's `charge.success` webhook reaches the API**: the webhook's signature is checked, the transaction is verified with Paystack, the payment is captured and the cart splits into one order per shop. Test cards are listed in [Paystack's docs](https://paystack.com/docs/payments/test-payments/).
+
+#### Paystack webhooks
+
+Paystack must reach the API from the internet, so run a tunnel locally, for example with [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/) (no account needed) or ngrok:
+
+```bash
+cloudflared tunnel --url http://localhost:9000   # prints https://<random>.trycloudflare.com
+# or: ngrok http 9000
+```
+
+In Paystack's dashboard (Settings → API Keys & Webhooks, **test mode**) set the webhook URL to:
+
+```
+https://<tunnel-host>/hooks/payment/paystack_paystack
+```
+
+The tunnel's host changes each time it starts, so update the URL when it does. Pay a checkout in the buyer app with a test card: the API logs `Processing mercur.payment.webhook_received`, and the confirmation screen shows the orders. A webhook with a bad signature gets a `401`. Without a working tunnel the payment succeeds on Paystack's side, but no order is placed and the app keeps waiting for confirmation.
+
 ### Seed data
 
 `bun run seed` (in `packages/api`) creates a Nigeria region in NGN with 7.5% VAT (tax-inclusive prices), the buyer app's sales channel and publishable key, and three Lagos shops, each offering its department's products from a small shared catalogue. A few products are sold by two shops at different prices (the charger and lantern at the grocery shop, plantain chips at the gadget hub), to demo shop-grouped search and listings. Re-running it only adds what's missing. It doesn't remove data from an older seed: to start clean, `docker compose down -v && bun run db:up`, then migrate and seed again.
