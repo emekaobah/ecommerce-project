@@ -21,6 +21,7 @@ import {
   type CheckoutSellerGroup,
 } from '@/api/checkout';
 import { useCustomer } from '@/api/customer';
+import { isAlreadyPaid } from '@/api/errors';
 import { useCartSession } from '@/cart/cart-provider';
 import { env } from '@/config/env';
 import { useRegion } from '@/region/region-provider';
@@ -107,15 +108,20 @@ function CheckoutForm({
     startPayment.mutate(PAYMENT_RETURN_URL, {
       onSuccess: ({ authorization_url }) =>
         router.push({ pathname: '/checkout/pay', params: { cartId, url: authorization_url } }),
+      // The last payment went through: wait for Paystack's confirmation rather than pay twice.
+      onError: (error) => {
+        if (isAlreadyPaid(error)) router.push({ pathname: '/checkout/confirmation', params: { cartId } });
+      },
     });
 
-  const notice = startPayment.error
-    ? `Couldn't start the payment: ${startPayment.error.message}`
-    : returned === 'cancelled'
-      ? "Payment not completed. You haven't been charged. You can try again."
-      : returned === 'closed'
-        ? "You closed the payment page. If you finished paying, your order appears in Orders once Paystack confirms it; otherwise, pay again."
-        : null;
+  const notice =
+    startPayment.error && !isAlreadyPaid(startPayment.error)
+      ? `Couldn't start the payment: ${startPayment.error.message}`
+      : returned === 'cancelled'
+        ? "Payment not completed. You haven't been charged. You can try again."
+        : returned === 'closed'
+          ? "You closed the payment page. If you finished paying, your order appears in Orders once Paystack confirms it; otherwise, pay again."
+          : null;
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

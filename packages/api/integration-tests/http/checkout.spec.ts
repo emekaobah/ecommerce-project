@@ -374,6 +374,26 @@ medusaIntegrationTestRunner({
         expect((await capturedWithin(cartId)).captures.map((c: any) => c.amount)).toEqual([TOTAL])
       })
 
+      it("won't start a second payment once the first went through, so the buyer isn't charged twice", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        const paid = await startPayment(cartId)
+        // Paid on Paystack's page, but the webhook hasn't arrived yet.
+        paystack.pay(paid.reference)
+
+        const again = await api
+          .post(`/store/carts/${cartId}/checkout/payment`, { return_url: RETURN_URL }, ada())
+          .catch((e) => e.response)
+
+        expect(again.status).toBe(409)
+        expect(again.data.message).toMatch(/already paid/i)
+
+        await postWebhook(paystack.chargeSuccess(paid.reference))
+
+        expect(await orderGroupOf(cartId)).toMatch(/^og_/)
+        expect((await capturedWithin(cartId)).captures.map((c: any) => c.amount)).toEqual([TOTAL])
+      })
+
       it("charges each line at its shop's price when the payment starts, not when the address was set", async () => {
         const cartId = await adasCart()
         await prepare(cartId)

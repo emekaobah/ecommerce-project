@@ -10,7 +10,7 @@ import {
   addSellerShippingMethodToCartWorkflow,
   listSellerShippingOptionsForCartWorkflow,
 } from "@mercurjs/core/workflows"
-import { PAYSTACK_PROVIDER_ID } from "../modules/paystack"
+import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
 import type { PaystackSessionData } from "../modules/paystack/service"
 import { retrieveCartBySeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
@@ -69,7 +69,10 @@ type CartRow = {
   shipping_total: number | string
   shipping_address: (CheckoutAddress & { id: string }) | null
   shipping_methods?: { shipping_option_id: string | null; name: string; amount: number | string }[] | null
-  payment_collection?: { id: string } | null
+  payment_collection?: {
+    id: string
+    payment_sessions?: { provider_id: string; data: Record<string, unknown> | null }[] | null
+  } | null
 }
 
 const ADDRESS_FIELDS = [
@@ -103,6 +106,8 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
       "shipping_methods.name",
       "shipping_methods.amount",
       "payment_collection.id",
+      "payment_collection.payment_sessions.provider_id",
+      "payment_collection.payment_sessions.data",
     ],
     filters: { id: cartId },
   })
@@ -239,6 +244,27 @@ export async function prepareCheckout(
   return retrieveCheckout(scope, cartId, customerId)
 }
 
+/** The cart's current Paystack transaction is paid; its order is on the way (409). */
+export class CheckoutAlreadyPaidError extends Error {
+  constructor() {
+    super("This cart is already paid. Its order appears as soon as Paystack confirms the payment.")
+  }
+}
+
+/**
+ * A buyer who paid but closed Paystack's page before it sent them back would otherwise start,
+ * and could pay, a second transaction while the first one's webhook is on its way. Paystack's
+ * word on the cart's current transaction decides: once paid, the buyer waits for the order.
+ */
+async function refuseIfAlreadyPaid(cart: CartRow) {
+  const reference = cart.payment_collection?.payment_sessions?.find((s) => s.provider_id === PAYSTACK_PROVIDER_ID)
+    ?.data?.reference
+  const paystack = paystackClient()
+  if (typeof reference !== "string" || !paystack) return
+  const transaction = await paystack.verify(reference)
+  if (transaction.status === "success") throw new CheckoutAlreadyPaidError()
+}
+
 /**
  * Starts a Paystack transaction for the prepared cart's total and returns where to pay it.
  * Each call starts a new one, so a buyer whose payment failed or was abandoned pays again here.
@@ -250,6 +276,7 @@ export async function startCheckoutPayment(
 ): Promise<CheckoutPayment> {
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
+  await refuseIfAlreadyPaid(cart)
   // The cart may have changed since its address was set, and shops change prices.
   await repriceLines(scope, cartId)
   const checkout = await retrieveCheckout(scope, cartId, customerId)

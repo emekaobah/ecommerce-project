@@ -1,5 +1,5 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { startCheckoutPayment, type CheckoutPayment } from "../../../../../../lib/checkout"
+import { CheckoutAlreadyPaidError, startCheckoutPayment, type CheckoutPayment } from "../../../../../../lib/checkout"
 import type { StoreStartCheckoutPaymentType } from "../validators"
 
 export type StoreCheckoutPaymentResponse = { payment: CheckoutPayment }
@@ -9,10 +9,16 @@ export const POST = async (
   req: AuthenticatedMedusaRequest<StoreStartCheckoutPaymentType>,
   res: MedusaResponse<StoreCheckoutPaymentResponse>
 ) => {
-  const payment = await startCheckoutPayment(req.scope, {
-    cartId: req.params.id,
-    customerId: req.auth_context.actor_id,
-    returnUrl: req.validatedBody.return_url,
-  })
-  res.json({ payment })
+  try {
+    const payment = await startCheckoutPayment(req.scope, {
+      cartId: req.params.id,
+      customerId: req.auth_context.actor_id,
+      returnUrl: req.validatedBody.return_url,
+    })
+    res.json({ payment })
+  } catch (error) {
+    // Answered here: Medusa's error handler swaps a conflict's message for a generic one.
+    if (!(error instanceof CheckoutAlreadyPaidError)) throw error
+    ;(res as MedusaResponse).status(409).json({ message: error.message })
+  }
 }
