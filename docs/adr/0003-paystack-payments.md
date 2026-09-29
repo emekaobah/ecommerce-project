@@ -38,5 +38,5 @@ What we found (checked 2026-09-28):
 - Payment behaviour is tested at the HTTP seam against a fake Paystack API (`integration-tests/helpers/paystack.ts`). Webhooks are exercised locally through a tunnel (README).
 - Locally, an order needs a working tunnel. Without it, the payment succeeds at Paystack and the app keeps waiting.
 - A webhook's capture runs before the split. If the split then fails (for example, stock ran out between paying and the webhook), the money is captured with no order. The failure is logged; handling it (refund) belongs with #20's auto-refund.
-- A buyer who pays one transaction, then starts and pays another, is charged twice: the first transaction's session was replaced, so its webhook can't complete the cart. Rare, since the app only starts a new transaction after a cancel. Refund handling with #20.
+- Paying twice is prevented, not refunded: starting a payment checks the cart's current transaction with Paystack and answers `409` once it is paid, and the app waits for the order. (The simulator run hit this: the buyer closed Paystack's page after paying and paid again.) A transaction paid after its session was already replaced, which the guard can't see, still needs #20's refunds.
 - Mercur's default store order-group fields nest four relations deep, past Medusa's store limit of three, so clients request explicit `fields`.
