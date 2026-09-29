@@ -48,6 +48,8 @@ function RootStack() {
     <Stack
       screenOptions={{
         headerTintColor: buyerTheme.colors.ink,
+        // A bare chevron: the tab group has no title, so a labelled back button read "(tabs)".
+        headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: buyerTheme.colors.background },
       }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
