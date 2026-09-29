@@ -17,8 +17,8 @@ export const POST = async (
     })
     res.json({ payment })
   } catch (error) {
-    // Answered here: Medusa's error handler swaps a conflict's message for a generic one.
     if (!(error instanceof CheckoutAlreadyPaidError)) throw error
-    ;(res as MedusaResponse).status(409).json({ message: error.message })
+    // Answered here: Medusa's error handler swaps a conflict's message for a generic one.
+    res.status(409).json({ message: error.message } as never)
   }
 }

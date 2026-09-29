@@ -96,9 +96,13 @@ export function fakePaystack(port: number) {
     stop: () => new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve())),
     transaction,
     /** The buyer paid on Paystack's page. */
-    pay: (reference: string) => void (transaction(reference).status = "success"),
+    pay: (reference: string) => {
+      transaction(reference).status = "success"
+    },
     /** The buyer's card was declined. */
-    fail: (reference: string) => void (transaction(reference).status = "failed"),
+    fail: (reference: string) => {
+      transaction(reference).status = "failed"
+    },
     chargeSuccess,
   }
 }

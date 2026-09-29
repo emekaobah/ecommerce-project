@@ -112,7 +112,7 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
     filters: { id: cartId },
   })
   const cart = data[0] as CartRow | undefined
-  if (!cart || cart.customer_id !== customerId) {
+  if (cart?.customer_id !== customerId) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `Cart ${cartId} not found`)
   }
   return cart

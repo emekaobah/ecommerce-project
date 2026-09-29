@@ -114,14 +114,7 @@ function CheckoutForm({
       },
     });
 
-  const notice =
-    startPayment.error && !isAlreadyPaid(startPayment.error)
-      ? `Couldn't start the payment: ${startPayment.error.message}`
-      : returned === 'cancelled'
-        ? "Payment not completed. You haven't been charged. You can try again."
-        : returned === 'closed'
-          ? "You closed the payment page. If you finished paying, your order appears in Orders once Paystack confirms it; otherwise, pay again."
-          : null;
+  const notice = paymentNotice(startPayment.error, returned);
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -189,6 +182,16 @@ function CheckoutForm({
       )}
     </KeyboardAvoidingView>
   );
+}
+
+/** What to tell the buyer above the Pay button: why starting a payment failed, or how they left Paystack. */
+function paymentNotice(error: Error | null, returned: PaymentLeft | undefined): string | null {
+  if (error && !isAlreadyPaid(error)) return `Couldn't start the payment: ${error.message}`;
+  if (returned === 'cancelled') return "Payment not completed. You haven't been charged. You can try again.";
+  if (returned === 'closed') {
+    return "You closed the payment page. If you finished paying, your order appears in Orders once Paystack confirms it; otherwise, pay again.";
+  }
+  return null;
 }
 
 function AddressSummary({ checkout }: Readonly<{ checkout: Checkout }>) {

@@ -1,4 +1,4 @@
-import { getAddressConfig, type AddressFieldKey } from "./address"
+import { getAddressConfig, type AddressConfig, type AddressField, type AddressFieldKey } from "./address"
 import { toE164 } from "./phone"
 
 /** What the buyer typed, per field of the country's form. */
@@ -28,6 +28,20 @@ const METADATA_PREFIX = "metadata."
 /** "Street address" reads as "street address" mid-sentence; "LGA" stays as it is. */
 const inSentence = (label: string) => (/^.[a-z]/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label)
 
+/** What a field's value needs to be right, or null when it is. */
+function fieldError(field: AddressField, value: string, config: AddressConfig): string | null {
+  const choose = `Choose a ${inSentence(field.label)}`
+  if (!value) {
+    if (!field.required) return null
+    return field.options ? choose : `Enter the ${inSentence(field.label)}`
+  }
+  if (field.options && !field.options.includes(value)) return choose
+  if (field.key === "phone" && !toE164(value, config.countryCode)) {
+    return `Enter a phone number like ${config.phone.placeholder}`
+  }
+  return null
+}
+
 /**
  * Checks a filled address form against the country's config (`getAddressConfig`) and turns it
  * into a delivery address, or names what each wrong field needs.
@@ -40,20 +54,13 @@ export function addressFromForm(values: AddressFormValues, countryCode: string):
 
   for (const field of config.fields) {
     const value = values[field.key]?.trim() ?? ""
-    if (!value) {
-      if (field.required) {
-        errors[field.key] = field.options ? `Choose a ${inSentence(field.label)}` : `Enter the ${inSentence(field.label)}`
-      }
-    } else if (field.options && !field.options.includes(value)) {
-      errors[field.key] = `Choose a ${inSentence(field.label)}`
-    } else if (field.key === "phone" && !toE164(value, countryCode)) {
-      errors[field.key] = `Enter a phone number like ${config.phone.placeholder}`
-    }
+    const error = fieldError(field, value, config)
+    if (error) errors[field.key] = error
 
-    if (field.key.startsWith(METADATA_PREFIX)) {
-      if (value) metadata[field.key.slice(METADATA_PREFIX.length)] = value
-    } else {
+    if (!field.key.startsWith(METADATA_PREFIX)) {
       address[field.key] = field.key === "phone" ? toE164(value, countryCode) : value || null
+    } else if (value) {
+      metadata[field.key.slice(METADATA_PREFIX.length)] = value
     }
   }
 
