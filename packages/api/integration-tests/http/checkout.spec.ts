@@ -1,5 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { updateOffersWorkflow } from "@mercurjs/core/workflows"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_DELIVERY_FEE, SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
@@ -466,6 +466,124 @@ medusaIntegrationTestRunner({
           .catch((e) => e.response)
 
         expect(res.status).toBe(403)
+      })
+    })
+
+    describe("what a shop sees of its order", () => {
+      /** Every number anywhere in a response, to prove a figure isn't in it. */
+      const numbersIn = (value: unknown): number[] => {
+        if (typeof value === "number") return [value]
+        if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value))) return [Number(value)]
+        if (value && typeof value === "object") return Object.values(value).flatMap(numbersIn)
+        return []
+      }
+      /** Ada pays for her cart, and it is split into an order per shop. */
+      const paidCheckout = async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        const { reference } = await startPayment(cartId)
+        paystack.pay(reference)
+        await postWebhook(paystack.chargeSuccess(reference))
+        await orderGroupOf(cartId)
+        await capturedWithin(cartId)
+        return cartId
+      }
+      const shopOrders = async (shop: (typeof SEED_SELLERS)[number], cartId: string, fields: string) => {
+        const owner = await vendorHeaders(api, shop.owner.email, SEED_PASSWORD, await sellerId(shop))
+        const { data: carts } = await query().graph({ entity: "order_cart", fields: ["order_id"], filters: { cart_id: cartId } })
+        const cartOrderIds = new Set(carts.map((c: any) => c.order_id))
+        const { data: list } = await api.get(`/vendor/orders?limit=50&fields=${fields}`, owner)
+        const listed = list.orders.filter((o: any) => cartOrderIds.has(o.id))
+        expect(listed).toHaveLength(1)
+        const { data: detail } = await api.get(`/vendor/orders/${listed[0].id}?fields=${fields}`, owner)
+        return { listed: listed[0], order: detail.order }
+      }
+      // The order line and payment fields the web vendor panel's order page asks for.
+      const PANEL_FIELDS = "+total,*items.variant.prices,+items.compare_at_unit_price"
+
+      it("shows each shop the payment for its own order, not the whole checkout's", async () => {
+        const cartId = await paidCheckout()
+
+        for (const [shop, total] of [
+          [GADGETS, LANTERN.price + SEED_DELIVERY_FEE],
+          [GROCERY, 2 * RICE.price + SEED_DELIVERY_FEE],
+        ] as const) {
+          const { listed, order } = await shopOrders(shop, cartId, PANEL_FIELDS)
+          for (const seen of [listed, order]) {
+            expect(seen.total).toBe(total)
+            expect(seen.payment_status).toBe("captured")
+            const [collection, ...others] = seen.payment_collections
+            expect(others).toEqual([])
+            // What the panel shows as Paid Total, and its payment line.
+            expect(collection.captured_amount - collection.refunded_amount).toBe(total)
+            expect(collection.amount).toBe(total)
+            expect(collection.payments.map((p: any) => p.amount)).toEqual([total])
+            // Paystack charges in kobo.
+            expect(numbersIn(seen)).not.toEqual(expect.arrayContaining([TOTAL]))
+            expect(numbersIn(seen)).not.toEqual(expect.arrayContaining([TOTAL * 100]))
+          }
+        }
+      })
+
+      it("shows no other shop's price for a product both sell, nor strikes one through", async () => {
+        const cartId = await paidCheckout()
+        const { data: rivals } = await query().graph({
+          entity: "offer",
+          fields: ["prices.id", "prices.amount"],
+          filters: { id: await offerId(GROCERY, LANTERN.title) },
+        })
+        const rivalPrices = rivals[0].prices as { id: string; amount: number }[]
+
+        const { listed, order } = await shopOrders(GADGETS, cartId, PANEL_FIELDS)
+
+        for (const seen of [listed, order]) {
+          const body = JSON.stringify(seen)
+          for (const price of rivalPrices) {
+            expect(body).not.toContain(price.id)
+            expect(numbersIn(seen)).not.toEqual(expect.arrayContaining([Number(price.amount)]))
+          }
+          // The panel strikes the variant's price through when it differs from the line's.
+          const [line] = seen.items
+          expect(line.unit_price).toBe(LANTERN.price)
+          expect(line.variant.prices.find((p: any) => p.currency_code === "ngn").amount).toBe(line.unit_price)
+        }
+      })
+
+      it("still strikes through the shop's normal price when its own offer was on sale", async () => {
+        const pricing = getContainer().resolve(Modules.PRICING)
+        const lantern = await offerId(GADGETS, LANTERN.title)
+        const { data: offers } = await query().graph({
+          entity: "offer",
+          fields: ["product_variant.price_set.id"],
+          filters: { id: lantern },
+        })
+        const [sale] = await pricing.createPriceLists([
+          {
+            title: "Lantern sale",
+            description: "Ikeja Gadget Hub's lantern sale",
+            type: "sale",
+            status: "active",
+            prices: [
+              {
+                amount: LANTERN.price - 800,
+                currency_code: "ngn",
+                price_set_id: offers[0].product_variant!.price_set!.id,
+                rules: { offer_id: lantern },
+              },
+            ],
+          },
+        ])
+        try {
+          const cartId = await paidCheckout()
+
+          const { order } = await shopOrders(GADGETS, cartId, PANEL_FIELDS)
+
+          const [line] = order.items
+          expect([line.unit_price, line.compare_at_unit_price]).toEqual([LANTERN.price - 800, LANTERN.price])
+          expect(line.variant.prices.find((p: any) => p.currency_code === "ngn").amount).toBe(LANTERN.price)
+        } finally {
+          await pricing.deletePriceLists([sale.id])
+        }
       })
     })
   },

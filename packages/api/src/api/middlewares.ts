@@ -8,6 +8,7 @@ import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
 import { StorePrepareCheckout, StoreStartCheckoutPayment } from "./store/carts/[id]/checkout/validators";
 import { verifyPaystackSignature } from "./hooks/paystack-signature";
 import { refuseVendorCapture } from "./vendor/payments/no-capture";
+import { showTheShopItsOwnOrder } from "./vendor/orders/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 
 export default defineMiddlewares({
@@ -58,6 +59,7 @@ export default defineMiddlewares({
             middlewares: [verifyPaystackSignature],
         },
         { method: ["POST"], matcher: "/vendor/payments/:id/capture", middlewares: [refuseVendorCapture] },
+        { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
         // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows.
         {
             method: ["POST"],
