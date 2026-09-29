@@ -20,7 +20,13 @@ export const StorePrepareCheckout = z.object({ shipping_address: StoreCheckoutAd
 export type StorePrepareCheckoutType = z.infer<typeof StorePrepareCheckout>
 
 export const StoreStartCheckoutPayment = z.object({
-  /** Where Paystack sends the buyer after paying or cancelling: the app's deep link. */
-  return_url: z.string().url(),
+  /**
+   * Where Paystack sends the buyer after paying or cancelling. Paystack only redirects to an
+   * http(s) URL (it drops an app's deep link), so the app passes a page it catches in its WebView.
+   */
+  return_url: z
+    .string()
+    .url()
+    .refine((url) => /^https?:\/\//.test(url), "Paystack only returns the buyer to an http(s) URL"),
 })
 export type StoreStartCheckoutPaymentType = z.infer<typeof StoreStartCheckoutPayment>

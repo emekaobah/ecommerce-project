@@ -20,7 +20,7 @@ What we found (checked 2026-09-28):
 ## Decision
 
 - **Our own provider**, `src/modules/paystack` (id `pp_paystack_paystack`), in place of the plugin. It's about 150 lines over Paystack's Transactions API:
-  - `initiatePayment` starts a transaction for the cart total in kobo. It sends the app's return URL as `callback_url` and as `metadata.cancel_action`, and the session id in `metadata`.
+  - `initiatePayment` starts a transaction for the cart total in kobo. It sends the return URL as `callback_url` and as `metadata.cancel_action`, and the session id in `metadata`. Paystack only redirects to an http(s) URL and silently drops a deep link like `oja://…` (found testing on the simulator), so the return URL is `GET /paystack/return` on the API. The app's WebView catches it and never loads it; the page only tells a browser to go back to the app.
   - `authorizePayment` verifies the transaction with Paystack. It is authorised only if Paystack reports `success` for exactly the amount and currency started. It never returns `captured`.
   - `getWebhookActionAndData` checks the HMAC-SHA512 signature (timing-safe) and maps `charge.success` to `SUCCESSFUL`, with the amount in naira.
   - `capturePayment` only records the capture, since Paystack settles a charge itself. `refundPayment` calls Paystack's refund API.

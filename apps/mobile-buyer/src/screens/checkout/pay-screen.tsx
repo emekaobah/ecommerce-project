@@ -18,7 +18,8 @@ export function PayScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const done = useRef(false);
 
-  const leave = (outcome: PaymentReturn['kind']) => {
+  // Closing the page ourselves says nothing about whether the buyer paid; Paystack's cancel does.
+  const leave = (outcome: PaymentReturn['kind'] | 'closed') => {
     if (done.current) return;
     done.current = true;
     if (outcome === 'paid') {
@@ -33,7 +34,7 @@ export function PayScreen() {
       options={{
         title: 'Pay with Paystack',
         headerBackVisible: false,
-        headerLeft: () => <Button label="Cancel" variant="link" onPress={() => leave('cancelled')} />,
+        headerLeft: () => <Button label="Cancel" variant="link" onPress={() => leave('closed')} />,
       }}
     />
   );

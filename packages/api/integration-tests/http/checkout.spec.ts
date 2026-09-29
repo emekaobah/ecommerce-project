@@ -33,7 +33,7 @@ const ORDER_GROUP_FIELDS = [
   "orders.items.quantity",
   "orders.items.unit_price",
 ].join(",")
-const RETURN_URL = "oja-buyer://checkout/paid"
+const RETURN_URL = "https://api.oja.test/paystack/return"
 const ADDRESS = {
   first_name: "Ada",
   last_name: "Obi",
@@ -247,6 +247,17 @@ medusaIntegrationTestRunner({
           email: "ada@oja.test",
           callback_url: RETURN_URL,
         })
+      })
+
+      it("only returns the buyer to an http(s) page, which Paystack will redirect to", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+
+        const res = await api
+          .post(`/store/carts/${cartId}/checkout/payment`, { return_url: "oja://checkout/paid" }, ada())
+          .catch((e) => e.response)
+
+        expect(res.status).toBe(400)
       })
 
       it("won't start a payment before the address and delivery are set", async () => {

@@ -9,9 +9,8 @@ import {
   type PaymentReturn,
 } from '@oja/domain';
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
-import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
@@ -23,12 +22,19 @@ import {
 } from '@/api/checkout';
 import { useCustomer } from '@/api/customer';
 import { useCartSession } from '@/cart/cart-provider';
+import { env } from '@/config/env';
 import { useRegion } from '@/region/region-provider';
 
 import { AddressForm } from './address-form';
 
-/** Where Paystack sends the buyer back to; the payment WebView catches it (see pay-screen). */
-export const PAYMENT_RETURN_URL = Linking.createURL('checkout/paid');
+/**
+ * Where Paystack sends the buyer back to. Paystack only redirects to an http(s) URL, so this is
+ * a page on the API that the payment WebView catches and never loads (see pay-screen).
+ */
+export const PAYMENT_RETURN_URL = `${env.apiUrl}/paystack/return`;
+
+/** How the buyer came back from Paystack without paying: Paystack's cancel, or closing its page. */
+type PaymentLeft = Extract<PaymentReturn['kind'], 'cancelled'> | 'closed';
 
 /**
  * Checkout: the delivery address, then each shop's items and delivery, then pay with Paystack.
@@ -66,13 +72,22 @@ function CheckoutForm({
   const theme = useTheme();
   const { userId } = useAuth();
   const customer = useCustomer(userId);
-  const { payment: returned } = useLocalSearchParams<{ payment?: PaymentReturn['kind'] }>();
+  const { payment: returned } = useLocalSearchParams<{ payment?: PaymentLeft }>();
   const config = getAddressConfig(countryCode);
   const [editing, setEditing] = useState(!checkout.ready_to_pay);
   const [values, setValues] = useState<AddressFormValues>(() =>
     addressFormValues(checkout.shipping_address, countryCode, customer.data ?? undefined)
   );
   const [errors, setErrors] = useState<Partial<Record<AddressFieldKey, string>>>({});
+  // The buyer's profile may load after the form opens; their name fills whatever they left blank.
+  const { first_name, last_name } = customer.data ?? {};
+  useEffect(() => {
+    setValues((current) => ({
+      ...current,
+      first_name: current.first_name || first_name || '',
+      last_name: current.last_name || last_name || '',
+    }));
+  }, [first_name, last_name]);
   const prepare = usePrepareCheckout(cartId);
   const startPayment = useStartPayment(cartId);
 
@@ -98,7 +113,9 @@ function CheckoutForm({
     ? `Couldn't start the payment: ${startPayment.error.message}`
     : returned === 'cancelled'
       ? "Payment not completed. You haven't been charged. You can try again."
-      : null;
+      : returned === 'closed'
+        ? "You closed the payment page. If you finished paying, your order appears in Orders once Paystack confirms it; otherwise, pay again."
+        : null;
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
