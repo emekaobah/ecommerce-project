@@ -543,6 +543,83 @@ medusaIntegrationTestRunner({
         }
       })
 
+      it("shows the shop only its own order when it acts on it and in the order's preview", async () => {
+        const cartId = await paidCheckout()
+        const total = LANTERN.price + SEED_DELIVERY_FEE
+        const owner = await vendorHeaders(api, GADGETS.owner.email, SEED_PASSWORD, await sellerId(GADGETS))
+        const { order } = await shopOrders(GADGETS, cartId, PANEL_FIELDS)
+        const [line] = order.items
+        const items = [{ id: line.id, quantity: 1 }]
+        const location_id = line.offer.inventory_item_link[0].inventory_item.location_levels[0].location_id
+        const { data } = await api.post(
+          `/vendor/orders/${order.id}/fulfillments`,
+          { items, requires_shipping: true, location_id },
+          owner
+        )
+        const fulfillment = data.fulfillment.id
+
+        const responses = [
+          (await api.post(`/vendor/orders/${order.id}/fulfillments/${fulfillment}/shipments?fields=${PANEL_FIELDS}`, { items }, owner)).data,
+          (await api.post(`/vendor/orders/${order.id}/fulfillments/${fulfillment}/mark-as-delivered?fields=${PANEL_FIELDS}`, {}, owner)).data,
+          (await api.post(`/vendor/orders/${order.id}/complete?fields=${PANEL_FIELDS}`, {}, owner)).data,
+          (await api.get(`/vendor/orders/${order.id}/preview`, owner)).data,
+        ]
+
+        for (const seen of responses) {
+          expect(seen.order.id).toBe(order.id)
+          expect(seen.order).not.toHaveProperty("cart")
+          expect(numbersIn(seen)).not.toEqual(expect.arrayContaining([TOTAL]))
+          expect(numbersIn(seen)).not.toEqual(expect.arrayContaining([TOTAL * 100]))
+        }
+        for (const seen of responses.slice(0, 3)) {
+          expect(seen.order.payment_collections.map((c: any) => c.captured_amount)).toEqual([total])
+          expect(seen.order.items[0].variant.prices.map((p: any) => p.amount)).toEqual([LANTERN.price])
+        }
+      })
+
+      const paymentIdOf = async (cartId: string) => {
+        const { data } = await query().graph({
+          entity: "cart",
+          fields: ["payment_collection.payments.id"],
+          filters: { id: cartId },
+        })
+        return data[0].payment_collection!.payments![0]!.id as string
+      }
+
+      it("shows each shop its own share of the checkout's payment in the vendor payments API", async () => {
+        const cartId = await paidCheckout()
+        const paymentId = await paymentIdOf(cartId)
+
+        for (const [shop, total] of [
+          [GADGETS, LANTERN.price + SEED_DELIVERY_FEE],
+          [GROCERY, 2 * RICE.price + SEED_DELIVERY_FEE],
+        ] as const) {
+          const owner = await vendorHeaders(api, shop.owner.email, SEED_PASSWORD, await sellerId(shop))
+          // Mercur 2.3.5's payment list filters through a link that doesn't exist and always
+          // fails, so only a payment's own route shows a shop the payment.
+          const { data } = await api.get(`/vendor/payments/${paymentId}?fields=+data,+payment_session.*`, owner)
+
+          expect(data.payment.amount).toBe(total)
+          expect(data.payment.captures.map((c: any) => c.amount)).toEqual([total])
+          expect(numbersIn(data)).not.toEqual(expect.arrayContaining([TOTAL]))
+          expect(numbersIn(data)).not.toEqual(expect.arrayContaining([TOTAL * 100]))
+        }
+      })
+
+      it("refunds nothing when a shop refunds a split checkout's payment from the panel", async () => {
+        // A shop's refund must be its order's share (#20). Until then, Medusa's refund finds no
+        // order linked to a split checkout's payment and stops before moving any money.
+        const cartId = await paidCheckout()
+        const paymentId = await paymentIdOf(cartId)
+        const owner = await vendorHeaders(api, GADGETS.owner.email, SEED_PASSWORD, await sellerId(GADGETS))
+
+        const res = await api.post(`/vendor/payments/${paymentId}/refund`, { amount: TOTAL }, owner).catch((e) => e.response)
+
+        expect(res.status).toBeGreaterThanOrEqual(400)
+        const { data } = await query().graph({ entity: "payment", fields: ["refunds.id"], filters: { id: paymentId } })
+        expect(data[0].refunds).toEqual([])
+      })
+
       it("still strikes through the shop's normal price when its own offer was on sale", async () => {
         const pricing = getContainer().resolve(Modules.PRICING)
         const lantern = await offerId(GADGETS, LANTERN.title)

@@ -1,5 +1,5 @@
 import { numbersIn } from "../../integration-tests/helpers/numbers"
-import { shopOrderView } from "../lib/shop-order"
+import { shopOrderView, shopPaymentView } from "../lib/shop-order"
 
 // One Paystack payment of ₦42,800 paid for a checkout split into a ₦30,500 and a ₦12,300 order.
 const collection = () => ({
@@ -112,5 +112,27 @@ describe("shopOrderView: the order's lines", () => {
     const seen = shopOrderView(order({ items: [{ unit_price: 9800, variant: { id: "variant_1" } }] }), share)
 
     expect(seen.items![0].variant).toEqual({ id: "variant_1" })
+  })
+})
+
+describe("shopPaymentView", () => {
+  const payment = () => ({
+    ...collection().payments[0],
+    captures: [{ id: "capt_1", amount: 42800, raw_amount: { value: "42800", precision: 20 } }],
+  })
+
+  it("shows a shop the order's share of the checkout's payment and its capture", () => {
+    const seen = shopPaymentView(payment(), share)
+
+    expect(seen.amount).toBe(12300)
+    expect(seen.captures).toEqual([{ id: "capt_1", amount: 12300 }])
+    expect(numbersIn(seen)).not.toContain(42800)
+    expect(numbersIn(seen)).not.toContain(4280000)
+  })
+
+  it("shows none of the payment's refunds made for other orders", () => {
+    const refunded = { ...payment(), refunds: [{ id: "ref_other", amount: 18000 }] }
+
+    expect(shopPaymentView(refunded, share).refunds).toEqual([])
   })
 })

@@ -11,7 +11,8 @@ export type OrderTransaction = { amount: number; reference: string | null; refer
 export type OrderShare = { total: number; transactions: OrderTransaction[] }
 
 type Refund = { id: string; amount?: number; [key: string]: unknown }
-type Payment = { id: string; amount?: number; refunds?: Refund[]; [key: string]: unknown }
+type Capture = { id: string; amount?: number; [key: string]: unknown }
+export type Payment = { id: string; amount?: number; captures?: Capture[]; refunds?: Refund[]; [key: string]: unknown }
 type PaymentCollection = {
   amount?: number
   authorized_amount?: number
@@ -35,7 +36,7 @@ export type VendorOrder = {
   [key: string]: unknown
 }
 
-export type ShopPayment = { id: string; amount: number; refunds?: Refund[]; [key: string]: unknown }
+export type ShopPayment = { id: string; amount: number; captures?: Capture[]; refunds?: Refund[]; [key: string]: unknown }
 export type ShopPaymentCollection = {
   amount: number
   authorized_amount: number
@@ -65,6 +66,7 @@ const PAYMENT_FIELDS = [
   "updated_at",
   "payment_collection_id",
 ]
+const CAPTURE_FIELDS = ["id", "payment_id", "created_at", "created_by"]
 
 const pick = (from: Record<string, unknown>, fields: string[]) =>
   Object.fromEntries(fields.filter((field) => field in from).map((field) => [field, from[field]]))
@@ -72,34 +74,65 @@ const pick = (from: Record<string, unknown>, fields: string[]) =>
 const sum = (amounts: number[]) => amounts.reduce((total, amount) => total + amount, 0)
 
 /**
+ * What the order's own transactions hold of the checkout's payment: the split records each
+ * capture at the order's share, and a refund against the order.
+ */
+function ownMoney(share: OrderShare) {
+  const own = (reference: string) => share.transactions.filter((t) => t.reference === reference)
+  return {
+    captured: sum(own("capture").map((t) => t.amount)),
+    refunded: sum(own("refund").map((t) => -t.amount)),
+    captures: new Map(own("capture").map((t) => [t.reference_id, t.amount])),
+    refundIds: new Set(own("refund").map((t) => t.reference_id)),
+  }
+}
+
+/** Scales the whole checkout's amounts to the order's part of it, exactly when it is all of one. */
+const scaleTo = (part: number, whole: number) => (amount: number | undefined) =>
+  // Multiplied before dividing, so a share of the whole comes out exact.
+  whole ? ((amount ?? 0) * part) / whole : 0
+
+function paymentView(payment: Payment, scale: (amount: number | undefined) => number, own: ReturnType<typeof ownMoney>) {
+  return {
+    ...pick(payment, PAYMENT_FIELDS),
+    id: payment.id,
+    amount: scale(payment.amount),
+    ...(payment.captures && {
+      captures: payment.captures
+        .filter((c) => own.captures.has(c.id))
+        .map((c) => ({ ...pick(c, CAPTURE_FIELDS), id: c.id, amount: own.captures.get(c.id) })),
+    }),
+    ...(payment.refunds && { refunds: payment.refunds.filter((r) => own.refundIds.has(r.id)) }),
+  }
+}
+
+/**
  * The checkout's payment collection cut down to the order's share. Captured and refunded come
- * from the order's own transactions, which the split records at the order's share; the rest is
- * scaled by that share. Mercur splits a checkout under one payment collection.
+ * from the order's own transactions; the rest is scaled by that share. Mercur splits a
+ * checkout under one payment collection.
  */
 function paymentShare(collection: PaymentCollection, share: OrderShare): ShopPaymentCollection {
-  const own = (reference: string) => share.transactions.filter((t) => t.reference === reference)
-  const captured = sum(own("capture").map((t) => t.amount))
-  const refunded = sum(own("refund").map((t) => -t.amount))
-  const ownRefundIds = new Set(own("refund").map((t) => t.reference_id))
-  // Multiplied before dividing, so a share of the whole comes out exact.
-  const [part, whole] = collection.captured_amount
-    ? [captured, collection.captured_amount]
-    : [share.total, collection.amount ?? 0]
-  const scale = (amount: number | undefined) => (whole ? ((amount ?? 0) * part) / whole : 0)
+  const own = ownMoney(share)
+  const scale = collection.captured_amount
+    ? scaleTo(own.captured, collection.captured_amount)
+    : scaleTo(share.total, collection.amount ?? 0)
 
   return {
     ...pick(collection, COLLECTION_FIELDS),
     amount: scale(collection.amount),
     authorized_amount: scale(collection.authorized_amount),
-    captured_amount: captured,
-    refunded_amount: refunded,
-    payments: (collection.payments ?? []).map((payment) => ({
-      ...pick(payment, PAYMENT_FIELDS),
-      id: payment.id,
-      amount: scale(payment.amount),
-      ...(payment.refunds && { refunds: payment.refunds.filter((r) => ownRefundIds.has(r.id)) }),
-    })),
+    captured_amount: own.captured,
+    refunded_amount: own.refunded,
+    payments: (collection.payments ?? []).map((payment) => paymentView(payment, scale, own)),
   }
+}
+
+/** A checkout's payment as a shop in it may see it: the shop's order's share (see `paymentShare`). */
+export function shopPaymentView(payment: Payment, share: OrderShare): ShopPayment {
+  const own = ownMoney(share)
+  const captured = sum((payment.captures ?? []).map((c) => c.amount ?? 0))
+  const scale = captured ? scaleTo(own.captured, captured) : scaleTo(share.total, payment.amount ?? 0)
+  return paymentView(payment, scale, own)
 }
 
 /**
