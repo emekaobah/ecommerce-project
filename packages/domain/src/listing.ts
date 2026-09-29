@@ -43,11 +43,15 @@ export function shipsIn(days: number): string {
   return `Ships in ${days} ${days === 1 ? "day" : "days"}`
 }
 
-/** Product weight, stored in grams (docs/design.md), for the details section. */
+/**
+ * Product weight, stored in grams (docs/design.md), for the details section. The unit is
+ * appended here rather than with `style: "unit"`, which iOS converts to the device locale's
+ * system (pounds on en-US).
+ */
 export function formatWeight(grams: number, locale?: string): string {
-  const format = (value: number, unit: "gram" | "kilogram") =>
-    new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "short", maximumFractionDigits: 2 }).format(value)
-  return grams < 1000 ? format(grams, "gram") : format(grams / 1000, "kilogram")
+  const format = (value: number, unit: "g" | "kg") =>
+    `${new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(value)} ${unit}`
+  return grams < 1000 ? format(grams, "g") : format(grams / 1000, "kg")
 }
 
 export type ShopGroup<L extends { seller: { id: string } }> = { seller: L["seller"]; listings: L[] }

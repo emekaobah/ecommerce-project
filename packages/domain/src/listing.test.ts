@@ -58,6 +58,13 @@ describe("formatWeight", () => {
     expect(formatWeight(1000, "en-NG")).toBe("1 kg")
     expect(formatWeight(1500, "en-NG")).toBe("1.5 kg")
   })
+
+  test("stays metric with two decimals whatever the locale's measurement system", () => {
+    expect(formatWeight(150, "en-US")).toBe("150 g")
+    expect(formatWeight(600, "en-US")).toBe("600 g")
+    expect(formatWeight(1500, "en-US")).toBe("1.5 kg")
+    expect(formatWeight(1323, "en-US")).toBe("1.32 kg")
+  })
 })
 
 describe("groupByShop", () => {
