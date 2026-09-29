@@ -299,6 +299,27 @@ medusaIntegrationTestRunner({
         expect(payment.captures.map((c: any) => c.amount)).toEqual([TOTAL])
       })
 
+      it("places the order and captures once when Paystack delivers the same webhook twice", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        const { reference } = await startPayment(cartId)
+        paystack.pay(reference)
+        const webhook = paystack.chargeSuccess(reference)
+
+        await postWebhook(webhook)
+        await orderGroupOf(cartId)
+        await capturedWithin(cartId)
+        await postWebhook(webhook)
+        // Mercur's webhook route queues each event 5s late (its default `webhook_delay`): let the
+        // repeat run before checking nothing doubled.
+        await new Promise((resolve) => setTimeout(resolve, 8000))
+
+        const { data: groups } = await query().graph({ entity: "order_group", fields: ["id"], filters: { cart_id: cartId } })
+        expect(groups).toHaveLength(1)
+        expect(await ordersOfCart(cartId)).toHaveLength(2)
+        expect((await paymentOf(cartId)).captures.map((c: any) => c.amount)).toEqual([TOTAL])
+      })
+
       it("shows each shop its own order in the vendor order list", async () => {
         const cartId = await adasCart()
         await prepare(cartId)
