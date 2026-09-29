@@ -12,7 +12,9 @@ export function useOrders(sellerId: string | undefined) {
   return useQuery({
     queryKey: orderKeys.list(sellerId ?? ''),
     queryFn: sellerId
-      ? async () => (await vendorClient.vendor.orders.query({ limit: 50, order: '-created_at' })).orders
+      ? async () =>
+          // The list's default fields leave out the order total; `+` adds it to them.
+          (await vendorClient.vendor.orders.query({ limit: 50, order: '-created_at', fields: '+total' })).orders
       : skipToken,
   });
 }

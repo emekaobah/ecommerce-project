@@ -5,6 +5,10 @@ import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } fro
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
 import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
+import { StorePrepareCheckout, StoreStartCheckoutPayment } from "./store/carts/[id]/checkout/validators";
+import { verifyPaystackSignature } from "./hooks/paystack-signature";
+import { refuseVendorCapture } from "./vendor/payments/no-capture";
+import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 
 export default defineMiddlewares({
     routes: [
@@ -30,6 +34,30 @@ export default defineMiddlewares({
             matcher: "/store/carts/:id/merge",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreMergeCart)],
         },
+        {
+            method: ["GET"],
+            matcher: "/store/carts/:id/checkout",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
+        {
+            method: ["POST"],
+            matcher: "/store/carts/:id/checkout",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StorePrepareCheckout)],
+        },
+        {
+            method: ["POST"],
+            matcher: "/store/carts/:id/checkout/payment",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreStartCheckoutPayment)],
+        },
+        { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
+        // Paystack signs the raw body, so it is kept for the check.
+        {
+            method: ["POST"],
+            matcher: "/hooks/payment/paystack_paystack",
+            bodyParser: { preserveRawBody: true },
+            middlewares: [verifyPaystackSignature],
+        },
+        { method: ["POST"], matcher: "/vendor/payments/:id/capture", middlewares: [refuseVendorCapture] },
         // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows.
         {
             method: ["POST"],

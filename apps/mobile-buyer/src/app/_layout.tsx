@@ -48,6 +48,8 @@ function RootStack() {
     <Stack
       screenOptions={{
         headerTintColor: buyerTheme.colors.ink,
+        // A bare chevron: the tab group has no title, so a labelled back button read "(tabs)".
+        headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: buyerTheme.colors.background },
       }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -56,7 +58,10 @@ function RootStack() {
       <Stack.Screen name="category/[id]" options={{ title: '' }} />
       {/* Guests browse freely; checkout needs a signed-in buyer (ADR 0001). */}
       <Stack.Protected guard={isSignedIn}>
-        <Stack.Screen name="checkout" options={{ title: 'Checkout' }} />
+        <Stack.Screen name="checkout/index" options={{ title: 'Checkout' }} />
+        {/* Paying ends in the confirmation screen, or back at checkout to try again. */}
+        <Stack.Screen name="checkout/pay" options={{ title: 'Pay with Paystack', gestureEnabled: false }} />
+        <Stack.Screen name="checkout/confirmation" options={{ title: 'Confirming payment', gestureEnabled: false }} />
       </Stack.Protected>
       {/* AuthView draws its own chrome, including the dismiss button. */}
       <Stack.Screen name="sign-in" options={{ presentation: 'modal', headerShown: false }} />

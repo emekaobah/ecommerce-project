@@ -28,7 +28,7 @@ Visual direction: **Monochrome** (option C on the design canvas, researched in R
   - The Cart tab reads the cart grouped by shop (`GET /store/carts/:id/sellers`). The cart id is kept on the device, one for the guest and one per buyer; a guest cart with items carries over on sign-in (`@oja/domain` `cartOnSignIn`), and signing out leaves the buyer's cart with their account.
   - **Each line is pinned to its own offer's price** (#15). Medusa prices cart lines per variant and Mercur's cart pricing hooks put every offer in the cart into one context, so with two shops' offers of one variant in a cart, a quantity change, sign-in or address change repriced both at the cheaper shop's price. Our add and update-quantity routes price the line from its offer and store it as a custom price, which Medusa's refreshes keep. A shop's price change reaches a line when its quantity next changes, so **checkout must reprice every line from its offer before payment**.
   - Prices are VAT-inclusive through the **currency's** tax-inclusive preference: offer prices are per currency, and Medusa applies a region's preference only to region-scoped prices.
-- Payment: backend initialises Paystack transaction (`medusa-payment-paystack`); app opens `authorization_url` in a WebView; success only after backend confirms via webhook.
+- Payment (#16, ADR 0003): checkout reprices every line from its offer, sets the address and each shop's flat delivery, and the backend initialises a Paystack transaction (our `paystack` payment provider; the `medusa-payment-paystack` plugin captured without a webhook). The app opens `authorization_url` in a WebView and catches Paystack's redirect to its deep link; the order is placed only when Paystack's signed `charge.success` webhook arrives, which captures the payment and splits the cart into one order per shop. A cancelled or failed payment places nothing; paying again starts a new transaction.
 - Order history showing the parent order group → per-seller orders; live tracking.
 - Saved addresses, public reviews + ratings, product wishlist, promo codes.
 - **Address entry** (ADR 0002): Google autocomplete or "use my current location" pre-fills the per-country form, then the buyer confirms a map pin; the pin's coordinates are validated with Shipbubble. Optional "Landmark / directions for the rider" field. Lookups go through the backend (`AddressLookupProvider`), signed-in only.
@@ -61,7 +61,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 
 ## Backend additions (`apps/api`)
 
-1. **Paystack payments** — `medusa-payment-paystack`. Mark captured on webhook confirmation; disable Mercur's capture-on-fulfilment job.
+1. **Paystack payments** — our own provider (`src/modules/paystack`, ADR 0003). Captured only on webhook confirmation; vendors can't capture. Mercur 2.3.5 has no capture-on-fulfilment job to disable.
 2. **Accept/reject module** — `POST /vendor/orders/:id/accept|reject`; scheduled job auto-rejects + refunds orders not accepted within **24h**.
 3. **Paystack payout provider** (`IPayoutProvider`) — Paystack Transfers after delivery. Flat **10%** commission; platform absorbs Paystack fees. Payout amounts computed explicitly: seller promotions borne by seller, platform promotions borne by marketplace.
 4. **Shipbubble fulfillment provider** — address validation, per-seller calculated rates, label on fulfilment, cancel, HMAC-SHA512-verified webhooks → state updates. Labels paid from the platform's Shipbubble wallet.

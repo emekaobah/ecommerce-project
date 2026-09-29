@@ -1,3 +1,4 @@
+import { formatMoney } from '@oja/domain';
 import { Button, EmptyState, ErrorState, ListRow, LoadingState, StatusChip, useTheme, type StatusTone } from '@oja/ui';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -46,7 +47,11 @@ export function OrdersScreen() {
         renderItem={({ item }) => (
           <ListRow
             title={`#${item.display_id}`}
-            subtitle={new Date(item.created_at).toLocaleString()}
+            subtitle={[
+              formatMoney(Number(item.total), item.currency_code),
+              itemCount(item.items),
+              new Date(item.created_at).toLocaleString(),
+            ].join(' · ')}
             trailing={
               <StatusChip label={item.status.replaceAll('_', ' ')} tone={STATUS_TONES[item.status] ?? 'neutral'} />
             }
@@ -67,6 +72,11 @@ export function OrdersScreen() {
       {content()}
     </>
   );
+}
+
+function itemCount(items: { quantity: number | string }[] | null | undefined) {
+  const count = (items ?? []).reduce((total, item) => total + Number(item.quantity), 0);
+  return count === 1 ? '1 item' : `${count} items`;
 }
 
 const styles = StyleSheet.create({
