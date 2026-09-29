@@ -1,3 +1,4 @@
+import { numbersIn } from "../../integration-tests/helpers/numbers"
 import { shopOrderView } from "../lib/shop-order"
 
 // One Paystack payment of ₦42,800 paid for a checkout split into a ₦30,500 and a ₦12,300 order.
@@ -34,13 +35,6 @@ const order = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 const share = { total: 12300, transactions: [{ amount: 12300, reference: "capture", reference_id: "capt_1" }] }
-
-const numbersIn = (value: unknown): number[] => {
-  if (typeof value === "number") return [value]
-  if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value))) return [Number(value)]
-  if (value && typeof value === "object") return Object.values(value).flatMap(numbersIn)
-  return []
-}
 
 describe("shopOrderView: the payment", () => {
   it("shows the order's own share of the checkout's payment", () => {

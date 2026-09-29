@@ -5,6 +5,7 @@ import seedDemoData from "../../src/scripts/seed"
 import { SEED_DELIVERY_FEE, SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "../helpers/auth"
 import { fakeClerk } from "../helpers/clerk"
+import { numbersIn } from "../helpers/numbers"
 import { fakePaystack } from "../helpers/paystack"
 
 jest.setTimeout(5 * 60 * 1000)
@@ -470,13 +471,6 @@ medusaIntegrationTestRunner({
     })
 
     describe("what a shop sees of its order", () => {
-      /** Every number anywhere in a response, to prove a figure isn't in it. */
-      const numbersIn = (value: unknown): number[] => {
-        if (typeof value === "number") return [value]
-        if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value))) return [Number(value)]
-        if (value && typeof value === "object") return Object.values(value).flatMap(numbersIn)
-        return []
-      }
       /** Ada pays for her cart, and it is split into an order per shop. */
       const paidCheckout = async () => {
         const cartId = await adasCart()

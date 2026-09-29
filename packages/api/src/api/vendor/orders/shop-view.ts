@@ -1,6 +1,6 @@
 import type { MedusaNextFunction, MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { shopOrderView, type OrderShare, type VendorOrder } from "../../../lib/shop-order"
 
 type Body = { order?: VendorOrder; orders?: VendorOrder[]; [key: string]: unknown }
@@ -25,7 +25,12 @@ async function shopView(scope: MedusaContainer, body: Body): Promise<Body> {
   const ids = orders.map((o) => o.id).filter((id): id is string => typeof id === "string")
   if (!ids.length) return body
   const shares = await sharesOf(scope, ids)
-  const view = (order: VendorOrder) => shopOrderView(order, shares.get(order.id as string) ?? { total: 0, transactions: [] })
+  const view = (order: VendorOrder) => {
+    const share = shares.get(order.id as string)
+    // Never guess a share: showing ₦0 paid would misstate the shop's money.
+    if (!share) throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `No payment share found for order ${order.id}`)
+    return shopOrderView(order, share)
+  }
   return {
     ...body,
     ...(body.order && { order: view(body.order) }),
