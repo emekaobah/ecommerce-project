@@ -1,4 +1,5 @@
-import { formatMoney, formatWeight, listingPrice, offerPrice, shipsIn } from '@oja/domain';
+import { useAuth } from '@clerk/expo';
+import { formatMoney, formatWeight, isSaved, listingPrice, offerPrice, shipsIn } from '@oja/domain';
 import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -17,6 +18,7 @@ import {
 import { useAddToCart } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
 import { useListing, useListings, type Listing, type ListingDetail } from '@/api/listings';
+import { useToggleWishlist, useWishlist } from '@/api/wishlist';
 import { useCartSession } from '@/cart/cart-provider';
 import { ListingTile, LISTING_TILE_SIZE } from '@/components/listing-tile';
 import { Price } from '@/components/price';
@@ -159,6 +161,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
         </View>
       ) : null}
       {selected ? <AddToCart offer={selected} currencyCode={currencyCode} /> : null}
+      <SaveToWishlist sellerId={seller.id} productId={product.id} />
       {product.description ? <Text style={{ marginTop: theme.space.sm }}>{product.description}</Text> : null}
     </View>
   );
@@ -189,6 +192,36 @@ function AddToCart({ offer, currencyCode }: Readonly<{ offer: ListingDetail['off
       {add.error ? (
         <Text tone="secondary" accessibilityLiveRegion="polite">
           Couldn't add this to your cart: {add.error.message}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** Saves the product from this shop; a guest is sent to sign in first. */
+function SaveToWishlist({ sellerId, productId }: Readonly<{ sellerId: string; productId: string }>) {
+  const { isSignedIn, userId } = useAuth();
+  const { region } = useRegion();
+  const wishlist = useWishlist(isSignedIn ? userId : null, region?.id);
+  const toggle = useToggleWishlist();
+  const saved = isSaved(wishlist.data ?? [], sellerId, productId);
+
+  if (!isSignedIn) {
+    return <Button label="Save to wishlist" variant="secondary" onPress={() => router.push('/sign-in')} />;
+  }
+  return (
+    <View>
+      <Button
+        label={saved ? 'Remove from wishlist' : 'Save to wishlist'}
+        variant="secondary"
+        loading={toggle.isPending}
+        // Until the wishlist loads, it isn't known which way the toggle goes.
+        disabled={!wishlist.data}
+        onPress={() => toggle.mutate({ sellerId, productId, save: !saved })}
+      />
+      {toggle.error ? (
+        <Text tone="secondary" accessibilityLiveRegion="polite">
+          {`Couldn't update your wishlist: ${toggle.error.message}`}
         </Text>
       ) : null}
     </View>

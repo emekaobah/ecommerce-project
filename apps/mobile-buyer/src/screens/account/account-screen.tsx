@@ -1,5 +1,6 @@
 import { useAuth, useClerk } from '@clerk/expo';
-import { Button, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
+import { Button, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,6 +65,7 @@ function SignedIn({ customer }: Readonly<{ customer: Customer }>) {
         {name ? <Text variant="heading">{name}</Text> : null}
         <Text tone="secondary">{customer.email}</Text>
       </View>
+      <ListRow title="Wishlist" subtitle="Products you saved" onPress={() => router.push('/wishlist')} />
       <Button label="Sign out" variant="secondary" loading={signingOut} onPress={() => void onSignOut()} />
     </View>
   );

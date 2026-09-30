@@ -64,6 +64,8 @@ export type ListingFilters = {
   categoryId?: string
   sellerId?: string
   productId?: string
+  /** Only these products (a buyer's wishlist). */
+  productIds?: string[]
   excludeProductId?: string
 }
 
@@ -127,13 +129,15 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
 /** Published products in the publishable key's sales channels, with their titles for ranking. */
 async function listableProducts(scope: MedusaContainer, filters: ListingFilters): Promise<Map<string, string>> {
   if (!filters.salesChannelIds.length) return new Map()
+  const productIds = filters.productId ? [filters.productId] : filters.productIds
+  if (productIds && !productIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: inChannels } = await query.graph({
     entity: "product_sales_channel",
     fields: ["product_id"],
     filters: {
       sales_channel_id: filters.salesChannelIds,
-      ...(filters.productId ? { product_id: filters.productId } : {}),
+      ...(productIds ? { product_id: productIds } : {}),
     },
   })
   const channelProductIds = [...new Set((inChannels as { product_id: string }[]).map((l) => l.product_id))]

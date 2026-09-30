@@ -11,6 +11,7 @@ import { refuseVendorCapture } from "./vendor/payments/no-capture";
 import { showTheShopItsOwnOrder } from "./vendor/orders/shop-view";
 import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
+import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
 
 export default defineMiddlewares({
     routes: [
@@ -50,6 +51,27 @@ export default defineMiddlewares({
             method: ["POST"],
             matcher: "/store/carts/:id/checkout/payment",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreStartCheckoutPayment)],
+        },
+        // Saving to the wishlist needs an account; the app asks a guest to sign in.
+        {
+            method: ["GET"],
+            matcher: "/store/wishlist",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreGetWishlist, {})],
+        },
+        {
+            method: ["POST"],
+            matcher: "/store/wishlist",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreCreateWishlist)],
+        },
+        {
+            method: ["DELETE"],
+            matcher: "/store/wishlist/product/:reference_id",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
+        {
+            method: ["POST"],
+            matcher: "/store/wishlist/product/:reference_id/cart",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreMoveWishlistToCart)],
         },
         { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
         // Paystack signs the raw body, so it is kept for the check.
