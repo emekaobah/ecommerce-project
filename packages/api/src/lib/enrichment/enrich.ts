@@ -6,15 +6,18 @@ import { errorMessage as message } from "../errors"
 import { getProductCompleteness } from "../product-completeness"
 import { copyImage } from "./images"
 import { enrichmentOf, enrichmentService, type EnrichmentOutcome, type Submitter } from "./record"
-import type { Attribution, EnrichmentSource, SourceMatch } from "./source"
+import type { Attribution, EnrichmentSource, LookupQuery, SourceMatch } from "./source"
 import { configuredSources, type ConfiguredSource } from "./sources"
 
 /** The product fields enrichment fills. */
 export const ENRICHABLE_FIELDS = ["title", "description", "weight", "images", "categories"] as const
 export type EnrichableField = (typeof ENRICHABLE_FIELDS)[number]
 
-/** Where a field's value came from: `supplied` for the submitter's own data, else a source id. */
-export type Provenance = { source: string; url: string | null }
+/**
+ * Where a field's value came from: `supplied` for the submitter's own data, else a source id.
+ * `drafted` flags an AI draft (#36), which a person must check.
+ */
+export type Provenance = { source: string; url: string | null; drafted?: true }
 export type StoredImage = { url: string; source: string; source_url: string }
 
 const LABELS: Record<EnrichableField, string> = {
@@ -29,6 +32,8 @@ type Scope = Pick<MedusaContainer, "resolve">
 
 type ProductRow = {
   id: string
+  title: string | null
+  description: string | null
   images?: { url: string }[] | null
   variants?: { barcode: string | null; ean: string | null; upc: string | null }[] | null
 }
@@ -113,7 +118,7 @@ async function fill(container: MedusaContainer, productId: string, supplied: Enr
   const barcode = product.variants?.map((v) => v.barcode ?? v.ean ?? v.upc).find(Boolean) ?? null
   for (const configured of configuredSources(container)) {
     if (!neededFields(state).length) break
-    const match = await ask(configured.source, barcode, state.errors)
+    const match = await ask(configured.source, lookupQuery(state, product, barcode), state.errors)
     if (match) await applyMatch(container, state, configured, match)
   }
 
@@ -137,7 +142,7 @@ async function loadProduct(container: MedusaContainer, productId: string) {
     data: [product],
   } = (await query.graph({
     entity: "product",
-    fields: ["id", "images.url", "variants.barcode", "variants.ean", "variants.upc"],
+    fields: ["id", "title", "description", "images.url", "variants.barcode", "variants.ean", "variants.upc"],
     filters: { id: productId },
   })) as { data: ProductRow[] }
   const { data: categories } = (await query.graph({
@@ -149,12 +154,24 @@ async function loadProduct(container: MedusaContainer, productId: string) {
 
 const neededFields = (state: FillState) => ENRICHABLE_FIELDS.filter((f) => !state.fields[f])
 
+/** What the next source is told: the product as filled so far, and what it still lacks. */
+function lookupQuery(state: FillState, product: ProductRow, barcode: string | null): LookupQuery {
+  const filled = (field: "title" | "description") => (state.update[field] as string | undefined) ?? product[field] ?? null
+  return {
+    barcode,
+    // Images by where they were copied from: our storage may not be reachable from outside.
+    product: { title: filled("title"), description: filled("description"), image_urls: state.images.map((i) => i.source_url) },
+    wanted: neededFields(state),
+    categories: state.categories.map(({ id, name }) => ({ id, name })),
+  }
+}
+
 /** The source's record of the product, or null when it has none, may not be shown, or fails to answer (recorded). */
-async function ask(source: EnrichmentSource, barcode: string | null, errors: string[]): Promise<SourceMatch | null> {
+async function ask(source: EnrichmentSource, query: LookupQuery, errors: string[]): Promise<SourceMatch | null> {
   if (!source.policy.public_data) return null
   try {
     await rateLimit(source)
-    return await source.lookup({ barcode })
+    return await source.lookup(query)
   } catch (error) {
     errors.push(`${source.name}: ${message(error)}`)
     return null
@@ -164,7 +181,7 @@ async function ask(source: EnrichmentSource, barcode: string | null, errors: str
 /** Fills each still-empty field the match has, recording the source as its provenance. */
 async function applyMatch(container: MedusaContainer, state: FillState, configured: ConfiguredSource, match: SourceMatch) {
   const { source } = configured
-  const provenance = { source: source.id, url: match.url }
+  const provenance: Provenance = { source: source.id, url: match.url, ...(source.drafts ? { drafted: true as const } : {}) }
   let contributed = false
   for (const field of neededFields(state)) {
     const value = await valueOf(container, field, match, source, state.categories, state.errors)
@@ -273,8 +290,9 @@ async function rateLimit(source: EnrichmentSource) {
 
 /**
  * Publishes the product or sends it for review, by who vouches for its data
- * (docs/design.md): a field from an untrusted source needs review, as does a
- * vendor's product that no trusted source matched with an image and a category.
+ * (docs/design.md): an AI-drafted field or a field from an untrusted source needs
+ * review, as does a vendor's product that no trusted source matched with an image
+ * and a category.
  * Otherwise it is published if complete, and left a draft saying what it lacks if not.
  */
 async function decide(
@@ -289,12 +307,16 @@ async function decide(
     const from = fields[field]
     if (!from || from.source === "supplied") continue
     const contributor = contributorById.get(from.source)
-    if (contributor && !contributor.trusted) {
+    // A draft always needs a person, whatever the deployment trusts.
+    if (from.drafted) {
+      reasons.push(`${LABELS[field]} was drafted by AI; a person must check it.`)
+    } else if (contributor && !contributor.trusted) {
       reasons.push(`${LABELS[field]} came from ${contributor.source.name}, which isn't trusted.`)
     }
   }
   // The image and category themselves must come from a trusted source, not the vendor or an untrusted one.
-  const fromTrusted = (field: EnrichableField) => !!contributorById.get(fields[field]?.source ?? "")?.trusted
+  const fromTrusted = (field: EnrichableField) =>
+    !fields[field]?.drafted && !!contributorById.get(fields[field]?.source ?? "")?.trusted
   const confirmed = fromTrusted("images") && fromTrusted("categories")
   if (submitter === "vendor" && !confirmed) {
     reasons.push("A shop proposed it, and no trusted source confirmed it with an image and a category.")

@@ -36,6 +36,9 @@ envVarGroups:
       # Paystack secret key; starts and verifies payments and checks webhook signatures.
       - key: PAYSTACK_SECRET_KEY
         sync: false
+      # Anthropic API key; Claude drafts catalogue fields no product database had (#36).
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
 services:
   - type: web

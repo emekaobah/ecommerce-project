@@ -91,7 +91,7 @@
   },
   "catalogueEnrichment": {
     "title": "Enrichment",
-    "description": "What background enrichment did to imported products, and where each field came from. Spot-check what it published.",
+    "description": "What background enrichment did to imported products, and where each field came from. Spot-check what it published; fields marked AI draft must be checked before approving.",
     "loadError": "Could not load enrichment results.",
     "empty": "Nothing here.",
     "product": "Product",
@@ -117,7 +117,10 @@
       "catalogue": "Catalogue",
       "open_food_facts": "Open Food Facts",
       "open_beauty_facts": "Open Beauty Facts",
-      "open_products_facts": "Open Products Facts"
-    }
+      "open_products_facts": "Open Products Facts",
+      "ai_draft": "AI (Claude)"
+    },
+    "aiDraft": "AI draft",
+    "aiDraftHint": "Drafted by AI from the product's photo and data. Check it before approving."
   }
 }

@@ -2,6 +2,7 @@ import { asValue } from "@medusajs/framework/awilix"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ENRICHMENT_SOURCES, type ConfiguredSource } from "../../src/lib/enrichment/sources"
 import type { EnrichmentSource, SourceMatch, SourcePolicy } from "../../src/lib/enrichment/source"
+import type { DraftClient } from "../../src/lib/enrichment/ai-draft"
 
 /** A product database that knows the given barcodes, with an open licence unless the policy says otherwise. */
 export function fakeSource(
@@ -56,4 +57,20 @@ export async function enrichmentOf(api: Api, admin: unknown, productId: string) 
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   throw new Error(`Enrichment of ${productId} didn't finish`)
+}
+
+/** Stands in for Claude: answers every draft request with the given draft, and records the requests. */
+export function fakeClaude(draft: Record<string, unknown>) {
+  const requests: any[] = []
+  const client: DraftClient = {
+    beta: {
+      messages: {
+        parse: (async (params: any) => {
+          requests.push(params)
+          return { stop_reason: "end_turn", parsed_output: draft, content: [] }
+        }) as any,
+      },
+    },
+  }
+  return { client, requests }
 }

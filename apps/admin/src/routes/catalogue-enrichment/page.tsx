@@ -1,5 +1,5 @@
 import { Sparkles } from "@medusajs/icons"
-import { Container, Heading, StatusBadge, Table, Tabs, Text } from "@medusajs/ui"
+import { Badge, Container, Heading, StatusBadge, Table, Tabs, Text, Tooltip } from "@medusajs/ui"
 import type { RouteConfig } from "@mercurjs/dashboard-sdk"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
@@ -21,7 +21,8 @@ export const handle = {
 }
 
 type Outcome = "published" | "needs_review" | "incomplete"
-type Provenance = { source: string; url: string | null }
+/** `drafted`: an AI draft, which the admin must check before approving (#36). */
+type Provenance = { source: string; url: string | null; drafted?: true }
 type Enrichment = {
   id: string
   status: "queued" | "done" | "failed"
@@ -127,6 +128,13 @@ const CatalogueEnrichmentPage = () => {
                             </a>
                           ) : (
                             sourceName(t, from.source)
+                          )}
+                          {from.drafted && (
+                            <Tooltip content={t("catalogueEnrichment.aiDraftHint")}>
+                              <Badge size="2xsmall" color="orange" className="ml-1">
+                                {t("catalogueEnrichment.aiDraft")}
+                              </Badge>
+                            </Tooltip>
                           )}
                         </li>
                       ))}
