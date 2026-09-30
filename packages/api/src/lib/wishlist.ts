@@ -20,19 +20,20 @@ export type WishlistItem = {
 
 type Saved = { product_id: string; seller_id: string }
 
-/** The products the customer saved, newest first, each with the shop it was saved from. */
-async function savedProducts(scope: MedusaContainer, customerId: string): Promise<Saved[]> {
+/** The customer's wishlist and the products saved in it, newest first, each with the shop it was saved from. */
+async function savedProducts(scope: MedusaContainer, customerId: string): Promise<{ wishlistId: string | null; saved: Saved[] }> {
   const wishlist = await getWishlistFromCustomerId(scope, customerId)
-  if (!wishlist) return []
+  if (!wishlist) return { wishlistId: null, saved: [] }
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: wishlistProduct.entryPoint,
     fields: ["product_id", "seller_id", "created_at"],
     filters: { wishlist_id: wishlist.id },
   })
-  return (data as (Saved & { created_at: string | Date })[])
+  const saved = (data as (Saved & { created_at: string | Date })[])
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .map(({ product_id, seller_id }) => ({ product_id, seller_id }))
+  return { wishlistId: wishlist.id, saved }
 }
 
 /** The shop's offers of the product, or not found when it doesn't sell it. */
@@ -54,7 +55,7 @@ export async function listWishlist(
   customerId: string,
   filters: { regionId: string; salesChannelIds: string[] }
 ): Promise<WishlistItem[]> {
-  const saved = await savedProducts(scope, customerId)
+  const { saved } = await savedProducts(scope, customerId)
   if (!saved.length) return []
   const productIds = saved.map((s) => s.product_id)
 
@@ -86,19 +87,20 @@ export async function listWishlist(
 /**
  * Moves a saved product into the customer's cart as its saved shop's offer, then takes it
  * off the wishlist. The offer may be omitted when the shop sells the product in one variant
- * only; otherwise the buyer must choose. A cart that is another customer's is not found.
+ * only; otherwise the buyer must choose. Only the customer's own cart is found.
  */
 export async function moveToCart(
   scope: MedusaContainer,
   input: { customerId: string; productId: string; cartId: string; offerId?: string; quantity: number }
 ): Promise<CartBySeller> {
-  const saved = (await savedProducts(scope, input.customerId)).find((s) => s.product_id === input.productId)
-  if (!saved) throw new MedusaError(MedusaError.Types.NOT_FOUND, "That product isn't in your wishlist")
+  const { wishlistId, saved: all } = await savedProducts(scope, input.customerId)
+  const saved = all.find((s) => s.product_id === input.productId)
+  if (!wishlistId || !saved) throw new MedusaError(MedusaError.Types.NOT_FOUND, "That product isn't in your wishlist")
 
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: carts } = await query.graph({ entity: "cart", fields: ["id", "customer_id"], filters: { id: input.cartId } })
   const cart = carts[0] as { id: string; customer_id: string | null } | undefined
-  if (!cart || (cart.customer_id && cart.customer_id !== input.customerId)) {
+  if (cart?.customer_id !== input.customerId) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `Cart ${input.cartId} not found`)
   }
 
@@ -109,8 +111,7 @@ export async function moveToCart(
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "The shop doesn't sell that option of the product")
   }
 
-  await addOffersToCart(scope, cart.id, [{ offer_id: offerId, quantity: input.quantity }])
-  const wishlist = (await getWishlistFromCustomerId(scope, input.customerId))!
-  await deleteWishlistEntryWorkflow(scope).run({ input: { id: wishlist.id, reference_id: input.productId } })
-  return retrieveCartBySeller(scope, cart.id)
+  await addOffersToCart(scope, input.cartId, [{ offer_id: offerId, quantity: input.quantity }])
+  await deleteWishlistEntryWorkflow(scope).run({ input: { id: wishlistId, reference_id: input.productId } })
+  return retrieveCartBySeller(scope, input.cartId)
 }

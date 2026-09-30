@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { listingPrice, moveToCart } from '@oja/domain';
+import { listingPrice, wishlistMove } from '@oja/domain';
 import { Button, EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -55,7 +55,7 @@ function SavedProduct({ item, currencyCode }: Readonly<{ item: WishlistItem; cur
   const move = useMoveToCart(cartIdForAdding);
   const remove = useToggleWishlist();
   const { listing, product } = item;
-  const action = moveToCart(item);
+  const action = wishlistMove(item);
   const price = listing ? listingPrice(listing.offers) : null;
   const error = move.error ?? remove.error;
 

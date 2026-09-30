@@ -1,22 +1,22 @@
 import { describe, expect, test } from "bun:test"
-import { isSaved, moveToCart } from "./wishlist"
+import { isSaved, wishlistMove } from "./wishlist"
 
 const rice = { id: "off_rice" }
 const small = { id: "off_kaftan_s" }
 const large = { id: "off_kaftan_l" }
 
-describe("moveToCart", () => {
+describe("wishlistMove", () => {
   test("moves a product the shop sells in one variant straight into the cart", () => {
-    expect(moveToCart({ listing: { offers: [rice] } })).toEqual({ kind: "move", offerId: "off_rice" })
+    expect(wishlistMove({ listing: { offers: [rice] } })).toEqual({ kind: "move", offerId: "off_rice" })
   })
 
   test("asks the buyer to choose when the shop sells it in several variants", () => {
-    expect(moveToCart({ listing: { offers: [small, large] } })).toEqual({ kind: "choose" })
+    expect(wishlistMove({ listing: { offers: [small, large] } })).toEqual({ kind: "choose" })
   })
 
   test("says so when the shop no longer sells it in the buyer's region", () => {
-    expect(moveToCart({ listing: null })).toEqual({ kind: "unavailable" })
-    expect(moveToCart({ listing: { offers: [] } })).toEqual({ kind: "unavailable" })
+    expect(wishlistMove({ listing: null })).toEqual({ kind: "unavailable" })
+    expect(wishlistMove({ listing: { offers: [] } })).toEqual({ kind: "unavailable" })
   })
 })
 

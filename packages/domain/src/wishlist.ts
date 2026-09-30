@@ -7,7 +7,7 @@ export type WishlistMove = { kind: "move"; offerId: string } | { kind: "choose" 
  * What "Move to cart" does for a saved product: move the shop's only variant, send the
  * buyer to the product page to choose a size or colour, or nothing once the shop stopped selling it.
  */
-export function moveToCart(item: SavedItem): WishlistMove {
+export function wishlistMove(item: SavedItem): WishlistMove {
   const offers = item.listing?.offers ?? []
   if (!offers.length) return { kind: "unavailable" }
   if (offers.length > 1) return { kind: "choose" }

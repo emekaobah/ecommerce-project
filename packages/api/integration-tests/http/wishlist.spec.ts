@@ -156,17 +156,19 @@ medusaIntegrationTestRunner({
         expect(data.cart.sellers[0].items).toEqual([expect.objectContaining({ product_title: KAFTAN.title, quantity: 1 })])
       })
 
-      it("won't move a product into another buyer's cart", async () => {
+      it("won't move a product into a cart that isn't the buyer's own", async () => {
         const bolasCart = await createCart(buyer("bola@oja.test"))
+        const guestCart = await createCart({ headers })
         const ada = buyer("ada@oja.test")
         const rice = await ids("Iya Bisi Foodstuff", RICE.title)
         await save(ada, rice.sellerId, rice.productId)
 
-        const error = await api
-          .post(`/store/wishlist/product/${rice.productId}/cart`, { cart_id: bolasCart.id }, ada)
-          .catch((e) => e.response)
-
-        expect(error.status).toBe(404)
+        for (const cart of [bolasCart, guestCart]) {
+          const error = await api
+            .post(`/store/wishlist/product/${rice.productId}/cart`, { cart_id: cart.id }, ada)
+            .catch((e) => e.response)
+          expect(error.status).toBe(404)
+        }
         expect(await wishlist(ada)).toHaveLength(1)
       })
     })
