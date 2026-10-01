@@ -138,6 +138,8 @@ medusaIntegrationTestRunner({
         // Its stock is no longer held for it.
         expect(await reservations()).toEqual([])
         expect(paidOnOrder(rejected)).toEqual({ captured: share, refunded: share })
+        // The web vendor panel shows max(0, total - (captured - refunded)) as still owed by the buyer.
+        expect(Math.max(0, rejected.total - (share - share))).toBe(0)
         const other = await shopOrder(GROCERY, grocery)
         expect(other.fulfilment.state).toBe("new")
         expect(paidOnOrder(other)).toEqual({ captured: ORDER_TOTALS.get(GROCERY), refunded: 0 })
@@ -363,14 +365,19 @@ medusaIntegrationTestRunner({
         await buyer.postWebhook(paystack.refundEvent(refund.id))
 
         const failed = await settled(gadgets, "failed")
-        expect(paidOnOrder(await shopOrder(GADGETS, gadgets)).refunded).toBe(0)
+        const unrefunded = await shopOrder(GADGETS, gadgets)
+        expect(paidOnOrder(unrefunded).refunded).toBe(0)
+        // Its credit line is gone too, so the order's total counts the money as not refunded.
+        expect(unrefunded.total).toBe(ORDER_TOTALS.get(GADGETS))
         const { data } = await buyer.query().graph({ entity: "payment", fields: ["refunds.id"], filters: { id: (await buyer.paymentOf(cartId)).id } })
         expect(data[0].refunds.map((r: any) => r.id)).not.toContain(failed.refund_id)
 
         await rejectOverdueOrders(getContainer())
 
         expect(paystack.refundsOf(reference).map((r) => r.status)).toEqual(["failed", "pending"])
-        expect(paidOnOrder(await shopOrder(GADGETS, gadgets)).refunded).toBe(ORDER_TOTALS.get(GADGETS))
+        const refundedAgain = await shopOrder(GADGETS, gadgets)
+        expect(paidOnOrder(refundedAgain).refunded).toBe(ORDER_TOTALS.get(GADGETS))
+        expect(refundedAgain.total).toBe(0)
       })
     })
   },

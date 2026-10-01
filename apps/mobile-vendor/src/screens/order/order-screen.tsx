@@ -3,7 +3,7 @@ import { Button, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 
-import { useAcceptOrder, useOrder } from '@/api/orders';
+import { orderValue, useAcceptOrder, useOrder } from '@/api/orders';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { lineLabel } from '@/orders/items';
 import { useNow } from '@/orders/use-now';
@@ -44,7 +44,7 @@ export function OrderScreen() {
           {(items ?? []).map((item) => (
             <ListRow key={item.id} title={lineLabel(item)} />
           ))}
-          <ListRow title="Total" trailing={<Text variant="label">{formatMoney(Number(order.data.total), currency_code)}</Text>} />
+          <ListRow title="Total" trailing={<Text variant="label">{formatMoney(orderValue(order.data), currency_code)}</Text>} />
         </View>
 
         {isNew ? (

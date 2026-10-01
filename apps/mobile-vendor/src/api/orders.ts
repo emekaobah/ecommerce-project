@@ -9,7 +9,14 @@ export const orderKeys = {
 };
 
 // The default fields leave out the order total; `+` adds it to them.
-const ORDER_FIELDS = '+total,+created_at,+items.product_title,+items.quantity';
+const ORDER_FIELDS = '+total,+credit_line_total,+created_at,+items.product_title,+items.quantity';
+
+/**
+ * What the buyer paid for the order. A refund adds a credit line that takes the refunded
+ * amount off the order's `total` (what is still owed), so a refunded order's total is 0.
+ */
+export const orderValue = (order: { total: unknown; credit_line_total?: unknown }) =>
+  Number(order.total) + Number(order.credit_line_total ?? 0);
 
 const acceptOrder = (orderId: string) => vendorClient.vendor.orders.$id.accept.mutate({ $id: orderId });
 
@@ -31,9 +38,17 @@ async function fetchOrder(orderId: string) {
 
 export type Order = Awaited<ReturnType<typeof fetchOrder>>;
 
-/** The shop's orders, newest first. Waits while there is no session. */
+/**
+ * The shop's orders, newest first. Waits while there is no session. Checked again every
+ * minute while on screen, so a new order shows up before its accept deadline runs down
+ * (until push notifications, #27).
+ */
 export function useOrders(sellerId: string | undefined) {
-  return useQuery({ queryKey: orderKeys.list(sellerId ?? ''), queryFn: sellerId ? fetchOrders : skipToken });
+  return useQuery({
+    queryKey: orderKeys.list(sellerId ?? ''),
+    queryFn: sellerId ? fetchOrders : skipToken,
+    refetchInterval: 60_000,
+  });
 }
 
 /** One of the shop's orders. */

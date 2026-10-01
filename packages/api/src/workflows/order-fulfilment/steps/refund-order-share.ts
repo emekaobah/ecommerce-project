@@ -1,5 +1,5 @@
 import type { IOrderModuleService } from "@medusajs/framework/types"
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MathBN, Modules } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { orderMoney, paymentsOfOrder, type OrderRefundRecord } from "../../../lib/order-fulfilment"
 import { refundPlan } from "../../../lib/order-refund"
@@ -21,6 +21,10 @@ export type RefundOrderShareInput = {
  * refund, which the shop's order and payment views count (`lib/shop-order`), and an order
  * refund carrying Paystack's refund id and status. Money has moved once a refund is made, so
  * this step is never undone.
+ *
+ * Like Medusa's own refund, each refund also adds a credit line for what the order didn't
+ * already owe the buyer, so the order's total no longer counts the refunded money as owed
+ * (the web vendor panel shows total less net paid as outstanding).
  */
 export const refundOrderShareStep = createStep(
   "refund-order-share",
@@ -29,6 +33,7 @@ export const refundOrderShareStep = createStep(
     const money = await orderMoney(container, order_id, payments)
     const plan = refundPlan(money, amount)
     const orderModule = container.resolve<IOrderModuleService>(Modules.ORDER)
+    let owed = await owedToBuyer(container, order_id)
 
     const recorded: OrderRefundRecord[] = []
     for (const part of plan) {
@@ -48,8 +53,23 @@ export const refundOrderShareStep = createStep(
         reference: "refund",
         reference_id: refunded.refund_id,
       })
+      const credit = MathBN.max(MathBN.sub(part.amount, owed), 0)
+      owed = MathBN.max(MathBN.sub(owed, part.amount), 0)
+      if (MathBN.gt(credit, 0)) {
+        await orderModule.createOrderCreditLines([
+          { order_id, amount: credit, reference: "refund", reference_id: refunded.refund_id },
+        ])
+      }
       recorded.push(refunded.recorded)
     }
     return new StepResponse(recorded)
   }
 )
+
+/** What the order already owes the buyer (a negative pending difference), which a refund pays off first. */
+async function owedToBuyer(container: Parameters<typeof paymentsOfOrder>[0], orderId: string) {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "order", fields: ["id", "summary"], filters: { id: orderId } })
+  const pending = (data[0]?.summary as { pending_difference?: number } | undefined)?.pending_difference ?? 0
+  return MathBN.max(MathBN.mult(pending, -1), 0)
+}

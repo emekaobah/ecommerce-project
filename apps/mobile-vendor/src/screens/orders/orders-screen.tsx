@@ -4,7 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet } from 'react-native';
 
-import { useOrders } from '@/api/orders';
+import { orderValue, useOrders } from '@/api/orders';
 import { useCurrentSeller } from '@/api/sellers';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { itemsSummary } from '@/orders/items';
@@ -42,7 +42,7 @@ export function OrdersScreen() {
         onRefresh={refresh}
         renderItem={({ item }) => (
           <ListRow
-            title={`#${item.display_id} · ${formatMoney(Number(item.total), item.currency_code)}`}
+            title={`#${item.display_id} · ${formatMoney(orderValue(item), item.currency_code)}`}
             subtitle={itemsSummary(item.items)}
             trailing={<FulfilmentChip fulfilment={item.fulfilment} now={now} />}
             onPress={() => router.push({ pathname: '/orders/[id]', params: { id: item.id } })}
