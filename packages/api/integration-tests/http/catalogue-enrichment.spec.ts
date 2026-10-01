@@ -234,12 +234,13 @@ medusaIntegrationTestRunner({
         expect((await product(id)).status).toBe("proposed")
       })
 
-      it("shows the admin which fields were drafted among the products awaiting review", async () => {
+      it("shows the admin which fields were drafted, on the product and among the products awaiting review", async () => {
         const claude = fakeClaude({ title: null, description: "Stone-free long grain rice.", weight_grams: null, category_id: null })
         useSources(getContainer(), [{ trusted: false, source: claudeDraftSource({ client: claude.client }) }])
 
         const [id] = await importSheet(["title", "barcode", "selling_price"], ["Abakaliki Rice 5kg", RICE_EAN, "14500"])
-        await enrichmentOf(api, admin, id)
+        // The product page's widget, where the admin approves it.
+        expect((await enrichmentOf(api, admin, id)).fields.description).toEqual({ source: "ai_draft", url: null, drafted: true })
 
         const { data } = await api.get("/admin/catalogue-enrichment?outcome=needs_review", admin)
         expect(data.enrichments).toEqual([

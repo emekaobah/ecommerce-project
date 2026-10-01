@@ -17,6 +17,11 @@
       "weight": "Weight"
     }
   },
+  "productEnrichment": {
+    "title": "Enrichment",
+    "loadError": "Could not load where this product's fields came from.",
+    "draftedIntro": "AI drafted some fields. Check them before approving."
+  },
   "catalogueImport": {
     "title": "Catalogue import",
     "description": "Add products to the shared catalogue from a supplier's CSV. Each product is then enriched in the background and published once complete; each shop prices its own offer.",
