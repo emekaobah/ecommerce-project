@@ -1,9 +1,9 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
-import { rejectOverdueOrders } from "../../src/lib/order-acceptance"
+import { refundUnclaimedPayments, rejectOverdueOrders } from "../../src/lib/order-acceptance"
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
-import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, type Shop } from "../helpers/checkout"
+import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
 
@@ -116,6 +116,12 @@ medusaIntegrationTestRunner({
       it("moves a new order to rejected, cancels it and refunds exactly its share; the other shop's order keeps its payment", async () => {
         const { reference, gadgets, grocery } = await paidOrders()
         const share = ORDER_TOTALS.get(GADGETS)!
+        const reservations = async () => {
+          const { data } = await buyer.query().graph({ entity: "order", fields: ["items.id"], filters: { id: gadgets } })
+          const lineItemIds = (data[0].items ?? []).map((item: any) => item.id)
+          return getContainer().resolve(Modules.INVENTORY).listReservationItems({ line_item_id: lineItemIds })
+        }
+        expect(await reservations()).toHaveLength(1)
 
         const { data } = await reject(GADGETS, gadgets, "The lantern is out of stock")
 
@@ -129,10 +135,29 @@ medusaIntegrationTestRunner({
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([share * 100])
         const rejected = await shopOrder(GADGETS, gadgets)
         expect(rejected.status).toBe("canceled")
+        // Its stock is no longer held for it.
+        expect(await reservations()).toEqual([])
         expect(paidOnOrder(rejected)).toEqual({ captured: share, refunded: share })
         const other = await shopOrder(GROCERY, grocery)
         expect(other.fulfilment.state).toBe("new")
         expect(paidOnOrder(other)).toEqual({ captured: ORDER_TOTALS.get(GROCERY), refunded: 0 })
+      })
+
+      it("refunds only its share of an order linked to its payment, as an order paid on its own is (#65)", async () => {
+        const { cartId, reference, gadgets } = await paidOrders()
+        const { data } = await buyer.query().graph({ entity: "cart", fields: ["payment_collection.id"], filters: { id: cartId } })
+        await getContainer()
+          .resolve(ContainerRegistrationKeys.LINK)
+          .create({
+            [Modules.ORDER]: { order_id: gadgets },
+            [Modules.PAYMENT]: { payment_collection_id: data[0].payment_collection!.id },
+          })
+
+        await reject(GADGETS, gadgets)
+
+        // Medusa's own cancel would refund every payment linked to the order, in full.
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([ORDER_TOTALS.get(GADGETS)! * 100])
+        expect((await shopOrder(GADGETS, gadgets)).status).toBe("canceled")
       })
 
       it("records the refund against the order, with Paystack's refund id", async () => {
@@ -196,6 +221,88 @@ medusaIntegrationTestRunner({
         const accepted = await shopOrder(GROCERY, grocery)
         expect(accepted.fulfilment.state).toBe("accepted")
         expect(paidOnOrder(accepted)).toEqual({ captured: ORDER_TOTALS.get(GROCERY), refunded: 0 })
+      })
+    })
+
+    describe("payments no order claims", () => {
+      const refundsOfTransaction = (reference: string) =>
+        fulfilmentService(getContainer()).listOrderRefunds({ transaction_reference: reference })
+
+      it("refunds in full a payment made on a Paystack page the buyer had since replaced, and still takes the current one", async () => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        // The buyer opened Paystack twice; the second page replaced the first, then they paid on the first.
+        const replaced = await buyer.startPayment(cartId)
+        const current = await buyer.startPayment(cartId)
+        paystack.pay(replaced.reference)
+
+        await buyer.postWebhook(paystack.chargeSuccess(replaced.reference))
+
+        const [refund] = await eventually(() => refundsOfTransaction(replaced.reference), (rows) => rows.length > 0, 150)
+        expect(paystack.refundsOf(replaced.reference).map((r) => [r.amount, r.status])).toEqual([[TOTAL * 100, "pending"]])
+        expect(refund).toMatchObject({ order_id: null, amount: TOTAL, paystack_refund_id: String(paystack.refundsOf(replaced.reference)[0].id) })
+        expect(await buyer.ordersOfCart(cartId)).toEqual([])
+
+        paystack.pay(current.reference)
+        await buyer.postWebhook(paystack.chargeSuccess(current.reference))
+        await buyer.orderGroupOf(cartId)
+        expect(paystack.refundsOf(current.reference)).toEqual([])
+      })
+
+      it("refunds in full a payment captured for a checkout that never became orders, once it has had time to", async () => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        const { reference } = await buyer.startPayment(cartId)
+        paystack.pay(reference)
+        // The lantern sells out between paying and Paystack's webhook, so the split fails.
+        const inventory = getContainer().resolve(Modules.INVENTORY)
+        const { data: offers } = await buyer.query().graph({
+          entity: "offer",
+          fields: ["inventory_item_link.inventory_item.location_levels.*"],
+          filters: { id: await buyer.offerId(GADGETS, "Rechargeable LED Lantern") },
+        })
+        const [level] = (offers[0] as any).inventory_item_link[0].inventory_item.location_levels
+        await inventory.updateInventoryLevels([
+          { inventory_item_id: level.inventory_item_id, location_id: level.location_id, stocked_quantity: 0 },
+        ])
+        try {
+          await buyer.postWebhook(paystack.chargeSuccess(reference))
+          const payment = await eventually(() => buyer.paymentOf(cartId), (p) => !!p?.captured_at, 150)
+          await new Promise((resolve) => setTimeout(resolve, 3000))
+          expect(await buyer.ordersOfCart(cartId)).toEqual([])
+
+          await refundUnclaimedPayments(getContainer())
+          expect(paystack.refundsOf(reference)).toEqual([])
+
+          await refundUnclaimedPayments(getContainer(), new Date(Date.now() + HOUR))
+
+          expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([TOTAL * 100])
+          const [refund] = await refundsOfTransaction(reference)
+          expect(refund).toMatchObject({ order_id: null, payment_id: payment.id, amount: TOTAL })
+          await refundUnclaimedPayments(getContainer(), new Date(Date.now() + 2 * HOUR))
+          expect(paystack.refundsOf(reference)).toHaveLength(1)
+        } finally {
+          await inventory.updateInventoryLevels([
+            { inventory_item_id: level.inventory_item_id, location_id: level.location_id, stocked_quantity: level.stocked_quantity },
+          ])
+        }
+      })
+
+      it("refunds such a payment once, however often Paystack sends its webhook", async () => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        const replaced = await buyer.startPayment(cartId)
+        await buyer.startPayment(cartId)
+        paystack.pay(replaced.reference)
+        const webhook = paystack.chargeSuccess(replaced.reference)
+
+        await buyer.postWebhook(webhook)
+        await eventually(() => refundsOfTransaction(replaced.reference), (rows) => rows.length > 0, 150)
+        await buyer.postWebhook(webhook)
+        await new Promise((resolve) => setTimeout(resolve, 8000))
+
+        expect(paystack.refundsOf(replaced.reference)).toHaveLength(1)
+        expect(await refundsOfTransaction(replaced.reference)).toHaveLength(1)
       })
     })
 

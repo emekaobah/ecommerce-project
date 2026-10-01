@@ -48,15 +48,19 @@ const updateRefundStatusesStep = createStep(
  * transaction and Medusa refund are removed, so the order may be refunded again.
  */
 const unrecordFailedRefundsStep = createStep("unrecord-failed-order-refunds", async (changes: Change[], { container }) => {
-  const failed = changes.filter((c) => c.to === "failed").map((c) => c.row)
+  // A refund made on Paystack directly, of a transaction no order claims, has no Medusa refund.
+  const failed = changes
+    .filter((c) => c.to === "failed")
+    .map((c) => c.row.refund_id)
+    .filter((id): id is string => !!id)
   if (!failed.length) return new StepResponse(undefined)
   const orderModule = container.resolve<IOrderModuleService>(Modules.ORDER)
   const transactions = await orderModule.listOrderTransactions({
     reference: "refund",
-    reference_id: failed.map((row) => row.refund_id),
+    reference_id: failed,
   })
   if (transactions.length) await orderModule.deleteOrderTransactions(transactions.map((t) => t.id))
-  await container.resolve<IPaymentModuleService>(Modules.PAYMENT).deleteRefunds(failed.map((row) => row.refund_id))
+  await container.resolve<IPaymentModuleService>(Modules.PAYMENT).deleteRefunds(failed)
   return new StepResponse(undefined)
 })
 

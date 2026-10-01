@@ -151,8 +151,8 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
       return { action: PaymentActions.NOT_SUPPORTED }
     }
     const { event, data: transaction } = data as { event?: string; data?: PaystackTransaction }
-    const sessionId = metadataOf(transaction)?.session_id
-    if (event !== "charge.success" || transaction?.status !== "success" || typeof sessionId !== "string") {
+    const sessionId = sessionIdOf(transaction)
+    if (event !== "charge.success" || transaction?.status !== "success" || !sessionId) {
       return { action: PaymentActions.NOT_SUPPORTED }
     }
     return { action: PaymentActions.SUCCESSFUL, data: { session_id: sessionId, amount: fromSubunit(transaction.amount) } }
@@ -166,15 +166,25 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
 
   /**
    * Authorised only when Paystack took exactly what this session started, in its currency. A
-   * refund turns the transaction `reversed` (even a partial one), but the buyer did pay it: a
-   * reversed transaction still reads as paid, so a refund never makes a payment look failed.
+   * refund, even a partial one, turns the transaction `reversal-pending` and then `reversed`
+   * (seen in test mode), but the buyer did pay it: such a transaction still reads as paid, so
+   * a refund never makes a payment look failed or unpaid.
    */
   private statusOf(session: PaystackSessionData, transaction: PaystackTransaction): PaymentSessionStatus {
     if (transaction.status === "failed") return PaymentSessionStatus.ERROR
-    if (transaction.status !== "success" && transaction.status !== "reversed") return PaymentSessionStatus.PENDING
+    if (!PAID.has(transaction.status)) return PaymentSessionStatus.PENDING
     const paidInFull = transaction.amount === session.amount && transaction.currency === session.currency
     return paidInFull ? PaymentSessionStatus.AUTHORIZED : PaymentSessionStatus.ERROR
   }
+}
+
+/** Transactions the buyer paid: refunds turn them `reversal-pending`, then `reversed`. */
+const PAID = new Set<PaystackTransaction["status"]>(["success", "reversal-pending", "reversed"])
+
+/** The payment session a transaction was started for, from its metadata. */
+export function sessionIdOf(transaction: PaystackTransaction | undefined): string | undefined {
+  const sessionId = metadataOf(transaction)?.session_id
+  return typeof sessionId === "string" ? sessionId : undefined
 }
 
 /** Paystack returns metadata as an object, or as the JSON string it was sent as. */

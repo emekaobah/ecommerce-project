@@ -2,6 +2,7 @@ import { acceptDeadline } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { refundOrderShareWorkflow } from "../workflows/order-fulfilment/workflows/refund-order-share"
+import { refundUnclaimedPaymentWorkflow } from "../workflows/order-fulfilment/workflows/refund-unclaimed-payment"
 import { rejectOrderWorkflow } from "../workflows/order-fulfilment/workflows/reject-order"
 import { errorMessage } from "./errors"
 import { asFulfilmentRecord, fulfilmentService, orderMoney, paymentsOfOrder } from "./order-fulfilment"
@@ -28,13 +29,16 @@ export async function rejectAndRefund(scope: Scope, input: { order_id: string; a
   return fulfilment
 }
 
+/** Refunds a rejected order; a refund that fails is logged and left for the job. Says whether it went through. */
 async function refundRejected(scope: Scope, orderId: string, actor: string | undefined, reason: string) {
   try {
     await refundOrderShareWorkflow(scope as MedusaContainer).run({
       input: { order_id: orderId, created_by: actor, note: `Order rejected: ${reason}` },
     })
+    return true
   } catch (error) {
     scope.resolve(ContainerRegistrationKeys.LOGGER).error(`Refund of rejected order ${orderId} failed: ${errorMessage(error)}`)
+    return false
   }
 }
 
@@ -61,13 +65,40 @@ export async function rejectOverdueOrders(scope: Scope, now = new Date()) {
     updated_at: { $gte: new Date(now.getTime() - REFUND_RETRY_MS) },
   })
   for (const row of rejected) {
-    if (await isRefundDue(scope, row.order_id)) {
-      await refundRejected(scope, row.order_id, undefined, row.reject_reason ?? DEADLINE_REASON)
-    }
+    if (!(await isRefundDue(scope, row.order_id))) continue
+    if (await refundRejected(scope, row.order_id, undefined, row.reject_reason ?? DEADLINE_REASON)) continue
+    const lastTry = new Date(new Date(row.updated_at).getTime() + REFUND_RETRY_MS).toISOString()
+    logger.error(`Rejected order ${row.order_id} is still unrefunded; retries stop at ${lastTry}, after which it must be refunded by hand`)
   }
 }
 
 async function isRefundDue(scope: Scope, orderId: string) {
   const money = await orderMoney(scope, orderId, await paymentsOfOrder(scope, orderId))
   return refundPlan(money).length > 0
+}
+
+/** How long a captured payment may wait to be split into orders before it counts as unclaimed. */
+const SPLIT_GRACE_MS = 30 * 60 * 1000
+
+/**
+ * Refunds in full each payment captured in the last week, and at least half an hour ago, that
+ * no order claims: the checkout was paid but never became orders (ADR 0003).
+ */
+export async function refundUnclaimedPayments(scope: Scope, now = new Date()) {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: payments } = await query.graph({
+    entity: "payment",
+    fields: ["id"],
+    filters: {
+      captured_at: { $gte: new Date(now.getTime() - REFUND_RETRY_MS), $lte: new Date(now.getTime() - SPLIT_GRACE_MS) },
+    },
+  })
+  const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  for (const { id } of payments as { id: string }[]) {
+    try {
+      await refundUnclaimedPaymentWorkflow(scope as MedusaContainer).run({ input: { payment_id: id } })
+    } catch (error) {
+      logger.error(`Refund of unclaimed payment ${id} failed: ${errorMessage(error)}`)
+    }
+  }
 }

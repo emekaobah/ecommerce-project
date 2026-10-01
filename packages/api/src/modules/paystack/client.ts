@@ -11,7 +11,16 @@ export type PaystackTransaction = {
   /** In the currency's subunit (kobo for NGN). */
   amount: number
   currency: string
-  status: "success" | "failed" | "abandoned" | "ongoing" | "pending" | "processing" | "queued" | "reversed"
+  status:
+    | "success"
+    | "failed"
+    | "abandoned"
+    | "ongoing"
+    | "pending"
+    | "processing"
+    | "queued"
+    | "reversal-pending"
+    | "reversed"
   metadata?: Record<string, unknown> | string | null
 }
 
@@ -94,8 +103,8 @@ export class PaystackClient {
     return this.request<PaystackTransaction>("GET", `/transaction/verify/${encodeURIComponent(reference)}`)
   }
 
-  /** Refunds part or all of a transaction; `merchant_note` is ours, for matching it later. */
-  refund(input: { transaction: string; amount: number; merchant_note?: string }) {
+  /** Refunds part of a transaction, or all of it with no amount; `merchant_note` is ours, for matching it later. */
+  refund(input: { transaction: string; amount?: number; merchant_note?: string }) {
     return this.request<PaystackRefund>("POST", "/refund", input)
   }
 

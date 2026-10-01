@@ -52,7 +52,7 @@ describe("Paystack provider refunds", () => {
   it("still reads a partly refunded transaction as paid, not failed", async () => {
     const session = await paidSession()
     await provider().refundPayment({ data: session, amount: 4000, context: { idempotency_key: "ref_c" } })
-    expect(paystack.transaction(session.reference).status).toBe("reversed")
+    expect(paystack.transaction(session.reference).status).toBe("reversal-pending")
 
     expect((await provider().authorizePayment({ data: session })).status).toBe(PaymentSessionStatus.AUTHORIZED)
     expect((await provider().getPaymentStatus({ data: session })).status).toBe(PaymentSessionStatus.AUTHORIZED)

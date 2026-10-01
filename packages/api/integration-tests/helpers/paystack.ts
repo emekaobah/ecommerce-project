@@ -10,7 +10,7 @@ type Transaction = {
   email: string
   callback_url?: string
   metadata: Record<string, unknown>
-  status: "abandoned" | "success" | "failed" | "reversed"
+  status: "abandoned" | "success" | "failed" | "reversal-pending"
 }
 
 type RefundStatus = PaystackRefundStatus
@@ -79,6 +79,9 @@ export function fakePaystack(port: number) {
       const refunded = transactions.get(body.transaction)
       if (!refunded) return { status: 400, body: { status: false, message: "Transaction reference not found" } }
       if (refundError) return { status: 400, body: { status: false, message: refundError } }
+      if (body.amount != null && body.amount < 5000) {
+        return { status: 400, body: { status: false, message: "Cannot refund less than NGN50" } }
+      }
       const taken = [...refunds.values()]
         .filter((r) => r.transaction.reference === refunded.reference && r.status !== "failed")
         .reduce((sum, r) => sum + r.amount, 0)
@@ -95,8 +98,8 @@ export function fakePaystack(port: number) {
         transaction: { id: refunded.id, reference: refunded.reference },
       }
       refunds.set(refund.id, refund)
-      // Paystack shows a refunded transaction as "Reversal pending", then "Reversed".
-      refunded.status = "reversed"
+      // As Paystack test mode does, even for a partial refund.
+      refunded.status = "reversal-pending"
       return { status: 200, body: { status: true, message: "Refund has been queued for processing", data: refund } }
     }
     const fetchRefund = req.url?.match(/^\/refund\/(\d+)$/)
