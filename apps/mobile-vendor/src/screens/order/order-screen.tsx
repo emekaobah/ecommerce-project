@@ -34,7 +34,7 @@ export function OrderScreen() {
           ) : null}
           {fulfilment.state === 'rejected' ? (
             <Text tone="secondary">
-              {fulfilment.rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${fulfilment.reject_reason}`} The
+              {fulfilment.rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${fulfilment.reject_reason}.`} The
               buyer's payment for this order is being refunded.
             </Text>
           ) : null}
