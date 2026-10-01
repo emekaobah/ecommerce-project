@@ -74,9 +74,10 @@ export function buyerCheckout({
     regionId = regions[0].id
   }
 
-  const as = (email: string) => ({
-    headers: { ...headers, authorization: `Bearer ${clerk.sessionToken({ sub: `user_${email}`, email })}` },
-  })
+  const as = (email: string) => {
+    const token = clerk.sessionToken({ sub: `user_${email}`, email })
+    return { headers: { ...headers, authorization: `Bearer ${token}` } }
+  }
   const ada = () => as("ada@oja.test")
 
   const sellerId = async (shop: Shop) => {

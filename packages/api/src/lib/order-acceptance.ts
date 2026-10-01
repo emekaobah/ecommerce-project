@@ -51,6 +51,7 @@ export async function rejectOverdueOrders(scope: Scope, now = new Date()) {
   const waiting = (await service.listOrderFulfilments({ state: "new" })).map(asFulfilmentRecord)
   const overdue = waiting.filter((row) => Date.parse(acceptDeadline(new Date(row.placed_at).toISOString())) <= now.getTime())
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  // One order at a time: each locks its order and payments, and calls Paystack.
   for (const row of overdue) {
     try {
       await rejectAndRefund(scope, { order_id: row.order_id, reason: DEADLINE_REASON })

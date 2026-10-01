@@ -10,7 +10,7 @@ const TONES: Partial<Record<OrderFulfilment['state'], StatusTone>> = {
 };
 
 /** A new order shows the time left to accept it; any other its state. */
-export function FulfilmentChip({ fulfilment, now }: { fulfilment: OrderFulfilment; now: Date }) {
+export function FulfilmentChip({ fulfilment, now }: Readonly<{ fulfilment: OrderFulfilment; now: Date }>) {
   if (fulfilment.state === 'new' && fulfilment.accept_by) {
     const left = acceptTimeLeft(fulfilment.accept_by, now);
     return <StatusChip label={`New · ${left.label}`} tone={left.urgent ? 'danger' : 'warning'} symbol="◷" />;

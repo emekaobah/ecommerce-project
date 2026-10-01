@@ -23,15 +23,18 @@ const fetchRefundChangesStep = createStep("fetch-order-refund-changes", async ({
     status: UNSETTLED,
   })) as OrderRefundRecord[]
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-  const changes: Change[] = []
-  for (const row of rows) {
-    if (!row.paystack_refund_id) {
-      logger.warn(`Order refund ${row.id} has no Paystack refund id to check`)
-      continue
-    }
-    const { status } = await paystack.fetchRefund(row.paystack_refund_id)
-    if (status !== row.status) changes.push({ id: row.id, from: row.status, to: status, row })
+  for (const row of rows.filter((r) => !r.paystack_refund_id)) {
+    logger.warn(`Order refund ${row.id} has no Paystack refund id to check`)
   }
+  // Each refund is fetched on its own, so they are asked about at once.
+  const fetched = await Promise.all(
+    rows
+      .filter((row) => row.paystack_refund_id)
+      .map(async (row) => ({ row, status: (await paystack.fetchRefund(row.paystack_refund_id!)).status }))
+  )
+  const changes: Change[] = fetched
+    .filter(({ row, status }) => status !== row.status)
+    .map(({ row, status }) => ({ id: row.id, from: row.status, to: status, row }))
   return new StepResponse(changes)
 })
 

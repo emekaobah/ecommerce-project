@@ -84,7 +84,7 @@ export async function paymentsOfOrder(scope: Scope, orderId: string): Promise<Pa
   })
   type WithPayments = { payments?: ({ id: string } | null)[] | null } | null | undefined
   const ids = [
-    ...carts.map((c: { payment_collection?: WithPayments }) => c.payment_collection),
+    ...carts.map((c: { payment_collection: WithPayments }) => c.payment_collection),
     ...(orders[0]?.payment_collections ?? []),
   ].flatMap((collection: WithPayments) => (collection?.payments ?? []).map((p) => p?.id))
   const paymentIds = [...new Set(ids.filter((id): id is string => !!id))]

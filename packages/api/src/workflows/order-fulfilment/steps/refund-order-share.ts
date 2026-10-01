@@ -36,6 +36,7 @@ export const refundOrderShareStep = createStep(
     let owed = await owedToBuyer(container, order_id)
 
     const recorded: OrderRefundRecord[] = []
+    // One payment at a time: a refund Paystack turns down stops the rest, rather than racing them.
     for (const part of plan) {
       const refunded = await refundPayment(container, {
         ...part,

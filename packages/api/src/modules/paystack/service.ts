@@ -119,8 +119,8 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
   }
 
   /** Paystack settles a successful charge by itself; the capture records the webhook's word. */
-  async capturePayment({ data }: CapturePaymentInput): Promise<CapturePaymentOutput> {
-    return { data }
+  capturePayment({ data }: CapturePaymentInput): Promise<CapturePaymentOutput> {
+    return Promise.resolve({ data })
   }
 
   /**
@@ -138,15 +138,19 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
   }
 
   /** An unpaid Paystack transaction simply lapses; there is nothing to void. */
-  async cancelPayment({ data }: CancelPaymentInput): Promise<CancelPaymentOutput> {
-    return { data }
+  cancelPayment({ data }: CancelPaymentInput): Promise<CancelPaymentOutput> {
+    return Promise.resolve({ data })
   }
 
-  async deletePayment({ data }: DeletePaymentInput): Promise<DeletePaymentOutput> {
-    return { data }
+  deletePayment({ data }: DeletePaymentInput): Promise<DeletePaymentOutput> {
+    return Promise.resolve({ data })
   }
 
-  async getWebhookActionAndData({ data, rawData, headers }: ProviderWebhookPayload["payload"]): Promise<WebhookActionResult> {
+  getWebhookActionAndData(payload: ProviderWebhookPayload["payload"]): Promise<WebhookActionResult> {
+    return Promise.resolve(this.webhookAction(payload))
+  }
+
+  private webhookAction({ data, rawData, headers }: ProviderWebhookPayload["payload"]): WebhookActionResult {
     if (!isPaystackSignatureValid(this.config.secretKey, rawData, headers["x-paystack-signature"] as string | undefined)) {
       return { action: PaymentActions.NOT_SUPPORTED }
     }
