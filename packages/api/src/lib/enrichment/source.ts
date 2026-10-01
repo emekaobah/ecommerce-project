@@ -1,8 +1,20 @@
+import type { EnrichableField } from "./enrich"
+
 // A product database that enrichment can ask about a product. Adapters are
 // pluggable: config picks which run and in what order (see ./sources).
 
-/** What enrichment knows of the product when it asks: sources are keyed by barcode. */
-export type LookupQuery = { barcode: string | null }
+/**
+ * What enrichment knows of the product when it asks. Databases are keyed by barcode; an AI
+ * draft reads the rest: the product as filled so far, the fields still empty, the catalogue's categories.
+ */
+export type LookupQuery = {
+  barcode: string | null
+  /** Its title, description and images (their original URLs) so far: the submitter's and the sources' above. */
+  product?: { title: string | null; description: string | null; image_urls: string[] }
+  /** The fields still empty. */
+  wanted?: EnrichableField[]
+  categories?: { id: string; name: string }[]
+}
 
 /** The fields a source can fill. Weight is in grams; categories are the source's own names. */
 export type SourceFields = {
@@ -44,6 +56,11 @@ export interface EnrichmentSource {
   id: string
   name: string
   policy: SourcePolicy
+  /**
+   * Its values are AI drafts (#36): the fields it fills are flagged, and a product it fills
+   * always goes to a person for review, whatever the deployment trusts.
+   */
+  drafts?: boolean
   /** The source's record of the product, or null when it has none. Throws when the source can't answer. */
   lookup(query: LookupQuery): Promise<SourceMatch | null>
 }

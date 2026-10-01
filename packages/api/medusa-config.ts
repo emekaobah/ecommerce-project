@@ -128,6 +128,8 @@ module.exports = withMercur({
     },
     // Where each enriched product's data came from, and what enrichment decided (#35).
     { resolve: './src/modules/product-enrichment' },
+    // Mercur's wishlist block: products a buyer saved, each from one shop (#32).
+    { resolve: './src/modules/wishlist' },
     {
       resolve: '@medusajs/medusa/file',
       options: {

@@ -5,7 +5,8 @@ import { enrichmentService, queueEnrichment } from "../../src/lib/enrichment"
 import seedDemoData from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
 import { offerOn } from "../helpers/offers"
-import { enrichmentOf, fakeImageHosts, fakeSource, useSources } from "../helpers/enrichment"
+import { claudeDraftSource } from "../../src/lib/enrichment/ai-draft"
+import { enrichmentOf, fakeClaude, fakeImageHosts, fakeSource, useSources } from "../helpers/enrichment"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -161,6 +162,93 @@ medusaIntegrationTestRunner({
 
         expect(enrichment).toMatchObject({ outcome: "incomplete", reasons: { items: ["Missing Image.", "Missing Storage."] } })
         expect((await product(id)).status).toBe("draft")
+      })
+    })
+
+    describe("AI drafts", () => {
+      it("drafts only the fields no source filled, flags them, and sends the product for review", async () => {
+        const claude = fakeClaude({
+          title: "Mama Gold Rice",
+          description: "Stone-free long grain rice.",
+          weight_grams: 5100,
+          category_id: await categoryId("Oils & Spices"),
+        })
+        useSources(getContainer(), [
+          {
+            trusted: true,
+            source: fakeSource("curated_db", {
+              [RICE_EAN]: { url: null, fields: { image_urls: ["https://images.test/rice.png"], category_names: ["rice"] } },
+            }),
+          },
+          { trusted: false, source: claudeDraftSource({ client: claude.client }) },
+        ])
+
+        const [id] = await importSheet(
+          ["title", "barcode", "selling_price", await storageColumn()],
+          ["Abakaliki Rice 5kg", RICE_EAN, "14500", "Cool, dry place"]
+        )
+        const enrichment = await enrichmentOf(api, admin, id)
+
+        // The sheet's title and the database's category stand; Claude filled the rest from the photo.
+        expect(await product(id)).toMatchObject({
+          title: "Abakaliki Rice 5kg",
+          description: "Stone-free long grain rice.",
+          categories: [{ name: "Rice & Grains" }],
+          status: "proposed",
+        })
+        expect(Number((await product(id)).weight)).toBe(5100)
+        expect(enrichment.fields).toEqual({
+          title: { source: "supplied", url: null },
+          images: { source: "curated_db", url: null },
+          categories: { source: "curated_db", url: null },
+          description: { source: "ai_draft", url: null, drafted: true },
+          weight: { source: "ai_draft", url: null, drafted: true },
+        })
+        expect(enrichment.outcome).toBe("needs_review")
+        expect(enrichment.reasons.items).toEqual([
+          "Description was drafted by AI; a person must check it.",
+          "Weight was drafted by AI; a person must check it.",
+        ])
+        // Claude saw the photo and was asked only for what was still empty.
+        const [request] = claude.requests
+        expect(request.messages[0].content[0]).toMatchObject({ type: "image", source: { type: "base64", media_type: "image/png" } })
+        expect(request.messages[0].content[1].text).toContain("Fill in: description, weight_grams")
+        expect(request.messages[0].content[1].text).toContain("Abakaliki Rice 5kg")
+      })
+
+      it("never auto-approves a draft, even when a deployment marks the AI trusted", async () => {
+        const claude = fakeClaude({ title: null, description: "Stone-free long grain rice.", weight_grams: null, category_id: null })
+        const fields = { image_urls: ["https://images.test/rice.png"], category_names: ["rice"] }
+        useSources(getContainer(), [
+          { trusted: true, source: fakeSource("curated_db", { [RICE_EAN]: { url: null, fields } }) },
+          { trusted: true, source: claudeDraftSource({ client: claude.client }) },
+        ])
+
+        const [id] = await importSheet(
+          ["title", "barcode", "selling_price", await storageColumn()],
+          ["Abakaliki Rice 5kg", RICE_EAN, "14500", "Cool, dry place"]
+        )
+        const enrichment = await enrichmentOf(api, admin, id)
+
+        expect(enrichment.outcome).toBe("needs_review")
+        expect((await product(id)).status).toBe("proposed")
+      })
+
+      it("shows the admin which fields were drafted, on the product and among the products awaiting review", async () => {
+        const claude = fakeClaude({ title: null, description: "Stone-free long grain rice.", weight_grams: null, category_id: null })
+        useSources(getContainer(), [{ trusted: false, source: claudeDraftSource({ client: claude.client }) }])
+
+        const [id] = await importSheet(["title", "barcode", "selling_price"], ["Abakaliki Rice 5kg", RICE_EAN, "14500"])
+        // The product page's widget, where the admin approves it.
+        expect((await enrichmentOf(api, admin, id)).fields.description).toEqual({ source: "ai_draft", url: null, drafted: true })
+
+        const { data } = await api.get("/admin/catalogue-enrichment?outcome=needs_review", admin)
+        expect(data.enrichments).toEqual([
+          expect.objectContaining({
+            product: expect.objectContaining({ id }),
+            fields: expect.objectContaining({ description: { source: "ai_draft", url: null, drafted: true } }),
+          }),
+        ])
       })
     })
 

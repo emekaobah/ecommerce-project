@@ -168,8 +168,9 @@ export async function loadPendingActions(scope: Scope, changeIds: string[]): Pro
     fields: ["product_id", "action", "details", "ordering"],
     filters: { product_change_id: changeIds, applied: false } as any,
   })
-  const rows = (data as (PendingAction & { product_id: string; ordering: number })[]).sort(
-    (a, b) => a.ordering - b.ordering
+  // The product module types `ordering` as a string; it holds a number.
+  const rows = (data as (PendingAction & { product_id: string; ordering: number | string })[]).sort(
+    (a, b) => Number(a.ordering) - Number(b.ordering)
   )
   for (const row of rows) {
     pending.set(row.product_id, [...(pending.get(row.product_id) ?? []), row])

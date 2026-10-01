@@ -178,7 +178,7 @@ medusaIntegrationTestRunner({
         expect(after.status).toBe("published")
         expect(after.thumbnail).toBeTruthy()
         expect(after.images.length).toBeGreaterThan(0)
-        expect(after.categories.length).toBeGreaterThan(0)
+        expect(after.categories?.length).toBeGreaterThan(0)
       })
     })
 
