@@ -2,6 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import wishlistProduct from "../links/wishlist-product"
 import { getWishlistFromCustomerId } from "../modules/wishlist/utils"
+import { createWishlistEntryWorkflow } from "../workflows/wishlist/workflows/create-wishlist"
 import { deleteWishlistEntryWorkflow } from "../workflows/wishlist/workflows/delete-wishlist"
 import { retrieveCartBySeller, type CartBySeller } from "./cart"
 import { addOffersToCart } from "./cart-lines"
@@ -88,6 +89,9 @@ export async function listWishlist(
  * Moves a saved product into the customer's cart as its saved shop's offer, then takes it
  * off the wishlist. The offer may be omitted when the shop sells the product in one variant
  * only; otherwise the buyer must choose. Only the customer's own cart is found.
+ *
+ * It leaves the wishlist before it reaches the cart, and goes back if adding fails, so a
+ * retried move never adds it twice: at worst a failure while putting it back loses the entry.
  */
 export async function moveToCart(
   scope: MedusaContainer,
@@ -111,7 +115,14 @@ export async function moveToCart(
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "The shop doesn't sell that option of the product")
   }
 
-  await addOffersToCart(scope, input.cartId, [{ offer_id: offerId, quantity: input.quantity }])
   await deleteWishlistEntryWorkflow(scope).run({ input: { id: wishlistId, reference_id: input.productId } })
+  try {
+    await addOffersToCart(scope, input.cartId, [{ offer_id: offerId, quantity: input.quantity }])
+  } catch (error) {
+    await createWishlistEntryWorkflow(scope).run({
+      input: { reference: "product", reference_id: saved.product_id, seller_id: saved.seller_id, customer_id: input.customerId },
+    })
+    throw error
+  }
   return retrieveCartBySeller(scope, input.cartId)
 }

@@ -229,15 +229,14 @@ async function valueOf(
   }
 }
 
+/** Copies the images at once, keeping their order; one that can't be copied is dropped, saying why. */
 async function copyAll(scope: Scope, urls: string[], source: string, errors: string[]): Promise<StoredImage[]> {
+  const copied = await Promise.allSettled(urls.map((url) => copyImage(scope, url)))
   const stored: StoredImage[] = []
-  for (const url of urls) {
-    try {
-      stored.push({ url: await copyImage(scope, url), source, source_url: url })
-    } catch (error) {
-      errors.push(`Image ${url}: ${message(error)}`)
-    }
-  }
+  copied.forEach((result, i) => {
+    if (result.status === "fulfilled") stored.push({ url: result.value, source, source_url: urls[i] })
+    else errors.push(`Image ${urls[i]}: ${message(result.reason)}`)
+  })
   return stored
 }
 

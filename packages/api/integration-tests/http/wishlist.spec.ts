@@ -1,5 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PRODUCTS } from "../../src/scripts/seed-data"
 import { fakeClerk } from "../helpers/clerk"
@@ -154,6 +154,22 @@ medusaIntegrationTestRunner({
           ada
         )
         expect(data.cart.sellers[0].items).toEqual([expect.objectContaining({ product_title: KAFTAN.title, quantity: 1 })])
+      })
+
+      it("keeps the product on the wishlist when adding it to the cart fails", async () => {
+        const ada = buyer("ada@oja.test")
+        const cart = await createCart(ada)
+        const rice = await ids("Iya Bisi Foodstuff", RICE.title)
+        await save(ada, rice.sellerId, rice.productId)
+        // Medusa refuses to add to a cart that has become an order.
+        await getContainer().resolve(Modules.CART).updateCarts(cart.id, { completed_at: new Date() })
+
+        const error = await api
+          .post(`/store/wishlist/product/${rice.productId}/cart`, { cart_id: cart.id }, ada)
+          .catch((e) => e.response)
+
+        expect(error.status).toBeGreaterThanOrEqual(400)
+        expect(summary(await wishlist(ada))).toEqual([{ shop: "Iya Bisi Foodstuff", title: RICE.title, price: RICE.price }])
       })
 
       it("won't move a product into a cart that isn't the buyer's own", async () => {

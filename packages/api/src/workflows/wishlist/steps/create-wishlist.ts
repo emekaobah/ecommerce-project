@@ -1,8 +1,8 @@
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk";
 
-import { CreateWishlistDTO } from "../../../modules/wishlist";
 import {
+  CreateWishlistDTO,
   WISHLIST_MODULE,
   WishlistModuleService,
 } from "../../../modules/wishlist";

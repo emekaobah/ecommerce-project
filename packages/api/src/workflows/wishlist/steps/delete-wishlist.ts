@@ -1,8 +1,7 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk";
 
-import { DeleteWishlistDTO } from "../../../modules/wishlist";
-import { WISHLIST_MODULE } from "../../../modules/wishlist";
+import { DeleteWishlistDTO, WISHLIST_MODULE } from "../../../modules/wishlist";
 import { Link } from "@medusajs/framework/modules-sdk";
 
 export const deleteWishlistEntryStep = createStep(

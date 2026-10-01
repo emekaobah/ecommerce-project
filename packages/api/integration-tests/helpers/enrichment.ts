@@ -14,7 +14,7 @@ export function fakeSource(
     id,
     name: id.replaceAll("_", " "),
     policy: { public_data: true, image_rights: true, attribution: null, requests_per_minute: 6000, ...policy },
-    lookup: async ({ barcode }) => (barcode ? byBarcode[barcode] ?? null : null),
+    lookup: ({ barcode }) => Promise.resolve(barcode ? byBarcode[barcode] ?? null : null),
   }
 }
 
@@ -65,9 +65,9 @@ export function fakeClaude(draft: Record<string, unknown>) {
   const client: DraftClient = {
     beta: {
       messages: {
-        parse: (async (params: any) => {
+        parse: ((params: any) => {
           requests.push(params)
-          return { stop_reason: "end_turn", parsed_output: draft, content: [] }
+          return Promise.resolve({ stop_reason: "end_turn", parsed_output: draft, content: [] })
         }) as any,
       },
     },
