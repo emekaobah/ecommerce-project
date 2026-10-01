@@ -123,9 +123,17 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
     return { data }
   }
 
-  async refundPayment({ data, amount }: RefundPaymentInput): Promise<RefundPaymentOutput> {
+  /**
+   * Refunds part or all of the transaction. Paystack refunds asynchronously, so its reply is
+   * only the refund it queued; the merchant note names Medusa's refund, to match it by.
+   */
+  async refundPayment({ data, amount, context }: RefundPaymentInput): Promise<RefundPaymentOutput> {
     const session = data as PaystackSessionData
-    const refund = await this.paystack.refund({ transaction: session.reference, amount: toSubunit(amount) })
+    const refund = await this.paystack.refund({
+      transaction: session.reference,
+      amount: toSubunit(amount),
+      merchant_note: context?.idempotency_key,
+    })
     return { data: { ...session, refund } }
   }
 
@@ -156,10 +164,14 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
     return { status: this.statusOf(session, transaction), data: { ...session, transaction } }
   }
 
-  /** Authorised only when Paystack took exactly what this session started, in its currency. */
+  /**
+   * Authorised only when Paystack took exactly what this session started, in its currency. A
+   * refund turns the transaction `reversed` (even a partial one), but the buyer did pay it: a
+   * reversed transaction still reads as paid, so a refund never makes a payment look failed.
+   */
   private statusOf(session: PaystackSessionData, transaction: PaystackTransaction): PaymentSessionStatus {
-    if (transaction.status === "failed" || transaction.status === "reversed") return PaymentSessionStatus.ERROR
-    if (transaction.status !== "success") return PaymentSessionStatus.PENDING
+    if (transaction.status === "failed") return PaymentSessionStatus.ERROR
+    if (transaction.status !== "success" && transaction.status !== "reversed") return PaymentSessionStatus.PENDING
     const paidInFull = transaction.amount === session.amount && transaction.currency === session.currency
     return paidInFull ? PaymentSessionStatus.AUTHORIZED : PaymentSessionStatus.ERROR
   }

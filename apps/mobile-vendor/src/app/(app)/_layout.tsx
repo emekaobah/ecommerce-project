@@ -12,7 +12,13 @@ export default function AppLayout() {
       screenOptions={{
         headerTintColor: vendorTheme.colors.ink,
         contentStyle: { backgroundColor: vendorTheme.colors.background },
-      }}
-    />
+      }}>
+      <Stack.Screen name="orders/[id]/index" options={{ title: 'Order' }} />
+      {/* The reject reason sheet slides up over the order. */}
+      <Stack.Screen
+        name="orders/[id]/reject"
+        options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: 'fitToContents' }}
+      />
+    </Stack>
   );
 }

@@ -5,8 +5,11 @@ import { shareFor, sharesOf, viewResponses } from "../shop-share"
 
 type VendorRequest = MedusaRequest & { seller_context?: { seller_id: string } }
 
-/** The shop's order paid by each payment: a checkout's payment sits on its cart, split into an order per shop. */
-async function shopOrderOfPayments(req: VendorRequest, paymentIds: string[]) {
+/**
+ * The shop's order paid by each payment: a checkout's payment sits on its cart, split into an
+ * order per shop. A payment that paid none of the shop's orders maps to itself.
+ */
+export async function shopOrderOfPayments(req: VendorRequest, paymentIds: string[]) {
   const sellerId = req.seller_context?.seller_id
   if (!sellerId) throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "No shop to show the payment to")
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)

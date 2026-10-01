@@ -130,6 +130,8 @@ module.exports = withMercur({
     { resolve: './src/modules/product-enrichment' },
     // Mercur's wishlist block: products a buyer saved, each from one shop (#32).
     { resolve: './src/modules/wishlist' },
+    // Each seller order's place in the fulfilment state machine, and its refunds (#20).
+    { resolve: './src/modules/order-fulfilment' },
     {
       resolve: '@medusajs/medusa/file',
       options: {
