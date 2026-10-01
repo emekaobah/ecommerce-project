@@ -24,7 +24,7 @@ Visual direction: **Monochrome** (option C on the design canvas, researched in R
 
 - Auth: **Clerk** (`@clerk/expo`) — native Google + Apple (required by App Store 4.8) + email. Clerk is the sole customer identity; Medusa customer emailpass disabled.
 - Browse by category/seller, search. **Listings and product pages are shop-scoped** — a product is always shown as one shop's offer (price, delivery time, shop rating). **No cross-shop price comparison** (shops object; not in v1). The product page uses that space for summary, details, reviews and "more from this shop" suggestions.
-- Multi-seller cart; checkout picks a Shipbubble rate **per seller** (cheapest / fastest / best value, default best value).
+- Multi-seller cart; checkout picks, **per seller**, either a Shipbubble rate (cheapest / fastest / best value, default best value) or **in-store pickup** where that shop offers it (see Pickup). A checkout where every shop is pickup asks for no delivery address, only the buyer's name and phone.
   - The Cart tab reads the cart grouped by shop (`GET /store/carts/:id/sellers`). The cart id is kept on the device, one for the guest and one per buyer; a guest cart with items carries over on sign-in (`@oja/domain` `cartOnSignIn`), and signing out leaves the buyer's cart with their account.
   - **Each line is pinned to its own offer's price** (#15). Medusa prices cart lines per variant and Mercur's cart pricing hooks put every offer in the cart into one context, so with two shops' offers of one variant in a cart, a quantity change, sign-in or address change repriced both at the cheaper shop's price. Our add and update-quantity routes price the line from its offer and store it as a custom price, which Medusa's refreshes keep. A shop's price change reaches a line when its quantity next changes, so **checkout must reprice every line from its offer before payment**.
   - Prices are VAT-inclusive through the **currency's** tax-inclusive preference: offer prices are per currency, and Medusa applies a region's preference only to region-scoped prices.
@@ -39,13 +39,18 @@ Visual direction: **Monochrome** (option C on the design canvas, researched in R
   - Owner/manager → `role_seller_administration`; fulfilment staff → `role_seller_order_management`.
   - Staff invited by owner from the web vendor panel.
 - Catalogue, onboarding, promotions and review replies remain in the **web vendor panel**.
-- Push notifications (Expo): new order, accept deadline approaching, courier pickup scheduled.
+- Push notifications (Expo): new order, accept deadline approaching, courier pickup scheduled, pickup order not collected.
+- **Pause / resume orders** (owner/manager only): closes the shop now, until reopened or until a set time (see Shop hours and closures).
+- Pickup counter: scan the buyer's QR or type the 6-digit code, record who collected.
 
 ### Order state machine
 
+Each seller order's **fulfilment method** (delivery or pickup) is fixed when the order is created. Both share the start; each then has its own typed path, so a pickup order can never book a label and a delivery order can never take a pickup code. The courier provider is one implementation of the delivery path (own riders would be another).
+
 ```
-New → Accepted → Picking → Packed → Label booked → Courier confirmed
-    → Handed to courier → In transit → Delivered
+New → Accepted → Picking → Packed ─┬─ delivery: Label booked → Courier confirmed
+                                   │      → Handed to courier → In transit → Delivered
+                                   └─ pickup:   Ready for pickup → Collected
 ```
 
 | State | Source |
@@ -57,16 +62,42 @@ New → Accepted → Picking → Packed → Label booked → Courier confirmed
 | In transit | Shipbubble `in_transit` |
 | Delivered | Shipbubble `completed` → payout eligible |
 
-Branches: **Rejected** (seller declines → refund); **Partially available** (order edit + partial refund); **Shipment cancelled** (Shipbubble `cancelled` → back to Packed, rebook). Delivery is Shipbubble-only in v1; states sit on a generic shipment-provider interface so own-riders can be added.
+| Ready for pickup | Staff tap Packed on a pickup order (one tap); pickup code issued, buyer notified |
+| Collected | Staff verify the pickup code → payout eligible |
+
+Branches: **Rejected** (seller declines → refund); **Partially available** (order edit + partial refund); **Shipment cancelled** (Shipbubble `cancelled` → back to Packed, rebook); **Not collected** (pickup hold expires → refund, stock returned, see Pickup). Delivery is Shipbubble-only in v1.
+
+### Shop hours and closures (ADR 0004)
+
+- Every shop has **weekly opening hours** (per weekday, several periods or closed); an onboarding gate. Hours are in the shop's **region's timezone** (`Africa/Lagos` for NG).
+- **Date exceptions** (one date or a range): closed (optional note) or special hours, which is also how a shop opens on a normally closed day. **Pause orders now** (vendor app) closes the shop at once, until reopened or a set time.
+- Weekly hours and planned exceptions are managed in the web vendor panel; pause/resume in the vendor app. Owner/manager only.
+- Our hours module is the **only source of truth**. Mercur's `closed_from` / `closed_to` / `closure_note` are unused and writes to them are refused.
+- **Outside regular hours** the shop is orderable: it shows "Closed · opens 8am Mon", checkout says the order is prepared when the shop opens, and delivery estimates count from the next opening.
+- **During an exception or pause** the shop is visible but not orderable: "Closed until Tue 14 Oct" with its note; items stay on the shop page and in wishlists but can't be added to the cart, and checkout refuses its cart lines.
+- **Open-hours clocks**: the accept deadline (24h, #20) and the pickup hold count only time the shop is open. Pausing pauses the clock; existing accepted orders carry on, and the app warns about waiting New orders when pausing.
+
+### Pickup
+
+- A shop opts in by setting a **collection point**: by default it *follows* the shop's pickup address (ticking it consents to showing that address to buyers); unticked, it is a separate address entered as in ADR 0002. Always with buyer-facing instructions (and optional phone). It uses the shop's hours. Pickup is free.
+- The **pickup code** is per seller order, random, issued at Ready for pickup and shown only in the buyer's order: 6 digits plus a QR of them. Server-verified, attempts rate-limited per order. Whoever holds the code may collect (bearer); staff see the buyer's name and items and record who collected.
+- Collection is **all or nothing**, accepted only in Ready for pickup, allowed outside hours if staff are present. No switching method after payment.
+- **Hold**: 5 days of open time after Ready; perishable orders until the shop closes on its next open day after Ready (mixed orders take the shorter). Reminders at half-way and on the last day. On expiry → **Not collected**: full refund, stock returned, no payout; but **perishable lines are not refunded** and are paid out to the shop (stated at checkout).
+
+### Perishables
+
+- Operator-set **perishable** flag on catalogue categories, inherited by products, operator-overridable per product; shops can't change it.
+- A seller order with perishable lines is offered only Shipbubble rates whose `delivery_eta_time` is by end of the next day; if none, delivery is unavailable for that shop and pickup is offered where the shop has it.
+- Food in v1 means groceries (packaged, fresh, chilled). Cooked food is out of scope.
 
 ## Backend additions (`apps/api`)
 
 1. **Paystack payments** — our own provider (`src/modules/paystack`, ADR 0003). Captured only on webhook confirmation; vendors can't capture. Mercur 2.3.5 has no capture-on-fulfilment job to disable.
-2. **Accept/reject module** — `POST /vendor/orders/:id/accept|reject`; scheduled job auto-rejects + refunds orders not accepted within **24h**.
+2. **Accept/reject module** — `POST /vendor/orders/:id/accept|reject`; scheduled job auto-rejects + refunds orders not accepted within **24 open hours** (ADR 0004).
 3. **Paystack payout provider** (`IPayoutProvider`) — Paystack Transfers after delivery. Flat **10%** commission; platform absorbs Paystack fees. Payout amounts computed explicitly: seller promotions borne by seller, platform promotions borne by marketplace.
 4. **Shipbubble fulfillment provider** — address validation, per-seller calculated rates, label on fulfilment, cancel, HMAC-SHA512-verified webhooks → state updates. Labels paid from the platform's Shipbubble wallet.
-5. **Vendor onboarding gates** — Shipbubble-validated pickup address (Google autocomplete + map pin, ADR 0002) + Paystack-resolved bank account (transfer recipient); offers hidden until both complete. Web vendor panel extensions.
-6. **Shipping attributes** — weight/dimensions/package category defaults per product category, vendor-overridable; weight required.
+5. **Vendor onboarding gates** — Shipbubble-validated pickup address (Google autocomplete + map pin, ADR 0002) + Paystack-resolved bank account (transfer recipient) + weekly opening hours; offers hidden until all are complete. Web vendor panel extensions.
+6. **Shipping attributes** — weight/dimensions/package category defaults per product category, vendor-overridable; weight required. Perishable flag per category, operator-only.
 7. **Clerk auth provider** — custom Medusa auth provider verifying Clerk JWT, mapping to customer auth identity.
 8. **Public review routes** — `GET /store/products/:id/reviews`, `GET /store/sellers/:id/reviews` (published only, avg rating + count).
 9. **Wishlist** (#32) — Mercur's `wishlist` block (products only), adapted: products are always one shop's offer, so each saved product keeps the shop it was saved from (a `seller_id` column on the wishlist–product link; saving it from another shop replaces it). `GET /store/wishlist` answers each as that shop's listing in the region (null once the shop stops selling it there), and `POST /store/wishlist/product/:id/cart` moves it into the buyer's own cart as that shop's offer, asking which variant when there are several. Signed-in only; the app sends a guest to sign in.
@@ -184,7 +215,7 @@ Sentry/PostHog, seed data and demo polish ride along with the slices that need t
 
 ## Out of scope (v1)
 
-Returns, Shipbubble COD, own-rider delivery, cross-shop price comparison, vendor mode in buyer app, seller follows, phone OTP login, cross-border purchasing.
+Returns (including a failed delivery of perishables and a buyer refusing items at a pickup counter), Shipbubble COD, own-rider delivery, cooked food, third-party or Oja-run pickup points, separate collection-point hours, cross-shop price comparison, vendor mode in buyer app, seller follows, phone OTP login, cross-border purchasing.
 
 ## Accounts needed
 
