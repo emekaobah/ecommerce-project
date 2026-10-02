@@ -119,32 +119,44 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
   }
 
   /** Paystack settles a successful charge by itself; the capture records the webhook's word. */
-  async capturePayment({ data }: CapturePaymentInput): Promise<CapturePaymentOutput> {
-    return { data }
+  capturePayment({ data }: CapturePaymentInput): Promise<CapturePaymentOutput> {
+    return Promise.resolve({ data })
   }
 
-  async refundPayment({ data, amount }: RefundPaymentInput): Promise<RefundPaymentOutput> {
+  /**
+   * Refunds part or all of the transaction. Paystack refunds asynchronously, so its reply is
+   * only the refund it queued; the merchant note names Medusa's refund, to match it by.
+   */
+  async refundPayment({ data, amount, context }: RefundPaymentInput): Promise<RefundPaymentOutput> {
     const session = data as PaystackSessionData
-    const refund = await this.paystack.refund({ transaction: session.reference, amount: toSubunit(amount) })
+    const refund = await this.paystack.refund({
+      transaction: session.reference,
+      amount: toSubunit(amount),
+      merchant_note: context?.idempotency_key,
+    })
     return { data: { ...session, refund } }
   }
 
   /** An unpaid Paystack transaction simply lapses; there is nothing to void. */
-  async cancelPayment({ data }: CancelPaymentInput): Promise<CancelPaymentOutput> {
-    return { data }
+  cancelPayment({ data }: CancelPaymentInput): Promise<CancelPaymentOutput> {
+    return Promise.resolve({ data })
   }
 
-  async deletePayment({ data }: DeletePaymentInput): Promise<DeletePaymentOutput> {
-    return { data }
+  deletePayment({ data }: DeletePaymentInput): Promise<DeletePaymentOutput> {
+    return Promise.resolve({ data })
   }
 
-  async getWebhookActionAndData({ data, rawData, headers }: ProviderWebhookPayload["payload"]): Promise<WebhookActionResult> {
+  getWebhookActionAndData(payload: ProviderWebhookPayload["payload"]): Promise<WebhookActionResult> {
+    return Promise.resolve(this.webhookAction(payload))
+  }
+
+  private webhookAction({ data, rawData, headers }: ProviderWebhookPayload["payload"]): WebhookActionResult {
     if (!isPaystackSignatureValid(this.config.secretKey, rawData, headers["x-paystack-signature"] as string | undefined)) {
       return { action: PaymentActions.NOT_SUPPORTED }
     }
     const { event, data: transaction } = data as { event?: string; data?: PaystackTransaction }
-    const sessionId = metadataOf(transaction)?.session_id
-    if (event !== "charge.success" || transaction?.status !== "success" || typeof sessionId !== "string") {
+    const sessionId = sessionIdOf(transaction)
+    if (event !== "charge.success" || transaction?.status !== "success" || !sessionId) {
       return { action: PaymentActions.NOT_SUPPORTED }
     }
     return { action: PaymentActions.SUCCESSFUL, data: { session_id: sessionId, amount: fromSubunit(transaction.amount) } }
@@ -156,13 +168,27 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
     return { status: this.statusOf(session, transaction), data: { ...session, transaction } }
   }
 
-  /** Authorised only when Paystack took exactly what this session started, in its currency. */
+  /**
+   * Authorised only when Paystack took exactly what this session started, in its currency. A
+   * refund, even a partial one, turns the transaction `reversal-pending` and then `reversed`
+   * (seen in test mode), but the buyer did pay it: such a transaction still reads as paid, so
+   * a refund never makes a payment look failed or unpaid.
+   */
   private statusOf(session: PaystackSessionData, transaction: PaystackTransaction): PaymentSessionStatus {
-    if (transaction.status === "failed" || transaction.status === "reversed") return PaymentSessionStatus.ERROR
-    if (transaction.status !== "success") return PaymentSessionStatus.PENDING
+    if (transaction.status === "failed") return PaymentSessionStatus.ERROR
+    if (!PAID.has(transaction.status)) return PaymentSessionStatus.PENDING
     const paidInFull = transaction.amount === session.amount && transaction.currency === session.currency
     return paidInFull ? PaymentSessionStatus.AUTHORIZED : PaymentSessionStatus.ERROR
   }
+}
+
+/** Transactions the buyer paid: refunds turn them `reversal-pending`, then `reversed`. */
+const PAID = new Set<PaystackTransaction["status"]>(["success", "reversal-pending", "reversed"])
+
+/** The payment session a transaction was started for, from its metadata. */
+export function sessionIdOf(transaction: PaystackTransaction | undefined): string | undefined {
+  const sessionId = metadataOf(transaction)?.session_id
+  return typeof sessionId === "string" ? sessionId : undefined
 }
 
 /** Paystack returns metadata as an object, or as the JSON string it was sent as. */

@@ -1,20 +1,15 @@
 import { formatMoney } from '@oja/domain';
-import { Button, EmptyState, ErrorState, ListRow, LoadingState, StatusChip, useTheme, type StatusTone } from '@oja/ui';
+import { Button, EmptyState, ErrorState, ListRow, LoadingState, useTheme } from '@oja/ui';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet } from 'react-native';
 
-import { useOrders } from '@/api/orders';
+import { orderValue, useOrders } from '@/api/orders';
 import { useCurrentSeller } from '@/api/sellers';
+import { FulfilmentChip } from '@/orders/fulfilment-chip';
+import { itemsSummary } from '@/orders/items';
+import { useNow } from '@/orders/use-now';
 import { useSession } from '@/session/session-store';
-
-// Medusa order statuses; the fulfilment state machine replaces these with its own states.
-const STATUS_TONES: Partial<Record<string, StatusTone>> = {
-  pending: 'info',
-  completed: 'success',
-  canceled: 'danger',
-  requires_action: 'warning',
-};
 
 export function OrdersScreen() {
   const theme = useTheme();
@@ -22,6 +17,7 @@ export function OrdersScreen() {
   const sellerId = useSession()?.sellerId;
   const seller = useCurrentSeller(sellerId);
   const orders = useOrders(sellerId);
+  const now = useNow();
   // Only a pull shows the spinner; background refetches stay silent.
   const [pulling, setPulling] = useState(false);
   const refresh = () => {
@@ -46,15 +42,10 @@ export function OrdersScreen() {
         onRefresh={refresh}
         renderItem={({ item }) => (
           <ListRow
-            title={`#${item.display_id}`}
-            subtitle={[
-              formatMoney(Number(item.total), item.currency_code),
-              itemCount(item.items),
-              new Date(item.created_at).toLocaleString(),
-            ].join(' · ')}
-            trailing={
-              <StatusChip label={item.status.replaceAll('_', ' ')} tone={STATUS_TONES[item.status] ?? 'neutral'} />
-            }
+            title={`#${item.display_id} · ${formatMoney(orderValue(item), item.currency_code)}`}
+            subtitle={itemsSummary(item.items)}
+            trailing={<FulfilmentChip fulfilment={item.fulfilment} now={now} />}
+            onPress={() => router.push({ pathname: '/orders/[id]', params: { id: item.id } })}
           />
         )}
       />
@@ -72,11 +63,6 @@ export function OrdersScreen() {
       {content()}
     </>
   );
-}
-
-function itemCount(items: { quantity: number | string }[] | null | undefined) {
-  const count = (items ?? []).reduce((total, item) => total + Number(item.quantity), 0);
-  return count === 1 ? '1 item' : `${count} items`;
 }
 
 const styles = StyleSheet.create({

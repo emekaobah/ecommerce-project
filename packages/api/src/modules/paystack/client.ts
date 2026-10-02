@@ -11,8 +11,31 @@ export type PaystackTransaction = {
   /** In the currency's subunit (kobo for NGN). */
   amount: number
   currency: string
-  status: "success" | "failed" | "abandoned" | "ongoing" | "pending" | "processing" | "queued" | "reversed"
+  status:
+    | "success"
+    | "failed"
+    | "abandoned"
+    | "ongoing"
+    | "pending"
+    | "processing"
+    | "queued"
+    | "reversal-pending"
+    | "reversed"
   metadata?: Record<string, unknown> | string | null
+}
+
+/** Where a refund is: Paystack refunds asynchronously, and a refund can fail after it was started. */
+export const PAYSTACK_REFUND_STATUSES = ["pending", "processing", "processed", "failed", "needs-attention"] as const
+export type PaystackRefundStatus = (typeof PAYSTACK_REFUND_STATUSES)[number]
+
+/** A refund as Paystack's Refunds API describes it. */
+export type PaystackRefund = {
+  id: number
+  status: PaystackRefundStatus
+  /** In the currency's subunit. */
+  amount: number
+  currency: string
+  merchant_note?: string | null
 }
 
 type Envelope<T> = { status: boolean; message: string; data: T }
@@ -39,7 +62,7 @@ export function isPaystackSignatureValid(
   return received.length === expected.length && timingSafeEqual(received, expected)
 }
 
-/** The few Paystack Transactions API calls checkout needs. */
+/** The few Paystack Transactions and Refunds API calls checkout and refunds need. */
 export class PaystackClient {
   constructor(
     private readonly secretKey: string,
@@ -80,7 +103,12 @@ export class PaystackClient {
     return this.request<PaystackTransaction>("GET", `/transaction/verify/${encodeURIComponent(reference)}`)
   }
 
-  refund(input: { transaction: string; amount: number }) {
-    return this.request<Record<string, unknown>>("POST", "/refund", input)
+  /** Refunds part of a transaction, or all of it with no amount; `merchant_note` is ours, for matching it later. */
+  refund(input: { transaction: string; amount?: number; merchant_note?: string }) {
+    return this.request<PaystackRefund>("POST", "/refund", input)
+  }
+
+  fetchRefund(id: number | string) {
+    return this.request<PaystackRefund>("GET", `/refund/${encodeURIComponent(String(id))}`)
   }
 }

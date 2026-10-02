@@ -1,18 +1,27 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { Modules } from "@medusajs/framework/utils"
 import { updateOffersWorkflow } from "@mercurjs/core/workflows"
 import seedDemoData from "../../src/scripts/seed"
-import { SEED_DELIVERY_FEE, SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
+import { SEED_DELIVERY_FEE, SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "../helpers/auth"
+import {
+  ADDRESS,
+  buyerCheckout,
+  eventually,
+  GADGETS,
+  GROCERY,
+  LANTERN,
+  ORDER_TOTALS,
+  RETURN_URL,
+  RICE,
+  TOTAL,
+  type Shop,
+} from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { numbersIn } from "../helpers/numbers"
 import { fakePaystack } from "../helpers/paystack"
 
 jest.setTimeout(5 * 60 * 1000)
-
-const LANTERN = SEED_PRODUCTS.find((p) => p.title === "Rechargeable LED Lantern")!
-const RICE = SEED_PRODUCTS.find((p) => p.title === "Ofada Rice 5kg")!
-const [GROCERY, , GADGETS] = SEED_SELLERS
 
 const clerk = fakeClerk()
 // A port per test process, so the fake can be named in the config before it is listening.
@@ -34,126 +43,52 @@ const ORDER_GROUP_FIELDS = [
   "orders.items.quantity",
   "orders.items.unit_price",
 ].join(",")
-const RETURN_URL = "https://api.oja.test/paystack/return"
-const ADDRESS = {
-  first_name: "Ada",
-  last_name: "Obi",
-  address_1: "3 Akin Adesola Street",
-  address_2: "Flat 4",
-  city: "Eti-Osa",
-  province: "Lagos",
-  country_code: "ng",
-  phone: "+2348031234567",
-  metadata: { landmark: "Opposite the Mobil station" },
-}
 
 medusaIntegrationTestRunner({
   inApp: true,
   env: {},
   testSuite: ({ api, getContainer }) => {
-    let headers: Record<string, string>
-    let regionId: string
-
-    beforeAll(async () => {
-      await paystack.start()
-      await seedDemoData({ container: getContainer(), args: [] } as any)
-    })
-    afterAll(() => paystack.stop())
-
-    beforeEach(async () => {
-      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
-      const { data: keys } = await query.graph({ entity: "api_key", fields: ["token"], filters: { type: "publishable" } })
-      headers = { "x-publishable-api-key": keys[0].token }
-      const { data: regions } = await query.graph({ entity: "region", fields: ["id"] })
-      regionId = regions[0].id
-    })
-
-    const query = () => getContainer().resolve(ContainerRegistrationKeys.QUERY)
-    const as = (email: string) => ({
-      headers: { ...headers, authorization: `Bearer ${clerk.sessionToken({ sub: `user_${email}`, email })}` },
-    })
-    const ada = () => as("ada@oja.test")
+    const buyer = buyerCheckout({ api, getContainer, clerk, paystack })
+    const {
+      query,
+      as,
+      ada,
+      sellerId,
+      offerId,
+      adasCart,
+      prepare,
+      startPayment,
+      checkout,
+      postWebhook,
+      orderGroupOf,
+      paymentOf,
+      capturedWithin,
+      ordersOfCart,
+    } = buyer
     const status = (request: Promise<unknown>) =>
       request.then(
         () => 200,
         (e: any) => e.response?.status as number
       )
 
-    const sellerId = async (shop: (typeof SEED_SELLERS)[number]) => {
-      const { data } = await query().graph({ entity: "seller", fields: ["id"], filters: { name: shop.name } })
-      return data[0].id as string
-    }
-    const offerId = async (shop: (typeof SEED_SELLERS)[number], title: string) => {
-      const { data: products } = await query().graph({ entity: "product", fields: ["id"], filters: { title } })
-      const { data } = await query().graph({
-        entity: "offer",
-        fields: ["id"],
-        filters: { seller_id: await sellerId(shop), product_id: products[0].id },
-      })
-      return data[0].id as string
-    }
+    beforeAll(async () => {
+      await paystack.start()
+      await seedDemoData({ container: getContainer(), args: [] } as any)
+    })
+    afterAll(() => paystack.stop())
+    beforeEach(() => buyer.load())
 
-    /** Ada's cart: a lantern from the gadget hub, two bags of rice from the grocery shop. */
-    const adasCart = async () => {
-      const { data } = await api.post("/store/carts", { region_id: regionId }, ada())
-      const cartId = data.cart.id as string
-      await api.post(`/store/carts/${cartId}/line-items`, { offer_id: await offerId(GADGETS, LANTERN.title), quantity: 1 }, ada())
-      await api.post(`/store/carts/${cartId}/line-items`, { offer_id: await offerId(GROCERY, RICE.title), quantity: 2 }, ada())
-      return cartId
-    }
-    const TOTAL = LANTERN.price + 2 * RICE.price + 2 * SEED_DELIVERY_FEE
-
-    const prepare = (cartId: string) => api.post(`/store/carts/${cartId}/checkout`, { shipping_address: ADDRESS }, ada())
-    const startPayment = async (cartId: string) =>
-      (await api.post(`/store/carts/${cartId}/checkout/payment`, { return_url: RETURN_URL }, ada())).data.payment
-    const checkout = async (cartId: string) => (await api.get(`/store/carts/${cartId}/checkout`, ada())).data.checkout
-    const postWebhook = ({ body, headers }: { body: string; headers: Record<string, string> }) =>
-      api.post("/hooks/payment/paystack_paystack", body, { headers })
-
-    /** The cart's order group once the webhook's subscriber has completed it. */
-    const orderGroupOf = async (cartId: string) => {
-      for (let attempt = 0; attempt < 100; attempt++) {
-        const { order_group_id } = await checkout(cartId)
-        if (order_group_id) return order_group_id as string
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      }
-      throw new Error(`cart ${cartId} was never completed`)
-    }
-    const paymentOf = async (cartId: string) => {
-      const { data } = await query().graph({
-        entity: "cart",
-        fields: ["payment_collection.payments.captured_at", "payment_collection.payments.captures.amount"],
-        filters: { id: cartId },
-      })
-      return (data[0].payment_collection?.payments?.[0] ?? null) as any
-    }
-    const capturedWithin = async (cartId: string) => {
-      for (let attempt = 0; attempt < 100; attempt++) {
-        const payment = await paymentOf(cartId)
-        if (payment?.captured_at) return payment
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      }
-      return paymentOf(cartId)
-    }
     /** The cart's payment session for a transaction, once the webhook has had Paystack verify it. */
     const verifiedSession = async (cartId: string, reference: string) => {
-      for (let attempt = 0; attempt < 200; attempt++) {
+      const sessionOf = async () => {
         const { data } = await query().graph({
           entity: "cart",
           fields: ["payment_collection.payment_sessions.status", "payment_collection.payment_sessions.data"],
           filters: { id: cartId },
         })
-        const session = (data[0].payment_collection?.payment_sessions ?? []).find(
-          (s: any) => s?.data?.reference === reference
-        ) as any
-        if (session?.data?.transaction) return session
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        return (data[0].payment_collection?.payment_sessions ?? []).find((s: any) => s?.data?.reference === reference) as any
       }
-      throw new Error(`the webhook for ${reference} was never verified`)
-    }
-    const ordersOfCart = async (cartId: string) => {
-      const { data } = await query().graph({ entity: "order_cart", fields: ["order_id"], filters: { cart_id: cartId } })
-      return data
+      return eventually(sessionOf, (session) => !!session?.data?.transaction, 200)
     }
 
     describe("preparing checkout", () => {
@@ -225,7 +160,7 @@ medusaIntegrationTestRunner({
 
         expect(
           await Promise.all([
-            status(api.post(`/store/carts/${cartId}/checkout`, { shipping_address: ADDRESS }, { headers })),
+            status(api.post(`/store/carts/${cartId}/checkout`, { shipping_address: ADDRESS }, { headers: buyer.headers() })),
             status(api.post(`/store/carts/${cartId}/checkout`, { shipping_address: ADDRESS }, as("bola@oja.test"))),
             status(api.get(`/store/carts/${cartId}/checkout`, as("bola@oja.test"))),
           ])
@@ -440,7 +375,7 @@ medusaIntegrationTestRunner({
       const res = await api
         .post(`/store/payment-collections/${data.payment_collection.id}/payment-sessions`, { provider_id: "pp_system_default" }, ada())
         .catch((e) => e.response)
-      const { data: providers } = await api.get(`/store/payment-providers?region_id=${regionId}`, ada())
+      const { data: providers } = await api.get(`/store/payment-providers?region_id=${buyer.regionId()}`, ada())
 
       expect(res.status).toBe(400)
       expect(res.data.message).toMatch(/pp_system_default is not enabled in the cart's region/)
@@ -472,17 +407,8 @@ medusaIntegrationTestRunner({
 
     describe("what a shop sees of its order", () => {
       /** Ada pays for her cart, and it is split into an order per shop. */
-      const paidCheckout = async () => {
-        const cartId = await adasCart()
-        await prepare(cartId)
-        const { reference } = await startPayment(cartId)
-        paystack.pay(reference)
-        await postWebhook(paystack.chargeSuccess(reference))
-        await orderGroupOf(cartId)
-        await capturedWithin(cartId)
-        return cartId
-      }
-      const shopOrders = async (shop: (typeof SEED_SELLERS)[number], cartId: string, fields: string) => {
+      const paidCheckout = async () => (await buyer.paidCheckout()).cartId
+      const shopOrders = async (shop: Shop, cartId: string, fields: string) => {
         const owner = await vendorHeaders(api, shop.owner.email, SEED_PASSWORD, await sellerId(shop))
         const { data: carts } = await query().graph({ entity: "order_cart", fields: ["order_id"], filters: { cart_id: cartId } })
         const cartOrderIds = new Set(carts.map((c: any) => c.order_id))
@@ -606,18 +532,25 @@ medusaIntegrationTestRunner({
         }
       })
 
-      it("refunds nothing when a shop refunds a split checkout's payment from the panel", async () => {
-        // A shop's refund must be its order's share (#20). Until then, Medusa's refund finds no
-        // order linked to a split checkout's payment and stops before moving any money.
-        const cartId = await paidCheckout()
+      it("refunds only the shop's own order's share when it refunds a split checkout's payment from the panel", async () => {
+        const { cartId, reference } = await buyer.paidCheckout()
         const paymentId = await paymentIdOf(cartId)
         const owner = await vendorHeaders(api, GADGETS.owner.email, SEED_PASSWORD, await sellerId(GADGETS))
+        const share = ORDER_TOTALS.get(GADGETS)!
 
-        const res = await api.post(`/vendor/payments/${paymentId}/refund`, { amount: TOTAL }, owner).catch((e) => e.response)
+        // The whole checkout's payment isn't the shop's to refund.
+        expect(await status(api.post(`/vendor/payments/${paymentId}/refund`, { amount: TOTAL }, owner))).toBe(400)
+        expect(paystack.refundsOf(reference)).toEqual([])
 
-        expect(res.status).toBeGreaterThanOrEqual(400)
-        const { data } = await query().graph({ entity: "payment", fields: ["refunds.id"], filters: { id: paymentId } })
-        expect(data[0].refunds).toEqual([])
+        const { data } = await api.post(`/vendor/payments/${paymentId}/refund`, { amount: share }, owner)
+
+        // Shown as the shop's share, refunded in full; Paystack refunded that share alone (kobo).
+        expect(data.payment.refunds.map((r: any) => r.amount)).toEqual([share])
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([share * 100])
+        const grocer = await vendorHeaders(api, GROCERY.owner.email, SEED_PASSWORD, await sellerId(GROCERY))
+        const { data: other } = await api.get(`/vendor/payments/${paymentId}`, grocer)
+        expect(other.payment.refunds).toEqual([])
+        expect(other.payment.captures.map((c: any) => c.amount)).toEqual([ORDER_TOTALS.get(GROCERY)])
       })
 
       it("still strikes through the shop's normal price when its own offer was on sale", async () => {

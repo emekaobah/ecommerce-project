@@ -9,6 +9,7 @@ import { StorePrepareCheckout, StoreStartCheckoutPayment } from "./store/carts/[
 import { verifyPaystackSignature } from "./hooks/paystack-signature";
 import { refuseVendorCapture } from "./vendor/payments/no-capture";
 import { showTheShopItsOwnOrder } from "./vendor/orders/shop-view";
+import { VendorRejectOrder } from "./vendor/orders/validators";
 import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
@@ -82,6 +83,11 @@ export default defineMiddlewares({
             middlewares: [verifyPaystackSignature],
         },
         { method: ["POST"], matcher: "/vendor/payments/:id/capture", middlewares: [refuseVendorCapture] },
+        {
+            method: ["POST"],
+            matcher: "/vendor/orders/:id/reject",
+            middlewares: [validateAndTransformBody(VendorRejectOrder)],
+        },
         { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },
         // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows.

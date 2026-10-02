@@ -12,8 +12,8 @@ type Body = Record<string, unknown>
 export function viewResponses(view: (req: MedusaRequest, body: Body) => Promise<Body>) {
   return (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
     const send = res.json.bind(res)
-    res.json = (body: Body) => {
-      view(req, body).then(send, next)
+    res.json = (body: unknown) => {
+      view(req, body as Body).then(send, next)
       return res
     }
     next()
