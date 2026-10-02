@@ -91,4 +91,4 @@ Checks: `bun run codegen && bun run check-types && bun run test`.
 
 ## Deploy
 
-`render.yaml` describes the Render Blueprint (API server + worker, Postgres, Key Value). It is not applied yet.
+`.railway/railway.ts` describes the Railway project (API server + worker, Postgres, Redis) as Infrastructure as Code ([ADR 0005](docs/adr/0005-railway-hosting.md)). It is not applied yet. Preview with `railway config plan` (Railway CLI 5.42.1 or newer) and apply with `railway config apply`.
