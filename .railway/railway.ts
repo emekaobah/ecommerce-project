@@ -1,0 +1,83 @@
+// Railway Infrastructure as Code for the Oja backend (ADR 0005). Preview with
+// `railway config plan`, apply with `railway config apply`; Railway doesn't read this
+// file on deploy.
+//
+// One codebase runs as two services (Medusa server + worker), sharing Postgres and Redis.
+// BullMQ (event bus / workflow engine) requires Redis's maxmemory-policy to be noeviction,
+// which is Redis's default and isn't overridden by Railway's image.
+import { database, defineRailway, github, group, project, redis, service } from "railway/iac"
+
+// EU West (Amsterdam), Railway's closest region to Lagos.
+const region = "europe-west4-drams3a"
+
+const build = [
+  "bun run codegen",
+  "bun x turbo run build --filter=@acme/api",
+  "cd packages/api/.medusa/server && npm install --omit=dev",
+].join(" && ")
+const start = "cd packages/api/.medusa/server && npx medusa start"
+
+// Set by hand as shared variables on the environment. The secrets never live in the repo.
+const sharedVariables = [
+  "JWT_SECRET",
+  "COOKIE_SECRET",
+  // Public origin of the API, e.g. https://api.<domain>; baked into the panels at build time.
+  "MERCUR_BACKEND_URL",
+  "VITE_MERCUR_BACKEND_URL",
+  "FILE_BACKEND_URL",
+  "STORE_CORS",
+  "ADMIN_CORS",
+  "VENDOR_CORS",
+  "AUTH_CORS",
+  // The vendor panel's public origin (`<api origin>/seller`); staff invite links use it.
+  "MERCUR_VENDOR_URL",
+  // Clerk PEM public key; verifies buyer session tokens without a network call.
+  "CLERK_JWT_KEY",
+  // Paystack secret key; starts and verifies payments and checks webhook signatures.
+  "PAYSTACK_SECRET_KEY",
+  // Anthropic API key; Claude drafts catalogue fields no product database had (#36).
+  "ANTHROPIC_API_KEY",
+] as const
+
+export default defineRailway((ctx) => {
+  // Postgres 16, matching docker-compose.yml. Railway's postgres() helper defaults to 18.
+  const db = database("oja-db", "postgres", {
+    image: "ghcr.io/railwayapp-templates/postgres-ssl:16",
+    output: "DATABASE_URL",
+    defaultMountPath: "/var/lib/postgresql/data",
+    region,
+  })
+  const cache = redis("oja-redis", { region })
+
+  const env = (workerMode: "server" | "worker") => ({
+    NODE_ENV: "production",
+    MEDUSA_WORKER_MODE: workerMode,
+    DATABASE_URL: db.env.DATABASE_URL,
+    REDIS_URL: cache.env.REDIS_URL,
+    ...Object.fromEntries(sharedVariables.map((name) => [name, ctx.shared[name]])),
+  })
+
+  const source = github("emekaobah/ecommerce-project", { branch: "main" })
+
+  const api = service("oja-api", {
+    source,
+    build,
+    start,
+    preDeploy: "cd packages/api/.medusa/server && npx medusa db:migrate",
+    healthcheck: "/health",
+    replicas: { [region]: 1 },
+    env: env("server"),
+  })
+
+  const worker = service("oja-worker", {
+    source,
+    build,
+    start,
+    replicas: { [region]: 1 },
+    env: env("worker"),
+  })
+
+  return project("oja", {
+    resources: [group("Backend", [api, worker, db, cache])],
+  })
+})

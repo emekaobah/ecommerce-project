@@ -11,7 +11,7 @@ loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 //   Medusa Cloud) get the panels bundled into ./dashboards/<name> by
 //   scripts/bundle-dashboards.mjs during `build`. The compiled config runs from the
 //   artifact root, so __dirname points there.
-// In production (Render) Redis backs Medusa's event bus, workflow engine, locking and cache.
+// In production (Railway) Redis backs Medusa's event bus, workflow engine, locking and cache.
 // Locally the in-memory defaults are used unless REDIS_URL is set.
 const redisUrl = process.env.REDIS_URL
 const redisModules = redisUrl

@@ -158,7 +158,7 @@ Target: independent per-country markets. Cross-border purchasing is out of scope
 
 ## Infrastructure
 
-- **Render** via `render.yaml` Blueprint: web service (`MEDUSA_WORKER_MODE=server`), background worker (`worker`), Render Postgres, Key Value with `maxmemoryPolicy: noeviction`, `preDeployCommand` migrations, auto-deploy from `main`.
+- **Railway** via `.railway/railway.ts` (Infrastructure as Code, ADR 0005): API service (`MEDUSA_WORKER_MODE=server`), worker service (`worker`), Railway Postgres 16, Railway Redis (default `noeviction` policy, which BullMQ needs), pre-deploy migrations, auto-deploy from `main`, EU West region. At least 2 GB RAM available per instance, per Mercur's self-host guide.
 - **Cloudflare R2** for files (Medusa S3 file provider).
 - **Domain**: `.com` via Cloudflare Registrar; subdomains `api.`, `vendor.`, `admin.`, `mail.`, Clerk's. Dev proceeds without it.
 - **Sentry** (both apps + backend); **PostHog** (checkout funnel, vendor fulfilment timings).
@@ -175,12 +175,12 @@ Target: independent per-country markets. Cross-border purchasing is out of scope
 ### Walking skeleton (first ticket)
 
 - `create-mercur-app` scaffold with pinned versions; boot check.
-- Docker Compose for Postgres + Redis, pinned to Render's versions.
+- Docker Compose for Postgres + Redis, pinned to the host's versions.
 - `apps/mobile-buyer` and `apps/mobile-vendor` from the default Expo Router template, in the monorepo.
 - Shared typed API client + types package.
 - Buyer app lists seeded catalogue products; vendor app logs a member in and lists the seller's orders.
 - CI: typecheck + one test.
-- `render.yaml` written and validated, not applied.
+- Deployment config written and validated, not applied (originally `render.yaml`; now `.railway/railway.ts`).
 
 ### Design pass (in parallel with the skeleton)
 
@@ -209,7 +209,7 @@ Sentry/PostHog, seed data and demo polish ride along with the slices that need t
 
 ### Ways of working
 
-- Local development first; deploy to Render once slice 3 works end to end. Webhooks tested locally via a tunnel.
+- Local development first; deploy to Railway once slice 3 works end to end. Webhooks tested locally via a tunnel.
 - One branch + PR per ticket; merge only with green CI; `main` stays deployable.
 - First slices worked interactively; later a mix of `ready-for-agent` / `ready-for-human` tickets.
 
@@ -219,4 +219,4 @@ Returns (including a failed delivery of perishables and a buyer refusing items a
 
 ## Accounts needed
 
-Paystack, Shipbubble, Clerk, Resend, Cloudflare (R2 + domain), Sentry, Expo/EAS, Apple Developer, Render (`render login`), GitHub.
+Paystack, Shipbubble, Clerk, Resend, Cloudflare (R2 + domain), Sentry, Expo/EAS, Apple Developer, Railway (`railway login`), GitHub.

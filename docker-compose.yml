@@ -1,4 +1,5 @@
-# Local development services. Versions track Render (Postgres 16, Key Value = Valkey 8).
+# Local development services. Postgres tracks Railway (16, pinned in .railway/railway.ts);
+# Valkey 8 stands in for Railway's Redis 8.
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,7 +18,7 @@ services:
 
   valkey:
     image: valkey/valkey:8-alpine
-    # Matches Render Key Value config: BullMQ requires noeviction.
+    # BullMQ requires noeviction, which is also Redis's default on Railway.
     command: ["valkey-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
     ports:
       - "127.0.0.1:6381:6379"
