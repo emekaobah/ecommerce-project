@@ -301,20 +301,22 @@ async function shipbubbleOptionsBySeller(scope: MedusaContainer, sellerIds: stri
 async function setShopDeliveries(scope: MedusaContainer, cartId: string, receiverCode: number) {
   const { sellers, currency_code } = await retrieveCartBySeller(scope, cartId)
   const optionBySeller = await shipbubbleOptionsBySeller(scope, sellers.map((g) => g.seller!.id))
-  const options: { id: string; data: ShipbubbleMethodData }[] = []
-  for (const group of sellers) {
-    const seller = group.seller!
-    const optionId = optionBySeller.get(seller.id)
-    const lines = parcelLines(group)
-    const choices = optionId
-      ? await quoteDelivery(scope, { sellerId: seller.id, receiverCode, lines, currencyCode: currency_code })
-      : []
-    if (!optionId || !choices.length) {
-      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller.name} doesn't deliver to this address`)
-    }
-    // `deliveryChoices` puts best value first.
-    options.push({ id: optionId, data: { quote: choices[0]!, choices, basis: quoteBasis(receiverCode, lines) } })
-  }
+  // Each shop is quoted from its own pickup address, so the quotes are asked for at once.
+  const options: { id: string; data: ShipbubbleMethodData }[] = await Promise.all(
+    sellers.map(async (group) => {
+      const seller = group.seller!
+      const optionId = optionBySeller.get(seller.id)
+      const lines = parcelLines(group)
+      const choices = optionId
+        ? await quoteDelivery(scope, { sellerId: seller.id, receiverCode, lines, currencyCode: currency_code })
+        : []
+      if (!optionId || !choices.length) {
+        throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller.name} doesn't deliver to this address`)
+      }
+      // `deliveryChoices` puts best value first.
+      return { id: optionId, data: { quote: choices[0]!, choices, basis: quoteBasis(receiverCode, lines) } }
+    })
+  )
   await addSellerShippingMethodToCartWorkflow(scope).run({ input: { cart_id: cartId, options } })
 }
 

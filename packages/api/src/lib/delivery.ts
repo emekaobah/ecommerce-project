@@ -56,7 +56,9 @@ const numberOrNull = (value: unknown) => (typeof value === "number" && Number.is
 /** The Shipbubble address code stored on an address, if it has one. */
 export function addressCodeOf(address: DeliveryAddress | null | undefined): number | null {
   const code = address?.metadata?.[ADDRESS_CODE]
-  return typeof code === "number" ? code : typeof code === "string" && /^\d+$/.test(code) ? Number(code) : null
+  if (typeof code === "number") return code
+  if (typeof code === "string" && /^\d+$/.test(code)) return Number(code)
+  return null
 }
 
 /** The address as one line of text for Shipbubble: street to state, then the country's name. */

@@ -40,6 +40,12 @@ export type ShipbubbleMethodData = {
 const isQuote = (value: unknown): value is ShipbubbleQuote =>
   !!value && typeof value === "object" && typeof (value as ShipbubbleQuote).amount === "number"
 
+/** The buyer's chosen quote on a shipping method's data, or a rejection when checkout didn't put one there. */
+const withQuote = <T>(data: Record<string, unknown>, then: (quote: ShipbubbleQuote) => T): Promise<T> =>
+  isQuote(data.quote) && data.quote.amount > 0
+    ? Promise.resolve(then(data.quote))
+    : Promise.reject(new MedusaError(MedusaError.Types.INVALID_DATA, "Choose a delivery rate at checkout"))
+
 /**
  * Shipbubble delivery (#23, docs/design.md). One calculated shipping option per shop; checkout
  * (`src/lib/delivery.ts`) asks Shipbubble for the shop's rates and adds the buyer's choice as
@@ -56,43 +62,37 @@ export class ShipbubbleFulfillmentProviderService extends AbstractFulfillmentPro
     }
   }
 
-  async getFulfillmentOptions() {
-    return [{ id: "shipbubble" }]
+  getFulfillmentOptions() {
+    return Promise.resolve([{ id: "shipbubble" }])
   }
 
-  async canCalculate() {
-    return true
+  canCalculate() {
+    return Promise.resolve(true)
   }
 
-  async validateOption() {
-    return true
+  validateOption() {
+    return Promise.resolve(true)
   }
 
-  async validateFulfillmentData(_optionData: Record<string, unknown>, data: Record<string, unknown>) {
-    if (!isQuote(data.quote)) {
-      throw new MedusaError(MedusaError.Types.INVALID_DATA, "Choose a delivery rate at checkout")
-    }
-    return data
+  validateFulfillmentData(_optionData: Record<string, unknown>, data: Record<string, unknown>) {
+    return withQuote(data, () => data)
   }
 
-  async calculatePrice(_optionData: Record<string, unknown>, data: Record<string, unknown>): Promise<CalculatedShippingOptionPrice> {
-    if (!isQuote(data.quote)) {
-      throw new MedusaError(MedusaError.Types.INVALID_DATA, "Choose a delivery rate at checkout")
-    }
+  calculatePrice(_optionData: Record<string, unknown>, data: Record<string, unknown>): Promise<CalculatedShippingOptionPrice> {
     // Shipbubble's rate card amount includes VAT, like the shops' prices.
-    return { calculated_amount: data.quote.amount, is_calculated_price_tax_inclusive: true }
+    return withQuote(data, (quote) => ({ calculated_amount: quote.amount, is_calculated_price_tax_inclusive: true }))
   }
 
-  async createFulfillment(): Promise<CreateFulfillmentResult> {
+  createFulfillment(): Promise<CreateFulfillmentResult> {
     // Booking the label with Shipbubble is #24.
-    return { data: {}, labels: [] }
+    return Promise.resolve({ data: {}, labels: [] })
   }
 
-  async cancelFulfillment() {
-    return {}
+  cancelFulfillment() {
+    return Promise.resolve({})
   }
 
-  async createReturnFulfillment(): Promise<CreateFulfillmentResult> {
-    return { data: {}, labels: [] }
+  createReturnFulfillment(): Promise<CreateFulfillmentResult> {
+    return Promise.resolve({ data: {}, labels: [] })
   }
 }

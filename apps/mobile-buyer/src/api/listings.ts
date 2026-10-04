@@ -19,7 +19,7 @@ export const listingKeys = {
     [...listingKeys.all, 'detail', { regionId, sellerId, productId }] as const,
 };
 
-async function fetchListings(regionId: string, { search, categoryId, sellerId, excludeProductId, limit }: ListFilters) {
+function fetchListings(regionId: string, { search, categoryId, sellerId, excludeProductId, limit }: ListFilters) {
   return storeClient.store.listings.query({
     region_id: regionId,
     ...(search ? { q: search } : {}),
