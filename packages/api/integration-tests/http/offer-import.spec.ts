@@ -1,6 +1,10 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { MercurModules } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
+import { OFFER_IMPORT_MODULE, type OfferImportModuleService } from "../../src/modules/offer-import"
+import { PRODUCT_ENRICHMENT_MODULE } from "../../src/modules/product-enrichment"
+import type ProductEnrichmentModuleService from "../../src/modules/product-enrichment/service"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { adminHeaders, vendorHeaders } from "../helpers/auth"
 import { enrichmentOf } from "../helpers/enrichment"
@@ -144,6 +148,47 @@ medusaIntegrationTestRunner({
 
         // Another shop sees none of it.
         expect(await offersOf(await owner(fashion), `id=${data.results[0].offer_id}`)).toEqual([])
+      })
+
+      describe("each row is all or nothing", () => {
+        afterEach(() => jest.restoreAllMocks())
+
+        const productsTitled = async (title: string) => {
+          const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+          const { data } = await query.graph({ entity: "product", fields: ["id"], filters: { title } })
+          return data
+        }
+        const shopCosts = async () =>
+          getContainer().resolve<OfferImportModuleService>(OFFER_IMPORT_MODULE).listOfferCosts({ seller_id: await sellerId(grocery) })
+
+        it("leaves no proposal, enrichment or cost behind when a proposed row's offer can't be created", async () => {
+          const offers = getContainer().resolve(MercurModules.OFFER) as { createOffers: (...args: unknown[]) => Promise<unknown> }
+          jest.spyOn(offers, "createOffers").mockRejectedValueOnce(new Error("offer refused"))
+
+          const csv = "Item,Price,Unit cost\nZobo Drink 50cl,1500,900\n"
+          const { data } = await api.post("/vendor/offer-import", { csv, mapping: { Item: "title", Price: "selling_price", "Unit cost": "cost_price" } }, await owner())
+
+          expect(data.results).toEqual([expect.objectContaining({ status: "failed", product_id: null, offer_id: null, errors: ["offer refused"] })])
+          expect(await productsTitled("Zobo Drink 50cl")).toEqual([])
+          expect(await shopCosts()).toEqual([])
+          const enrichments = await getContainer().resolve<ProductEnrichmentModuleService>(PRODUCT_ENRICHMENT_MODULE).listProductEnrichments({})
+          expect(enrichments).toEqual([])
+
+          // Nothing half-made to trip over: the same row imports cleanly on a retry.
+          const { data: retry } = await api.post("/vendor/offer-import", { csv, mapping: { Item: "title", Price: "selling_price", "Unit cost": "cost_price" } }, await owner())
+          expect(retry.results.map((r: any) => r.status)).toEqual(["proposed"])
+          expect(await productsTitled("Zobo Drink 50cl")).toHaveLength(1)
+        })
+
+        it("creates no offer when its cost can't be saved", async () => {
+          const service = getContainer().resolve<OfferImportModuleService>(OFFER_IMPORT_MODULE)
+          jest.spyOn(service, "createOfferCosts").mockRejectedValueOnce(new Error("cost refused"))
+
+          const { data } = await api.post("/vendor/offer-import", { csv: SHOP_CSV, mapping: SHOP_MAPPING }, await owner())
+
+          expect(data.results[0]).toMatchObject({ row: 2, status: "failed", offer_id: null, errors: ["cost refused"] })
+          expect(await offersOf(await owner(), `variant_id=${await variantOf("20,000mAh Power Bank")}`)).toEqual([])
+        })
       })
 
       it("refuses a mapping with a field from two columns, creating nothing", async () => {
