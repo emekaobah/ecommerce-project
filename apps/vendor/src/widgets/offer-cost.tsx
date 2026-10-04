@@ -10,17 +10,18 @@ type Costs = InferClientOutput<typeof client.vendor.offerCosts.query>
 const money = (amount: number, currency: string) => `${currency.toUpperCase()} ${amount.toLocaleString()}`
 
 // The shop's private cost on this offer, and a warning when it sells below it.
+// The panel's offer page is the product's, so the costs are asked for by product.
 // The API answers only owners and managers (GET /vendor/offer-costs); for
 // fulfilment staff, and for offers with no cost, the widget shows nothing.
 const OfferCostWidget = ({ data }: { data?: { id: string; updated_at?: string | Date | null } }) => {
   const { t } = useTranslation()
-  const offerId = data?.id
+  const productId = data?.id
   const { data: costs } = useQuery<Costs>({
-    queryKey: ["offer-cost", offerId, String(data?.updated_at ?? "")],
+    queryKey: ["offer-cost", productId, String(data?.updated_at ?? "")],
     queryFn: () =>
       // Mercur's client types a route's body, not its query string.
-      client.vendor.offerCosts.query({ offer_id: offerId } as { fetchOptions?: RequestInit }),
-    enabled: !!offerId,
+      client.vendor.offerCosts.query({ product_id: productId } as { fetchOptions?: RequestInit }),
+    enabled: !!productId,
     retry: false,
   })
   const cost = costs?.offer_costs[0]

@@ -334,10 +334,25 @@ medusaIntegrationTestRunner({
         expect(owners.rows[0]).toMatchObject({ cost: 26000, warnings: expect.arrayContaining(["Selling price NGN 25,000 is below cost price NGN 26,000."]) })
       })
 
+      // The panel's offer page is the product's: it asks for the shop's costs by product.
+      it("shows the owner the costs of its offers on a product, as the offer page asks for them", async () => {
+        const offerId = await importPowerBank()
+        const { data: offer } = await api.get(`/vendor/offers/${offerId}?fields=product_id`, await owner())
+
+        const { data } = await api.get(`/vendor/offer-costs?product_id=${offer.offer.product_id}`, await owner())
+
+        expect(data.offer_costs).toEqual([
+          { offer_id: offerId, amount: 26000, currency_code: "ngn", price: 25000, below_cost: true },
+        ])
+      })
+
       it("never shows one shop another's costs", async () => {
         const offerId = await importPowerBank()
-        const { data } = await api.get(`/vendor/offer-costs?offer_id=${offerId}`, await owner(fashion))
-        expect(data.offer_costs).toEqual([])
+        const { data: offer } = await api.get(`/vendor/offers/${offerId}?fields=product_id`, await owner())
+        for (const query of [`offer_id=${offerId}`, `product_id=${offer.offer.product_id}`]) {
+          const { data } = await api.get(`/vendor/offer-costs?${query}`, await owner(fashion))
+          expect(data.offer_costs).toEqual([])
+        }
       })
     })
 

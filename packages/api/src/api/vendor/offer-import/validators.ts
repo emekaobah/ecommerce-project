@@ -15,6 +15,8 @@ export const VendorRunOfferImport = z.object({
 
 export const VendorGetOfferCosts = z.object({
   offer_id: z.union([z.string(), z.array(z.string())]).optional(),
+  /** The panel's offer page is the product's: its costs are the shop's offers on that product. */
+  product_id: z.string().optional(),
 })
 
 export type VendorPreviewOfferImportType = z.infer<typeof VendorPreviewOfferImport>
