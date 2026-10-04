@@ -35,6 +35,8 @@ const sharedVariables = [
   "CLERK_JWT_KEY",
   // Paystack secret key; starts and verifies payments and checks webhook signatures.
   "PAYSTACK_SECRET_KEY",
+  // Shipbubble API key; validates delivery addresses and quotes courier rates (#23). Required.
+  "SHIPBUBBLE_API_KEY",
   // Anthropic API key; Claude drafts catalogue fields no product database had (#36).
   "ANTHROPIC_API_KEY",
 ] as const

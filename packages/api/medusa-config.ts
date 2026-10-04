@@ -98,6 +98,21 @@ module.exports = withMercur({
       },
     },
     { resolve: '@medusajs/medusa/payment', options: { providers: paymentProviders } },
+    // Shops deliver with Shipbubble (#23): live rates per shop at checkout. The provider refuses
+    // to start without SHIPBUBBLE_API_KEY outside tests. Manual stays for Medusa's defaults.
+    {
+      resolve: '@medusajs/medusa/fulfillment',
+      options: {
+        providers: [
+          { resolve: '@medusajs/medusa/fulfillment-manual', id: 'manual' },
+          {
+            resolve: './src/modules/shipbubble',
+            id: 'shipbubble',
+            options: { apiKey: process.env.SHIPBUBBLE_API_KEY, apiUrl: process.env.SHIPBUBBLE_API_URL || undefined },
+          },
+        ],
+      },
+    },
     // Medusa's default only has the admin "feed" channel. Emails (staff invites)
     // are logged by the local provider until a real email provider is configured.
     {
