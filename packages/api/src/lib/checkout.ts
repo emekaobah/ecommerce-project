@@ -332,15 +332,13 @@ export async function prepareCheckout(
   const customer = await scope.resolve(Modules.CUSTOMER).retrieveCustomer(customerId)
 
   await repriceLines(scope, cartId)
-  // Validated only when it has no code yet: an address saved with one, or the cart's own
-  // address sent again, keeps it (ADR 0002).
+  // Validated unless it is the cart's own address sent again, which keeps its code (ADR 0002).
+  // A code is never taken from the request: it sets what delivery costs and where it goes.
   const previous = cart.shipping_address
-  const knownCode =
-    addressCodeOf(shippingAddress) ?? (previous && samePlace(previous, shippingAddress) ? addressCodeOf(previous) : null)
+  const knownCode = previous && samePlace(previous, shippingAddress) ? addressCodeOf(previous) : null
+  const { shipbubble_address_code: _sent, ...metadata } = shippingAddress.metadata ?? {}
   const address = await withAddressCode(
-    knownCode == null
-      ? shippingAddress
-      : { ...shippingAddress, metadata: { ...shippingAddress.metadata, shipbubble_address_code: knownCode } },
+    { ...shippingAddress, metadata: knownCode == null ? metadata : { ...metadata, shipbubble_address_code: knownCode } },
     { name: `${shippingAddress.first_name} ${shippingAddress.last_name}`, email: customer.email }
   )
   await updateCartWorkflow(scope).run({

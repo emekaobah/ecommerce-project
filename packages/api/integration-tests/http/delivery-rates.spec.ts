@@ -85,15 +85,20 @@ medusaIntegrationTestRunner({
         await prepareAt(cartId, { ...PINNED, address_2: "Flat 4B" })
         expect(adasValidations()).toHaveLength(1)
 
-        // A saved address validated earlier brings its code.
-        const saved = await adasCart()
-        const code = shipbubble.codeOf(`${PIN.latitude},${PIN.longitude}`)
-        await prepareAt(saved, { ...ADDRESS, metadata: { shipbubble_address_code: code } })
-        expect(adasValidations()).toHaveLength(1)
-
         // Moving the pin is a new place.
         await prepareAt(cartId, { ...PINNED, metadata: { ...PINNED.metadata, latitude: 6.5 } })
         expect(adasValidations()).toHaveLength(2)
+      })
+
+      it("never takes the buyer's word for an address code, which sets what delivery costs", async () => {
+        const cartId = await adasCart()
+        const elsewhere = 999999
+
+        const { data } = await prepareAt(cartId, { ...ADDRESS, metadata: { shipbubble_address_code: elsewhere } })
+
+        expect(adasValidations()).toHaveLength(1)
+        expect(data.checkout.shipping_address.metadata.shipbubble_address_code).not.toBe(elsewhere)
+        expect(shipbubble.rateRequests().map((r) => r.reciever_address_code)).not.toContain(elsewhere)
       })
 
       it("refuses an address Shipbubble can't validate, with a reason, and quotes no delivery", async () => {

@@ -21,7 +21,6 @@ export const StoreCheckoutAddress = z.object({
       landmark: z.string().trim().nullish(),
       latitude: z.number().min(-90).max(90).optional(),
       longitude: z.number().min(-180).max(180).optional(),
-      shipbubble_address_code: z.number().int().positive().optional(),
     })
     .refine((m) => (m.latitude == null) === (m.longitude == null), "A pin needs both latitude and longitude")
     .nullish(),
