@@ -71,6 +71,12 @@ https://<tunnel-host>/hooks/payment/paystack_paystack
 
 The tunnel's host changes each time it starts, so update the URL when it does. Pay a checkout in the buyer app with a test card: the API logs `Processing mercur.payment.webhook_received`, and the confirmation screen shows the orders. A webhook with a bad signature gets a `401`. Without a working tunnel the payment succeeds on Paystack's side, but no order is placed and the app keeps waiting for confirmation.
 
+### Delivery (Shipbubble)
+
+Each shop's delivery is quoted live by Shipbubble (#23). Put the sandbox API key from Shipbubble's dashboard in the API's `SHIPBUBBLE_API_KEY`; the API refuses to start without it. Then re-run `bun run seed`: it gives every shop a Shipbubble delivery option (replacing the old flat rate).
+
+At checkout the buyer's address is validated with Shipbubble (by the map pin when the address has one, ADR 0002) and its address code kept in the address's metadata; each shop's pickup address is validated the first time it is quoted. Each shop then offers best value (preselected), the cheapest and the fastest courier rate.
+
 ### Seed data
 
 `bun run seed` (in `packages/api`) creates a Nigeria region in NGN with 7.5% VAT (tax-inclusive prices), the buyer app's sales channel and publishable key, and three Lagos shops, each offering its department's products from a small shared catalogue. A few products are sold by two shops at different prices (the charger and lantern at the grocery shop, plantain chips at the gadget hub), to demo shop-grouped search and listings. Re-running it only adds what's missing. It doesn't remove data from an older seed: to start clean, `docker compose down -v && bun run db:up`, then migrate and seed again.
