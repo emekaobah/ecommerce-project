@@ -2,7 +2,7 @@ import { Migration } from "@medusajs/framework/mikro-orm/migrations";
 
 export class Migration20261004052832 extends Migration {
 
-  override async up(): Promise<void> {
+  override up(): void {
     this.addSql(`alter table if exists "offer_import_mapping" drop constraint if exists "offer_import_mapping_seller_id_unique";`);
     this.addSql(`alter table if exists "offer_cost" drop constraint if exists "offer_cost_offer_id_unique";`);
     this.addSql(`create table if not exists "offer_cost" ("id" text not null, "offer_id" text not null, "seller_id" text not null, "amount" numeric not null, "currency_code" text not null, "raw_amount" jsonb not null, "created_at" timestamptz not null default now(), "updated_at" timestamptz not null default now(), "deleted_at" timestamptz null, constraint "offer_cost_pkey" primary key ("id"));`);
@@ -15,7 +15,7 @@ export class Migration20261004052832 extends Migration {
     this.addSql(`CREATE INDEX IF NOT EXISTS "IDX_offer_import_mapping_deleted_at" ON "offer_import_mapping" ("deleted_at") WHERE deleted_at IS NULL;`);
   }
 
-  override async down(): Promise<void> {
+  override down(): void {
     this.addSql(`drop table if exists "offer_cost" cascade;`);
 
     this.addSql(`drop table if exists "offer_import_mapping" cascade;`);
