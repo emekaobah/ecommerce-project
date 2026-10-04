@@ -4,6 +4,90 @@
     "description": "Manage your custom fields and configurations",
     "noFields": "No custom fields configured yet"
   },
+  "offerImport": {
+    "title": "Import product list",
+    "description": "Upload your product list. Products the catalogue already has become your offers straight away; the rest are proposed to the catalogue and reviewed before buyers see them.",
+    "loadError": "Could not load the import settings.",
+    "steps": {
+      "upload": "Upload",
+      "mapping": "Map columns",
+      "preview": "Preview",
+      "results": "Results"
+    },
+    "back": "Back",
+    "row": "Row",
+    "product": "Product",
+    "price": "Price",
+    "cost": "Cost",
+    "stock": "Stock",
+    "untracked": "Not tracked",
+    "status": "Status",
+    "notes": "Notes",
+    "upload": {
+      "file": "CSV file",
+      "fileHint": "Comma, semicolon or tab separated, with a header row. Up to 500 rows. Your column mapping is remembered for next time.",
+      "continue": "Continue"
+    },
+    "mapping": {
+      "rows_one": "{{count}} row",
+      "rows_other": "{{count}} rows",
+      "origin": {
+        "saved": "Mapping from your last import",
+        "suggested": "Suggested from the column names",
+        "request": "Your mapping"
+      },
+      "column": "Column",
+      "sample": "First value",
+      "field": "Imports as",
+      "unmapped": "Don't import",
+      "groups": {
+        "product": "Product",
+        "variant": "Barcode",
+        "offer": "Your offer"
+      },
+      "minimum": "Each row needs a barcode or a title, and a selling price. Cost price and stock are optional; your cost is visible only to owners and managers.",
+      "preview": "Preview rows"
+    },
+    "preview": {
+      "offers_one": "{{count}} offer",
+      "offers_other": "{{count}} offers",
+      "proposals_one": "{{count}} new product",
+      "proposals_other": "{{count}} new products",
+      "invalid_one": "{{count}} row with errors",
+      "invalid_other": "{{count}} rows with errors",
+      "explain": "Rows with errors are skipped. A barcode the catalogue knows becomes your offer at once. Other rows are proposed as new products: they are completed from product databases and reviewed before buyers see them, already carrying your offer.",
+      "offer": "Offer",
+      "propose": "New product",
+      "skip": "Will be skipped",
+      "import_one": "Import {{count}} row",
+      "import_other": "Import {{count}} rows"
+    },
+    "results": {
+      "offered_one": "{{count}} offer created",
+      "offered_other": "{{count}} offers created",
+      "proposed_one": "{{count}} product proposed",
+      "proposed_other": "{{count}} products proposed",
+      "skipped_one": "{{count}} row skipped",
+      "skipped_other": "{{count}} rows skipped",
+      "failed_one": "{{count}} row failed",
+      "failed_other": "{{count}} rows failed",
+      "status": {
+        "offered": "Offered",
+        "proposed": "Proposed, in review",
+        "skipped": "Skipped",
+        "failed": "Failed"
+      },
+      "again": "Import another file",
+      "review": "Proposed products are reviewed by the marketplace. Buyers see your offer on them once they are approved."
+    }
+  },
+  "offerCost": {
+    "title": "Cost price",
+    "cost": "You pay {{amount}}",
+    "belowCost": "Below cost",
+    "warning": "Selling at {{price}} loses money on every sale.",
+    "private": "Only owners and managers see this."
+  },
   "productCompleteness": {
     "title": "Completeness",
     "loading": "Loading…",
