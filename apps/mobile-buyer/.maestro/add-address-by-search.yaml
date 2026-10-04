@@ -1,15 +1,39 @@
 # A buyer adds a delivery address at checkout by searching for it and confirming the pin (#40).
-# Needs the backend with GOOGLE_MAPS_API_KEY and the seeded shops, and a buyer already signed in
-# (Clerk's native sign-in isn't driven here).
+# Needs the backend with GOOGLE_MAPS_API_KEY and the seeded shops, and a Clerk development
+# instance (see sign-in.yaml).
 appId: com.emekaobah.oja.buyer
+env:
+  BUYER_EMAIL: maestro-buyer+clerk_test@example.com
+  BUYER_PASSWORD: Maestro-Buyer-Test-2026!
 ---
 - launchApp:
     permissions:
       location: inuse
+# Start as a guest: checkout asks a guest to sign in.
+- tapOn: "Account"
+- runFlow:
+    when:
+      visible: "Sign out"
+    commands:
+      - tapOn: "Sign out"
+      - extendedWaitUntil:
+          notVisible: "Sign out"
+          timeout: 15000
+- tapOn: "Home"
 - tapOn: "Ofada Rice 5kg.*"
 - tapOn: "Add to cart.*"
 - tapOn: "View cart"
 - tapOn: "Checkout.*"
+- runFlow:
+    file: sign-in.yaml
+    env:
+      BUYER_EMAIL: ${BUYER_EMAIL}
+      BUYER_PASSWORD: ${BUYER_PASSWORD}
+# Signed in, the cart is the buyer's; checkout from it again.
+- tapOn: "Checkout.*"
+- extendedWaitUntil:
+    visible: "Delivery address"
+    timeout: 15000
 # A cart with an address opens on it; go back to finding one.
 - runFlow:
     when:
@@ -52,12 +76,6 @@ appId: com.emekaobah.oja.buyer
     index: 1
 - eraseText
 - inputText: "Obi"
-# The field, not its label above it.
-- tapOn:
-    text: "Landmark / directions for the rider (optional)"
-    index: 1
-- eraseText
-- inputText: "Opposite the Mobil station"
 - scrollUntilVisible:
     element: "Use this address"
 # The field, not its label above it.
@@ -66,8 +84,16 @@ appId: com.emekaobah.oja.buyer
     index: 1
 - eraseText
 - inputText: "08031234567"
-# Tapping plain text puts the phone pad, which has no return key, away.
-- tapOn: "Delivery pin placed on the map."
+# The landmark last: its keyboard has a return key, which puts the keyboard away.
+- tapOn:
+    text: "Landmark / directions for the rider (optional)"
+    index: 1
+- eraseText
+- inputText: "Opposite the Mobil station"
+- pressKey: Enter
+- scrollUntilVisible:
+    element: "Use this address"
+- assertVisible: "Delivery pin placed on the map."
 - tapOn: "Use this address"
 
 # Saved with its pin: checkout quotes delivery to it.
