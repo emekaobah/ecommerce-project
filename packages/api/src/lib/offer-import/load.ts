@@ -1,5 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, Modules, ProductStatus } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules, ProductStatus } from "@medusajs/framework/utils"
 import { barcodeCodes, parseBarcode, type CsvTable, type ImportMapping } from "../catalogue-import"
 import { OFFER_IMPORT_MODULE, type OfferImportModuleService } from "../../modules/offer-import"
 import type { CatalogueVariant, OfferImportContext } from "./rows"
@@ -75,6 +75,21 @@ export async function loadOfferImportContext(
   }
 }
 
+type StoreCurrency = { currency_code: string; is_default: boolean }
+
+/**
+ * The currency a sheet's prices are in: the store's default, else the first it
+ * supports. Never assumed: a store set up without one refuses the import
+ * (docs/design.md, multi-country readiness).
+ */
+export function storeCurrency(currencies: StoreCurrency[] | null | undefined): string {
+  const currency = currencies?.find((c) => c.is_default) ?? currencies?.[0]
+  if (!currency) {
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, "The store has no currency set up, so prices can't be read.")
+  }
+  return currency.currency_code
+}
+
 export async function loadShopSetup(scope: Scope, sellerId: string): Promise<ShopSetup> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const [{ data: [store] }, { data: locations }, { data: [lastOffer] }] = await Promise.all([
@@ -90,8 +105,6 @@ export async function loadShopSetup(scope: Scope, sellerId: string): Promise<Sho
       pagination: { take: 1, order: { created_at: "DESC" } },
     }),
   ])
-  const currencies = (store?.supported_currencies ?? []) as { currency_code: string; is_default: boolean }[]
-  const currency = currencies.find((c) => c.is_default) ?? currencies[0]
   // A shop new to offers ships them on the marketplace's default profile, as its shipping options do.
   let shippingProfileId: string | null = lastOffer?.shipping_profile_id ?? null
   if (!shippingProfileId) {
@@ -99,7 +112,7 @@ export async function loadShopSetup(scope: Scope, sellerId: string): Promise<Sho
     shippingProfileId = profile?.id ?? null
   }
   return {
-    currency_code: currency?.currency_code ?? "ngn",
+    currency_code: storeCurrency(store?.supported_currencies as StoreCurrency[] | null | undefined),
     sales_channel_id: store?.default_sales_channel_id ?? null,
     stock_location_id: (locations[0] as { stock_location_id: string } | undefined)?.stock_location_id ?? null,
     shipping_profile_id: shippingProfileId,
