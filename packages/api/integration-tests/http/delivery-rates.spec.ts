@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ADDRESS, buyerCheckout, GADGETS, GROCERY, LANTERN, RETURN_URL, RICE, TOTAL } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
-import { BEST_VALUE_FEE, COURIERS, fakeShipbubble } from "../helpers/shipbubble"
+import { BEST_VALUE_FEE, COURIERS, categoryId, fakeShipbubble } from "../helpers/shipbubble"
 import seedDemoData from "../../src/scripts/seed"
 
 jest.setTimeout(5 * 60 * 1000)
@@ -127,7 +127,9 @@ medusaIntegrationTestRunner({
         // Each shop ships from its own validated pickup address.
         const senders = requests.map((r) => r.sender_address_code)
         expect(new Set([...senders, ada]).size).toBe(3)
-        const [gadgets, grocery] = requests
+        // Shops are quoted at once, so their requests come in either order.
+        const requestFor = (title: string) => requests.find((r) => r.package_items[0].name === title)!
+        const [gadgets, grocery] = [requestFor(LANTERN.title), requestFor(RICE.title)]
         expect(gadgets.package_items).toEqual([
           { name: LANTERN.title, description: LANTERN.title, unit_weight: "0.6", unit_amount: String(LANTERN.price), quantity: "1" },
         ])
@@ -135,7 +137,8 @@ medusaIntegrationTestRunner({
           { name: RICE.title, description: RICE.title, unit_weight: "5", unit_amount: String(RICE.price), quantity: "2" },
         ])
         // Groceries go as food, so couriers that carry food quote it.
-        expect(grocery.category_id).toBe(69709726)
+        expect(grocery.category_id).toBe(categoryId("Groceries"))
+        expect(gadgets.category_id).toBe(categoryId("Electronics and gadgets"))
       })
 
       it("offers each shop best value, the cheapest and the fastest, with best value chosen", async () => {
@@ -166,6 +169,16 @@ medusaIntegrationTestRunner({
 
         expect(res.status).toBe(400)
         expect(res.data.message).toMatch(/doesn't deliver to this address/)
+      })
+
+      it("doesn't tell the buyer their address is wrong when Shipbubble refuses our account", async () => {
+        const cartId = await adasCart()
+        shipbubble.emptyWallet(true)
+
+        const res = await prepareAt(cartId, PINNED).catch((e) => e.response)
+
+        expect(res.status).toBe(500)
+        expect(res.data.message).not.toMatch(/address|wallet|deliver/i)
       })
 
       it("doesn't pass off Shipbubble refusing the API key as a shop that doesn't deliver", async () => {
@@ -355,7 +368,8 @@ medusaIntegrationTestRunner({
 
         const { data } = await prepareAt(cartId, stale.shipping_address)
         expect(data.checkout.ready_to_pay).toBe(true)
-        expect(shipbubble.rateRequests().at(-1)!.package_items[0].quantity).toBe("3")
+        const riceQuotes = shipbubble.rateRequests().filter((r) => r.package_items[0].name === RICE.title)
+        expect(riceQuotes.at(-1)!.package_items[0].quantity).toBe("3")
       })
     })
   },

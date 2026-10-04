@@ -34,15 +34,35 @@ export type DeliveryAddress = {
 export type ParcelLine = { variant_id: string; title: string; quantity: number; unit_price: number }
 
 /**
- * Shipbubble's package categories (GET /shipping/labels/categories), by the `package_category`
- * products take from their category's shipping defaults. Couriers quote only categories they carry.
+ * Shipbubble's package category for the `package_category` products take from their category's
+ * shipping defaults. Couriers quote only categories they carry. The ids belong to the Shipbubble
+ * account, so they are looked up by name (GET /shipping/labels/categories) and kept.
  */
-const PACKAGE_CATEGORIES: Record<string, number> = {
-  groceries: 69709726, // Food
-  fashion: 98246239, // Fashion wears
-  electronics: 70830897, // Electronic gadgets
+const PACKAGE_CATEGORIES: Record<string, string> = {
+  groceries: "Groceries",
+  fashion: "Fashion wears",
+  electronics: "Electronics and gadgets",
 }
-const DEFAULT_PACKAGE_CATEGORY = 90097994 // Accessories
+const DEFAULT_PACKAGE_CATEGORY = "Light weight items"
+
+let categoryIds: Promise<Map<string, number>> | undefined
+
+/** The account's id for a package category, by its name; the default category's when it has none. */
+async function packageCategoryId(category: string | null): Promise<number> {
+  categoryIds ??= shipbubbleClient()
+    .categories()
+    .then((list) => new Map(list.map((c) => [c.category.trim().toLowerCase(), c.category_id])))
+  const ids = await categoryIds.catch((error) => {
+    categoryIds = undefined
+    throw error
+  })
+  const name = (category && PACKAGE_CATEGORIES[category]) || DEFAULT_PACKAGE_CATEGORY
+  const id = ids.get(name.toLowerCase()) ?? ids.get(DEFAULT_PACKAGE_CATEGORY.toLowerCase())
+  if (id === undefined) {
+    throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Shipbubble has no "${name}" package category`)
+  }
+  return id
+}
 
 /** When a product has no dimension of its own, cm. */
 const DEFAULT_DIMENSION_CM = 10
@@ -101,7 +121,7 @@ export async function validateAddress(address: DeliveryAddress, contact: { name:
     })
     return validated.address_code
   } catch (error) {
-    if (error instanceof ShipbubbleError && (error.status === 400 || error.status === 422)) {
+    if (error instanceof ShipbubbleError && !error.isAccountProblem && (error.status === 400 || error.status === 422)) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         `We couldn't find this address for delivery. Check the street, area and state. (${error.message})`
@@ -211,7 +231,7 @@ async function parcelOf(scope: MedusaContainer, lines: ParcelLine[]) {
   // The heaviest item decides the parcel's category.
   const heaviest = [...measured].sort((a, b) => b.grams * b.line.quantity - a.grams * a.line.quantity)[0]
   return {
-    category_id: (heaviest?.category && PACKAGE_CATEGORIES[heaviest.category]) || DEFAULT_PACKAGE_CATEGORY,
+    category_id: await packageCategoryId(heaviest?.category ?? null),
     package_items: measured.map(({ line, grams }) => ({
       name: line.title,
       description: line.title,
@@ -342,7 +362,7 @@ export async function quoteDelivery(
   } catch (error) {
     // Shipbubble answers a parcel no courier carries between the two addresses with a 400 or
     // 422. Anything else, such as a refused API key, is ours to fix, not the buyer's.
-    if (error instanceof ShipbubbleError && (error.status === 400 || error.status === 422)) return []
+    if (error instanceof ShipbubbleError && !error.isAccountProblem && (error.status === 400 || error.status === 422)) return []
     throw error
   }
   const quotes: ShipbubbleQuote[] = rates.couriers

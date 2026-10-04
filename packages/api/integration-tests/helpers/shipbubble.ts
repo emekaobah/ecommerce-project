@@ -23,6 +23,23 @@ export const COURIERS = {
   slow: { courier_id: "routely", courier_name: "Routely Standard", service_code: "routely", amount: 3000, hours: 96, tracking_level: 5 },
 } satisfies Record<string, FakeCourier>
 
+/**
+ * Shipbubble's package categories as the sandbox lists them (GET /shipping/labels/categories,
+ * checked 2026-10-04). The ids belong to the account, so the backend looks them up by name.
+ */
+export const CATEGORIES = [
+  { category_id: 2178251, category: "Groceries" },
+  { category_id: 77179563, category: "Electronics and gadgets" },
+  { category_id: 74794423, category: "Fashion wears" },
+  { category_id: 20754594, category: "Light weight items" },
+  { category_id: 98190590, category: "Hot food" },
+]
+export const categoryId = (name: string) => CATEGORIES.find((c) => c.category === name)!.category_id
+
+/** How Shipbubble refuses a request when the account's wallet is empty: a 400, like a bad address. */
+const WALLET_EMPTY =
+  "Insufficient wallet balance, Please fund your wallet to validate new addresses, or use already validated addresses to continue your tests"
+
 /** What a shop's delivery costs when the buyer keeps the preselected best value. */
 export const BEST_VALUE_FEE = COURIERS.nextDay.amount
 
@@ -52,6 +69,7 @@ export function fakeShipbubble(port: number) {
   let couriers: FakeCourier[] = Object.values(COURIERS)
   let rejected: ((v: Validation) => boolean) | undefined
   let ratesFailWith: number | undefined
+  let walletEmpty = false
   let server: Server | undefined
 
   const readBody = async (req: IncomingMessage) => {
@@ -73,6 +91,7 @@ export function fakeShipbubble(port: number) {
     if (!body.name || !body.email || !body.phone || !body.address) {
       return failed(422, "Invalid request parameters", ["Recipient address is required"])
     }
+    if (walletEmpty) return failed(400, WALLET_EMPTY)
     if (rejected?.(body)) return failed(400, "Address could not be validated, kindly provide a more descriptive address")
     // Coordinates win over the text, as Shipbubble's do.
     const key = body.latitude != null ? `${body.latitude},${body.longitude}` : body.address
@@ -97,6 +116,7 @@ export function fakeShipbubble(port: number) {
     const body = (await readBody(req)) as RateRequest
     rateRequests.push(body)
     if (ratesFailWith) return failed(ratesFailWith, "Rate request refused")
+    if (walletEmpty) return failed(400, WALLET_EMPTY)
     if (![...codes.values()].includes(body.sender_address_code) || ![...codes.values()].includes(body.reciever_address_code)) {
       return failed(400, "Invalid address code")
     }
@@ -122,6 +142,7 @@ export function fakeShipbubble(port: number) {
   const routes: [string, string, (req: IncomingMessage) => Promise<Reply>][] = [
     ["POST", "/shipping/address/validate", validate],
     ["POST", "/shipping/fetch_rates", fetchRates],
+    ["GET", "/shipping/labels/categories", async () => ok(CATEGORIES)],
   ]
 
   const handle = async (req: IncomingMessage): Promise<Reply> => {
@@ -162,7 +183,12 @@ export function fakeShipbubble(port: number) {
     failRatesWith: (status: number | undefined) => {
       ratesFailWith = status
     },
+    /** Every request is refused as Shipbubble does when the wallet is empty, until turned off. */
+    emptyWallet: (empty: boolean) => {
+      walletEmpty = empty
+    },
     reset: () => {
+      walletEmpty = false
       ratesFailWith = undefined
       validations.length = 0
       rateRequests.length = 0

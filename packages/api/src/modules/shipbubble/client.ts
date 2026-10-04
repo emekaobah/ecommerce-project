@@ -70,7 +70,18 @@ export class ShipbubbleError extends Error {
   ) {
     super(message)
   }
+
+  /**
+   * Shipbubble refused our account, not the request: a bad key, or an empty wallet, which it
+   * answers with a 400 like a bad address. Ours to fix; never the buyer's.
+   */
+  get isAccountProblem() {
+    return this.status === 401 || this.status === 403 || /wallet|balance|fund your/i.test(this.message)
+  }
 }
+
+/** A package category Shipbubble's couriers quote for. Its id belongs to the account. */
+export type ShipbubbleCategory = { category_id: number; category: string }
 
 /** Shipbubble's "yyyy-mm-dd HH:mm:ss" Lagos time as ISO 8601 with its offset. */
 export const shipbubbleTime = (local: string) => `${local.trim().replace(" ", "T")}${SHIPBUBBLE_UTC_OFFSET}`
@@ -110,5 +121,9 @@ export class ShipbubbleClient {
 
   fetchRates(input: ShipbubbleRateRequest) {
     return this.request<ShipbubbleRates>("POST", "/shipping/fetch_rates", input)
+  }
+
+  categories() {
+    return this.request<ShipbubbleCategory[]>("GET", "/shipping/labels/categories")
   }
 }
