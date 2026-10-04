@@ -38,6 +38,7 @@ export async function importRows(
   options: { created_by: string }
 ): Promise<ImportResult[]> {
   const results: ImportResult[] = []
+  // One row at a time, in sheet order: each is its own workflow, so a refused row rolls back only itself.
   for (const row of rows) {
     const base = { row: row.row, title: row.title, errors: row.errors, warnings: row.warnings, missing: [] }
     if (!row.product) {

@@ -102,11 +102,25 @@ export type OfferImportRow = {
 type MappedColumn = { header: string; index: number; field: OfferImportField }
 type Values = Map<string, unknown>
 
+const STOCK_UNITS = new Set(["", "pc", "pcs", "piece", "pieces", "unit", "units", "ea", "ctn", "ctns", "carton", "cartons"])
+
+/** "1,200" or "1200", but not "12,00" or ",5": thousands groups of three after a first group of one to three. */
+const wholeNumber = (text: string) => {
+  const [first, ...groups] = text.split(",")
+  const digits = (part: string) => part !== "" && [...part].every((c) => c >= "0" && c <= "9")
+  if (!groups.length) return digits(first)
+  return digits(first) && first.length <= 3 && groups.every((g) => g.length === 3 && digits(g))
+}
+
 /** A stock count: "12", "1,200", "12 pcs". */
 export function parseStock(input: string): Parsed<number> {
-  const match = /^(\d{1,3}(?:,\d{3})+|\d+)\s*(?:pcs?|pieces?|units?|ea|ctns?|cartons?)?\.?$/i.exec(input.trim())
-  if (!match) return { ok: false, error: `"${input.trim()}" is not a stock count: use a whole number of units.` }
-  return { ok: true, value: Number(match[1].replaceAll(",", "")) }
+  const text = input.trim()
+  // Disjoint character classes, so this reads a long cell in one pass.
+  const [, number = "", unit = ""] = /^([\d,]+)\s*([a-z]*)\.?$/i.exec(text) ?? []
+  if (!wholeNumber(number) || !STOCK_UNITS.has(unit.toLowerCase())) {
+    return { ok: false, error: `"${text}" is not a stock count: use a whole number of units.` }
+  }
+  return { ok: true, value: Number(number.replaceAll(",", "")) }
 }
 
 const money = (amount: number, currency: string) =>
@@ -214,46 +228,14 @@ const belowCost = (price: number, cost: number, currency: string) =>
 /** A row for an offer the shop already has: what it changes, leaving what it doesn't give. */
 function updateRow(read: RowRead, existing: ShopOffer, sheet: SheetState): OfferImportRow {
   const { row, values, errors, warnings } = read
-  const { codes, columnOf, updatedRows, context } = sheet
-  const barcode = values.get("barcode") as Barcode | undefined
-  const given = values.get("sku") as string | undefined
-
-  const repeated = barcode && codes.barcodeError(barcode)
-  if (repeated) errors.push(`${columnOf("barcode")}: ${repeated}`)
-  if (given && given !== existing.sku) {
-    const taken = codes.skuError(given)
-    if (taken) errors.push(`${columnOf("sku")}: ${taken}`)
-    else warnings.push(`${columnOf("sku")}: SKUs aren't changed by an import; this offer keeps ${existing.sku}.`)
-  }
-  const earlier = updatedRows.get(existing.id)
-  if (earlier !== undefined) errors.push(`${existing.title} is already updated on row ${earlier}.`)
+  checkUpdate(read, existing, sheet)
   if (errors.length) return failed(read, existing.title)
-  updatedRows.set(existing.id, row)
-  if (barcode) codes.claimBarcode(barcode, row)
+  sheet.updatedRows.set(existing.id, row)
+  const barcode = values.get("barcode") as Barcode | undefined
+  if (barcode) sheet.codes.claimBarcode(barcode, row)
 
-  const currency = context.currency_code
-  const changed = (key: string, current: number | null) => {
-    const next = values.get(key) as number | undefined
-    return next === undefined || next === current ? null : next
-  }
-  const update: OfferUpdate = {
-    offer_id: existing.id,
-    price: changed("selling_price", existing.price),
-    cost: changed("cost_price", existing.cost),
-    stock: changed("stock", existing.stock),
-  }
-  const changes: string[] = []
-  const was = (amount: number | null) => (amount === null ? "none" : money(amount, currency))
-  if (update.price !== null) changes.push(`Price ${was(existing.price)} → ${money(update.price, currency)}`)
-  if (update.cost !== null) changes.push(`Cost price ${was(existing.cost)} → ${money(update.cost, currency)}`)
-  // Stock left out of the sheet leaves the offer as it is: untracked stays untracked.
-  if (update.stock !== null) changes.push(`Stock ${existing.stock === null ? "not tracked" : existing.stock} → ${update.stock}`)
-
-  const price = update.price ?? existing.price
-  const cost = update.cost ?? existing.cost
-  if ((update.price !== null || update.cost !== null) && price !== null && cost !== null && price < cost) {
-    warnings.push(belowCost(price, cost, currency))
-  }
+  const { update, changes, warning } = describeUpdate(existing, values, sheet.context.currency_code)
+  if (warning) warnings.push(warning)
   return {
     row,
     title: existing.title,
@@ -267,18 +249,60 @@ function updateRow(read: RowRead, existing: ShopOffer, sheet: SheetState): Offer
   }
 }
 
-/** A row for something the shop doesn't sell yet: an offer on the catalogue's product, or a proposal. */
-function newOfferRow(read: RowRead, match: CatalogueVariant | undefined, sheet: SheetState): OfferImportRow {
-  const { row, values, errors, warnings } = read
-  const { codes, columnOf, context } = sheet
+/** Refuses an update row whose barcode or SKU another row or offer has, or whose offer an earlier row updates. */
+function checkUpdate({ values, errors, warnings }: RowRead, existing: ShopOffer, { codes, columnOf, updatedRows }: SheetState) {
   const barcode = values.get("barcode") as Barcode | undefined
-  const title = (values.get("title") as string | undefined) ?? null
-  const price = values.get("selling_price") as number | undefined
-  const cost = (values.get("cost_price") as number | undefined) ?? null
-  const stock = (values.get("stock") as number | undefined) ?? null
+  const given = values.get("sku") as string | undefined
+  const repeated = barcode && codes.barcodeError(barcode)
+  if (repeated) errors.push(`${columnOf("barcode")}: ${repeated}`)
+  if (given && given !== existing.sku) {
+    const taken = codes.skuError(given)
+    if (taken) errors.push(`${columnOf("sku")}: ${taken}`)
+    else warnings.push(`${columnOf("sku")}: SKUs aren't changed by an import; this offer keeps ${existing.sku}.`)
+  }
+  const earlier = updatedRows.get(existing.id)
+  if (earlier !== undefined) errors.push(`${existing.title} is already updated on row ${earlier}.`)
+}
 
-  if (!title && !barcode && !cellFailed(errors, columnOf("barcode"))) errors.push("Needs a title or a barcode.")
-  if (price === undefined && !cellFailed(errors, columnOf("selling_price"))) errors.push("Needs a selling price.")
+/** What a row changes on the offer, said for the shop, and a warning if it leaves the offer selling below cost. */
+function describeUpdate(existing: ShopOffer, values: Values, currency: string) {
+  const changed = (key: string, current: number | null) => {
+    const next = values.get(key) as number | undefined
+    return next === undefined || next === current ? null : next
+  }
+  const update: OfferUpdate = {
+    offer_id: existing.id,
+    price: changed("selling_price", existing.price),
+    cost: changed("cost_price", existing.cost),
+    stock: changed("stock", existing.stock),
+  }
+  const was = (amount: number | null) => (amount === null ? "none" : money(amount, currency))
+  const stockWas = existing.stock === null ? "not tracked" : existing.stock
+  const changes = [
+    update.price === null ? null : `Price ${was(existing.price)} → ${money(update.price, currency)}`,
+    update.cost === null ? null : `Cost price ${was(existing.cost)} → ${money(update.cost, currency)}`,
+    // Stock left out of the sheet leaves the offer as it is: untracked stays untracked.
+    update.stock === null ? null : `Stock ${stockWas} → ${update.stock}`,
+  ].filter((c): c is string => c !== null)
+
+  const price = update.price ?? existing.price
+  const cost = update.cost ?? existing.cost
+  const pricing = update.price !== null || update.cost !== null
+  const below = pricing && price !== null && cost !== null && price < cost
+  return { update, changes, warning: below ? belowCost(price, cost, currency) : null }
+}
+
+/**
+ * Refuses a new-offer row without the minimum (a barcode or a title, and a
+ * price), with a barcode or SKU another row or offer has, or on a product the
+ * catalogue is still reviewing.
+ */
+function checkNewOffer({ values, errors }: RowRead, match: CatalogueVariant | undefined, { codes, columnOf }: SheetState) {
+  const barcode = values.get("barcode") as Barcode | undefined
+  const given = values.get("sku") as string | undefined
+  const missing = (field: string) => !values.has(field) && !cellFailed(errors, columnOf(field))
+  if (!values.has("title") && missing("barcode")) errors.push("Needs a title or a barcode.")
+  if (missing("selling_price")) errors.push("Needs a selling price.")
   const repeated = barcode && codes.barcodeError(barcode)
   if (repeated) errors.push(`${columnOf("barcode")}: ${repeated}`)
   if (match && !match.published) {
@@ -286,9 +310,22 @@ function newOfferRow(read: RowRead, match: CatalogueVariant | undefined, sheet: 
       `${columnOf("barcode")}: ${barcode!.barcode} is on a product the catalogue is still reviewing; list it once it is published.`
     )
   }
-  const given = values.get("sku") as string | undefined
   const skuError = given && codes.skuError(given)
   if (skuError) errors.push(`${columnOf("sku")}: ${skuError}`)
+}
+
+/** A row for something the shop doesn't sell yet: an offer on the catalogue's product, or a proposal. */
+function newOfferRow(read: RowRead, match: CatalogueVariant | undefined, sheet: SheetState): OfferImportRow {
+  const { row, values, errors, warnings } = read
+  const { codes, context } = sheet
+  const barcode = values.get("barcode") as Barcode | undefined
+  const title = (values.get("title") as string | undefined) ?? null
+  const price = values.get("selling_price") as number | undefined
+  const cost = (values.get("cost_price") as number | undefined) ?? null
+  const stock = (values.get("stock") as number | undefined) ?? null
+  const given = values.get("sku") as string | undefined
+
+  checkNewOffer(read, match, sheet)
   if (errors.length || price === undefined) return failed(read, title)
 
   const sku = given ?? codes.freeSku(barcode?.barcode ?? skuFrom(title ?? ""))
@@ -376,9 +413,11 @@ function codeChecker(context: OfferImportContext) {
       if (earlier !== undefined) return `${sku} is already on row ${earlier}.`
     },
     freeSku(base: string): string {
-      let sku = base
-      for (let n = 2; shopSkus.has(sku) || skuRows.has(sku); n++) sku = `${base}-${n}`
-      return sku
+      const taken = (sku: string) => shopSkus.has(sku) || skuRows.has(sku)
+      if (!taken(base)) return base
+      let n = 2
+      while (taken(`${base}-${n}`)) n++
+      return `${base}-${n}`
     },
     claimSku(sku: string, row: number) {
       skuRows.set(sku, row)

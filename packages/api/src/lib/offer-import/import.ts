@@ -48,6 +48,7 @@ export async function importOfferRows(
   }
 
   const results: OfferImportResult[] = []
+  // One row at a time: rows on one product would race to link its single shipping profile.
   for (const row of rows) {
     const base = { row: row.row, title: row.title, errors: row.errors, warnings: [...row.warnings], changes: row.changes }
     if (row.update) {
