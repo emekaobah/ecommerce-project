@@ -4,8 +4,10 @@ import type { PaystackRefundStatus } from "../modules/paystack/client"
 import { fulfilmentService, fulfilmentsOf, fulfilmentView, type FulfilmentView } from "./order-fulfilment"
 
 // The buyer's order history (#17): each checkout is an order group, split into one order per
-// shop. Mercur's own `/store/order-groups` asks for more nested relations than Medusa allows a
-// store route, so the buyer's view is read here.
+// shop. Mercur's `/store/order-groups` has neither each order's fulfilment and refund nor what
+// was paid for it (a refund's credit line takes it off `total`), keeps no order, and its default
+// fields nest deeper than Medusa allows a store route (a 400 unless `fields` is given), so the
+// buyer's view is read here.
 
 type Scope = Pick<MedusaContainer, "resolve">
 

@@ -76,7 +76,7 @@ export default defineMiddlewares({
             matcher: "/store/wishlist/product/:reference_id/cart",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreMoveWishlistToCart)],
         },
-        // A buyer's order history is their own; Mercur's `/store/order-groups` can't be read (#17).
+        // The buyer's own order groups, with each shop's order as the buyer sees it (#17).
         {
             method: ["GET"],
             matcher: "/store/order-history",
