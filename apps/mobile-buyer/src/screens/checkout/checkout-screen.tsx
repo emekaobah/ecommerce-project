@@ -12,7 +12,7 @@ import {
 } from '@oja/domain';
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
@@ -78,7 +78,8 @@ function CheckoutForm({
   const customer = useCustomer(userId);
   const { payment: returned } = useLocalSearchParams<{ payment?: PaymentLeft }>();
   const config = getAddressConfig(countryCode);
-  const [editing, setEditing] = useState(!checkout.ready_to_pay);
+  // The form opens until the cart has an address; a cart quoted before it changed is quoted again below.
+  const [editing, setEditing] = useState(!checkout.shipping_address);
   const [values, setValues] = useState<AddressFormValues>(() =>
     addressFormValues(checkout.shipping_address, countryCode, customer.data ?? undefined)
   );
@@ -94,6 +95,22 @@ function CheckoutForm({
   }, [first_name, last_name]);
   const prepare = usePrepareCheckout(cartId);
   const startPayment = useStartPayment(cartId);
+
+  // A cart changed since its delivery was quoted (a shop added, a quantity changed) has a shop
+  // without rates. Quote it again at the cart's address, once; if that fails, the form shows why.
+  const needsQuote = !editing && !checkout.ready_to_pay && !!checkout.shipping_address;
+  const requoted = useRef(false);
+  useEffect(() => {
+    if (!needsQuote) {
+      requoted.current = false;
+      return;
+    }
+    if (requoted.current || prepare.isPending) return;
+    requoted.current = true;
+    const result = addressFromForm(values, countryCode);
+    if (result.ok) prepare.mutate(result.address, { onError: () => setEditing(true) });
+    else setEditing(true);
+  }, [needsQuote, prepare, values, countryCode]);
 
   const change = (key: AddressFieldKey, value: string) => {
     setValues((current) => ({ ...current, [key]: value }));
@@ -184,7 +201,8 @@ function CheckoutForm({
             label="Pay with Paystack"
             detail={formatMoney(checkout.total, checkout.currency_code)}
             onPress={pay}
-            loading={startPayment.isPending}
+            loading={startPayment.isPending || prepare.isPending}
+            disabled={!checkout.ready_to_pay}
           />
         </View>
       )}
