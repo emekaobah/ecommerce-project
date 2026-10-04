@@ -1,6 +1,6 @@
 import { MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
-import type { ImportMapping } from "../../../lib/catalogue-import"
+import { readSheet, type ImportMapping } from "../../../lib/catalogue-import"
 import {
   buildOfferImportRows,
   importOfferRows,
@@ -14,7 +14,6 @@ import {
   type OfferImportField,
   type OfferImportResult,
 } from "../../../lib/offer-import"
-import { readSheet } from "../../admin/catalogue-import/sheet"
 import { sellerOf, type VendorRequest } from "./seller"
 import type { VendorRunOfferImportType } from "./validators"
 

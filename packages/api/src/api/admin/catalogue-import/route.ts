@@ -6,6 +6,7 @@ import {
   listImportSources,
   loadCatalogueAttributes,
   loadImportCatalogue,
+  readSheet,
   mappingErrors,
   readImportRows,
   saveMapping,
@@ -13,7 +14,6 @@ import {
   type ImportField,
   type ImportResult,
 } from "../../../lib/catalogue-import"
-import { readSheet } from "./sheet"
 import type { AdminRunCatalogueImportType } from "./validators"
 
 /** The fields a column can map to, and the sources with a saved mapping. */

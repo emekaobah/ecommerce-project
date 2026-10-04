@@ -91,7 +91,7 @@ export default defineMiddlewares({
         },
         { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },
-        // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows.
+        // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows (lib/catalogue-import/sheet).
         {
             method: ["POST"],
             matcher: "/admin/catalogue-import",

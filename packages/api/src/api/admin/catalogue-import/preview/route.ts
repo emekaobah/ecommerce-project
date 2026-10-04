@@ -6,10 +6,10 @@ import {
   mappingErrors,
   previewMissing,
   readImportRows,
+  readSheet,
   suggestMapping,
   type ImportMapping,
 } from "../../../../lib/catalogue-import"
-import { readSheet } from "../sheet"
 import type { AdminPreviewCatalogueImportType } from "../validators"
 
 type PreviewRow = {
