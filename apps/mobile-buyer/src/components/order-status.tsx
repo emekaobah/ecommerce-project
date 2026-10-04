@@ -33,7 +33,7 @@ export function OrderStatusDetails({ order }: Readonly<{ order: SellerOrder }>) 
       {status.note ? <Text tone="secondary">{`Reason: ${status.note}`}</Text> : null}
       {refund && order.refund ? (
         <Text tone="secondary">
-          {`${formatMoney(order.refund.amount, order.currency_code)} back to you.${refund.note ? ` ${refund.note}` : ''}`}
+          {[`${formatMoney(order.refund.amount, order.currency_code)} back to you.`, refund.note].filter(Boolean).join(' ')}
         </Text>
       ) : null}
     </View>
