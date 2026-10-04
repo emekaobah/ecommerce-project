@@ -162,6 +162,16 @@ medusaIntegrationTestRunner({
         expect(res.status).toBe(400)
         expect(res.data.message).toMatch(/doesn't deliver to this address/)
       })
+
+      it("doesn't pass off Shipbubble refusing the API key as a shop that doesn't deliver", async () => {
+        const cartId = await adasCart()
+        shipbubble.failRatesWith(401)
+
+        const res = await prepareAt(cartId, PINNED).catch((e) => e.response)
+
+        expect(res.status).toBe(500)
+        expect(res.data.message).not.toMatch(/doesn't deliver/)
+      })
     })
 
     describe("choosing a rate", () => {

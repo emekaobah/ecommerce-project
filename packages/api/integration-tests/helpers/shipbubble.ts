@@ -51,6 +51,7 @@ export function fakeShipbubble(port: number) {
   const codes = new Map<string, number>()
   let couriers: FakeCourier[] = Object.values(COURIERS)
   let rejected: ((v: Validation) => boolean) | undefined
+  let ratesFailWith: number | undefined
   let server: Server | undefined
 
   const readBody = async (req: IncomingMessage) => {
@@ -95,6 +96,7 @@ export function fakeShipbubble(port: number) {
   const fetchRates = async (req: IncomingMessage): Promise<Reply> => {
     const body = (await readBody(req)) as RateRequest
     rateRequests.push(body)
+    if (ratesFailWith) return failed(ratesFailWith, "Rate request refused")
     if (![...codes.values()].includes(body.sender_address_code) || ![...codes.values()].includes(body.reciever_address_code)) {
       return failed(400, "Invalid address code")
     }
@@ -156,7 +158,12 @@ export function fakeShipbubble(port: number) {
     rejectAddresses: (matches: ((v: Validation) => boolean) | undefined) => {
       rejected = matches
     },
+    /** Rate requests are answered with this HTTP status from now on; undefined clears it. */
+    failRatesWith: (status: number | undefined) => {
+      ratesFailWith = status
+    },
     reset: () => {
+      ratesFailWith = undefined
       validations.length = 0
       rateRequests.length = 0
       couriers = Object.values(COURIERS)

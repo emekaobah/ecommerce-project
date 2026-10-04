@@ -338,8 +338,9 @@ export async function quoteDelivery(
       ...parcel,
     })
   } catch (error) {
-    // Shipbubble answers a parcel no courier carries between the two addresses with a 4xx.
-    if (error instanceof ShipbubbleError && error.status < 500) return []
+    // Shipbubble answers a parcel no courier carries between the two addresses with a 400 or
+    // 422. Anything else, such as a refused API key, is ours to fix, not the buyer's.
+    if (error instanceof ShipbubbleError && (error.status === 400 || error.status === 422)) return []
     throw error
   }
   const quotes: ShipbubbleQuote[] = rates.couriers
