@@ -5,8 +5,12 @@ Expo Router app for buyers. Architecture: [ADR 0001](../../docs/adr/0001-mobile-
 ## Run
 
 1. Start the backend (`bun run dev` at the repo root).
-2. `cp .env.example .env` and fill in the publishable key. On a physical device, use your machine's LAN IP for `EXPO_PUBLIC_API_URL`.
+2. `cp .env.example .env` and fill in the publishable key and the Maps SDK keys for the delivery pin map (`GOOGLE_MAPS_IOS_API_KEY`, `GOOGLE_MAPS_ANDROID_API_KEY`; config fails without them). On a physical device, use your machine's LAN IP for `EXPO_PUBLIC_API_URL`.
 3. Build and open a dev build: `bunx expo run:ios` or `bunx expo run:android`.
+
+## End-to-end flows
+
+Maestro flows live in `.maestro/`. With the backend running (with `GOOGLE_MAPS_API_KEY`), the dev build open and a buyer signed in: `maestro test .maestro/add-address-by-search.yaml`.
 
 ## Layout
 
