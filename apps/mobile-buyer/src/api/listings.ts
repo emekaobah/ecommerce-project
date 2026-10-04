@@ -19,7 +19,7 @@ export const listingKeys = {
     [...listingKeys.all, 'detail', { regionId, sellerId, productId }] as const,
 };
 
-async function fetchListings(regionId: string, { search, categoryId, sellerId, excludeProductId, limit }: ListFilters) {
+function fetchListings(regionId: string, { search, categoryId, sellerId, excludeProductId, limit }: ListFilters) {
   return storeClient.store.listings.query({
     region_id: regionId,
     ...(search ? { q: search } : {}),
@@ -50,6 +50,35 @@ export function useListings(regionId: string | undefined, filters: ListFilters =
   return useQuery({
     queryKey: listingKeys.list(regionId ?? '', filters),
     queryFn: regionId ? async () => (await fetchListings(regionId, filters)).listings : skipToken,
+  });
+}
+
+/**
+ * How the listing's shop would deliver it to the signed-in buyer's saved address (#23), or null
+ * when they have none: the product page then shows the shop's dispatch time. Guests aren't asked.
+ * Keyed by buyer, so one buyer never sees another's estimate.
+ */
+export function useDeliveryEstimate(
+  regionId: string | undefined,
+  sellerId: string,
+  productId: string,
+  userId: string | null | undefined
+) {
+  return useQuery({
+    queryKey: [...listingKeys.detail(regionId ?? '', sellerId, productId), 'delivery-estimate', { userId }] as const,
+    queryFn:
+      regionId && userId
+        ? async () => {
+            const { estimate } = await storeClient.store.listings.$sellerId.$productId.deliveryEstimate.query({
+              $sellerId: sellerId,
+              $productId: productId,
+              region_id: regionId,
+            });
+            return estimate;
+          }
+        : skipToken,
+    // Courier rates move slowly; a product page revisited within minutes reuses its estimate.
+    staleTime: 5 * 60 * 1000,
   });
 }
 

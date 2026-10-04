@@ -115,6 +115,33 @@ describe("shopOrderView: the order's lines", () => {
   })
 })
 
+describe("shopOrderView: the buyer's address", () => {
+  const address = () => ({
+    address_1: "3 Akin Adesola Street",
+    metadata: { landmark: "Opposite the Mobil station", latitude: 6.4281, longitude: 3.4219, shipbubble_address_code: 1 },
+  })
+
+  // ADR 0002: shop staff never get the buyer's coordinates; the rider gets them from Shipbubble.
+  it("leaves out the buyer's pin, keeping the rest of the address", () => {
+    const seen = shopOrderView(order({ shipping_address: address(), billing_address: address() }), share)
+
+    for (const seenAddress of [seen.shipping_address, seen.billing_address] as any[]) {
+      expect(seenAddress).toEqual({
+        address_1: "3 Akin Adesola Street",
+        metadata: { landmark: "Opposite the Mobil station", shipbubble_address_code: 1 },
+      })
+    }
+  })
+
+  it("leaves an address without a pin, or none, alone", () => {
+    expect(shopOrderView(order({ shipping_address: { address_1: "x", metadata: null } }), share).shipping_address).toEqual({
+      address_1: "x",
+      metadata: null,
+    })
+    expect(shopOrderView(order(), share)).not.toHaveProperty("shipping_address")
+  })
+})
+
 describe("shopPaymentView", () => {
   const payment = () => ({
     ...collection().payments[0],

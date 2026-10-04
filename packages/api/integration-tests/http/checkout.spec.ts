@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules } from "@medusajs/framework/utils"
 import { updateOffersWorkflow } from "@mercurjs/core/workflows"
 import seedDemoData from "../../src/scripts/seed"
-import { SEED_DELIVERY_FEE, SEED_PASSWORD } from "../../src/scripts/seed-data"
+import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "../helpers/auth"
 import {
   ADDRESS,
@@ -20,16 +20,20 @@ import {
 import { fakeClerk } from "../helpers/clerk"
 import { numbersIn } from "../helpers/numbers"
 import { fakePaystack } from "../helpers/paystack"
+import { BEST_VALUE_FEE, fakeShipbubble } from "../helpers/shipbubble"
 
 jest.setTimeout(5 * 60 * 1000)
 
 const clerk = fakeClerk()
 // A port per test process, so the fake can be named in the config before it is listening.
 const paystack = fakePaystack(47000 + (process.pid % 1000))
+const shipbubble = fakeShipbubble(48000 + (process.pid % 1000))
 // Set before the runner loads medusa-config, which registers each provider only when its key is set.
 process.env.CLERK_JWT_KEY = clerk.jwtKey
 process.env.PAYSTACK_SECRET_KEY = paystack.secretKey
 process.env.PAYSTACK_API_URL = paystack.apiUrl
+process.env.SHIPBUBBLE_API_KEY = shipbubble.apiKey
+process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
 
 // Mercur's default order-group fields nest deeper than the store's relation limit (3).
 const ORDER_GROUP_FIELDS = [
@@ -72,10 +76,10 @@ medusaIntegrationTestRunner({
       )
 
     beforeAll(async () => {
-      await paystack.start()
+      await Promise.all([paystack.start(), shipbubble.start()])
       await seedDemoData({ container: getContainer(), args: [] } as any)
     })
-    afterAll(() => paystack.stop())
+    afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
     beforeEach(() => buyer.load())
 
     /** The cart's payment session for a transaction, once the webhook has had Paystack verify it. */
@@ -103,7 +107,7 @@ medusaIntegrationTestRunner({
           email: "ada@oja.test",
           shipping_address: { address_1: ADDRESS.address_1, city: "Eti-Osa", metadata: { landmark: ADDRESS.metadata.landmark } },
           item_subtotal: LANTERN.price + 2 * RICE.price,
-          shipping_total: 2 * SEED_DELIVERY_FEE,
+          shipping_total: 2 * BEST_VALUE_FEE,
           total: TOTAL,
           ready_to_pay: true,
           order_group_id: null,
@@ -111,8 +115,8 @@ medusaIntegrationTestRunner({
         expect(
           data.checkout.sellers.map((g: any) => [g.seller.name, g.item_subtotal, g.shipping?.amount])
         ).toEqual([
-          [GADGETS.name, LANTERN.price, SEED_DELIVERY_FEE],
-          [GROCERY.name, 2 * RICE.price, SEED_DELIVERY_FEE],
+          [GADGETS.name, LANTERN.price, BEST_VALUE_FEE],
+          [GROCERY.name, 2 * RICE.price, BEST_VALUE_FEE],
         ])
       })
 
@@ -127,7 +131,7 @@ medusaIntegrationTestRunner({
         )
 
         expect(data.checkout.shipping_address).toMatchObject({ address_1: "9 Bode Thomas Street", city: "Surulere" })
-        expect(data.checkout.shipping_total).toBe(2 * SEED_DELIVERY_FEE)
+        expect(data.checkout.shipping_total).toBe(2 * BEST_VALUE_FEE)
         expect(data.checkout.total).toBe(TOTAL)
       })
 
@@ -226,8 +230,8 @@ medusaIntegrationTestRunner({
           }))
           .sort((a: any, b: any) => a.shop.localeCompare(b.shop))
         expect(orders).toEqual([
-          { shop: GADGETS.name, items: [[LANTERN.title, 1, LANTERN.price]], total: LANTERN.price + SEED_DELIVERY_FEE },
-          { shop: GROCERY.name, items: [[RICE.title, 2, RICE.price]], total: 2 * RICE.price + SEED_DELIVERY_FEE },
+          { shop: GADGETS.name, items: [[LANTERN.title, 1, LANTERN.price]], total: LANTERN.price + BEST_VALUE_FEE },
+          { shop: GROCERY.name, items: [[RICE.title, 2, RICE.price]], total: 2 * RICE.price + BEST_VALUE_FEE },
         ])
         // No stray single order besides the split ones.
         expect(await ordersOfCart(cartId)).toHaveLength(2)
@@ -421,12 +425,29 @@ medusaIntegrationTestRunner({
       // The order line and payment fields the web vendor panel's order page asks for.
       const PANEL_FIELDS = "+total,*items.variant.prices,+items.compare_at_unit_price"
 
+      it("never shows a shop where the buyer's pin is, even asked for the address (ADR 0002)", async () => {
+        const cartId = await buyer.adasCart()
+        const pinned = { ...ADDRESS, metadata: { ...ADDRESS.metadata, latitude: 6.4281, longitude: 3.4219 } }
+        await api.post(`/store/carts/${cartId}/checkout`, { shipping_address: pinned }, buyer.ada())
+        const { reference } = await buyer.startPayment(cartId)
+        paystack.pay(reference)
+        await buyer.postWebhook(paystack.chargeSuccess(reference))
+        await buyer.orderGroupOf(cartId)
+
+        for (const fields of ["", "*shipping_address"]) {
+          const { listed, order } = await shopOrders(GADGETS, cartId, fields)
+          for (const seen of [listed, order]) {
+            expect(JSON.stringify(seen)).not.toMatch(/latitude|longitude|6\.4281|3\.4219/)
+          }
+        }
+      })
+
       it("shows each shop the payment for its own order, not the whole checkout's", async () => {
         const cartId = await paidCheckout()
 
         for (const [shop, total] of [
-          [GADGETS, LANTERN.price + SEED_DELIVERY_FEE],
-          [GROCERY, 2 * RICE.price + SEED_DELIVERY_FEE],
+          [GADGETS, LANTERN.price + BEST_VALUE_FEE],
+          [GROCERY, 2 * RICE.price + BEST_VALUE_FEE],
         ] as const) {
           const { listed, order } = await shopOrders(shop, cartId, PANEL_FIELDS)
           for (const seen of [listed, order]) {
@@ -471,7 +492,7 @@ medusaIntegrationTestRunner({
 
       it("shows the shop only its own order when it acts on it and in the order's preview", async () => {
         const cartId = await paidCheckout()
-        const total = LANTERN.price + SEED_DELIVERY_FEE
+        const total = LANTERN.price + BEST_VALUE_FEE
         const owner = await vendorHeaders(api, GADGETS.owner.email, SEED_PASSWORD, await sellerId(GADGETS))
         const { order } = await shopOrders(GADGETS, cartId, PANEL_FIELDS)
         const [line] = order.items
@@ -517,8 +538,8 @@ medusaIntegrationTestRunner({
         const paymentId = await paymentIdOf(cartId)
 
         for (const [shop, total] of [
-          [GADGETS, LANTERN.price + SEED_DELIVERY_FEE],
-          [GROCERY, 2 * RICE.price + SEED_DELIVERY_FEE],
+          [GADGETS, LANTERN.price + BEST_VALUE_FEE],
+          [GROCERY, 2 * RICE.price + BEST_VALUE_FEE],
         ] as const) {
           const owner = await vendorHeaders(api, shop.owner.email, SEED_PASSWORD, await sellerId(shop))
           // Mercur 2.3.5's payment list filters through a link that doesn't exist and always

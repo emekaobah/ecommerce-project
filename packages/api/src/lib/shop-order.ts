@@ -147,12 +147,25 @@ function ownLinePrice(line: Line, currencyCode: string | undefined): Line {
   return { ...line, variant: { ...line.variant, prices } }
 }
 
+type Address = { metadata?: Record<string, unknown> | null; [key: string]: unknown }
+
+/** The buyer's address without the pin they confirmed: shop staff never get coordinates (ADR 0002). */
+function withoutPin(address: Address): Address {
+  if (!address.metadata) return address
+  const { latitude: _latitude, longitude: _longitude, ...metadata } = address.metadata
+  return { ...address, metadata }
+}
+
 /** A vendor order response as its shop may see it. */
 export function shopOrderView(order: VendorOrder, share: OrderShare): ShopOrder {
   const { cart, payment_collections, ...rest } = order
   const collections = payment_collections ?? (cart?.payment_collection ? [cart.payment_collection] : undefined)
   const view: ShopOrder = { ...rest }
   if (rest.items) view.items = rest.items.map((line) => ownLinePrice(line, rest.currency_code))
+  for (const key of ["shipping_address", "billing_address"] as const) {
+    const address = rest[key] as Address | null | undefined
+    if (address) view[key] = withoutPin(address)
+  }
   if (collections) {
     view.payment_collections = collections.map((collection) => paymentShare(collection, share))
     view.payment_status = getLastPaymentStatus(view as never)

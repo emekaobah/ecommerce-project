@@ -1,9 +1,10 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { SEED_DELIVERY_FEE, SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
+import { SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "./auth"
 import type { fakeClerk } from "./clerk"
 import type { fakePaystack } from "./paystack"
+import { BEST_VALUE_FEE } from "./shipbubble"
 
 type Api = {
   get: (url: string, config?: unknown) => Promise<{ data: any; status: number }>
@@ -15,12 +16,12 @@ export type Shop = (typeof SEED_SELLERS)[number]
 export const LANTERN = SEED_PRODUCTS.find((p) => p.title === "Rechargeable LED Lantern")!
 export const RICE = SEED_PRODUCTS.find((p) => p.title === "Ofada Rice 5kg")!
 export const [GROCERY, , GADGETS] = SEED_SELLERS
-/** Ada's cart: a lantern from the gadget hub, two bags of rice from the grocery shop, each delivered. */
-export const TOTAL = LANTERN.price + 2 * RICE.price + 2 * SEED_DELIVERY_FEE
+/** Ada's cart: a lantern from the gadget hub, two bags of rice from the grocery shop, each delivered at its best-value rate. */
+export const TOTAL = LANTERN.price + 2 * RICE.price + 2 * BEST_VALUE_FEE
 /** What each shop's order of Ada's cart comes to. */
 export const ORDER_TOTALS = new Map<Shop, number>([
-  [GADGETS, LANTERN.price + SEED_DELIVERY_FEE],
-  [GROCERY, 2 * RICE.price + SEED_DELIVERY_FEE],
+  [GADGETS, LANTERN.price + BEST_VALUE_FEE],
+  [GROCERY, 2 * RICE.price + BEST_VALUE_FEE],
 ])
 
 export const RETURN_URL = "https://api.oja.test/paystack/return"

@@ -1,0 +1,69 @@
+/**
+ * Delivery choices at checkout (#23): of a shop's courier rates, the buyer is offered the
+ * cheapest, the fastest and the best value, with best value preselected (docs/design.md).
+ */
+
+/** A courier's quote for one shop's parcel. `delivery_eta_time` is ISO 8601. */
+export type DeliveryRate = {
+  id: string
+  amount: number
+  delivery_eta_time: string
+  /** How well the courier tracks parcels, 1–10 (Shipbubble's `tracking_level`). */
+  tracking_level?: number | null
+}
+
+export type DeliveryTag = "best_value" | "cheapest" | "fastest"
+
+export type DeliveryChoice<R extends DeliveryRate = DeliveryRate> = R & { tags: DeliveryTag[] }
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Best value may arrive up to this much later than the fastest rate. */
+const BEST_VALUE_SLACK_MS = DAY_MS
+
+const eta = (rate: DeliveryRate) => Date.parse(rate.delivery_eta_time)
+
+/** The first of non-empty `rates` in `compare` order. */
+const first = <R>(rates: R[], compare: (a: R, b: R) => number): R => [...rates].sort(compare)[0]!
+
+/**
+ * The rates to offer: best value, then the cheapest, then the fastest, a rate that is several
+ * of them offered once with each tag. Best value is the cheapest rate arriving within a day of
+ * the fastest one, the better-tracked courier when prices tie.
+ */
+export function deliveryChoices<R extends DeliveryRate>(rates: R[]): DeliveryChoice<R>[] {
+  if (!rates.length) return []
+  const fastest = first(rates, (a, b) => eta(a) - eta(b) || a.amount - b.amount)
+  const cheapest = first(rates, (a, b) => a.amount - b.amount || eta(a) - eta(b))
+  const bestValue = first(
+    rates.filter((r) => eta(r) <= eta(fastest) + BEST_VALUE_SLACK_MS),
+    (a, b) => a.amount - b.amount || (b.tracking_level ?? 0) - (a.tracking_level ?? 0) || eta(a) - eta(b)
+  )
+
+  const choices: DeliveryChoice<R>[] = []
+  const tag = (rate: R, name: DeliveryTag) => {
+    const existing = choices.find((c) => c.id === rate.id)
+    if (existing) existing.tags.push(name)
+    else choices.push({ ...rate, tags: [name] })
+  }
+  tag(bestValue, "best_value")
+  tag(cheapest, "cheapest")
+  tag(fastest, "fastest")
+  return choices
+}
+
+/** The calendar date of an instant in a timezone, as YYYY-MM-DD. */
+const dateIn = (instant: Date, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(instant)
+
+/**
+ * When a parcel arrives, as the buyer reads it: "Arrives today", "Arrives tomorrow", or
+ * "Arrives Wed 7 Oct". Days are counted in the region's timezone.
+ */
+export function deliveryEstimate(etaTime: string, now: Date, timeZone: string): string {
+  const arrives = new Date(etaTime)
+  const days = Math.round((Date.parse(dateIn(arrives, timeZone)) - Date.parse(dateIn(now, timeZone))) / DAY_MS)
+  if (days <= 0) return "Arrives today"
+  if (days === 1) return "Arrives tomorrow"
+  const date = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short", day: "numeric", month: "short" })
+  return `Arrives ${date.format(arrives).replace(",", "")}`
+}

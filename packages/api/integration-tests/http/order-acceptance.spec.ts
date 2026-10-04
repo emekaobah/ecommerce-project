@@ -6,16 +6,20 @@ import { fulfilmentService } from "../../src/lib/order-fulfilment"
 import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
+import { fakeShipbubble } from "../helpers/shipbubble"
 
 jest.setTimeout(5 * 60 * 1000)
 
 const clerk = fakeClerk()
 // A port per test process, so the fake can be named in the config before it is listening.
 const paystack = fakePaystack(49000 + (process.pid % 1000))
+const shipbubble = fakeShipbubble(50000 + (process.pid % 1000))
 // Set before the runner loads medusa-config, which registers each provider only when its key is set.
 process.env.CLERK_JWT_KEY = clerk.jwtKey
 process.env.PAYSTACK_SECRET_KEY = paystack.secretKey
 process.env.PAYSTACK_API_URL = paystack.apiUrl
+process.env.SHIPBUBBLE_API_KEY = shipbubble.apiKey
+process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
 
 const HOUR = 60 * 60 * 1000
 const ORDER_FIELDS = "+total,+created_at,+status"
@@ -32,10 +36,10 @@ medusaIntegrationTestRunner({
       )
 
     beforeAll(async () => {
-      await paystack.start()
+      await Promise.all([paystack.start(), shipbubble.start()])
       await seedDemoData({ container: getContainer(), args: [] } as any)
     })
-    afterAll(() => paystack.stop())
+    afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
     beforeEach(() => buyer.load())
 
     /** Ada's paid checkout, and each shop's order of it. */

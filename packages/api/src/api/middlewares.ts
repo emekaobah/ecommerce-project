@@ -5,7 +5,8 @@ import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } fro
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
 import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
-import { StorePrepareCheckout, StoreStartCheckoutPayment } from "./store/carts/[id]/checkout/validators";
+import { StoreChooseDelivery, StorePrepareCheckout, StoreStartCheckoutPayment } from "./store/carts/[id]/checkout/validators";
+import { deliveryChosenAtCheckout } from "./store/carts/[id]/checkout/delivery-by-checkout";
 import { verifyPaystackSignature } from "./hooks/paystack-signature";
 import { refuseVendorCapture } from "./vendor/payments/no-capture";
 import { showTheShopItsOwnOrder } from "./vendor/orders/shop-view";
@@ -30,6 +31,15 @@ export default defineMiddlewares({
             matcher: "/store/listings/:seller_id/:product_id",
             middlewares: [validateAndTransformQuery(StoreGetListingParams, {})],
         },
+        // Guests are answered too (no estimate), so the product page asks the same way for everyone.
+        {
+            method: ["GET"],
+            matcher: "/store/listings/:seller_id/:product_id/delivery-estimate",
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetListingParams, {}),
+            ],
+        },
         {
             method: ["GET"],
             matcher: "/store/shops/:seller_id",
@@ -50,6 +60,12 @@ export default defineMiddlewares({
             matcher: "/store/carts/:id/checkout",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StorePrepareCheckout)],
         },
+        {
+            method: ["POST"],
+            matcher: "/store/carts/:id/checkout/delivery",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreChooseDelivery)],
+        },
+        { method: ["POST"], matcher: "/store/carts/:id/shipping-methods", middlewares: [deliveryChosenAtCheckout] },
         {
             method: ["POST"],
             matcher: "/store/carts/:id/checkout/payment",

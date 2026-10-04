@@ -41,6 +41,7 @@ import {
   createSalesChannelsWorkflow,
   createServiceZonesWorkflow,
   createShippingProfilesWorkflow,
+  deleteShippingOptionsWorkflow,
   createTaxRegionsWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
@@ -52,7 +53,6 @@ import {
 import {
   SEED_CATEGORIES,
   SEED_CATEGORY_ATTRIBUTES,
-  SEED_DELIVERY_FEE,
   SEED_PASSWORD,
   SEED_PRODUCTS,
   SEED_REGION,
@@ -66,6 +66,7 @@ import {
   type SeedSeller,
 } from "./seed-data";
 import { PAYSTACK_PROVIDER_ID } from "../modules/paystack";
+import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble";
 
 // Seeds Oja's demo world (see seed-data.ts). Every section looks up what already
 // exists and creates only what is missing, so the seed is safe to re-run.
@@ -134,6 +135,8 @@ export default async function seedDemoData({ container }: ExecArgs) {
   const shippingProfileId = await seedShippingProfile(container);
 
   const sellers: SeededSeller[] = [];
+  // One shop at a time: each creates its members, stock location and Shipbubble option, and
+  // the log reads in order.
   for (const config of SEED_SELLERS) {
     logger.info(`Seeding seller "${config.name}"...`);
     sellers.push(await seedSeller(container, config, salesChannelId, shippingProfileId));
@@ -272,14 +275,18 @@ async function seedCategories(container: MedusaContainer): Promise<Map<string, s
   };
 
   // Categories seeded before shipping defaults existed get them now.
-  for (const category of existing.filter((c) => !c.metadata?.shipping_defaults)) {
-    await updateProductCategoriesWorkflow(container).run({
-      input: {
-        selector: { id: category.id },
-        update: { metadata: { ...category.metadata, ...metadataFor(category.name) } },
-      },
-    });
-  }
+  await Promise.all(
+    existing
+      .filter((c) => !c.metadata?.shipping_defaults)
+      .map((category) =>
+        updateProductCategoriesWorkflow(container).run({
+          input: {
+            selector: { id: category.id },
+            update: { metadata: { ...category.metadata, ...metadataFor(category.name) } },
+          },
+        })
+      )
+  );
 
   await create(
     parents.filter((name) => !idByName.has(name)).map((name) => ({ name, rank: parents.indexOf(name) }))
@@ -360,6 +367,7 @@ async function syncCategoryAttributes(
   });
   const toLink: ReturnType<typeof pair>[] = [];
   const toUnlink: ReturnType<typeof pair>[] = [];
+  const toRequire: { id: string; is_required: boolean }[] = [];
 
   for (const department of Object.keys(SEED_CATEGORY_ATTRIBUTES) as Department[]) {
     const wanted = new Set(categoryIdsFor(department));
@@ -367,15 +375,18 @@ async function syncCategoryAttributes(
       const attribute = existing.get(seedAttribute.handle);
       if (!attribute) continue;
       if (attribute.is_required !== seedAttribute.is_required) {
-        await updateProductAttributesWorkflow(container).run({
-          input: { selector: { id: attribute.id }, update: { is_required: seedAttribute.is_required } },
-        });
+        toRequire.push({ id: attribute.id, is_required: seedAttribute.is_required });
       }
       const linked = new Set((attribute.categories ?? []).flatMap((c) => (c?.id ? [c.id] : [])));
       wanted.forEach((id) => !linked.has(id) && toLink.push(pair(attribute.id, id)));
       linked.forEach((id) => !wanted.has(id) && toUnlink.push(pair(attribute.id, id)));
     }
   }
+  await Promise.all(
+    toRequire.map(({ id, is_required }) =>
+      updateProductAttributesWorkflow(container).run({ input: { selector: { id }, update: { is_required } } })
+    )
+  );
   if (toUnlink.length) await dismissLinksWorkflow(container).run({ input: toUnlink });
   if (toLink.length) await createLinksWorkflow(container).run({ input: toLink });
 }
@@ -522,6 +533,7 @@ async function seedSeller(
     filters: { name: locationName },
   });
   if (existingLocation) {
+    await seedShipbubbleDelivery(container, sellerId, config, existingLocation.id, shippingProfileId);
     return { id: sellerId, config, ownerMemberId, stockLocationId: existingLocation.id };
   }
 
@@ -540,10 +552,6 @@ async function seedSeller(
     },
   });
 
-  await container.resolve(ContainerRegistrationKeys.LINK).create({
-    [Modules.STOCK_LOCATION]: { stock_location_id: location.id },
-    [Modules.FULFILLMENT]: { fulfillment_provider_id: "manual_manual" },
-  });
   await linkSalesChannelsToStockLocationWorkflow(container).run({
     input: { id: location.id, add: [salesChannelId] },
   });
@@ -560,9 +568,7 @@ async function seedSeller(
     fields: ["fulfillment_sets.id"],
     filters: { id: location.id },
   });
-  const {
-    result: [serviceZone],
-  } = await createServiceZonesWorkflow(container).run({
+  await createServiceZonesWorkflow(container).run({
     input: {
       data: [
         {
@@ -573,18 +579,57 @@ async function seedSeller(
       ],
     },
   });
+  await seedShipbubbleDelivery(container, sellerId, config, location.id, shippingProfileId);
+
+  return { id: sellerId, config, ownerMemberId, stockLocationId: location.id };
+}
+
+// Each shop delivers with Shipbubble (#23): one calculated shipping option whose price is the
+// courier rate the buyer picks at checkout. Replaces the flat delivery earlier seeds created.
+async function seedShipbubbleDelivery(
+  container: MedusaContainer,
+  sellerId: string,
+  config: SeedSeller,
+  locationId: string,
+  shippingProfileId: string
+) {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const {
+    data: [location],
+  } = await query.graph({
+    entity: "stock_location",
+    fields: [
+      "fulfillment_providers.id",
+      "fulfillment_sets.service_zones.id",
+      "fulfillment_sets.service_zones.shipping_options.id",
+      "fulfillment_sets.service_zones.shipping_options.provider_id",
+    ],
+    filters: { id: locationId },
+  });
+  if (!location.fulfillment_providers?.some((p: { id: string } | null) => p?.id === SHIPBUBBLE_PROVIDER_ID)) {
+    await container.resolve(ContainerRegistrationKeys.LINK).create({
+      [Modules.STOCK_LOCATION]: { stock_location_id: locationId },
+      [Modules.FULFILLMENT]: { fulfillment_provider_id: SHIPBUBBLE_PROVIDER_ID },
+    });
+  }
+  const serviceZone = location.fulfillment_sets![0]!.service_zones![0]!;
+  const options = (serviceZone.shipping_options ?? []) as { id: string; provider_id: string }[];
+  const flat = options.filter((o) => o.provider_id !== SHIPBUBBLE_PROVIDER_ID).map((o) => o.id);
+  if (flat.length) await deleteShippingOptionsWorkflow(container).run({ input: { ids: flat } });
+  if (options.some((o) => o.provider_id === SHIPBUBBLE_PROVIDER_ID)) return;
+
   await createSellerShippingOptionsWorkflow(container).run({
     input: {
       seller_id: sellerId,
       shipping_options: [
         {
-          name: "Standard delivery",
-          price_type: "flat",
-          provider_id: "manual_manual",
+          name: `${config.name} delivery`,
+          price_type: "calculated",
+          provider_id: SHIPBUBBLE_PROVIDER_ID,
           service_zone_id: serviceZone.id,
           shipping_profile_id: shippingProfileId,
-          type: { label: "Standard", description: "Delivered in 1-3 days.", code: "standard" },
-          prices: [{ currency_code: SEED_REGION.currency_code, amount: SEED_DELIVERY_FEE }],
+          data: { id: "shipbubble" },
+          type: { label: "Delivery", description: "Courier rates from Shipbubble.", code: "shipbubble" },
           rules: [
             { attribute: "enabled_in_store", value: "true", operator: "eq" },
             { attribute: "is_return", value: "false", operator: "eq" },
@@ -593,8 +638,6 @@ async function seedSeller(
       ],
     },
   });
-
-  return { id: sellerId, config, ownerMemberId, stockLocationId: location.id };
 }
 
 type SeededProduct = { id: string; handle: string; variants: { id: string; sku: string }[] };

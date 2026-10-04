@@ -48,3 +48,5 @@ export type {
   StatusView,
 } from "./order-history"
 export type { AcceptTimeLeft } from "./accept-deadline"
+export { deliveryChoices, deliveryEstimate } from "./delivery"
+export type { DeliveryChoice, DeliveryRate, DeliveryTag } from "./delivery"

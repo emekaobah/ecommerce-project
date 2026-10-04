@@ -6,19 +6,19 @@ import {
   updateCartWorkflow,
   updateLineItemInCartWorkflow,
 } from "@medusajs/medusa/core-flows"
-import {
-  addSellerShippingMethodToCartWorkflow,
-  listSellerShippingOptionsForCartWorkflow,
-} from "@mercurjs/core/workflows"
+import { addSellerShippingMethodToCartWorkflow } from "@mercurjs/core/workflows"
+import type { DeliveryTag } from "@oja/domain"
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
 import type { PaystackSessionData } from "../modules/paystack/service"
+import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData } from "../modules/shipbubble"
 import { retrieveCartBySeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
+import { addressCodeOf, quoteBasis, quoteDelivery, samePlace, withAddressCode } from "./delivery"
 
-// Checkout of a multi-shop cart (#16): the buyer's address, one flat delivery per shop, then
-// a Paystack payment for the lot. Paystack's webhook completes the cart into an order group
+// Checkout of a multi-shop cart (#16): the buyer's address, each shop's delivery, then a
+// Paystack payment for the lot. Paystack's webhook completes the cart into an order group
 // with one order per shop (docs/adr/0003-paystack-payments.md); the app polls the checkout
-// until it has one.
+// until it has one. Delivery is quoted live by Shipbubble per shop (#23, `delivery.ts`).
 
 export type CheckoutAddress = {
   first_name: string
@@ -30,15 +30,41 @@ export type CheckoutAddress = {
   postal_code?: string | null
   country_code: string
   phone: string
-  /** `landmark`: directions for the rider (ADR 0002). */
+  /**
+   * `landmark`: directions for the rider; `latitude`/`longitude`: the pin the buyer confirmed;
+   * `shipbubble_address_code`: Shipbubble's code once validated (ADR 0002).
+   */
   metadata?: Record<string, unknown> | null
 }
 
-export type CheckoutShipping = { shipping_option_id: string; name: string; amount: number }
+/** One courier rate a shop's delivery can go by. */
+export type CheckoutDeliveryChoice = {
+  id: string
+  courier_name: string
+  amount: number
+  /** Shipbubble's wording, e.g. "Within 1 - 2 working days". */
+  delivery_eta: string | null
+  /** ISO 8601. */
+  delivery_eta_time: string
+  /** Where days are counted for "Arrives tomorrow": the courier's (Shipbubble's) timezone. */
+  time_zone: string
+  tags: DeliveryTag[]
+}
+
+export type CheckoutShipping = {
+  shipping_option_id: string
+  name: string
+  amount: number
+  /** The chosen `delivery_choices` entry. */
+  choice_id: string
+  delivery_eta_time: string
+}
 
 export type CheckoutSellerGroup = CartSellerGroup & {
-  /** The shop's delivery, once an address is set; null before, or when it can't deliver. */
+  /** The shop's chosen delivery, once quoted; null before, or when the cart changed since. */
   shipping: CheckoutShipping | null
+  /** Best value (preselected), the cheapest and the fastest, as quoted for the current cart. */
+  delivery_choices: CheckoutDeliveryChoice[]
 }
 
 export type Checkout = {
@@ -68,7 +94,9 @@ type CartRow = {
   total: number | string
   shipping_total: number | string
   shipping_address: (CheckoutAddress & { id: string }) | null
-  shipping_methods?: { shipping_option_id: string | null; name: string; amount: number | string }[] | null
+  shipping_methods?:
+    | { shipping_option_id: string | null; name: string; amount: number | string; data: Record<string, unknown> | null }[]
+    | null
   payment_collection?: {
     id: string
     payment_sessions?: { provider_id: string; data: Record<string, unknown> | null }[] | null
@@ -105,6 +133,7 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
       "shipping_methods.shipping_option_id",
       "shipping_methods.name",
       "shipping_methods.amount",
+      "shipping_methods.data",
       "payment_collection.id",
       "payment_collection.payment_sessions.provider_id",
       "payment_collection.payment_sessions.data",
@@ -130,18 +159,62 @@ async function sellerOfOptions(scope: MedusaContainer, optionIds: string[]): Pro
   return new Map((data as { id: string; seller?: { id: string } | null }[]).flatMap((o) => (o.seller ? [[o.id, o.seller.id]] : [])))
 }
 
+const isMethodData = (data: unknown): data is ShipbubbleMethodData =>
+  !!data && typeof data === "object" && "quote" in data && "choices" in data && "basis" in data
+
+/** Each shop's Shipbubble delivery on the cart, by seller. */
+async function deliveriesBySeller(scope: MedusaContainer, cart: CartRow) {
+  const methods = (cart.shipping_methods ?? []).filter((m) => m.shipping_option_id && isMethodData(m.data))
+  const sellerByOption = await sellerOfOptions(scope, methods.map((m) => m.shipping_option_id!))
+  return new Map(
+    methods.map((m) => [
+      sellerByOption.get(m.shipping_option_id!),
+      { shipping_option_id: m.shipping_option_id!, amount: Number(m.amount), data: m.data as ShipbubbleMethodData },
+    ])
+  )
+}
+
+/** What a shop's parcel holds, for `quoteBasis`. */
+const parcelLines = (group: CartSellerGroup) =>
+  group.items.map((i) => ({
+    variant_id: i.variant_id ?? "",
+    // "Adire Kaftan M"; a single variant is titled like its product.
+    title: [i.product_title, i.variant_title !== i.product_title ? i.variant_title : null].filter(Boolean).join(" "),
+    quantity: i.quantity,
+    unit_price: i.unit_price,
+  }))
+
+/** A shop's delivery as checkout shows it: the chosen rate, and the choices it was picked from. */
+function shopDelivery(
+  delivery: { shipping_option_id: string; amount: number; data: ShipbubbleMethodData } | undefined
+): Pick<CheckoutSellerGroup, "shipping" | "delivery_choices"> {
+  if (!delivery) return { shipping: null, delivery_choices: [] }
+  const { quote, choices } = delivery.data
+  return {
+    shipping: {
+      shipping_option_id: delivery.shipping_option_id,
+      name: quote.courier_name,
+      amount: delivery.amount,
+      choice_id: quote.id,
+      delivery_eta_time: quote.delivery_eta_time,
+    },
+    delivery_choices: choices.map(({ id, courier_name, amount, delivery_eta, delivery_eta_time, tags }) => ({
+      id,
+      courier_name,
+      amount,
+      delivery_eta,
+      delivery_eta_time,
+      time_zone: SHIPBUBBLE_TIMEZONE,
+      tags,
+    })),
+  }
+}
+
 /** The cart as checkout shows it: shop by shop, with each shop's delivery and the totals. */
 export async function retrieveCheckout(scope: MedusaContainer, cartId: string, customerId: string): Promise<Checkout> {
   const cart = await buyersCart(scope, cartId, customerId)
   const grouped = await retrieveCartBySeller(scope, cartId)
-  const methods = (cart.shipping_methods ?? []).filter((m) => m.shipping_option_id)
-  const sellerByOption = await sellerOfOptions(scope, methods.map((m) => m.shipping_option_id!))
-  const shippingBySeller = new Map(
-    methods.map((m) => [
-      sellerByOption.get(m.shipping_option_id!),
-      { shipping_option_id: m.shipping_option_id!, name: m.name, amount: Number(m.amount) },
-    ])
-  )
+  const deliveries = await deliveriesBySeller(scope, cart)
   // The split writes the group before its orders and links; the cart is marked completed
   // once they are all in place.
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -150,10 +223,13 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
     : { data: [] }
 
   const address = cart.shipping_address
-  const sellers = grouped.sellers.map((group) => ({
-    ...group,
-    shipping: (group.seller && shippingBySeller.get(group.seller.id)) || null,
-  }))
+  const receiverCode = addressCodeOf(address)
+  const sellers = grouped.sellers.map((group) => {
+    const delivery = group.seller ? deliveries.get(group.seller.id) : undefined
+    // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
+    const current = delivery?.data.basis === quoteBasis(receiverCode, parcelLines(group)) ? delivery : undefined
+    return { ...group, ...shopDelivery(current) }
+  })
   return {
     cart_id: cart.id,
     currency_code: cart.currency_code,
@@ -185,9 +261,15 @@ async function repriceLines(scope: MedusaContainer, cartId: string) {
       "Some items are no longer sold by their shop. Remove them to check out."
     )
   }
-  for (const item of sellers.flatMap((g) => g.items)) {
-    const price = await offerLinePrice(scope, cartId, item.offer_id!)
-    if (price.unit_price === item.unit_price && price.compare_at_unit_price === item.compare_at_unit_price) continue
+  const items = sellers.flatMap((g) => g.items)
+  const prices = await Promise.all(items.map((item) => offerLinePrice(scope, cartId, item.offer_id!)))
+  const changed = items.flatMap((item, i) => {
+    const price = prices[i]
+    const same = price.unit_price === item.unit_price && price.compare_at_unit_price === item.compare_at_unit_price
+    return same ? [] : [{ item, price }]
+  })
+  // One line at a time: each update is a workflow on the same cart.
+  for (const { item, price } of changed) {
     await updateLineItemInCartWorkflow(scope).run({
       input: {
         cart_id: cartId,
@@ -202,45 +284,101 @@ async function repriceLines(scope: MedusaContainer, cartId: string) {
   }
 }
 
+/** Each shop's Shipbubble shipping option, by seller. */
+async function shipbubbleOptionsBySeller(scope: MedusaContainer, sellerIds: string[]): Promise<Map<string, string>> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "shipping_option",
+    fields: ["id", "seller.id"],
+    filters: { provider_id: SHIPBUBBLE_PROVIDER_ID },
+  })
+  const wanted = new Set(sellerIds)
+  return new Map(
+    (data as { id: string; seller?: { id: string } | null }[]).flatMap((o) =>
+      o.seller && wanted.has(o.seller.id) ? [[o.seller.id, o.id] as const] : []
+    )
+  )
+}
+
 /**
- * Each shop's delivery to the cart's address: its flat rate, the cheapest option it offers
- * there, until live Shipbubble quotes let the buyer choose (#23).
+ * Each shop's delivery to the cart's address: Shipbubble's rates for the shop's parcel, with
+ * best value chosen. A shop no courier will deliver for refuses the checkout.
  */
-async function setShopDeliveries(scope: MedusaContainer, cartId: string) {
-  const { sellers } = await retrieveCartBySeller(scope, cartId)
-  const { result: optionsBySeller } = await listSellerShippingOptionsForCartWorkflow(scope).run({
-    input: { cart_id: cartId, is_return: false },
-  })
-  const options = (optionsBySeller ?? {}) as Record<string, { id: string; amount?: number | null }[]>
-  const chosen = sellers.map(({ seller }) => {
-    const cheapest = (options[seller!.id] ?? [])
-      .filter((o) => o.amount != null)
-      .sort((a, b) => Number(a.amount) - Number(b.amount))[0]
-    if (!cheapest) {
-      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller!.name} doesn't deliver to this address`)
-    }
-    return { id: cheapest.id }
-  })
-  await addSellerShippingMethodToCartWorkflow(scope).run({ input: { cart_id: cartId, options: chosen } })
+async function setShopDeliveries(scope: MedusaContainer, cartId: string, receiverCode: number) {
+  const { sellers, currency_code } = await retrieveCartBySeller(scope, cartId)
+  const optionBySeller = await shipbubbleOptionsBySeller(scope, sellers.map((g) => g.seller!.id))
+  // Each shop is quoted from its own pickup address, so the quotes are asked for at once.
+  const options: { id: string; data: ShipbubbleMethodData }[] = await Promise.all(
+    sellers.map(async (group) => {
+      const seller = group.seller!
+      const optionId = optionBySeller.get(seller.id)
+      const lines = parcelLines(group)
+      const choices = optionId
+        ? await quoteDelivery(scope, { sellerId: seller.id, receiverCode, lines, currencyCode: currency_code })
+        : []
+      if (!optionId || !choices.length) {
+        throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller.name} doesn't deliver to this address`)
+      }
+      // `deliveryChoices` puts best value first.
+      return { id: optionId, data: { quote: choices[0]!, choices, basis: quoteBasis(receiverCode, lines) } }
+    })
+  )
+  await addSellerShippingMethodToCartWorkflow(scope).run({ input: { cart_id: cartId, options } })
 }
 
 /**
  * Readies the buyer's cart to pay: every line at its shop's current price, the buyer's email
- * and delivery address, and one delivery per shop. Safe to repeat, e.g. after editing the address.
+ * and delivery address, validated with Shipbubble, and each shop's delivery quoted with best
+ * value chosen. Safe to repeat, e.g. after editing the address or the cart.
  */
 export async function prepareCheckout(
   scope: MedusaContainer,
   { cartId, customerId, shippingAddress }: { cartId: string; customerId: string; shippingAddress: CheckoutAddress }
 ): Promise<Checkout> {
-  notCompleted(await buyersCart(scope, cartId, customerId))
+  const cart = await buyersCart(scope, cartId, customerId)
+  notCompleted(cart)
   const customer = await scope.resolve(Modules.CUSTOMER).retrieveCustomer(customerId)
 
   await repriceLines(scope, cartId)
-  const address = shippingAddress as CreateAddressDTO
+  // Validated unless it is the cart's own address sent again, which keeps its code (ADR 0002).
+  // A code is never taken from the request: it sets what delivery costs and where it goes.
+  const previous = cart.shipping_address
+  const knownCode = previous && samePlace(previous, shippingAddress) ? addressCodeOf(previous) : null
+  const { shipbubble_address_code: _sent, ...metadata } = shippingAddress.metadata ?? {}
+  const address = await withAddressCode(
+    { ...shippingAddress, metadata: knownCode == null ? metadata : { ...metadata, shipbubble_address_code: knownCode } },
+    { name: `${shippingAddress.first_name} ${shippingAddress.last_name}`, email: customer.email }
+  )
   await updateCartWorkflow(scope).run({
-    input: { id: cartId, email: customer.email, shipping_address: address, billing_address: address },
+    input: {
+      id: cartId,
+      email: customer.email,
+      shipping_address: address as CreateAddressDTO,
+      billing_address: address as CreateAddressDTO,
+    },
   })
-  await setShopDeliveries(scope, cartId)
+  await setShopDeliveries(scope, cartId, addressCodeOf(address)!)
+  return retrieveCheckout(scope, cartId, customerId)
+}
+
+/**
+ * Changes a shop's delivery to another of the choices it was quoted (best value, the cheapest
+ * or the fastest). Choices quoted for an earlier cart are gone: checkout quotes them again.
+ */
+export async function chooseDelivery(
+  scope: MedusaContainer,
+  { cartId, customerId, sellerId, choiceId }: { cartId: string; customerId: string; sellerId: string; choiceId: string }
+): Promise<Checkout> {
+  const cart = await buyersCart(scope, cartId, customerId)
+  notCompleted(cart)
+  const delivery = (await deliveriesBySeller(scope, cart)).get(sellerId)
+  const choice = delivery?.data.choices.find((c) => c.id === choiceId)
+  if (!delivery || !choice) {
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, "That delivery isn't one of the shop's choices. Check the address again.")
+  }
+  await addSellerShippingMethodToCartWorkflow(scope).run({
+    input: { cart_id: cartId, options: [{ id: delivery.shipping_option_id, data: { ...delivery.data, quote: choice } }] },
+  })
   return retrieveCheckout(scope, cartId, customerId)
 }
 

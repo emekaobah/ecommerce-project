@@ -2,19 +2,22 @@ import { useAuth } from '@clerk/expo';
 import {
   addressFormValues,
   addressFromForm,
+  deliveryEstimate,
   formatMoney,
   getAddressConfig,
   type AddressFieldKey,
   type AddressFormValues,
+  type DeliveryTag,
   type PaymentReturn,
 } from '@oja/domain';
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   useCheckout,
+  useChooseDelivery,
   usePrepareCheckout,
   useStartPayment,
   type Checkout,
@@ -75,7 +78,8 @@ function CheckoutForm({
   const customer = useCustomer(userId);
   const { payment: returned } = useLocalSearchParams<{ payment?: PaymentLeft }>();
   const config = getAddressConfig(countryCode);
-  const [editing, setEditing] = useState(!checkout.ready_to_pay);
+  // The form opens until the cart has an address; a cart quoted before it changed is quoted again below.
+  const [editing, setEditing] = useState(!checkout.shipping_address);
   const [values, setValues] = useState<AddressFormValues>(() =>
     addressFormValues(checkout.shipping_address, countryCode, customer.data ?? undefined)
   );
@@ -91,6 +95,22 @@ function CheckoutForm({
   }, [first_name, last_name]);
   const prepare = usePrepareCheckout(cartId);
   const startPayment = useStartPayment(cartId);
+
+  // A cart changed since its delivery was quoted (a shop added, a quantity changed) has a shop
+  // without rates. Quote it again at the cart's address, once; if that fails, the form shows why.
+  const needsQuote = !editing && !checkout.ready_to_pay && !!checkout.shipping_address;
+  const requoted = useRef(false);
+  useEffect(() => {
+    if (!needsQuote) {
+      requoted.current = false;
+      return;
+    }
+    if (requoted.current || prepare.isPending) return;
+    requoted.current = true;
+    const result = addressFromForm(values, countryCode);
+    if (result.ok) prepare.mutate(result.address, { onError: () => setEditing(true) });
+    else setEditing(true);
+  }, [needsQuote, prepare, values, countryCode]);
 
   const change = (key: AddressFieldKey, value: string) => {
     setValues((current) => ({ ...current, [key]: value }));
@@ -145,7 +165,12 @@ function CheckoutForm({
         {editing ? null : (
           <>
             {checkout.sellers.map((group) => (
-              <ShopSummary key={group.seller?.id ?? 'gone'} group={group} currencyCode={checkout.currency_code} />
+              <ShopSummary
+                key={group.seller?.id ?? 'gone'}
+                cartId={cartId}
+                group={group}
+                currencyCode={checkout.currency_code}
+              />
             ))}
             <View style={{ gap: theme.space.sm }}>
               <Line label="Items" amount={checkout.item_subtotal} currencyCode={checkout.currency_code} />
@@ -176,7 +201,8 @@ function CheckoutForm({
             label="Pay with Paystack"
             detail={formatMoney(checkout.total, checkout.currency_code)}
             onPress={pay}
-            loading={startPayment.isPending}
+            loading={startPayment.isPending || prepare.isPending}
+            disabled={!checkout.ready_to_pay}
           />
         </View>
       )}
@@ -213,7 +239,11 @@ function AddressSummary({ checkout }: Readonly<{ checkout: Checkout }>) {
   );
 }
 
-function ShopSummary({ group, currencyCode }: Readonly<{ group: CheckoutSellerGroup; currencyCode: string }>) {
+function ShopSummary({
+  cartId,
+  group,
+  currencyCode,
+}: Readonly<{ cartId: string; group: CheckoutSellerGroup; currencyCode: string }>) {
   const theme = useTheme();
   return (
     <View
@@ -232,12 +262,76 @@ function ShopSummary({ group, currencyCode }: Readonly<{ group: CheckoutSellerGr
           <Text>{formatMoney(item.subtotal, currencyCode)}</Text>
         </View>
       ))}
+      <DeliveryChoices cartId={cartId} group={group} currencyCode={currencyCode} />
+    </View>
+  );
+}
+
+const TAG_LABELS: Record<DeliveryTag, string> = { best_value: 'Best value', cheapest: 'Cheapest', fastest: 'Fastest' };
+
+/**
+ * The shop's courier rates (#23): best value (preselected), the cheapest and the fastest. The
+ * chosen one is outlined; tapping another changes this shop's delivery and the total.
+ */
+function DeliveryChoices({
+  cartId,
+  group,
+  currencyCode,
+}: Readonly<{ cartId: string; group: CheckoutSellerGroup; currencyCode: string }>) {
+  const theme = useTheme();
+  const choose = useChooseDelivery(cartId);
+  const sellerId = group.seller?.id;
+  if (!sellerId || !group.delivery_choices.length) {
+    return (
       <View style={styles.spread}>
-        <Text tone="secondary">{group.shipping ? `Delivery · ${group.shipping.name}` : 'Delivery'}</Text>
-        <Text tone="secondary">
-          {group.shipping ? formatMoney(group.shipping.amount, currencyCode) : "Doesn't deliver here"}
-        </Text>
+        <Text tone="secondary">Delivery</Text>
+        <Text tone="secondary">Confirm the address to see rates</Text>
       </View>
+    );
+  }
+  const now = new Date();
+  // While a choice is being saved, it shows as chosen.
+  const chosenId = (choose.isPending && choose.variables?.choiceId) || group.shipping?.choice_id;
+  return (
+    <View style={{ gap: theme.space.sm }} accessibilityRole="radiogroup" accessibilityLabel={`Delivery from ${group.seller?.name}`}>
+      <Text variant="label">Delivery</Text>
+      {group.delivery_choices.map((choice) => {
+        const selected = choice.id === chosenId;
+        const arrives = deliveryEstimate(choice.delivery_eta_time, now, choice.time_zone);
+        return (
+          <Pressable
+            key={choice.id}
+            accessibilityRole="radio"
+            accessibilityState={{ selected, disabled: choose.isPending }}
+            disabled={choose.isPending}
+            onPress={() => {
+              if (!selected) choose.mutate({ sellerId, choiceId: choice.id });
+            }}
+            style={{
+              minHeight: theme.touchTarget,
+              padding: theme.space.md,
+              gap: theme.space.xs,
+              borderRadius: theme.radius.md,
+              borderColor: selected ? theme.colors.ink : theme.colors.divider,
+              borderWidth: selected ? 2 : 1,
+            }}>
+            <View style={styles.spread}>
+              <Text variant="label" style={styles.shrink}>
+                {choice.tags.map((tag) => TAG_LABELS[tag]).join(' · ')}
+              </Text>
+              <Text variant="label">{formatMoney(choice.amount, currencyCode)}</Text>
+            </View>
+            <Text tone="secondary">
+              {arrives} · {choice.courier_name}
+            </Text>
+          </Pressable>
+        );
+      })}
+      {choose.error ? (
+        <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+          {`Couldn't change the delivery: ${choose.error.message}`}
+        </Text>
+      ) : null}
     </View>
   );
 }

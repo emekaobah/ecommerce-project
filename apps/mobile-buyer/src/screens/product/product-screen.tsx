@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { formatMoney, formatWeight, isSaved, listingPrice, offerPrice, shipsIn } from '@oja/domain';
+import { deliveryEstimate, formatMoney, formatWeight, isSaved, listingPrice, offerPrice, shipsIn } from '@oja/domain';
 import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -17,7 +17,7 @@ import {
 
 import { useAddToCart } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
-import { useListing, useListings, type Listing, type ListingDetail } from '@/api/listings';
+import { useDeliveryEstimate, useListing, useListings, type Listing, type ListingDetail } from '@/api/listings';
 import { useToggleWishlist, useWishlist } from '@/api/wishlist';
 import { useCartSession } from '@/cart/cart-provider';
 import { ListingTile, LISTING_TILE_SIZE } from '@/components/listing-tile';
@@ -131,7 +131,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
       {selected ? <Price price={offerPrice(selected)} currencyCode={currencyCode} variant="heading" /> : null}
       <View style={[styles.shopRow, { gap: theme.space.xs }]}>
         <Button label={seller.name} variant="link" onPress={() => openShop(seller)} style={styles.inlineLink} />
-        {listing.leadtime_to_ship == null ? null : <Text tone="secondary">· {shipsIn(listing.leadtime_to_ship)}</Text>}
+        <DeliveryTime listing={listing} currencyCode={currencyCode} />
       </View>
       {offers.length > 1 ? (
         <View style={[styles.chips, { gap: theme.space.sm, marginTop: theme.space.sm }]} accessibilityRole="radiogroup">
@@ -165,6 +165,26 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
       {product.description ? <Text style={{ marginTop: theme.space.sm }}>{product.description}</Text> : null}
     </View>
   );
+}
+
+/**
+ * When it would arrive: for a buyer with a saved address, the shop's best-value courier rate
+ * there ("Arrives tomorrow · ₦2,500 delivery", #23); otherwise, or until that loads, the shop's
+ * dispatch time ("Ships in 2 days").
+ */
+function DeliveryTime({ listing, currencyCode }: Readonly<{ listing: ListingDetail; currencyCode: string }>) {
+  const { userId } = useAuth();
+  const { region } = useRegion();
+  const { data: estimate } = useDeliveryEstimate(region?.id, listing.seller.id, listing.product.id, userId);
+  if (estimate) {
+    return (
+      <Text tone="secondary">
+        · {deliveryEstimate(estimate.delivery_eta_time, new Date(), estimate.time_zone)} ·{' '}
+        {formatMoney(estimate.amount, currencyCode)} delivery
+      </Text>
+    );
+  }
+  return listing.leadtime_to_ship == null ? null : <Text tone="secondary">· {shipsIn(listing.leadtime_to_ship)}</Text>;
 }
 
 /** Adds the selected variant at this shop's price; the button carries the price (docs/design.md). */
