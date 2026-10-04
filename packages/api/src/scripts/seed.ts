@@ -135,6 +135,8 @@ export default async function seedDemoData({ container }: ExecArgs) {
   const shippingProfileId = await seedShippingProfile(container);
 
   const sellers: SeededSeller[] = [];
+  // One shop at a time: each creates its members, stock location and Shipbubble option, and
+  // the log reads in order.
   for (const config of SEED_SELLERS) {
     logger.info(`Seeding seller "${config.name}"...`);
     sellers.push(await seedSeller(container, config, salesChannelId, shippingProfileId));
@@ -273,14 +275,18 @@ async function seedCategories(container: MedusaContainer): Promise<Map<string, s
   };
 
   // Categories seeded before shipping defaults existed get them now.
-  for (const category of existing.filter((c) => !c.metadata?.shipping_defaults)) {
-    await updateProductCategoriesWorkflow(container).run({
-      input: {
-        selector: { id: category.id },
-        update: { metadata: { ...category.metadata, ...metadataFor(category.name) } },
-      },
-    });
-  }
+  await Promise.all(
+    existing
+      .filter((c) => !c.metadata?.shipping_defaults)
+      .map((category) =>
+        updateProductCategoriesWorkflow(container).run({
+          input: {
+            selector: { id: category.id },
+            update: { metadata: { ...category.metadata, ...metadataFor(category.name) } },
+          },
+        })
+      )
+  );
 
   await create(
     parents.filter((name) => !idByName.has(name)).map((name) => ({ name, rank: parents.indexOf(name) }))
@@ -361,6 +367,7 @@ async function syncCategoryAttributes(
   });
   const toLink: ReturnType<typeof pair>[] = [];
   const toUnlink: ReturnType<typeof pair>[] = [];
+  const toRequire: { id: string; is_required: boolean }[] = [];
 
   for (const department of Object.keys(SEED_CATEGORY_ATTRIBUTES) as Department[]) {
     const wanted = new Set(categoryIdsFor(department));
@@ -368,15 +375,18 @@ async function syncCategoryAttributes(
       const attribute = existing.get(seedAttribute.handle);
       if (!attribute) continue;
       if (attribute.is_required !== seedAttribute.is_required) {
-        await updateProductAttributesWorkflow(container).run({
-          input: { selector: { id: attribute.id }, update: { is_required: seedAttribute.is_required } },
-        });
+        toRequire.push({ id: attribute.id, is_required: seedAttribute.is_required });
       }
       const linked = new Set((attribute.categories ?? []).flatMap((c) => (c?.id ? [c.id] : [])));
       wanted.forEach((id) => !linked.has(id) && toLink.push(pair(attribute.id, id)));
       linked.forEach((id) => !wanted.has(id) && toUnlink.push(pair(attribute.id, id)));
     }
   }
+  await Promise.all(
+    toRequire.map(({ id, is_required }) =>
+      updateProductAttributesWorkflow(container).run({ input: { selector: { id }, update: { is_required } } })
+    )
+  );
   if (toUnlink.length) await dismissLinksWorkflow(container).run({ input: toUnlink });
   if (toLink.length) await createLinksWorkflow(container).run({ input: toLink });
 }

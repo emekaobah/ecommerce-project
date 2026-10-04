@@ -261,9 +261,15 @@ async function repriceLines(scope: MedusaContainer, cartId: string) {
       "Some items are no longer sold by their shop. Remove them to check out."
     )
   }
-  for (const item of sellers.flatMap((g) => g.items)) {
-    const price = await offerLinePrice(scope, cartId, item.offer_id!)
-    if (price.unit_price === item.unit_price && price.compare_at_unit_price === item.compare_at_unit_price) continue
+  const items = sellers.flatMap((g) => g.items)
+  const prices = await Promise.all(items.map((item) => offerLinePrice(scope, cartId, item.offer_id!)))
+  const changed = items.flatMap((item, i) => {
+    const price = prices[i]
+    const same = price.unit_price === item.unit_price && price.compare_at_unit_price === item.compare_at_unit_price
+    return same ? [] : [{ item, price }]
+  })
+  // One line at a time: each update is a workflow on the same cart.
+  for (const { item, price } of changed) {
     await updateLineItemInCartWorkflow(scope).run({
       input: {
         cart_id: cartId,

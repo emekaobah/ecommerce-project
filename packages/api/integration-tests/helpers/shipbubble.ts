@@ -142,7 +142,7 @@ export function fakeShipbubble(port: number) {
   const routes: [string, string, (req: IncomingMessage) => Promise<Reply>][] = [
     ["POST", "/shipping/address/validate", validate],
     ["POST", "/shipping/fetch_rates", fetchRates],
-    ["GET", "/shipping/labels/categories", async () => ok(CATEGORIES)],
+    ["GET", "/shipping/labels/categories", () => Promise.resolve(ok(CATEGORIES))],
   ]
 
   const handle = async (req: IncomingMessage): Promise<Reply> => {
