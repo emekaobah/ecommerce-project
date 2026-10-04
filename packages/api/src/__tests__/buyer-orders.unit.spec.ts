@@ -26,6 +26,11 @@ describe("buyerRefund", () => {
     expect(buyerRefund([row(1000, "processed"), row(2000, "failed")])).toEqual({ amount: 3000, status: "failed" })
   })
 
+  it("counts a refund that failed again once, not once per attempt", () => {
+    expect(buyerRefund([row(12300, "failed"), row(12300, "failed")])).toEqual({ amount: 12300, status: "failed" })
+    expect(buyerRefund([row(1000, "processed"), row(2000, "failed"), row(2000, "failed")])).toEqual({ amount: 3000, status: "failed" })
+  })
+
   it("leaves out a failed refund once it has been made again", () => {
     expect(buyerRefund([row(12300, "failed"), row(12300, "pending")])).toEqual({ amount: 12300, status: "pending" })
   })

@@ -49,12 +49,15 @@ const LEAST_SETTLED: PaystackRefundStatus[] = ["needs-attention", "failed", "pen
 /**
  * Sums an order's refunds (`order_refund` rows) into what its buyer sees. A failed refund is
  * made again as a new refund, so one followed by a later refund no longer counts; until then
- * the refund is delayed.
+ * the refund is delayed. Failed attempts since then are tries at the same refund: only the
+ * latest counts.
  */
 export function buyerRefund(rows: RefundRow[]): BuyerRefund | null {
   const time = (r: RefundRow) => new Date(r.created_at).getTime()
   const lastMade = Math.max(-Infinity, ...rows.filter((r) => r.status !== "failed").map(time))
-  const counted = rows.filter((r) => r.status !== "failed" || time(r) > lastMade)
+  const stillFailed = rows.filter((r) => r.status === "failed" && time(r) > lastMade)
+  const latestFailed = stillFailed.reduce<RefundRow | undefined>((a, r) => (!a || time(r) > time(a) ? r : a), undefined)
+  const counted = [...rows.filter((r) => r.status !== "failed"), ...(latestFailed ? [latestFailed] : [])]
   if (!counted.length) return null
   const statuses = new Set(counted.map((r) => r.status))
   return {
