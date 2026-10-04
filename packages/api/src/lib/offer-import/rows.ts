@@ -194,7 +194,9 @@ export function buildOfferImportRows(table: CsvTable, mapping: ImportMapping, co
     // A barcode names the product. A row without one is found by its SKU, or by
     // the SKU an earlier import made from its title, so it isn't proposed twice.
     const sku = given ?? (title ? skuFrom(title) : undefined)
-    const existing = match ? offerByVariant.get(match.id) : !barcode && sku ? offerBySku.get(sku) : undefined
+    let existing: ShopOffer | undefined
+    if (match) existing = offerByVariant.get(match.id)
+    else if (!barcode && sku) existing = offerBySku.get(sku)
     return existing ? updateRow(read, existing, sheet) : newOfferRow(read, match, sheet)
   })
 }
@@ -277,7 +279,7 @@ function describeUpdate(existing: ShopOffer, values: Values, currency: string) {
     stock: changed("stock", existing.stock),
   }
   const was = (amount: number | null) => (amount === null ? "none" : money(amount, currency))
-  const stockWas = existing.stock === null ? "not tracked" : existing.stock
+  const stockWas = existing.stock ?? "not tracked"
   const changes = [
     update.price === null ? null : `Price ${was(existing.price)} → ${money(update.price, currency)}`,
     update.cost === null ? null : `Cost price ${was(existing.cost)} → ${money(update.cost, currency)}`,
