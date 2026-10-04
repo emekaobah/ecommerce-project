@@ -68,7 +68,11 @@ export async function importRows(
  * The enrichable fields the sheet filled in. A row without a title is named after
  * its barcode until a source names it, so that title isn't supplied.
  */
-function suppliedFields(product: ImportProduct): EnrichableField[] {
+export function suppliedFields(
+  product: Pick<ImportProduct, "title" | "description" | "weight" | "images" | "categories"> & {
+    variants: [{ barcode?: string; ean?: string; upc?: string }]
+  }
+): EnrichableField[] {
   const [variant] = product.variants
   const standIn = [variant.barcode, variant.ean, variant.upc].includes(product.title)
   const supplied: EnrichableField[] = []
