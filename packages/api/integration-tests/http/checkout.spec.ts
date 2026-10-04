@@ -425,6 +425,23 @@ medusaIntegrationTestRunner({
       // The order line and payment fields the web vendor panel's order page asks for.
       const PANEL_FIELDS = "+total,*items.variant.prices,+items.compare_at_unit_price"
 
+      it("never shows a shop where the buyer's pin is, even asked for the address (ADR 0002)", async () => {
+        const cartId = await buyer.adasCart()
+        const pinned = { ...ADDRESS, metadata: { ...ADDRESS.metadata, latitude: 6.4281, longitude: 3.4219 } }
+        await api.post(`/store/carts/${cartId}/checkout`, { shipping_address: pinned }, buyer.ada())
+        const { reference } = await buyer.startPayment(cartId)
+        paystack.pay(reference)
+        await buyer.postWebhook(paystack.chargeSuccess(reference))
+        await buyer.orderGroupOf(cartId)
+
+        for (const fields of ["", "*shipping_address"]) {
+          const { listed, order } = await shopOrders(GADGETS, cartId, fields)
+          for (const seen of [listed, order]) {
+            expect(JSON.stringify(seen)).not.toMatch(/latitude|longitude|6\.4281|3\.4219/)
+          }
+        }
+      })
+
       it("shows each shop the payment for its own order, not the whole checkout's", async () => {
         const cartId = await paidCheckout()
 
