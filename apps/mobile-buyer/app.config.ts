@@ -9,10 +9,11 @@ const { name, slug, scheme, bundleId } = appIdentity('buyer');
 /**
  * Maps SDK keys for the pin map (ADR 0002), baked into the native projects at prebuild. They
  * are Google Cloud keys restricted to the Maps SDK for iOS and for Android and to this app.
+ * Only a build needs them, so a missing key warns rather than stopping every Expo command.
  */
-function mapsKey(variable: 'GOOGLE_MAPS_IOS_API_KEY' | 'GOOGLE_MAPS_ANDROID_API_KEY'): string {
+function mapsKey(variable: 'GOOGLE_MAPS_IOS_API_KEY' | 'GOOGLE_MAPS_ANDROID_API_KEY'): string | undefined {
   const key = process.env[variable];
-  if (!key) throw new Error(`Missing ${variable}. Copy .env.example to .env and fill it in.`);
+  if (!key) console.warn(`Missing ${variable}: a build made now has no delivery pin map. See .env.example.`);
   return key;
 }
 

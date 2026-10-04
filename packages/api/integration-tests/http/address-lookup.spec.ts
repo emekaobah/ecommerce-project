@@ -1,5 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { ADDRESS, buyerCheckout, GADGETS } from "../helpers/checkout"
+import { ADDRESS, buyerCheckout, GADGETS, PIN } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakeGoogle, PLACES } from "../helpers/google"
 import { fakePaystack } from "../helpers/paystack"
@@ -25,8 +25,7 @@ process.env.GOOGLE_GEOCODING_API_URL = google.geocodingUrl
 
 const SESSION = "4f1d1c43-1d9a-4b3e-9b0c-6a1f0b6f2c11"
 /** Ada's address with the pin she confirmed on the map. */
-const PIN = { latitude: 6.4281, longitude: 3.4219 }
-const PINNED = { ...ADDRESS, metadata: { ...ADDRESS.metadata, ...PIN } }
+const PINNED = ADDRESS
 
 /** Every `latitude` or `longitude` anywhere in a response. */
 const coordinatesIn = (body: unknown): string[] =>
