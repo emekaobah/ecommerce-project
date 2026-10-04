@@ -38,4 +38,13 @@ export type { BrowseCategory, Department } from "./category"
 export { isSaved, wishlistMove } from "./wishlist"
 export type { WishlistMove } from "./wishlist"
 export { acceptDeadline, acceptTimeLeft } from "./accept-deadline"
+export { historyEntries, orderStatus, refundStatus } from "./order-history"
+export type {
+  HistoryEntry,
+  OrderFulfilmentView,
+  OrderRefundView,
+  RefundStatus,
+  StatusTone,
+  StatusView,
+} from "./order-history"
 export type { AcceptTimeLeft } from "./accept-deadline"
