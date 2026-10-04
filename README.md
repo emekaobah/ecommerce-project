@@ -71,6 +71,10 @@ https://<tunnel-host>/hooks/payment/paystack_paystack
 
 The tunnel's host changes each time it starts, so update the URL when it does. Pay a checkout in the buyer app with a test card: the API logs `Processing mercur.payment.webhook_received`, and the confirmation screen shows the orders. A webhook with a bad signature gets a `401`. Without a working tunnel the payment succeeds on Paystack's side, but no order is placed and the app keeps waiting for confirmation.
 
+### Address lookup (Google)
+
+Buyers find their delivery address with Google (#40, ADR 0002): the API's store routes suggest places, describe a place and reverse geocode the buyer's location, with the server key in `GOOGLE_MAPS_API_KEY` (Places API (New) and Geocoding API enabled); the API refuses to start without it. The buyer app's pin map needs Maps SDK keys of its own (see `apps/mobile-buyer/README.md`). Vendor responses never carry a buyer's pin.
+
 ### Delivery (Shipbubble)
 
 Each shop's delivery is quoted live by Shipbubble (#23). Put the sandbox API key from Shipbubble's dashboard in the API's `SHIPBUBBLE_API_KEY`; the API refuses to start without it. Then re-run `bun run seed`: it gives every shop a Shipbubble delivery option (replacing the old flat rate).
