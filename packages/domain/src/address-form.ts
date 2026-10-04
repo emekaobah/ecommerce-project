@@ -16,8 +16,15 @@ export type DeliveryAddress = {
   country_code: string
   /** E.164, e.g. "+2348031234567". */
   phone: string
-  metadata: Record<string, string>
+  /** `landmark`, and the pin the buyer confirmed (`latitude`, `longitude`). */
+  metadata: Record<string, string | number>
 }
+
+/** A point on the map, in degrees. */
+export type Pin = { latitude: number; longitude: number }
+
+/** Six decimal places is about 11 cm, finer than any pin a finger places. */
+const toMicroDegrees = (degrees: number) => Math.round(degrees * 1e6) / 1e6
 
 export type AddressFormResult =
   | { ok: true; address: DeliveryAddress }
@@ -44,13 +51,14 @@ function fieldError(field: AddressField, value: string, config: AddressConfig): 
 
 /**
  * Checks a filled address form against the country's config (`getAddressConfig`) and turns it
- * into a delivery address, or names what each wrong field needs.
+ * into a delivery address, or names what each wrong field needs. The `pin` the buyer confirmed
+ * on the map goes into its metadata (ADR 0002).
  */
-export function addressFromForm(values: AddressFormValues, countryCode: string): AddressFormResult {
+export function addressFromForm(values: AddressFormValues, countryCode: string, pin?: Pin): AddressFormResult {
   const config = getAddressConfig(countryCode)
   const errors: Partial<Record<AddressFieldKey, string>> = {}
   const address: Record<string, string | null> = {}
-  const metadata: Record<string, string> = {}
+  const metadata: Record<string, string | number> = {}
 
   for (const field of config.fields) {
     const value = values[field.key]?.trim() ?? ""
@@ -65,6 +73,10 @@ export function addressFromForm(values: AddressFormValues, countryCode: string):
   }
 
   if (Object.keys(errors).length) return { ok: false, errors }
+  if (pin) {
+    metadata.latitude = toMicroDegrees(pin.latitude)
+    metadata.longitude = toMicroDegrees(pin.longitude)
+  }
   return {
     ok: true,
     address: { ...(address as Omit<DeliveryAddress, "country_code" | "metadata">), country_code: config.countryCode.toLowerCase(), metadata },

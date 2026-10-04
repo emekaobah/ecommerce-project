@@ -49,6 +49,16 @@ describe("addressFromForm", () => {
     })
   })
 
+  test("keeps the pin the buyer confirmed, to six decimal places", () => {
+    const result = addressFromForm(filled, "NG", { latitude: 6.431812345, longitude: 3.421498765 })
+
+    expect(result.ok && result.address.metadata).toEqual({
+      landmark: "Opposite the Mobil station",
+      latitude: 6.431812,
+      longitude: 3.421499,
+    })
+  })
+
   test("only takes a state from the country's list", () => {
     const result = addressFromForm({ ...filled, province: "Lagos State" }, "NG")
 
