@@ -231,7 +231,7 @@ async function parcelOf(scope: MedusaContainer, lines: ParcelLine[]) {
  * longer matches the cart was quoted for a different parcel or address.
  */
 export function quoteBasis(receiverCode: number | null, lines: Pick<ParcelLine, "variant_id" | "quantity">[]): string {
-  const parcel = lines.map((l) => `${l.variant_id}:${l.quantity}`).sort()
+  const parcel = lines.map((l) => `${l.variant_id}:${l.quantity}`).sort((a, b) => a.localeCompare(b))
   return createHash("sha256").update(JSON.stringify([receiverCode, parcel])).digest("hex")
 }
 
