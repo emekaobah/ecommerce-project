@@ -29,6 +29,15 @@ export default defineMiddlewares({
             matcher: "/store/listings/:seller_id/:product_id",
             middlewares: [validateAndTransformQuery(StoreGetListingParams, {})],
         },
+        // Guests are answered too (no estimate), so the product page asks the same way for everyone.
+        {
+            method: ["GET"],
+            matcher: "/store/listings/:seller_id/:product_id/delivery-estimate",
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetListingParams, {}),
+            ],
+        },
         {
             method: ["GET"],
             matcher: "/store/shops/:seller_id",

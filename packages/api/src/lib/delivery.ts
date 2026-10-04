@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
 import { deliveryChoices, type DeliveryChoice } from "@oja/domain"
 import {
@@ -232,6 +232,82 @@ async function parcelOf(scope: MedusaContainer, lines: ParcelLine[]) {
 export function quoteBasis(receiverCode: number | null, lines: Pick<ParcelLine, "variant_id" | "quantity">[]): string {
   const parcel = lines.map((l) => `${l.variant_id}:${l.quantity}`).sort()
   return createHash("sha256").update(JSON.stringify([receiverCode, parcel])).digest("hex")
+}
+
+/** A product page's delivery estimate: the shop's best-value rate to the buyer's address. */
+export type DeliveryEstimate = {
+  courier_name: string
+  amount: number
+  delivery_eta: string | null
+  /** ISO 8601. */
+  delivery_eta_time: string
+}
+
+type CustomerRow = {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  addresses?: (DeliveryAddress & { id: string; is_default_shipping?: boolean; created_at: string | Date })[] | null
+}
+
+/** The address a buyer's deliveries go to by default: their default shipping address, else their newest. */
+async function deliveryAddressOf(scope: MedusaContainer, customerId: string) {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "customer",
+    fields: ["id", "email", "first_name", "last_name", "addresses.*"],
+    filters: { id: customerId },
+  })
+  const customer = data[0] as CustomerRow | undefined
+  const addresses = [...(customer?.addresses ?? [])].sort(
+    (a, b) =>
+      Number(!!b.is_default_shipping) - Number(!!a.is_default_shipping) ||
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+  return customer && addresses[0] ? { customer, address: addresses[0] } : null
+}
+
+/**
+ * How a shop would deliver one of a product to the buyer's saved address: its best-value rate,
+ * for the product page (#23). Null for a guest, a buyer with no saved address, an address
+ * Shipbubble can't place, or a parcel no courier takes: the page then shows the shop's dispatch time.
+ * A saved address validated here keeps its code.
+ */
+export async function estimateDelivery(
+  scope: MedusaContainer,
+  {
+    customerId,
+    sellerId,
+    line,
+    currencyCode,
+  }: { customerId: string | null | undefined; sellerId: string; line: ParcelLine; currencyCode: string }
+): Promise<DeliveryEstimate | null> {
+  if (!customerId) return null
+  const saved = await deliveryAddressOf(scope, customerId)
+  if (!saved) return null
+  const { customer, address } = saved
+
+  let receiverCode = addressCodeOf(address)
+  if (receiverCode == null) {
+    try {
+      receiverCode = await validateAddress(address, {
+        name: [address.first_name ?? customer.first_name, address.last_name ?? customer.last_name].filter(Boolean).join(" "),
+        email: customer.email,
+      })
+    } catch (error) {
+      if (error instanceof MedusaError && error.type === MedusaError.Types.INVALID_DATA) return null
+      throw error
+    }
+    await scope
+      .resolve(Modules.CUSTOMER)
+      .updateCustomerAddresses(address.id, { metadata: { ...address.metadata, [ADDRESS_CODE]: receiverCode } })
+  }
+
+  const [best] = await quoteDelivery(scope, { sellerId, receiverCode, lines: [line], currencyCode })
+  return best
+    ? { courier_name: best.courier_name, amount: best.amount, delivery_eta: best.delivery_eta, delivery_eta_time: best.delivery_eta_time }
+    : null
 }
 
 /**

@@ -229,6 +229,58 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("product page delivery estimate", () => {
+      const estimateOf = async (shop: typeof GADGETS, title: string, config: { headers: Record<string, string> }) => {
+        const { data: products } = await buyer.query().graph({ entity: "product", fields: ["id"], filters: { title } })
+        const { data } = await api.get(
+          `/store/listings/${await buyer.sellerId(shop)}/${products[0].id}/delivery-estimate?region_id=${buyer.regionId()}`,
+          config
+        )
+        return data.estimate
+      }
+      const saveAddress = (email: string, address: Record<string, unknown>) =>
+        api.post("/store/customers/me/addresses", address, buyer.as(email))
+
+      it("estimates the listing's shop's best-value delivery to the buyer's saved address", async () => {
+        await saveAddress("chidi@oja.test", { ...PINNED, first_name: "Chidi", is_default_shipping: true })
+
+        const estimate = await estimateOf(GROCERY, RICE.title, buyer.as("chidi@oja.test"))
+
+        expect(estimate).toEqual({
+          courier_name: COURIERS.nextDay.courier_name,
+          amount: BEST_VALUE_FEE,
+          delivery_eta: expect.any(String),
+          delivery_eta_time: expect.stringMatching(/\+01:00$/),
+        })
+        // One of the product, from that shop, to the saved address, validated by its pin.
+        const [request] = shipbubble.rateRequests()
+        expect(request.package_items).toEqual([
+          { name: RICE.title, description: RICE.title, unit_weight: "5", unit_amount: String(RICE.price), quantity: "1" },
+        ])
+        expect(request.reciever_address_code).toBe(shipbubble.codeOf(`${PIN.latitude},${PIN.longitude}`))
+        expect(shipbubble.validations().filter((v) => v.email === "chidi@oja.test")).toHaveLength(1)
+
+        // The saved address keeps its code, so the next estimate needs no validation.
+        await estimateOf(GADGETS, LANTERN.title, buyer.as("chidi@oja.test"))
+        expect(shipbubble.validations().filter((v) => v.email === "chidi@oja.test")).toHaveLength(1)
+        const { data } = await api.get("/store/customers/me/addresses", buyer.as("chidi@oja.test"))
+        expect(data.addresses[0].metadata.shipbubble_address_code).toBe(request.reciever_address_code)
+      })
+
+      it("has none for a guest or a buyer without a saved address, who see the shop's dispatch time", async () => {
+        expect(await estimateOf(GROCERY, RICE.title, buyer.as("dayo@oja.test"))).toBeNull()
+        expect(await estimateOf(GROCERY, RICE.title, { headers: buyer.headers() })).toBeNull()
+        expect(shipbubble.rateRequests()).toEqual([])
+      })
+
+      it("has none when no courier will take the parcel", async () => {
+        await saveAddress("emeka@oja.test", { ...PINNED, first_name: "Emeka" })
+        shipbubble.setCouriers([])
+
+        expect(await estimateOf(GROCERY, RICE.title, buyer.as("emeka@oja.test"))).toBeNull()
+      })
+    })
+
     describe("paying", () => {
       it("charges the items and each shop's chosen rate, and each shop's order carries its rate", async () => {
         const cartId = await adasCart()
