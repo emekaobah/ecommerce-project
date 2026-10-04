@@ -1,4 +1,5 @@
 import { ArrowUpTray } from "@medusajs/icons"
+import { ClientError } from "@mercurjs/client"
 import { Container, Heading, ProgressTabs, Text } from "@medusajs/ui"
 import type { RouteConfig } from "@mercurjs/dashboard-sdk"
 import { useQuery } from "@tanstack/react-query"
@@ -81,7 +82,10 @@ const OfferImportPage = () => {
       <div className="px-6 py-6">
         {setup.isError && (
           <Text size="small" className="text-ui-fg-error">
-            {t("offerImport.loadError")}
+            {/* The import needs offer:create, which fulfilment staff don't have. */}
+            {setup.error instanceof ClientError && setup.error.status === 403
+              ? t("offerImport.notAllowed")
+              : t("offerImport.loadError")}
           </Text>
         )}
         {setup.data && step === "upload" && (

@@ -8,6 +8,7 @@
     "title": "Import product list",
     "description": "Upload your product list. Products the catalogue already has become your offers straight away; the rest are proposed to the catalogue and reviewed before buyers see them.",
     "loadError": "Could not load the import settings.",
+    "notAllowed": "Only the shop's owner or a manager can import product lists.",
     "steps": {
       "upload": "Upload",
       "mapping": "Map columns",
