@@ -105,13 +105,14 @@ function readRow(cells: string[], columns: MappedColumn[], context: OfferImportC
   return { values, errors, warnings }
 }
 
-/** "Kilishi (200g)" → "KILISHI-200G": a SKU for a row that brought none. */
-const skuFrom = (text: string) =>
-  text
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40)
+/** Drops the dash, if any, at each end; runs of dashes were already collapsed to one. */
+const trimDash = (text: string) => text.slice(text.startsWith("-") ? 1 : 0, text.endsWith("-") ? -1 : undefined)
+
+/**
+ * "Kilishi (200g)" → "KILISHI-200G": a SKU for a row that brought none. Trimmed
+ * without an anchored `-+$` pattern, which backtracks on long uploaded cells.
+ */
+const skuFrom = (text: string) => trimDash(trimDash(text.toUpperCase().replace(/[^A-Z0-9]+/g, "-")).slice(0, 40))
 
 /**
  * Reads each row of a shop's sheet into what the import would do with it. A row

@@ -143,6 +143,29 @@ describe("buildOfferImportRows", () => {
     })
   })
 
+  describe("long, hostile cells", () => {
+    const timed = (run: () => unknown) => {
+      const start = performance.now()
+      run()
+      return performance.now() - start
+    }
+
+    it("makes a SKU from a 200,000-character title in linear time, without leading or trailing dashes", () => {
+      const title = `${"-".repeat(100_000)}${"a-".repeat(50_000)}${"!".repeat(50_000)}`
+      let rows: ReturnType<typeof rowsOf> = []
+      expect(timed(() => (rows = rowsOf(`Name,Price\n"${title}",100\n`, { Name: "title", Price: "selling_price" })))).toBeLessThan(500)
+      expect(rows[0].offer?.sku).toMatch(/^A(-A)+$/)
+      expect(rows[0].offer!.sku.length).toBeLessThanOrEqual(40)
+    })
+
+    it("reads a 100,000-character stock cell in linear time", () => {
+      const stock = `1${",000".repeat(25_000)}x`
+      let rows: ReturnType<typeof rowsOf> = []
+      expect(timed(() => (rows = rowsOf(`Name,Price,Qty\nA,100,"${stock}"\n`, { Name: "title", Price: "selling_price", Qty: "stock" })))).toBeLessThan(500)
+      expect(rows[0].errors).toEqual([expect.stringMatching(/is not a stock count/)])
+    })
+  })
+
   it("proposes a row with only a title and a price, under a SKU made from its title", () => {
     const [row] = rowsOf("Name,Price\nKilishi (200g),N3500\n", { Name: "title", Price: "selling_price" })
     expect(row).toMatchObject({
