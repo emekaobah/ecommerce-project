@@ -14,6 +14,7 @@ import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
 import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares";
+import { StoreGetOrderHistory } from "./store/order-history/validators";
 
 export default defineMiddlewares({
     routes: [
@@ -74,6 +75,17 @@ export default defineMiddlewares({
             method: ["POST"],
             matcher: "/store/wishlist/product/:reference_id/cart",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreMoveWishlistToCart)],
+        },
+        // The buyer's own order groups, with each shop's order as the buyer sees it (#17).
+        {
+            method: ["GET"],
+            matcher: "/store/order-history",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreGetOrderHistory, {})],
+        },
+        {
+            method: ["GET"],
+            matcher: "/store/order-history/:id",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
         },
         { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
         // Paystack signs the raw body, so it is kept for the check.
