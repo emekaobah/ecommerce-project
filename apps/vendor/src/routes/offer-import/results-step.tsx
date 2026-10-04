@@ -4,18 +4,20 @@ import { Link } from "react-router-dom"
 import { RowNotes } from "./row-notes"
 import type { ImportOutcome } from "./types"
 
-const STATUS_COLOR = { offered: "green", proposed: "blue", skipped: "grey", failed: "red" } as const
+const STATUS_COLOR = { offered: "green", updated: "green", proposed: "blue", unchanged: "grey", skipped: "grey", failed: "red" } as const
 
 /** What happened to each row, with links to the offers created. */
 export const ResultsStep = ({ outcome, onRestart }: { outcome: ImportOutcome; onRestart: () => void }) => {
   const { t } = useTranslation()
-  const { offered, proposed, skipped, failed } = outcome.summary
+  const { offered, updated, unchanged, proposed, skipped, failed } = outcome.summary
 
   return (
     <div className="flex flex-col gap-y-6">
       <div className="flex flex-wrap gap-2">
         <StatusBadge color="green">{t("offerImport.results.offered", { count: offered })}</StatusBadge>
         <StatusBadge color="blue">{t("offerImport.results.proposed", { count: proposed })}</StatusBadge>
+        {updated > 0 && <StatusBadge color="green">{t("offerImport.results.updated", { count: updated })}</StatusBadge>}
+        {unchanged > 0 && <StatusBadge color="grey">{t("offerImport.results.unchanged", { count: unchanged })}</StatusBadge>}
         {skipped > 0 && <StatusBadge color="grey">{t("offerImport.results.skipped", { count: skipped })}</StatusBadge>}
         {failed > 0 && <StatusBadge color="red">{t("offerImport.results.failed", { count: failed })}</StatusBadge>}
       </div>
@@ -45,7 +47,7 @@ export const ResultsStep = ({ outcome, onRestart }: { outcome: ImportOutcome; on
                 <StatusBadge color={STATUS_COLOR[result.status]}>{t(`offerImport.results.status.${result.status}`)}</StatusBadge>
               </Table.Cell>
               <Table.Cell className="whitespace-normal">
-                <RowNotes errors={result.errors} warnings={result.warnings} />
+                <RowNotes errors={result.errors} warnings={result.warnings} changes={result.changes} />
               </Table.Cell>
             </Table.Row>
           ))}

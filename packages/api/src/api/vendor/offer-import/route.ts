@@ -41,10 +41,8 @@ export async function POST(
   if (problems.length) throw new MedusaError(MedusaError.Types.INVALID_DATA, problems.join(" "))
 
   await saveOfferMapping(req.scope, sellerId, table.headers, mapping)
-  const [context, setup] = await Promise.all([
-    loadOfferImportContext(req.scope, sellerId, table, mapping),
-    loadShopSetup(req.scope, sellerId),
-  ])
+  const setup = await loadShopSetup(req.scope, sellerId)
+  const context = await loadOfferImportContext(req.scope, sellerId, table, mapping, setup)
   const rows = buildOfferImportRows(table, mapping, context)
   const results = await importOfferRows(req.scope, rows, { seller_id: sellerId, member_id: req.auth_context.actor_id, setup })
   res.json({ results, summary: summariseOfferImport(results) })

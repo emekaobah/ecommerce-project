@@ -1,5 +1,5 @@
 import { parseCsv } from "../../catalogue-import"
-import { buildOfferImportRows, type OfferImportContext } from "../rows"
+import { buildOfferImportRows, type OfferImportContext, type ShopOffer } from "../rows"
 
 const context: OfferImportContext = {
   currency_code: "ngn",
@@ -8,6 +8,17 @@ const context: OfferImportContext = {
     { id: "variant_rice", product_id: "prod_rice", title: "Ofada Rice 5kg", published: true, codes: ["5901234123457"] },
   ],
   offers: [],
+}
+
+/** The shop's own offer on the rice: what a re-import compares its rows with. */
+const riceOffer: ShopOffer = {
+  id: "offer_rice",
+  sku: "RICE-5KG",
+  variant_id: "variant_rice",
+  title: "Ofada Rice 5kg",
+  price: 14000,
+  cost: 11000,
+  stock: 5,
 }
 
 const MAPPING = { Name: "title", Barcode: "barcode", Price: "selling_price" }
@@ -26,6 +37,8 @@ describe("buildOfferImportRows", () => {
       warnings: [],
       offer: { variant_id: "variant_rice", product_id: "prod_rice", sku: "5901234123457", price: 14500, cost: null, stock: null },
       proposal: null,
+      changes: [],
+      update: null,
     })
   })
 
@@ -41,6 +54,8 @@ describe("buildOfferImportRows", () => {
       errors: [],
       warnings: [],
       offer: { variant_id: null, product_id: null, sku: "4006381333931", price: 2300, cost: null, stock: null },
+      changes: [],
+      update: null,
       proposal: {
         title: "Yam Flour 1kg",
         categories: [{ id: "pcat_rice" }],
@@ -110,19 +125,11 @@ describe("buildOfferImportRows", () => {
       expect(rows.map((r) => r.errors)).toEqual([["Needs a title or a barcode."], ["Needs a selling price."]])
     })
 
-    it("refuses a product the shop already sells, naming its offer", () => {
-      const [row] = rowsOf("Name,Barcode,Price\nRice,5901234123457,100\n", MAPPING, {
-        ...context,
-        offers: [{ sku: "RICE-5KG", variant_id: "variant_rice" }],
-      })
-      expect(row.errors).toEqual(["You already sell Ofada Rice 5kg, as RICE-5KG."])
-    })
-
     it("refuses a SKU the shop already uses or an earlier row took, and a barcode an earlier row took", () => {
       const rows = rowsOf(
-        "Name,Barcode,SKU,Price\nA,,RICE-5KG,100\nB,4006381333931,B-1,100\nC,,B-1,100\nD,4006381333931,D-1,100\n",
+        "Name,Barcode,SKU,Price\nA,0012345678905,RICE-5KG,100\nB,4006381333931,B-1,100\nC,,B-1,100\nD,4006381333931,D-1,100\n",
         { ...MAPPING, SKU: "sku" },
-        { ...context, offers: [{ sku: "RICE-5KG", variant_id: "variant_other" }] }
+        { ...context, offers: [{ ...riceOffer, variant_id: "variant_other" }] }
       )
       expect(rows.map((r) => r.errors)).toEqual([
         ["SKU: You already use RICE-5KG for another offer."],
@@ -140,6 +147,79 @@ describe("buildOfferImportRows", () => {
       expect(row.errors).toEqual([
         "Barcode: 5901234123457 is on a product the catalogue is still reviewing; list it once it is published.",
       ])
+    })
+  })
+
+  describe("re-importing what the shop already sells", () => {
+    const FULL = { ...MAPPING, Cost: "cost_price", Qty: "stock" }
+    const selling = { ...context, offers: [riceOffer] }
+
+    it("updates the shop's offer with the sheet's new price, cost and stock, saying what changes", () => {
+      const [row] = rowsOf("Name,Barcode,Price,Cost,Qty\nRice,5901234123457,14500,12000,8\n", FULL, selling)
+      expect(row).toEqual({
+        row: 2,
+        title: "Ofada Rice 5kg",
+        action: "update",
+        errors: [],
+        warnings: [],
+        offer: null,
+        proposal: null,
+        changes: ["Price NGN 14,000 → NGN 14,500", "Cost price NGN 11,000 → NGN 12,000", "Stock 5 → 8"],
+        update: { offer_id: "offer_rice", price: 14500, cost: 12000, stock: 8 },
+      })
+    })
+
+    it("leaves unchanged what the sheet doesn't give or gives as it already is", () => {
+      const [same, priceOnly] = rowsOf("Name,Barcode,Price,Cost,Qty\nRice,5901234123457,14000,11000,5\n", FULL, selling).concat(
+        rowsOf("Name,Barcode,Price\nRice,5901234123457,15000\n", MAPPING, selling)
+      )
+      expect(same).toMatchObject({ action: "unchanged", changes: [], update: { offer_id: "offer_rice", price: null, cost: null, stock: null } })
+      expect(priceOnly).toMatchObject({ action: "update", changes: ["Price NGN 14,000 → NGN 15,000"], update: { price: 15000, cost: null, stock: null } })
+    })
+
+    it("starts counting stock on an untracked offer only when the sheet gives a count", () => {
+      const untracked = { ...context, offers: [{ ...riceOffer, stock: null }] }
+      const [counted, uncounted] = rowsOf("Name,Barcode,Price,Qty\nRice,5901234123457,14000,12\nRice,,14000,\n", { ...MAPPING, Qty: "stock" }, {
+        ...untracked,
+        variants: untracked.variants,
+      })
+      expect(counted).toMatchObject({ action: "update", changes: ["Stock not tracked → 12"], update: { stock: 12 } })
+      // No barcode and no SKU: a new product, not this offer.
+      expect(uncounted.action).toBe("propose")
+    })
+
+    it("finds the offer by its SKU when the row has no barcode, needing no price to update stock", () => {
+      const [row] = rowsOf("SKU,Qty\nRICE-5KG,20\n", { SKU: "sku", Qty: "stock" }, selling)
+      expect(row).toMatchObject({ title: "Ofada Rice 5kg", action: "update", errors: [], changes: ["Stock 5 → 20"], update: { offer_id: "offer_rice", stock: 20 } })
+    })
+
+    it("finds a title-only row's offer by the SKU an earlier import made from its title, rather than proposing it twice", () => {
+      const zobo: ShopOffer = { ...riceOffer, id: "offer_zobo", sku: "ZOBO-DRINK-50CL", variant_id: "variant_zobo", title: "Zobo Drink 50cl", price: 1500 }
+      const [row] = rowsOf("Name,Price\nZobo Drink 50cl,1600\n", { Name: "title", Price: "selling_price" }, { ...context, offers: [zobo] })
+      expect(row).toMatchObject({ action: "update", update: { offer_id: "offer_zobo", price: 1600 } })
+    })
+
+    it("warns when the new price is below the offer's cost", () => {
+      const [row] = rowsOf("Name,Barcode,Price\nRice,5901234123457,10000\n", MAPPING, selling)
+      expect(row.warnings).toEqual(["Selling price NGN 10,000 is below cost price NGN 11,000."])
+    })
+
+    it("refuses a SKU another of the shop's offers uses, and a second row for the same offer", () => {
+      const other: ShopOffer = { ...riceOffer, id: "offer_beans", sku: "BEANS-2KG", variant_id: "variant_beans", title: "Honey Beans" }
+      const rows = rowsOf("Name,Barcode,SKU,Price\nRice,5901234123457,BEANS-2KG,100\nRice,5901234123457,,200\nRice,,RICE-5KG,300\n", { ...MAPPING, SKU: "sku" }, {
+        ...context,
+        offers: [riceOffer, other],
+      })
+      expect(rows.map((r) => r.errors)).toEqual([
+        ["SKU: You already use BEANS-2KG for another offer."],
+        [],
+        ["Ofada Rice 5kg is already updated on row 3."],
+      ])
+    })
+
+    it("keeps the offer's SKU when the sheet gives a new one, saying so", () => {
+      const [row] = rowsOf("Name,Barcode,SKU,Price\nRice,5901234123457,NEW-SKU,14000\n", { ...MAPPING, SKU: "sku" }, selling)
+      expect(row).toMatchObject({ action: "unchanged", warnings: ["SKU: SKUs aren't changed by an import; this offer keeps RICE-5KG."] })
     })
   })
 

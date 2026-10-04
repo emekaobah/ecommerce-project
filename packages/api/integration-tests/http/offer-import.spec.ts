@@ -80,7 +80,7 @@ medusaIntegrationTestRunner({
         expect(data.mapping).toEqual(SHOP_MAPPING)
         expect(data.rows.map((r: any) => [r.row, r.action])).toEqual([
           [2, "offer"],
-          [3, null],
+          [3, "update"],
           [4, "propose"],
           [5, "propose"],
           [6, null],
@@ -92,11 +92,12 @@ medusaIntegrationTestRunner({
           "EAN: Barcode was in scientific notation; read it as 5901234123457.",
           "Selling price NGN 25,000 is below cost price NGN 26,000.",
         ])
-        expect(ofada.errors).toEqual([expect.stringMatching(/^You already sell Ofada Rice 5kg, as /)])
+        // The shop already sells the rice (seeded at ₦14,500): the row updates that offer's price.
+        expect(ofada).toMatchObject({ title: "Ofada Rice 5kg", errors: [], changes: ["Price NGN 14,500 → NGN 15,000"] })
         expect(zobo).toMatchObject({ title: "Zobo Drink 50cl", price: 1500, cost: 900, stock: null })
         expect(kuliKuli.warnings).toEqual(["EAN: Barcode had lost its leading zeros; read it as 0012345678905."])
         expect(blank.errors).toEqual(["Needs a title or a barcode."])
-        expect(data.summary).toEqual({ total: 5, offers: 1, proposals: 2, invalid: 2 })
+        expect(data.summary).toEqual({ total: 5, offers: 1, proposals: 2, updates: 1, unchanged: 0, invalid: 1 })
 
         expect(await offersOf(await owner(), `variant_id=${await variantOf("20,000mAh Power Bank")}`)).toEqual([])
       })
@@ -109,12 +110,12 @@ medusaIntegrationTestRunner({
 
         expect(data.results.map((r: any) => [r.row, r.status])).toEqual([
           [2, "offered"],
-          [3, "skipped"],
+          [3, "updated"],
           [4, "proposed"],
           [5, "proposed"],
           [6, "skipped"],
         ])
-        expect(data.summary).toEqual({ total: 5, offered: 1, proposed: 2, skipped: 2, failed: 0 })
+        expect(data.summary).toEqual({ total: 5, offered: 1, proposed: 2, updated: 1, unchanged: 0, skipped: 1, failed: 0 })
 
         // The matched row is the grocery shop's offer, priced and stocked as its sheet said.
         const [offer] = await offersOf(headers, `variant_id=${await variantOf("20,000mAh Power Bank")}`)
@@ -148,6 +149,80 @@ medusaIntegrationTestRunner({
 
         // Another shop sees none of it.
         expect(await offersOf(await owner(fashion), `id=${data.results[0].offer_id}`)).toEqual([])
+      })
+
+      describe("re-importing", () => {
+        const LIST = ["Item,EAN,Price,Unit cost,Qty", "Power bank,5901234123457,25000,26000,12", "Zobo Drink 50cl,,1500,900,"].join("\n")
+        const powerBankOffers = async (shop = grocery) => offersOf(await owner(shop), `variant_id=${await variantOf("20,000mAh Power Bank")}`)
+        const stockOf = async (offerId: string) => {
+          const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+          const { data: [offer] } = await query.graph({
+            entity: "offer",
+            fields: ["manage_inventory", "inventory_items.location_levels.stocked_quantity"],
+            filters: { id: offerId },
+          })
+          return {
+            tracked: offer.manage_inventory,
+            levels: offer.inventory_items.flatMap((i: any) => i.location_levels.map((l: any) => l.stocked_quantity)),
+          }
+        }
+        const costOf = async (offerId: string) =>
+          (await api.get(`/vendor/offer-costs?offer_id=${offerId}`, await owner())).data.offer_costs[0]
+
+        it("updates the shop's offer with the list's new price, stock and cost, creating no second offer", async () => {
+          const { data: first } = await api.post("/vendor/offer-import", { csv: LIST, mapping: SHOP_MAPPING }, await owner())
+          const [offered, zobo] = first.results
+
+          const next = ["Item,EAN,Price,Unit cost,Qty", "Power bank,5901234123457,27000,26500,30", "Zobo Drink 50cl,,1600,,8"].join("\n")
+          const { data: preview } = await api.post("/vendor/offer-import/preview", { csv: next, mapping: SHOP_MAPPING }, await owner())
+          expect(preview.rows.map((r: any) => [r.action, r.changes])).toEqual([
+            ["update", ["Price NGN 25,000 → NGN 27,000", "Cost price NGN 26,000 → NGN 26,500", "Stock 12 → 30"]],
+            // Found again by the SKU the first import made from its title; it starts counting stock.
+            ["update", ["Price NGN 1,500 → NGN 1,600", "Stock not tracked → 8"]],
+          ])
+
+          const { data } = await api.post("/vendor/offer-import", { csv: next, mapping: SHOP_MAPPING }, await owner())
+          expect(data.results.map((r: any) => [r.status, r.offer_id])).toEqual([
+            ["updated", offered.offer_id],
+            ["updated", zobo.offer_id],
+          ])
+          const offers = await powerBankOffers()
+          expect(offers.map((o: any) => [o.id, o.prices.map((p: any) => p.amount)])).toEqual([[offered.offer_id, [27000]]])
+          expect(await stockOf(offered.offer_id)).toEqual({ tracked: true, levels: [30] })
+          expect(await costOf(offered.offer_id)).toMatchObject({ amount: 26500, price: 27000, below_cost: false })
+          expect(await stockOf(zobo.offer_id)).toEqual({ tracked: true, levels: [8] })
+          // The cost the second list left out stays as it was.
+          expect(await costOf(zobo.offer_id)).toMatchObject({ amount: 900, price: 1600 })
+        })
+
+        it("changes nothing when the same list is imported again", async () => {
+          const { data: first } = await api.post("/vendor/offer-import", { csv: LIST, mapping: SHOP_MAPPING }, await owner())
+          const { data } = await api.post("/vendor/offer-import", { csv: LIST, mapping: SHOP_MAPPING }, await owner())
+
+          expect(data.results.map((r: any) => [r.status, r.offer_id])).toEqual(first.results.map((r: any) => ["unchanged", r.offer_id]))
+          expect(data.summary).toMatchObject({ unchanged: 2, offered: 0, proposed: 0, updated: 0 })
+          expect(await powerBankOffers()).toHaveLength(1)
+          const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+          const { data: zobos } = await query.graph({ entity: "product", fields: ["id"], filters: { title: "Zobo Drink 50cl" } })
+          expect(zobos).toHaveLength(1)
+          expect(await stockOf(first.results[0].offer_id)).toEqual({ tracked: true, levels: [12] })
+          expect(await stockOf(first.results[1].offer_id)).toEqual({ tracked: false, levels: [] })
+        })
+
+        it("never touches another shop's offers", async () => {
+          const { data: grocerys } = await api.post("/vendor/offer-import", { csv: LIST, mapping: SHOP_MAPPING }, await owner())
+          const groceryOffer = grocerys.results[0].offer_id
+
+          // The fashion shop's list names the same barcode, and the grocery's SKU for it.
+          const csv = "Item,EAN,SKU,Price\nPower bank,5901234123457,FASHION-PB,30000\nSomething else,,5901234123457,500\n"
+          const { data } = await api.post("/vendor/offer-import", { csv, mapping: { Item: "title", EAN: "barcode", SKU: "sku", Price: "selling_price" } }, await owner(fashion))
+          expect(data.results.map((r: any) => r.status)).toEqual(["offered", "proposed"])
+
+          const [mine] = await powerBankOffers()
+          expect(mine).toMatchObject({ id: groceryOffer })
+          expect(mine.prices.map((p: any) => p.amount)).toEqual([25000])
+          expect(await powerBankOffers(fashion)).toEqual([expect.objectContaining({ seller_id: await sellerId(fashion) })])
+        })
       })
 
       describe("each row is all or nothing", () => {

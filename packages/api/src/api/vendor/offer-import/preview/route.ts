@@ -4,6 +4,7 @@ import {
   buildOfferImportRows,
   loadOfferImportContext,
   loadSavedOfferMapping,
+  loadShopSetup,
   OFFER_IMPORT_FIELDS,
   offerImportField,
   offerMappingErrors,
@@ -12,7 +13,7 @@ import {
 import { sellerOf, type VendorRequest } from "../seller"
 import type { VendorPreviewOfferImportType } from "../validators"
 
-type PreviewRow = Pick<OfferImportRow, "row" | "title" | "action" | "errors" | "warnings"> & {
+type PreviewRow = Pick<OfferImportRow, "row" | "title" | "action" | "errors" | "warnings" | "changes"> & {
   price: number | null
   cost: number | null
   stock: number | null
@@ -27,7 +28,7 @@ type PreviewResponse = {
   mapping_origin: "request" | "saved" | "suggested"
   mapping_errors: string[]
   rows: PreviewRow[]
-  summary: { total: number; offers: number; proposals: number; invalid: number }
+  summary: { total: number; offers: number; proposals: number; updates: number; unchanged: number; invalid: number }
 }
 
 /** Reads the shop's sheet through a mapping without creating anything, saying what each row would do. */
@@ -51,7 +52,11 @@ export async function POST(req: VendorRequest<VendorPreviewOfferImportType>, res
   const problems = offerMappingErrors(mapping, table.headers)
   const rows = problems.length
     ? []
-    : buildOfferImportRows(table, mapping, await loadOfferImportContext(req.scope, sellerId, table, mapping))
+    : buildOfferImportRows(
+        table,
+        mapping,
+        await loadOfferImportContext(req.scope, sellerId, table, mapping, await loadShopSetup(req.scope, sellerId))
+      )
   const count = (action: OfferImportRow["action"]) => rows.filter((r) => r.action === action).length
 
   res.json({
@@ -60,16 +65,25 @@ export async function POST(req: VendorRequest<VendorPreviewOfferImportType>, res
     mapping,
     mapping_origin: origin,
     mapping_errors: problems,
-    rows: rows.map(({ row, title, action, errors, warnings, offer }) => ({
+    // An update shows only what the row changes.
+    rows: rows.map(({ row, title, action, errors, warnings, changes, offer, update }) => ({
       row,
       title,
       action,
       errors,
       warnings,
-      price: offer?.price ?? null,
-      cost: offer?.cost ?? null,
-      stock: offer?.stock ?? null,
+      changes,
+      price: offer?.price ?? update?.price ?? null,
+      cost: offer?.cost ?? update?.cost ?? null,
+      stock: offer?.stock ?? update?.stock ?? null,
     })),
-    summary: { total: table.rows.length, offers: count("offer"), proposals: count("propose"), invalid: count(null) },
+    summary: {
+      total: table.rows.length,
+      offers: count("offer"),
+      proposals: count("propose"),
+      updates: count("update"),
+      unchanged: count("unchanged"),
+      invalid: count(null),
+    },
   })
 }

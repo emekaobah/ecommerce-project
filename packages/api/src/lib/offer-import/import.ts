@@ -1,24 +1,28 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { MedusaError } from "@medusajs/framework/utils"
 import { createImportedOfferWorkflow } from "../../workflows/offer-import/create-imported-offer"
+import { updateImportedOfferWorkflow } from "../../workflows/offer-import/update-imported-offer"
 import { suppliedFields } from "../catalogue-import"
 import { errorMessage } from "../errors"
-import type { ShopSetup } from "./load"
-import type { OfferImportRow } from "./rows"
+import { planOfferUpdate, type ShopSetup } from "./load"
+import type { OfferImportRow, OfferUpdate } from "./rows"
 
 export type OfferImportResult = {
   row: number
   title: string | null
   /**
    * `offered`: the shop now sells a catalogue product; `proposed`: a new product
-   * went to review, offered by the shop; `skipped`: the row had errors;
-   * `failed`: the catalogue refused it, and nothing of the row was kept.
+   * went to review, offered by the shop; `updated`: the shop's existing offer took
+   * the row's changes; `unchanged`: it already matched the row; `skipped`: the row
+   * had errors; `failed`: the catalogue refused it, and nothing of the row was kept.
    */
-  status: "offered" | "proposed" | "skipped" | "failed"
+  status: "offered" | "proposed" | "updated" | "unchanged" | "skipped" | "failed"
   offer_id: string | null
   product_id: string | null
   errors: string[]
   warnings: string[]
+  /** What an update changed. */
+  changes: string[]
 }
 
 type ImportOptions = { seller_id: string; member_id: string; setup: ShopSetup }
@@ -45,7 +49,11 @@ export async function importOfferRows(
 
   const results: OfferImportResult[] = []
   for (const row of rows) {
-    const base = { row: row.row, title: row.title, errors: row.errors, warnings: [...row.warnings] }
+    const base = { row: row.row, title: row.title, errors: row.errors, warnings: [...row.warnings], changes: row.changes }
+    if (row.update) {
+      results.push(await updateRow(scope, row.update, row.action === "update", { seller_id, setup }, base))
+      continue
+    }
     if (!row.offer) {
       results.push({ ...base, status: "skipped", offer_id: null, product_id: null })
       continue
@@ -81,11 +89,36 @@ export async function importOfferRows(
   return results
 }
 
+type ResultBase = Pick<OfferImportResult, "row" | "title" | "errors" | "warnings" | "changes">
+
+/** Applies a re-imported row to the shop's offer, all or nothing; a row that changes nothing writes nothing. */
+async function updateRow(
+  scope: MedusaContainer,
+  update: OfferUpdate,
+  changed: boolean,
+  { seller_id, setup }: Pick<ImportOptions, "seller_id" | "setup">,
+  base: ResultBase
+): Promise<OfferImportResult> {
+  const done = { ...base, offer_id: update.offer_id, product_id: null }
+  if (!changed) return { ...done, status: "unchanged" }
+  try {
+    const plan = await planOfferUpdate(scope, update, setup)
+    await updateImportedOfferWorkflow(scope).run({
+      input: { offer_id: update.offer_id, seller_id, currency_code: setup.currency_code, cost: update.cost, ...plan },
+    })
+    return { ...done, status: "updated" }
+  } catch (error) {
+    return { ...done, status: "failed", errors: [errorMessage(error)] }
+  }
+}
+
 export function summariseOfferImport(results: OfferImportResult[]) {
   const count = (status: OfferImportResult["status"]) => results.filter((r) => r.status === status).length
   return {
     total: results.length,
     offered: count("offered"),
+    updated: count("updated"),
+    unchanged: count("unchanged"),
     proposed: count("proposed"),
     skipped: count("skipped"),
     failed: count("failed"),

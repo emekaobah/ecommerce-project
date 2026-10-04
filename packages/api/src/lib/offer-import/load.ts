@@ -2,7 +2,8 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules, ProductStatus } from "@medusajs/framework/utils"
 import { barcodeCodes, parseBarcode, type CsvTable, type ImportMapping } from "../catalogue-import"
 import { OFFER_IMPORT_MODULE, type OfferImportModuleService } from "../../modules/offer-import"
-import type { CatalogueVariant, OfferImportContext } from "./rows"
+import type { OfferPriceInput, UpdateImportedOfferInput } from "../../workflows/offer-import/update-imported-offer"
+import type { CatalogueVariant, OfferImportContext, OfferUpdate, ShopOffer } from "./rows"
 
 type Scope = Pick<MedusaContainer, "resolve">
 
@@ -43,36 +44,159 @@ export async function loadOfferImportContext(
   scope: Scope,
   sellerId: string,
   table: CsvTable,
-  mapping: ImportMapping
+  mapping: ImportMapping,
+  setup: ShopSetup
 ): Promise<OfferImportContext> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const codes = [...new Set(sheetBarcodes(table, mapping))]
-  const [setup, { data: categories }, { data: variants }, { data: offers }] = await Promise.all([
-    loadShopSetup(scope, sellerId),
+  const [{ data: categories }, variants, offers] = await Promise.all([
     query.graph({ entity: "product_category", fields: ["id", "name", "handle"] }),
-    codes.length
-      ? query.graph({
-          entity: "product_variant",
-          fields: ["id", "product_id", "barcode", "ean", "upc", "product.title", "product.status"],
-          filters: { $or: [{ barcode: codes }, { ean: codes }, { upc: codes }] } as any,
-        })
-      : Promise.resolve({ data: [] }),
-    query.graph({ entity: "offer", fields: ["sku", "variant_id"], filters: { seller_id: sellerId } }),
+    loadVariantsByCode(scope, codes),
+    loadShopOffers(scope, sellerId, setup),
   ])
   return {
     currency_code: setup.currency_code,
     categories: categories as OfferImportContext["categories"],
-    variants: (variants as VariantRow[]).map(
-      (v): CatalogueVariant => ({
-        id: v.id,
-        product_id: v.product_id,
-        title: v.product?.title ?? "",
-        published: v.product?.status === ProductStatus.PUBLISHED,
-        codes: barcodeCodes(v),
-      })
-    ),
-    offers: offers as OfferImportContext["offers"],
+    variants,
+    offers,
   }
+}
+
+/** Catalogue variants whose barcode, EAN or UPC is one of the codes. */
+async function loadVariantsByCode(scope: Scope, codes: string[]): Promise<CatalogueVariant[]> {
+  if (!codes.length) return []
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const fields = ["id", "product_id", "barcode", "ean", "upc", "product.title", "product.status"]
+  const found = await Promise.all(
+    (["barcode", "ean", "upc"] as const).map((field) =>
+      query.graph({ entity: "product_variant", fields, filters: { [field]: codes } })
+    )
+  )
+  const byId = new Map(found.flatMap(({ data }) => (data as VariantRow[]).map((v) => [v.id, v] as const)))
+  return [...byId.values()].map((v) => ({
+    id: v.id,
+    product_id: v.product_id,
+    title: v.product?.title ?? "",
+    published: v.product?.status === ProductStatus.PUBLISHED,
+    codes: barcodeCodes(v),
+  }))
+}
+
+type OfferRow = {
+  id: string
+  sku: string
+  variant_id: string
+  product_id: string
+  manage_inventory: boolean
+  prices?: (OfferPrice | null)[] | null
+  inventory_items?: { id: string; location_levels?: { location_id: string; stocked_quantity: number }[] | null }[] | null
+}
+
+type OfferPrice = {
+  id: string
+  amount: number
+  currency_code: string
+  min_quantity: number | null
+  max_quantity: number | null
+  price_rules?: { attribute: string; value: string }[] | null
+}
+
+const OFFER_FIELDS = [
+  "id",
+  "sku",
+  "variant_id",
+  "product_id",
+  "manage_inventory",
+  "prices.id",
+  "prices.amount",
+  "prices.currency_code",
+  "prices.min_quantity",
+  "prices.max_quantity",
+  "prices.price_rules.attribute",
+  "prices.price_rules.value",
+  "inventory_items.id",
+  "inventory_items.location_levels.location_id",
+  "inventory_items.location_levels.stocked_quantity",
+]
+
+/** An offer's everyday selling price in the currency: the one without quantity tiers. */
+const basePrice = (offer: OfferRow, currency: string) =>
+  offer.prices?.find((p) => p?.currency_code === currency && p.min_quantity == null && p.max_quantity == null) ?? null
+
+/** What the shop holds of the offer at its stock location; null when the offer isn't tracked. */
+function stockAt(offer: OfferRow, locationId: string | null): number | null {
+  if (!offer.manage_inventory) return null
+  const level = offer.inventory_items?.[0]?.location_levels?.find((l) => l.location_id === locationId)
+  return level ? Number(level.stocked_quantity) : 0
+}
+
+/** The shop's offers as a re-import compares its rows with them: price, cost, stock and product title. */
+async function loadShopOffers(scope: Scope, sellerId: string, setup: ShopSetup): Promise<ShopOffer[]> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const [{ data }, costs] = await Promise.all([
+    query.graph({ entity: "offer", fields: OFFER_FIELDS, filters: { seller_id: sellerId } }),
+    offerImportService(scope).listOfferCosts({ seller_id: sellerId }),
+  ])
+  const offers = data as OfferRow[]
+  const { data: products } = offers.length
+    ? await query.graph({ entity: "product", fields: ["id", "title"], filters: { id: [...new Set(offers.map((o) => o.product_id))] } })
+    : { data: [] }
+  const titleOf = new Map((products as { id: string; title: string }[]).map((p) => [p.id, p.title]))
+  const costOf = new Map(costs.filter((c) => c.currency_code === setup.currency_code).map((c) => [c.offer_id, Number(c.amount)]))
+  return offers.map((offer) => {
+    const price = basePrice(offer, setup.currency_code)
+    return {
+      id: offer.id,
+      sku: offer.sku,
+      variant_id: offer.variant_id,
+      title: titleOf.get(offer.product_id) ?? offer.sku,
+      price: price ? Number(price.amount) : null,
+      cost: costOf.get(offer.id) ?? null,
+      stock: stockAt(offer, setup.stock_location_id),
+    }
+  })
+}
+
+/**
+ * What updating one of the shop's offers needs: its whole price list with the
+ * new selling price in it (Mercur's update replaces the list), and where its
+ * stock is counted.
+ */
+export async function planOfferUpdate(scope: Scope, update: OfferUpdate, setup: ShopSetup) {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: [offer] } = (await query.graph({ entity: "offer", fields: OFFER_FIELDS, filters: { id: update.offer_id } })) as {
+    data: OfferRow[]
+  }
+  if (!offer) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Offer ${update.offer_id} was not found.`)
+
+  let prices: OfferPriceInput[] | null = null
+  if (update.price !== null) {
+    const base = basePrice(offer, setup.currency_code)
+    const kept = (offer.prices ?? []).filter((p): p is OfferPrice => !!p?.id)
+    prices = kept.map((p) => ({
+      id: p.id,
+      amount: p.id === base?.id ? update.price! : Number(p.amount),
+      currency_code: p.currency_code,
+      min_quantity: p.min_quantity,
+      max_quantity: p.max_quantity,
+      rules: Object.fromEntries((p.price_rules ?? []).filter((r) => r.attribute !== "offer_id").map((r) => [r.attribute, r.value])),
+    }))
+    if (!base) prices.push({ amount: update.price, currency_code: setup.currency_code })
+  }
+
+  let stock: UpdateImportedOfferInput["stock"] = null
+  const item = offer.inventory_items?.[0]
+  if (update.stock !== null) {
+    if (!setup.stock_location_id) throw new MedusaError(MedusaError.Types.INVALID_DATA, "The shop has no stock location to count stock at.")
+    if (!item) throw new MedusaError(MedusaError.Types.INVALID_DATA, `Offer ${offer.sku} has no inventory item to count stock on.`)
+    stock = {
+      inventory_item_id: item.id,
+      location_id: setup.stock_location_id,
+      stocked_quantity: update.stock,
+      has_level: !!item.location_levels?.some((l) => l.location_id === setup.stock_location_id),
+    }
+  }
+  return { prices, stock }
 }
 
 type StoreCurrency = { currency_code: string; is_default: boolean }

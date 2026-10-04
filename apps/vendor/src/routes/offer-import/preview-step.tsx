@@ -15,6 +15,8 @@ type Props = {
 
 const amount = (value: number | null) => (value === null ? "–" : value.toLocaleString())
 
+const ACTION_COLOR = { offer: "green", propose: "blue", update: "orange", unchanged: "grey", skip: "red" } as const
+
 /** Every row as the import will treat it: offered, proposed, or skipped for its errors. */
 export const PreviewStep = ({ sheet, preview, mapping, onBack, onImported }: Props) => {
   const { t } = useTranslation()
@@ -22,14 +24,21 @@ export const PreviewStep = ({ sheet, preview, mapping, onBack, onImported }: Pro
     mutationFn: () => client.vendor.offerImport.mutate({ csv: sheet.csv, mapping }),
     onSuccess: onImported,
   })
-  const { offers, proposals, invalid } = preview.summary
-  const ready = offers + proposals
+  const { offers, proposals, updates, unchanged, invalid } = preview.summary
+  const ready = offers + proposals + updates
+  // An update or unchanged row shows only what the sheet changes; a blank cell leaves the offer as it is.
+  const stockLabel = (row: Preview["rows"][number]) => {
+    if (row.stock !== null) return row.stock
+    return row.action === "offer" || row.action === "propose" ? t("offerImport.untracked") : "–"
+  }
 
   return (
     <div className="flex flex-col gap-y-6">
       <div className="flex flex-wrap gap-2">
         <StatusBadge color="green">{t("offerImport.preview.offers", { count: offers })}</StatusBadge>
         <StatusBadge color="blue">{t("offerImport.preview.proposals", { count: proposals })}</StatusBadge>
+        {updates > 0 && <StatusBadge color="orange">{t("offerImport.preview.updates", { count: updates })}</StatusBadge>}
+        {unchanged > 0 && <StatusBadge color="grey">{t("offerImport.preview.unchangedCount", { count: unchanged })}</StatusBadge>}
         {invalid > 0 && <StatusBadge color="red">{t("offerImport.preview.invalid", { count: invalid })}</StatusBadge>}
       </div>
       <Text size="small" className="text-ui-fg-subtle">
@@ -54,14 +63,12 @@ export const PreviewStep = ({ sheet, preview, mapping, onBack, onImported }: Pro
               <Table.Cell>{row.title ?? "–"}</Table.Cell>
               <Table.Cell>{amount(row.price)}</Table.Cell>
               <Table.Cell>{amount(row.cost)}</Table.Cell>
-              <Table.Cell>{row.stock === null ? t("offerImport.untracked") : row.stock}</Table.Cell>
+              <Table.Cell>{stockLabel(row)}</Table.Cell>
               <Table.Cell>
-                {row.action === "offer" && <StatusBadge color="green">{t("offerImport.preview.offer")}</StatusBadge>}
-                {row.action === "propose" && <StatusBadge color="blue">{t("offerImport.preview.propose")}</StatusBadge>}
-                {row.action === null && <StatusBadge color="red">{t("offerImport.preview.skip")}</StatusBadge>}
+                <StatusBadge color={ACTION_COLOR[row.action ?? "skip"]}>{t(`offerImport.preview.${row.action ?? "skip"}`)}</StatusBadge>
               </Table.Cell>
               <Table.Cell className="whitespace-normal">
-                <RowNotes errors={row.errors} warnings={row.warnings} />
+                <RowNotes errors={row.errors} warnings={row.warnings} changes={row.changes} />
               </Table.Cell>
             </Table.Row>
           ))}
