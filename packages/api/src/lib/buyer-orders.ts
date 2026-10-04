@@ -1,5 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import type { PaystackRefundStatus } from "../modules/paystack/client"
+import { fulfilmentService, fulfilmentsOf, fulfilmentView, type FulfilmentView } from "./order-fulfilment"
 
 // The buyer's order history (#17): each checkout is an order group, split into one order per
 // shop. Mercur's own `/store/order-groups` asks for more nested relations than Medusa allows a
@@ -26,6 +28,37 @@ export type BuyerOrder = {
   currency_code: string
   seller: { id: string; name: string; handle: string | null; logo: string | null }
   items: BuyerOrderItem[]
+  /** Where the shop is with it: the same state its staff see. */
+  fulfilment: FulfilmentView
+  /** What the buyer paid for it, refunded or not. */
+  paid_total: number
+  /** What has been refunded of it, and where that is; null while nothing has been. */
+  refund: BuyerRefund | null
+}
+
+/** An order's refunds as its buyer sees them: what comes back, and how far it has got. */
+export type BuyerRefund = { amount: number; status: PaystackRefundStatus }
+
+type RefundRow = { amount: unknown; status: string; created_at: Date | string }
+
+/** The least settled first: the buyer is told about the refund that's furthest from done. */
+const LEAST_SETTLED: PaystackRefundStatus[] = ["needs-attention", "failed", "pending", "processing", "processed"]
+
+/**
+ * Sums an order's refunds (`order_refund` rows) into what its buyer sees. A failed refund is
+ * made again as a new refund, so one followed by a later refund no longer counts; until then
+ * the refund is delayed.
+ */
+export function buyerRefund(rows: RefundRow[]): BuyerRefund | null {
+  const time = (r: RefundRow) => new Date(r.created_at).getTime()
+  const lastMade = Math.max(-Infinity, ...rows.filter((r) => r.status !== "failed").map(time))
+  const counted = rows.filter((r) => r.status !== "failed" || time(r) > lastMade)
+  if (!counted.length) return null
+  const statuses = new Set(counted.map((r) => r.status))
+  return {
+    amount: counted.reduce((sum, r) => sum + Number(r.amount), 0),
+    status: LEAST_SETTLED.find((s) => statuses.has(s)) ?? "pending",
+  }
 }
 
 /** A checkout, as its buyer sees it: the shops' orders it was split into. */
@@ -54,6 +87,8 @@ const ORDER_FIELDS = [
   "items.detail.quantity",
   "items.unit_price",
   "items.total",
+  "total",
+  "credit_line_total",
 ]
 
 type GroupRow = { id: string; display_id: number; created_at: Date | string; orders?: ({ id: string } | null)[] | null }
@@ -104,16 +139,33 @@ async function withOrders(scope: Scope, groups: GroupRow[]): Promise<BuyerOrderG
 async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, BuyerOrder>> {
   if (!ids.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "order", fields: ORDER_FIELDS, filters: { id: ids } })
-  return new Map((data as any[]).map((o) => [o.id, buyerOrder(o)]))
+  const [{ data }, fulfilments, refunds] = await Promise.all([
+    query.graph({ entity: "order", fields: ORDER_FIELDS, filters: { id: ids } }),
+    fulfilmentsOf(scope, ids),
+    fulfilmentService(scope).listOrderRefunds({ order_id: ids }),
+  ])
+  const refundsOf = (orderId: string) => refunds.filter((r) => r.order_id === orderId)
+  return new Map(
+    (data as any[]).map((o) => [
+      o.id,
+      {
+        ...buyerOrder(o),
+        fulfilment: fulfilmentView(fulfilments.get(o.id), o.created_at),
+        refund: buyerRefund(refundsOf(o.id)),
+      },
+    ])
+  )
 }
 
-function buyerOrder(o: any): BuyerOrder {
+function buyerOrder(o: any): Omit<BuyerOrder, "fulfilment" | "refund"> {
   return {
     id: o.id,
     display_id: o.display_id,
     created_at: new Date(o.created_at).toISOString(),
     currency_code: o.currency_code,
+    // A refund adds a credit line, which takes it off what the order still asks of the buyer
+    // (`total`); with it added back the total is what was paid (#20).
+    paid_total: Number(o.total) + Number(o.credit_line_total ?? 0),
     seller: {
       id: o.seller?.id,
       name: o.seller?.name,

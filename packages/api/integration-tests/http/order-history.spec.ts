@@ -1,10 +1,14 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import seedDemoData from "../../src/scripts/seed"
-import { buyerCheckout, GADGETS, GROCERY, LANTERN, RICE } from "../helpers/checkout"
+import { rejectOverdueOrders } from "../../src/lib/order-acceptance"
+import { fulfilmentService } from "../../src/lib/order-fulfilment"
+import { buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, ORDER_TOTALS, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
 
 jest.setTimeout(5 * 60 * 1000)
+
+const HOUR = 60 * 60 * 1000
 
 const clerk = fakeClerk()
 // A port per test process, so the fake can be named in the config before it is listening.
@@ -44,8 +48,14 @@ medusaIntegrationTestRunner({
         (e: any) => e.response?.status as number
       )
     const history = async (as = buyer.ada()) => (await api.get("/store/order-history", as)).data.order_groups
-
     const orderGroup = async (id: string, as = buyer.ada()) => (await api.get(`/store/order-history/${id}`, as)).data.order_group
+    /** The buyer's view of one shop's order in the group. */
+    const sellerOrder = async (groupId: string, orderId: string) =>
+      (await orderGroup(groupId)).orders.find((o: any) => o.id === orderId)
+    const accept = async (shop: Shop, orderId: string) =>
+      api.post(`/vendor/orders/${orderId}/accept`, {}, await buyer.owner(shop))
+    const reject = async (shop: Shop, orderId: string, reason: string) =>
+      api.post(`/vendor/orders/${orderId}/reject`, { reason }, await buyer.owner(shop))
 
     describe("the order list", () => {
       it("lists the buyer's order groups newest first, each split into its shops' orders and their items", async () => {
@@ -94,6 +104,99 @@ medusaIntegrationTestRunner({
 
         expect(await status(api.get(`/store/order-history/${groupId}`, buyer.as("ben@oja.test")))).toBe(404)
         expect(await status(api.get(`/store/order-history/${groupId}`, { headers: buyer.headers() }))).toBe(401)
+      })
+    })
+
+    describe("each shop's order", () => {
+      it("is new until its shop accepts it", async () => {
+        const { groupId, gadgets, grocery } = await paidGroup()
+        await accept(GROCERY, grocery)
+
+        expect((await sellerOrder(groupId, gadgets)).fulfilment).toMatchObject({ state: "new", rejected_by: null, reject_reason: null })
+        expect((await sellerOrder(groupId, grocery)).fulfilment).toMatchObject({ state: "accepted" })
+        const listed = (await history()).find((g: any) => g.id === groupId)
+        expect(listed.orders.map((o: any) => o.fulfilment.state).sort()).toEqual(["accepted", "new"])
+      })
+
+      it("shows what the buyer paid for it", async () => {
+        const { groupId, gadgets, grocery } = await paidGroup()
+
+        expect((await sellerOrder(groupId, gadgets)).paid_total).toBe(ORDER_TOTALS.get(GADGETS))
+        expect((await sellerOrder(groupId, grocery)).paid_total).toBe(ORDER_TOTALS.get(GROCERY))
+        expect((await sellerOrder(groupId, gadgets)).refund).toBeNull()
+      })
+
+      it("shows a rejected order with the shop's reason, what was paid for it and its refund on the way; the other shop's order carries on", async () => {
+        const { groupId, gadgets, grocery } = await paidGroup()
+
+        await reject(GADGETS, gadgets, "The lantern is out of stock")
+
+        const rejected = await sellerOrder(groupId, gadgets)
+        expect(rejected.fulfilment).toMatchObject({
+          state: "rejected",
+          rejected_by: "seller",
+          reject_reason: "The lantern is out of stock",
+        })
+        // A refund adds a credit line, which takes it off the order's total: that alone would read ₦0 paid.
+        expect(rejected.paid_total).toBe(ORDER_TOTALS.get(GADGETS))
+        expect(rejected.refund).toEqual({ amount: ORDER_TOTALS.get(GADGETS), status: "pending" })
+        const other = await sellerOrder(groupId, grocery)
+        expect(other.fulfilment.state).toBe("new")
+        expect(other.paid_total).toBe(ORDER_TOTALS.get(GROCERY))
+        expect(other.refund).toBeNull()
+      })
+
+      it("shows an order the accept deadline rejected as not accepted in time", async () => {
+        const { groupId, gadgets, grocery } = await paidGroup()
+        await accept(GROCERY, grocery)
+        const placedAt = Date.parse((await sellerOrder(groupId, gadgets)).created_at)
+
+        await rejectOverdueOrders(getContainer(), new Date(placedAt + 24 * HOUR + 1000))
+
+        const rejected = await sellerOrder(groupId, gadgets)
+        expect(rejected.fulfilment).toMatchObject({ state: "rejected", rejected_by: "accept_deadline" })
+        expect(rejected.refund).toEqual({ amount: ORDER_TOTALS.get(GADGETS), status: "pending" })
+        expect((await sellerOrder(groupId, grocery)).fulfilment.state).toBe("accepted")
+      })
+    })
+
+    describe("a refund", () => {
+      const settle = async (reference: string, orderId: string, status: "processed" | "failed") => {
+        const refund = paystack.refundsOf(reference).at(-1)!
+        paystack.settleRefund(refund.id, status)
+        await buyer.postWebhook(paystack.refundEvent(refund.id))
+        await eventually(
+          () => fulfilmentService(getContainer()).listOrderRefunds({ order_id: orderId, status }),
+          (rows) => rows.length > 0,
+          150
+        )
+      }
+
+      it("shows refunded once Paystack has paid it back", async () => {
+        const { reference, groupId, gadgets } = await paidGroup()
+        await reject(GADGETS, gadgets, "Closed for a family event")
+
+        await settle(reference, gadgets, "processed")
+
+        expect((await sellerOrder(groupId, gadgets)).refund).toEqual({ amount: ORDER_TOTALS.get(GADGETS), status: "processed" })
+      })
+
+      it("shows delayed while a refund Paystack failed waits to be made again, and on its way once it is", async () => {
+        const { reference, groupId, gadgets } = await paidGroup()
+        await reject(GADGETS, gadgets, "Closed for a family event")
+
+        await settle(reference, gadgets, "failed")
+
+        const delayed = await sellerOrder(groupId, gadgets)
+        expect(delayed.refund).toEqual({ amount: ORDER_TOTALS.get(GADGETS), status: "failed" })
+        // Still what was paid: the failed refund's credit line is gone, so the total is whole again.
+        expect(delayed.paid_total).toBe(ORDER_TOTALS.get(GADGETS))
+
+        await rejectOverdueOrders(getContainer())
+
+        const retried = await sellerOrder(groupId, gadgets)
+        expect(retried.refund).toEqual({ amount: ORDER_TOTALS.get(GADGETS), status: "pending" })
+        expect(retried.paid_total).toBe(ORDER_TOTALS.get(GADGETS))
       })
     })
   },
