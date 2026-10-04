@@ -10,7 +10,7 @@ import { addSellerShippingMethodToCartWorkflow } from "@mercurjs/core/workflows"
 import type { DeliveryTag } from "@oja/domain"
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
 import type { PaystackSessionData } from "../modules/paystack/service"
-import { SHIPBUBBLE_PROVIDER_ID, type ShipbubbleMethodData } from "../modules/shipbubble"
+import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData } from "../modules/shipbubble"
 import { retrieveCartBySeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
 import { addressCodeOf, quoteBasis, quoteDelivery, samePlace, withAddressCode } from "./delivery"
@@ -46,6 +46,8 @@ export type CheckoutDeliveryChoice = {
   delivery_eta: string | null
   /** ISO 8601. */
   delivery_eta_time: string
+  /** Where days are counted for "Arrives tomorrow": the courier's (Shipbubble's) timezone. */
+  time_zone: string
   tags: DeliveryTag[]
 }
 
@@ -202,6 +204,7 @@ function shopDelivery(
       amount,
       delivery_eta,
       delivery_eta_time,
+      time_zone: SHIPBUBBLE_TIMEZONE,
       tags,
     })),
   }

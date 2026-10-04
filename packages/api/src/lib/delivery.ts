@@ -5,6 +5,7 @@ import { MercurModules } from "@mercurjs/types"
 import { deliveryChoices, type DeliveryChoice } from "@oja/domain"
 import {
   ShipbubbleError,
+  SHIPBUBBLE_TIMEZONE,
   shipbubbleClient,
   shipbubbleTime,
   shipbubbleToday,
@@ -101,7 +102,7 @@ export async function validateAddress(address: DeliveryAddress, contact: { name:
     if (error instanceof ShipbubbleError && (error.status === 400 || error.status === 422)) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `We couldn't find this address for delivery. Check it, or move the pin to the door. (${error.message})`
+        `We couldn't find this address for delivery. Check the street, area and state. (${error.message})`
       )
     }
     throw error
@@ -241,6 +242,8 @@ export type DeliveryEstimate = {
   delivery_eta: string | null
   /** ISO 8601. */
   delivery_eta_time: string
+  /** Where days are counted for "Arrives tomorrow": the courier's (Shipbubble's) timezone. */
+  time_zone: string
 }
 
 type CustomerRow = {
@@ -306,7 +309,13 @@ export async function estimateDelivery(
 
   const [best] = await quoteDelivery(scope, { sellerId, receiverCode, lines: [line], currencyCode })
   return best
-    ? { courier_name: best.courier_name, amount: best.amount, delivery_eta: best.delivery_eta, delivery_eta_time: best.delivery_eta_time }
+    ? {
+        courier_name: best.courier_name,
+        amount: best.amount,
+        delivery_eta: best.delivery_eta,
+        delivery_eta_time: best.delivery_eta_time,
+        time_zone: SHIPBUBBLE_TIMEZONE,
+      }
     : null
 }
 

@@ -251,6 +251,7 @@ medusaIntegrationTestRunner({
           amount: BEST_VALUE_FEE,
           delivery_eta: expect.any(String),
           delivery_eta_time: expect.stringMatching(/\+01:00$/),
+          time_zone: "Africa/Lagos",
         })
         // One of the product, from that shop, to the saved address, validated by its pin.
         const [request] = shipbubble.rateRequests()
