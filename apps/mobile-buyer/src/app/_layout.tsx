@@ -56,13 +56,14 @@ function RootStack() {
       <Stack.Screen name="product/[id]" options={{ title: '' }} />
       <Stack.Screen name="seller/[id]" options={{ title: '' }} />
       <Stack.Screen name="category/[id]" options={{ title: '' }} />
-      {/* Guests browse freely; checkout and the wishlist need a signed-in buyer (ADR 0001). */}
+      {/* Guests browse freely; checkout, orders and the wishlist need a signed-in buyer (ADR 0001). */}
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="checkout/index" options={{ title: 'Checkout' }} />
         {/* Paying ends in the confirmation screen, or back at checkout to try again. */}
         <Stack.Screen name="checkout/pay" options={{ title: 'Pay with Paystack', gestureEnabled: false }} />
         <Stack.Screen name="checkout/confirmation" options={{ title: 'Confirming payment', gestureEnabled: false }} />
         <Stack.Screen name="wishlist" options={{ title: 'Wishlist' }} />
+        <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
       </Stack.Protected>
       {/* AuthView draws its own chrome, including the dismiss button. */}
       <Stack.Screen name="sign-in" options={{ presentation: 'modal', headerShown: false }} />

@@ -12,6 +12,11 @@ export function openShop(seller: Pick<Listing['seller'], 'id'>) {
   router.push({ pathname: '/seller/[id]', params: { id: seller.id } });
 }
 
+/** Opens one of the buyer's order groups: each shop's order of a checkout. */
+export function openOrderGroup(group: { id: string }) {
+  router.push({ pathname: '/order/[id]', params: { id: group.id } });
+}
+
 /** Opens a category's listings; the name titles the screen before anything loads. */
 export function openCategory(category: { id: string; name: string }) {
   router.push({ pathname: '/category/[id]', params: { id: category.id, name: category.name } });
