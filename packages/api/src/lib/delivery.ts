@@ -1,0 +1,275 @@
+import { createHash } from "node:crypto"
+import type { MedusaContainer } from "@medusajs/framework/types"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { MercurModules } from "@mercurjs/types"
+import { deliveryChoices, type DeliveryChoice } from "@oja/domain"
+import {
+  ShipbubbleError,
+  shipbubbleClient,
+  shipbubbleTime,
+  shipbubbleToday,
+  type ShipbubbleQuote,
+} from "../modules/shipbubble"
+
+// Shipbubble delivery (#23, ADR 0002): validated addresses become Shipbubble address codes,
+// stored in the address's `metadata.shipbubble_address_code`, and a shop's parcel to an address
+// code is quoted by every courier Shipbubble has. The buyer picks from best value (preselected),
+// the cheapest and the fastest (`deliveryChoices` in @oja/domain).
+
+/** An address as Medusa stores it, with the pin and Shipbubble's code in `metadata`. */
+export type DeliveryAddress = {
+  first_name?: string | null
+  last_name?: string | null
+  address_1?: string | null
+  address_2?: string | null
+  city?: string | null
+  province?: string | null
+  country_code?: string | null
+  phone?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
+/** One line of a shop's parcel: a variant and how many. */
+export type ParcelLine = { variant_id: string; title: string; quantity: number; unit_price: number }
+
+/**
+ * Shipbubble's package categories (GET /shipping/labels/categories), by the `package_category`
+ * products take from their category's shipping defaults. Couriers quote only categories they carry.
+ */
+const PACKAGE_CATEGORIES: Record<string, number> = {
+  groceries: 69709726, // Food
+  fashion: 98246239, // Fashion wears
+  electronics: 70830897, // Electronic gadgets
+}
+const DEFAULT_PACKAGE_CATEGORY = 90097994 // Accessories
+
+/** When a product has no dimension of its own, cm. */
+const DEFAULT_DIMENSION_CM = 10
+/** When a product has no weight, grams. Publishing requires one (#33), so this is rare. */
+const DEFAULT_WEIGHT_G = 1000
+
+const ADDRESS_CODE = "shipbubble_address_code"
+
+const numberOrNull = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null)
+
+/** The Shipbubble address code stored on an address, if it has one. */
+export function addressCodeOf(address: DeliveryAddress | null | undefined): number | null {
+  const code = address?.metadata?.[ADDRESS_CODE]
+  return typeof code === "number" ? code : typeof code === "string" && /^\d+$/.test(code) ? Number(code) : null
+}
+
+/** The address as one line of text for Shipbubble: street to state, then the country's name. */
+export function addressText(address: DeliveryAddress): string {
+  const country = address.country_code
+    ? new Intl.DisplayNames("en", { type: "region" }).of(address.country_code.toUpperCase())
+    : null
+  return [address.address_1, address.address_2, address.city, address.province, country]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(", ")
+}
+
+const pinOf = (address: DeliveryAddress) => {
+  const latitude = numberOrNull(address.metadata?.latitude)
+  const longitude = numberOrNull(address.metadata?.longitude)
+  return latitude != null && longitude != null ? { latitude, longitude } : null
+}
+
+/** Whether two addresses are the same place to Shipbubble: the same pin, or with no pin the same text. */
+export function samePlace(a: DeliveryAddress, b: DeliveryAddress): boolean {
+  const [pinA, pinB] = [pinOf(a), pinOf(b)]
+  if (pinA || pinB) return pinA?.latitude === pinB?.latitude && pinA?.longitude === pinB?.longitude
+  return addressText(a) === addressText(b)
+}
+
+/**
+ * Validates an address with Shipbubble, sending its pin's coordinates when it has one (which
+ * Shipbubble then validates by) with the address text, and returns its address code.
+ * An address Shipbubble can't place is refused (400).
+ */
+export async function validateAddress(address: DeliveryAddress, contact: { name: string; email: string }): Promise<number> {
+  try {
+    const validated = await shipbubbleClient().validateAddress({
+      name: contact.name,
+      email: contact.email,
+      phone: address.phone ?? "",
+      address: addressText(address),
+      ...pinOf(address),
+    })
+    return validated.address_code
+  } catch (error) {
+    if (error instanceof ShipbubbleError && (error.status === 400 || error.status === 422)) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `We couldn't find this address for delivery. Check it, or move the pin to the door. (${error.message})`
+      )
+    }
+    throw error
+  }
+}
+
+/** The address with its Shipbubble code in metadata, validating it only when it has none. */
+export async function withAddressCode<A extends DeliveryAddress>(
+  address: A,
+  contact: { name: string; email: string }
+): Promise<A & { metadata: Record<string, unknown> }> {
+  const code = addressCodeOf(address) ?? (await validateAddress(address, contact))
+  return { ...address, metadata: { ...address.metadata, [ADDRESS_CODE]: code } }
+}
+
+type SellerRow = {
+  id: string
+  name: string
+  email: string | null
+  phone?: string | null
+  address?: (DeliveryAddress & { id: string }) | null
+}
+
+/**
+ * The shop's pickup address's Shipbubble code: where couriers collect its parcels. Validated the
+ * first time it is needed and kept on the address (the vendor panel will validate on save, #26).
+ */
+export async function senderAddressCode(scope: MedusaContainer, sellerId: string): Promise<number> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "seller",
+    fields: ["id", "name", "email", "phone", "address.*"],
+    filters: { id: sellerId },
+  })
+  const seller = data[0] as SellerRow | undefined
+  const address = seller?.address
+  if (!seller || !address?.address_1) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller?.name ?? "This shop"} has no pickup address to deliver from yet`)
+  }
+  const known = addressCodeOf(address)
+  if (known != null) return known
+
+  const code = await validateAddress(
+    { ...address, phone: address.phone ?? seller.phone ?? null },
+    { name: seller.name, email: seller.email ?? "" }
+  )
+  // The module's generated update; Mercur's types don't list the seller module's service.
+  const sellers = scope.resolve(MercurModules.SELLER) as {
+    updateSellerAddresses: (data: { id: string; metadata: Record<string, unknown> }) => Promise<unknown>
+  }
+  await sellers.updateSellerAddresses({ id: address.id, metadata: { ...address.metadata, [ADDRESS_CODE]: code } })
+  return code
+}
+
+type VariantRow = {
+  id: string
+  weight?: number | string | null
+  length?: number | string | null
+  width?: number | string | null
+  height?: number | string | null
+  product?: {
+    weight?: number | string | null
+    length?: number | string | null
+    width?: number | string | null
+    height?: number | string | null
+    metadata?: Record<string, unknown> | null
+  } | null
+}
+
+const positive = (...values: unknown[]) => values.map(Number).find((v) => Number.isFinite(v) && v > 0)
+
+/** A shop's parcel as Shipbubble quotes it: items in kg, one box in cm, and its package category. */
+async function parcelOf(scope: MedusaContainer, lines: ParcelLine[]) {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "product_variant",
+    fields: [
+      "id",
+      "weight",
+      "length",
+      "width",
+      "height",
+      "product.weight",
+      "product.length",
+      "product.width",
+      "product.height",
+      "product.metadata",
+    ],
+    filters: { id: lines.map((l) => l.variant_id) },
+  })
+  const variants = new Map((data as VariantRow[]).map((v) => [v.id, v]))
+  const measured = lines.map((line) => {
+    const v = variants.get(line.variant_id)
+    const p = v?.product
+    return {
+      line,
+      grams: positive(v?.weight, p?.weight) ?? DEFAULT_WEIGHT_G,
+      length: positive(v?.length, p?.length) ?? DEFAULT_DIMENSION_CM,
+      width: positive(v?.width, p?.width) ?? DEFAULT_DIMENSION_CM,
+      height: positive(v?.height, p?.height) ?? DEFAULT_DIMENSION_CM,
+      category: typeof p?.metadata?.package_category === "string" ? p.metadata.package_category : null,
+    }
+  })
+  // The heaviest item decides the parcel's category.
+  const heaviest = [...measured].sort((a, b) => b.grams * b.line.quantity - a.grams * a.line.quantity)[0]
+  return {
+    category_id: (heaviest?.category && PACKAGE_CATEGORIES[heaviest.category]) || DEFAULT_PACKAGE_CATEGORY,
+    package_items: measured.map(({ line, grams }) => ({
+      name: line.title,
+      description: line.title,
+      unit_weight: String(grams / 1000),
+      unit_amount: String(line.unit_price),
+      quantity: String(line.quantity),
+    })),
+    // Items side by side on the largest footprint, stacked.
+    package_dimension: {
+      length: Math.max(...measured.map((m) => m.length)),
+      width: Math.max(...measured.map((m) => m.width)),
+      height: measured.reduce((sum, m) => sum + m.height * m.line.quantity, 0),
+    },
+  }
+}
+
+/**
+ * What a quote was for: the receiver and what the shop sends. A shipping method whose basis no
+ * longer matches the cart was quoted for a different parcel or address.
+ */
+export function quoteBasis(receiverCode: number | null, lines: Pick<ParcelLine, "variant_id" | "quantity">[]): string {
+  const parcel = lines.map((l) => `${l.variant_id}:${l.quantity}`).sort()
+  return createHash("sha256").update(JSON.stringify([receiverCode, parcel])).digest("hex")
+}
+
+/**
+ * A shop's delivery choices for a parcel to an address code: best value first, then the cheapest
+ * and the fastest. Empty when no courier will take it.
+ */
+export async function quoteDelivery(
+  scope: MedusaContainer,
+  { sellerId, receiverCode, lines, currencyCode }: { sellerId: string; receiverCode: number; lines: ParcelLine[]; currencyCode: string }
+): Promise<DeliveryChoice<ShipbubbleQuote>[]> {
+  const senderCode = await senderAddressCode(scope, sellerId)
+  const parcel = await parcelOf(scope, lines)
+  let rates
+  try {
+    rates = await shipbubbleClient().fetchRates({
+      sender_address_code: senderCode,
+      reciever_address_code: receiverCode,
+      pickup_date: shipbubbleToday(),
+      ...parcel,
+    })
+  } catch (error) {
+    // Shipbubble answers a parcel no courier carries between the two addresses with a 4xx.
+    if (error instanceof ShipbubbleError && error.status < 500) return []
+    throw error
+  }
+  const quotes: ShipbubbleQuote[] = rates.couriers
+    .filter((c) => c.currency?.toLowerCase() === currencyCode.toLowerCase())
+    .map((c) => ({
+      id: `${c.service_code}:${c.courier_id}`,
+      request_token: rates.request_token,
+      courier_id: String(c.courier_id),
+      courier_name: c.courier_name,
+      service_code: c.service_code,
+      amount: Number(c.rate_card_amount),
+      currency: c.currency.toLowerCase(),
+      delivery_eta: c.delivery_eta ?? null,
+      delivery_eta_time: shipbubbleTime(c.delivery_eta_time),
+      tracking_level: c.tracking_level ?? null,
+    }))
+  return deliveryChoices(quotes)
+}

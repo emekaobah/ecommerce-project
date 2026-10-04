@@ -13,9 +13,6 @@ export const SEED_VAT = { name: "VAT", code: "VAT", rate: 7.5 }
 
 export const SEED_SALES_CHANNEL = "Oja Buyer App"
 
-/** Flat delivery fee per shop until Shipbubble quotes replace it. */
-export const SEED_DELIVERY_FEE = 2500
-
 export type Department = "Groceries" | "Fashion" | "Electronics"
 
 type SeedPerson = { email: string; first_name: string; last_name: string }

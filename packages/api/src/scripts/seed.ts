@@ -41,6 +41,7 @@ import {
   createSalesChannelsWorkflow,
   createServiceZonesWorkflow,
   createShippingProfilesWorkflow,
+  deleteShippingOptionsWorkflow,
   createTaxRegionsWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
@@ -52,7 +53,6 @@ import {
 import {
   SEED_CATEGORIES,
   SEED_CATEGORY_ATTRIBUTES,
-  SEED_DELIVERY_FEE,
   SEED_PASSWORD,
   SEED_PRODUCTS,
   SEED_REGION,
@@ -66,6 +66,7 @@ import {
   type SeedSeller,
 } from "./seed-data";
 import { PAYSTACK_PROVIDER_ID } from "../modules/paystack";
+import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble";
 
 // Seeds Oja's demo world (see seed-data.ts). Every section looks up what already
 // exists and creates only what is missing, so the seed is safe to re-run.
@@ -522,6 +523,7 @@ async function seedSeller(
     filters: { name: locationName },
   });
   if (existingLocation) {
+    await seedShipbubbleDelivery(container, sellerId, config, existingLocation.id, shippingProfileId);
     return { id: sellerId, config, ownerMemberId, stockLocationId: existingLocation.id };
   }
 
@@ -540,10 +542,6 @@ async function seedSeller(
     },
   });
 
-  await container.resolve(ContainerRegistrationKeys.LINK).create({
-    [Modules.STOCK_LOCATION]: { stock_location_id: location.id },
-    [Modules.FULFILLMENT]: { fulfillment_provider_id: "manual_manual" },
-  });
   await linkSalesChannelsToStockLocationWorkflow(container).run({
     input: { id: location.id, add: [salesChannelId] },
   });
@@ -560,9 +558,7 @@ async function seedSeller(
     fields: ["fulfillment_sets.id"],
     filters: { id: location.id },
   });
-  const {
-    result: [serviceZone],
-  } = await createServiceZonesWorkflow(container).run({
+  await createServiceZonesWorkflow(container).run({
     input: {
       data: [
         {
@@ -573,18 +569,57 @@ async function seedSeller(
       ],
     },
   });
+  await seedShipbubbleDelivery(container, sellerId, config, location.id, shippingProfileId);
+
+  return { id: sellerId, config, ownerMemberId, stockLocationId: location.id };
+}
+
+// Each shop delivers with Shipbubble (#23): one calculated shipping option whose price is the
+// courier rate the buyer picks at checkout. Replaces the flat delivery earlier seeds created.
+async function seedShipbubbleDelivery(
+  container: MedusaContainer,
+  sellerId: string,
+  config: SeedSeller,
+  locationId: string,
+  shippingProfileId: string
+) {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const {
+    data: [location],
+  } = await query.graph({
+    entity: "stock_location",
+    fields: [
+      "fulfillment_providers.id",
+      "fulfillment_sets.service_zones.id",
+      "fulfillment_sets.service_zones.shipping_options.id",
+      "fulfillment_sets.service_zones.shipping_options.provider_id",
+    ],
+    filters: { id: locationId },
+  });
+  if (!location.fulfillment_providers?.some((p: { id: string } | null) => p?.id === SHIPBUBBLE_PROVIDER_ID)) {
+    await container.resolve(ContainerRegistrationKeys.LINK).create({
+      [Modules.STOCK_LOCATION]: { stock_location_id: locationId },
+      [Modules.FULFILLMENT]: { fulfillment_provider_id: SHIPBUBBLE_PROVIDER_ID },
+    });
+  }
+  const serviceZone = location.fulfillment_sets![0]!.service_zones![0]!;
+  const options = (serviceZone.shipping_options ?? []) as { id: string; provider_id: string }[];
+  const flat = options.filter((o) => o.provider_id !== SHIPBUBBLE_PROVIDER_ID).map((o) => o.id);
+  if (flat.length) await deleteShippingOptionsWorkflow(container).run({ input: { ids: flat } });
+  if (options.some((o) => o.provider_id === SHIPBUBBLE_PROVIDER_ID)) return;
+
   await createSellerShippingOptionsWorkflow(container).run({
     input: {
       seller_id: sellerId,
       shipping_options: [
         {
-          name: "Standard delivery",
-          price_type: "flat",
-          provider_id: "manual_manual",
+          name: `${config.name} delivery`,
+          price_type: "calculated",
+          provider_id: SHIPBUBBLE_PROVIDER_ID,
           service_zone_id: serviceZone.id,
           shipping_profile_id: shippingProfileId,
-          type: { label: "Standard", description: "Delivered in 1-3 days.", code: "standard" },
-          prices: [{ currency_code: SEED_REGION.currency_code, amount: SEED_DELIVERY_FEE }],
+          data: { id: "shipbubble" },
+          type: { label: "Delivery", description: "Courier rates from Shipbubble.", code: "shipbubble" },
           rules: [
             { attribute: "enabled_in_store", value: "true", operator: "eq" },
             { attribute: "is_return", value: "false", operator: "eq" },
@@ -593,8 +628,6 @@ async function seedSeller(
       ],
     },
   });
-
-  return { id: sellerId, config, ownerMemberId, stockLocationId: location.id };
 }
 
 type SeededProduct = { id: string; handle: string; variants: { id: string; sku: string }[] };
