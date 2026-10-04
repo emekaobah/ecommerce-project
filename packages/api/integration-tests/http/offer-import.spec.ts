@@ -1,6 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
+import { updateMemberRoleWorkflow } from "@mercurjs/core/workflows"
 import seedDemoData from "../../src/scripts/seed"
 import { OFFER_IMPORT_MODULE, type OfferImportModuleService } from "../../src/modules/offer-import"
 import { PRODUCT_ENRICHMENT_MODULE } from "../../src/modules/product-enrichment"
@@ -300,6 +301,37 @@ medusaIntegrationTestRunner({
         // Staff can't import either: it creates offers.
         expect(await status(api.post("/vendor/offer-import/preview", { csv: SHOP_CSV }, crew))).toBe(403)
         expect(await status(api.post("/vendor/offer-import", { csv: SHOP_CSV, mapping: SHOP_MAPPING }, crew))).toBe(403)
+      })
+
+      it("leaves cost out of the preview for a member who may create offers but not price them", async () => {
+        // A role made for the test: offers can be read and created, not updated.
+        const container = getContainer()
+        const rbac = container.resolve(Modules.RBAC) as any
+        const policies = await rbac.listRbacPolicies({ key: ["offer:read", "offer:create"] })
+        const [role] = await rbac.createRbacRoles([{ id: "role_test_offer_creator", name: "Offer creator" }])
+        await rbac.createRbacRolePolicies(policies.map((p: { id: string }) => ({ role_id: role.id, policy_id: p.id })))
+        const { data: me } = await api.get(`/vendor/sellers/${await sellerId(grocery)}/members/me`, await staff())
+        await updateMemberRoleWorkflow(container).run({ input: { seller_member_id: me.seller_member.id, role_id: role.id } })
+
+        const creator = await staff()
+        const { data } = await api.post("/vendor/offer-import/preview", { csv: SHOP_CSV, mapping: SHOP_MAPPING }, creator)
+        expect(data.rows[0]).toMatchObject({ title: "20,000mAh Power Bank", price: 25000, cost: null })
+        // The below-cost warning would give the cost away too. (The column samples echo only their own file.)
+        expect(JSON.stringify(data.rows)).not.toContain("26,000")
+        expect(JSON.stringify(data.rows)).not.toContain("26000")
+        expect(await status(api.get("/vendor/offer-costs", creator))).toBe(403)
+        // Nor may they change an offer the shop already has: the rice row is refused, and its price stays.
+        expect(data.rows[1]).toMatchObject({ action: null, errors: ["Only owners and managers can change offers the shop already sells."] })
+        const { data: run } = await api.post("/vendor/offer-import", { csv: SHOP_CSV, mapping: SHOP_MAPPING }, creator)
+        expect(run.results.map((r: any) => r.status)).toEqual(["offered", "skipped", "proposed", "proposed", "skipped"])
+        const [rice] = await offersOf(await owner(), `variant_id=${await variantOf("Ofada Rice 5kg")}`)
+        expect(rice.prices.map((p: any) => p.amount)).toEqual([14500])
+        // And the cost column was not read: no cost was saved for what they did create.
+        expect(await getContainer().resolve<OfferImportModuleService>(OFFER_IMPORT_MODULE).listOfferCosts({})).toEqual([])
+
+        // The owner, who may price offers, sees both.
+        const { data: owners } = await api.post("/vendor/offer-import/preview", { csv: SHOP_CSV, mapping: SHOP_MAPPING }, await owner())
+        expect(owners.rows[0]).toMatchObject({ cost: 26000, warnings: expect.arrayContaining(["Selling price NGN 25,000 is below cost price NGN 26,000."]) })
       })
 
       it("never shows one shop another's costs", async () => {

@@ -2,7 +2,7 @@ import { MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { readSheet, type ImportMapping } from "../../../lib/catalogue-import"
 import {
-  buildOfferImportRows,
+  readOfferImportRows,
   importOfferRows,
   loadOfferImportContext,
   loadShopSetup,
@@ -14,6 +14,7 @@ import {
   type OfferImportField,
   type OfferImportResult,
 } from "../../../lib/offer-import"
+import { mayPriceOffers } from "./permissions"
 import { sellerOf, type VendorRequest } from "./seller"
 import type { VendorRunOfferImportType } from "./validators"
 
@@ -43,7 +44,7 @@ export async function POST(
   await saveOfferMapping(req.scope, sellerId, table.headers, mapping)
   const setup = await loadShopSetup(req.scope, sellerId)
   const context = await loadOfferImportContext(req.scope, sellerId, table, mapping, setup)
-  const rows = buildOfferImportRows(table, mapping, context)
+  const rows = readOfferImportRows(table, mapping, context, { may_price: await mayPriceOffers(req) })
   const results = await importOfferRows(req.scope, rows, { seller_id: sellerId, member_id: req.auth_context.actor_id, setup })
   res.json({ results, summary: summariseOfferImport(results) })
 }

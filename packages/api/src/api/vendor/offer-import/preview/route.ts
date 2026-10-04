@@ -1,7 +1,7 @@
 import { MedusaResponse } from "@medusajs/framework/http"
 import { readSheet, suggestMapping, type ImportMapping } from "../../../../lib/catalogue-import"
 import {
-  buildOfferImportRows,
+  readOfferImportRows,
   loadOfferImportContext,
   loadSavedOfferMapping,
   loadShopSetup,
@@ -10,6 +10,7 @@ import {
   offerMappingErrors,
   type OfferImportRow,
 } from "../../../../lib/offer-import"
+import { mayPriceOffers } from "../permissions"
 import { sellerOf, type VendorRequest } from "../seller"
 import type { VendorPreviewOfferImportType } from "../validators"
 
@@ -52,10 +53,11 @@ export async function POST(req: VendorRequest<VendorPreviewOfferImportType>, res
   const problems = offerMappingErrors(mapping, table.headers)
   const rows = problems.length
     ? []
-    : buildOfferImportRows(
+    : readOfferImportRows(
         table,
         mapping,
-        await loadOfferImportContext(req.scope, sellerId, table, mapping, await loadShopSetup(req.scope, sellerId))
+        await loadOfferImportContext(req.scope, sellerId, table, mapping, await loadShopSetup(req.scope, sellerId)),
+        { may_price: await mayPriceOffers(req) }
       )
   const count = (action: OfferImportRow["action"]) => rows.filter((r) => r.action === action).length
 

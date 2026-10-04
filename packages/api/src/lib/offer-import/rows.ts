@@ -196,7 +196,7 @@ type SheetState = {
   updatedRows: Map<string, number>
 }
 
-const failed = ({ row, errors, warnings }: RowRead, title: string | null): OfferImportRow => ({
+const failed = ({ row, errors, warnings }: Pick<RowRead, "row" | "errors" | "warnings">, title: string | null): OfferImportRow => ({
   row,
   title,
   action: null,
@@ -318,6 +318,43 @@ function newOfferRow(read: RowRead, match: CatalogueVariant | undefined, sheet: 
     offer: { variant_id: null, product_id: null, ...offer },
     proposal: toProposal(name, values),
   }
+}
+
+/**
+ * Reads the sheet for the member importing it. One who may not price the shop's
+ * offers neither sees nor sets costs, and can't change offers the shop already
+ * has; they may still add new ones.
+ */
+export function readOfferImportRows(
+  table: CsvTable,
+  mapping: ImportMapping,
+  context: OfferImportContext,
+  member: { may_price: boolean }
+): OfferImportRow[] {
+  if (member.may_price) return buildOfferImportRows(table, mapping, context)
+  const restricted = withoutCosts(mapping, context)
+  return refuseUpdates(buildOfferImportRows(table, restricted.mapping, restricted.context))
+}
+
+/**
+ * The sheet as a member who may not price offers reads it: the cost column is
+ * left unread and the shop's costs unknown, so neither shows in any row or
+ * warning.
+ */
+export function withoutCosts(mapping: ImportMapping, context: OfferImportContext) {
+  return {
+    mapping: Object.fromEntries(Object.entries(mapping).filter(([, field]) => field !== "cost_price")),
+    context: { ...context, offers: context.offers.map((o) => ({ ...o, cost: null })) },
+  }
+}
+
+/** Rows as a member who may not price offers may import them: none changes an offer the shop already has. */
+export function refuseUpdates(rows: OfferImportRow[]): OfferImportRow[] {
+  return rows.map((row) =>
+    row.action === "update"
+      ? failed({ row: row.row, errors: ["Only owners and managers can change offers the shop already sells."], warnings: row.warnings }, row.title)
+      : row
+  )
 }
 
 /** Whether a column's cell already failed to read, so its field isn't also reported missing. */

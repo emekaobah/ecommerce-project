@@ -1,16 +1,10 @@
 import { validateAndTransformBody, validateAndTransformQuery, type MiddlewareRoute } from "@medusajs/framework/http"
-import { PolicyOperation } from "@medusajs/framework/utils"
+import { MAY_CREATE_OFFERS, MAY_PRICE_OFFERS } from "./permissions"
 import { VendorGetOfferCosts, VendorPreviewOfferImport, VendorRunOfferImport } from "./validators"
 
 // Medusa checks a route's RBAC policies (as Mercur's own vendor routes declare
 // them), though its public route type leaves the field out.
 type PolicedRoute = MiddlewareRoute & { policies: { resource: string; operation: string }[] }
-
-// A shop's import creates offers, so it needs the role that may create them:
-// fulfilment staff are refused. Cost prices are for those who may price offers:
-// owners and managers (#37).
-const MAY_CREATE_OFFERS = [{ resource: "offer", operation: PolicyOperation.create }]
-const MAY_PRICE_OFFERS = [{ resource: "offer", operation: PolicyOperation.update }]
 
 export const vendorOfferImportMiddlewares: PolicedRoute[] = [
   { method: ["GET"], matcher: "/vendor/offer-import", middlewares: [], policies: MAY_CREATE_OFFERS },
