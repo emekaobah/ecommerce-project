@@ -88,8 +88,8 @@ const FALSE = new Set(["no", "n", "false", "0"])
 const listOf = (cell: string, separator: RegExp) => cell.split(separator).map((s) => s.trim()).filter(Boolean)
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
 
-/** One cell read into the value its field takes. */
-function readCell(field: ImportField, column: string, cell: string, catalogue: ImportCatalogue): Parsed<unknown> {
+/** One cell read into the value its field takes. Shared with the shop offer import (lib/offer-import). */
+export function readCell(field: ImportField, column: string, cell: string, catalogue: Pick<ImportCatalogue, "categories" | "attributes">): Parsed<unknown> {
   switch (field.kind) {
     case "barcode":
       return parseBarcode(cell)
