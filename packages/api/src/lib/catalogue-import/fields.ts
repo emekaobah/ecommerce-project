@@ -100,7 +100,7 @@ export function normaliseHeader(header: string): string {
 }
 
 /** A first mapping for a file never imported before: each field to the first column whose name matches it. */
-export function suggestMapping(headers: string[], fields: ImportField[]): ImportMapping {
+export function suggestMapping(headers: string[], fields: Pick<ImportField, "key" | "aliases">[]): ImportMapping {
   const mapping: ImportMapping = {}
   const taken = new Set<string>()
   for (const header of headers) {

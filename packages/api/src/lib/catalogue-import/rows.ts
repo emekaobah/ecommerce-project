@@ -88,8 +88,41 @@ const FALSE = new Set(["no", "n", "false", "0"])
 const listOf = (cell: string, separator: RegExp) => cell.split(separator).map((s) => s.trim()).filter(Boolean)
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
 
-/** One cell read into the value its field takes. */
-function readCell(field: ImportField, column: string, cell: string, catalogue: ImportCatalogue): Parsed<unknown> {
+/** A category by name or handle; a path such as "Groceries > Rice & Grains" names its last category. */
+function readCategory(cell: string, categories: ImportCatalogue["categories"]): Parsed<string> {
+  const name = listOf(cell, /[>/]/).pop() ?? ""
+  const category = categories.find((c) => same(c.name, name) || same(c.handle, name))
+  return category ? { ok: true, value: category.id } : { ok: false, error: `No category named "${cell}".` }
+}
+
+function readImages(cell: string): Parsed<string[]> {
+  const urls = listOf(cell, /[\s,|;]+/)
+  const bad = urls.find((u) => !/^https?:\/\/\S+$/i.test(u))
+  return bad ? { ok: false, error: `"${bad}" is not a web address.` } : { ok: true, value: urls }
+}
+
+/** A select attribute's value ids; a multi-select cell lists its values split by "|" or ";". */
+function readSelect(field: ImportField, cell: string, attributes: CatalogueAttribute[]): Parsed<string[]> {
+  const attribute = attributes.find((a) => `attribute:${a.id}` === field.key)!
+  const names = field.kind === "multi_select" ? listOf(cell, /[|;]/) : [cell.trim()]
+  const ids: string[] = []
+  for (const name of names) {
+    const value = attribute.values.find((v) => same(v.name, name))
+    if (!value) return { ok: false, error: `"${name}" is not one of: ${attribute.values.map((v) => v.name).join(", ")}.` }
+    ids.push(value.id)
+  }
+  return { ok: true, value: ids }
+}
+
+function readToggle(cell: string): Parsed<boolean> {
+  const answer = cell.trim().toLowerCase()
+  if (TRUE.has(answer)) return { ok: true, value: true }
+  if (FALSE.has(answer)) return { ok: true, value: false }
+  return { ok: false, error: `"${cell}" is not yes or no.` }
+}
+
+/** One cell read into the value its field takes. Shared with the shop offer import (lib/offer-import). */
+export function readCell(field: ImportField, column: string, cell: string, catalogue: Pick<ImportCatalogue, "categories" | "attributes">): Parsed<unknown> {
   switch (field.kind) {
     case "barcode":
       return parseBarcode(cell)
@@ -99,37 +132,15 @@ function readCell(field: ImportField, column: string, cell: string, catalogue: I
       return parseWeight(cell, headerUnit(column, "weight"))
     case "length":
       return parseLength(cell, headerUnit(column, "length"))
-    case "category": {
-      // A path such as "Groceries > Rice & Grains" names its last category.
-      const name = listOf(cell, /[>/]/).pop() ?? ""
-      const category = catalogue.categories.find((c) => same(c.name, name) || same(c.handle, name))
-      return category ? { ok: true, value: category.id } : { ok: false, error: `No category named "${cell}".` }
-    }
-    case "images": {
-      const urls = listOf(cell, /[\s,|;]+/)
-      const bad = urls.find((u) => !/^https?:\/\/\S+$/i.test(u))
-      return bad ? { ok: false, error: `"${bad}" is not a web address.` } : { ok: true, value: urls }
-    }
+    case "category":
+      return readCategory(cell, catalogue.categories)
+    case "images":
+      return readImages(cell)
     case "single_select":
-    case "multi_select": {
-      const attribute = catalogue.attributes.find((a) => `attribute:${a.id}` === field.key)!
-      const names = field.kind === "multi_select" ? listOf(cell, /[|;]/) : [cell.trim()]
-      const ids: string[] = []
-      for (const name of names) {
-        const value = attribute.values.find((v) => same(v.name, name))
-        if (!value) {
-          return { ok: false, error: `"${name}" is not one of: ${attribute.values.map((v) => v.name).join(", ")}.` }
-        }
-        ids.push(value.id)
-      }
-      return { ok: true, value: ids }
-    }
-    case "toggle": {
-      const answer = cell.trim().toLowerCase()
-      if (TRUE.has(answer)) return { ok: true, value: true }
-      if (FALSE.has(answer)) return { ok: true, value: false }
-      return { ok: false, error: `"${cell}" is not yes or no.` }
-    }
+    case "multi_select":
+      return readSelect(field, cell, catalogue.attributes)
+    case "toggle":
+      return readToggle(cell)
     default:
       return { ok: true, value: cell.trim() }
   }

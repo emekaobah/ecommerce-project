@@ -132,6 +132,8 @@ module.exports = withMercur({
     { resolve: './src/modules/wishlist' },
     // Each seller order's place in the fulfilment state machine, and its refunds (#20).
     { resolve: './src/modules/order-fulfilment' },
+    // Shops' private offer cost prices and their saved import mappings (#37).
+    { resolve: './src/modules/offer-import' },
     {
       resolve: '@medusajs/medusa/file',
       options: {

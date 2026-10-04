@@ -143,7 +143,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 - **Extra fields** (care instructions, voltage, fabric…) are Mercur category attributes, starting with a small set for grocery, fashion, electronics.
 - **Units:** weight in grams, dimensions in cm; importer parses "1.5kg", "30cm"; Shipbubble provider converts to kg.
 - **A shop's own discounts are shown; other shops' prices never are.** Shops fear losing buyers to a cheaper competitor, so no screen compares one shop's price with another's. A shop may still discount its own offer and show it: its normal price crossed out beside the sale price (`@oja/domain` `offerPrice`, #13). Sale prices come from sellers' price lists in the vendor panel and must be scoped to the seller's own offer, never the shared variant, or one shop's sale would change a competitor's price (#49). Cart-level promotions (codes, automatic deals) discount only that shop's items (#30).
-- **Cost price** stored privately on the offer, visible to owner/manager role only; v1 use: below-cost warning.
+- **Cost price** stored privately on the offer, visible to owner/manager role only; v1 use: below-cost warning. Kept in the `offer-import` module beside the offer (not in its metadata, which fulfilment staff can read), and served by `GET /vendor/offer-costs` behind the `offer:update` RBAC policy, which fulfilment staff lack (#37).
 - **Stock** optional; if absent, treat as in stock / not tracked and rely on the pick-time out-of-stock path.
 
 ## Multi-country readiness (v1 ships NG only)

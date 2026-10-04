@@ -38,6 +38,7 @@ export async function importRows(
   options: { created_by: string }
 ): Promise<ImportResult[]> {
   const results: ImportResult[] = []
+  // One row at a time, in sheet order: each is its own workflow, so a refused row rolls back only itself.
   for (const row of rows) {
     const base = { row: row.row, title: row.title, errors: row.errors, warnings: row.warnings, missing: [] }
     if (!row.product) {
@@ -68,7 +69,11 @@ export async function importRows(
  * The enrichable fields the sheet filled in. A row without a title is named after
  * its barcode until a source names it, so that title isn't supplied.
  */
-function suppliedFields(product: ImportProduct): EnrichableField[] {
+export function suppliedFields(
+  product: Pick<ImportProduct, "title" | "description" | "weight" | "images" | "categories"> & {
+    variants: [{ barcode?: string; ean?: string; upc?: string }]
+  }
+): EnrichableField[] {
   const [variant] = product.variants
   const standIn = [variant.barcode, variant.ean, variant.upc].includes(product.title)
   const supplied: EnrichableField[] = []

@@ -13,6 +13,7 @@ import { VendorRejectOrder } from "./vendor/orders/validators";
 import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
+import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares";
 
 export default defineMiddlewares({
     routes: [
@@ -90,7 +91,7 @@ export default defineMiddlewares({
         },
         { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },
-        // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows.
+        // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows (lib/catalogue-import/sheet).
         {
             method: ["POST"],
             matcher: "/admin/catalogue-import",
@@ -103,6 +104,8 @@ export default defineMiddlewares({
             bodyParser: { sizeLimit: "5mb" },
             middlewares: [validateAndTransformBody(AdminPreviewCatalogueImport)],
         },
+        // A shop's own product list, imported as offers and proposals, and its private cost prices (#37).
+        ...vendorOfferImportMiddlewares,
         {
             method: ["GET"],
             matcher: "/admin/catalogue-enrichment",
