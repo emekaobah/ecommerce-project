@@ -23,6 +23,12 @@ export type DeliveryAddress = {
 /** A point on the map, in degrees. */
 export type Pin = { latitude: number; longitude: number }
 
+/** The pin the buyer confirmed for an address, read back from its metadata; null without a whole one. */
+export function pinOf(address: { metadata?: Record<string, unknown> | null } | null | undefined): Pin | null {
+  const { latitude, longitude } = address?.metadata ?? {}
+  return typeof latitude === "number" && typeof longitude === "number" ? { latitude, longitude } : null
+}
+
 /** Six decimal places is about 11 cm, finer than any pin a finger places. */
 const toMicroDegrees = (degrees: number) => Math.round(degrees * 1e6) / 1e6
 

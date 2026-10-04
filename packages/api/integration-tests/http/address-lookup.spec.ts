@@ -134,7 +134,19 @@ medusaIntegrationTestRunner({
       it("is not found outside the region's countries", async () => {
         const cartId = await newCart()
 
-        expect(await status(details(cartId, PLACES.accra.id))).toBe(404)
+        const res = await details(cartId, PLACES.accra.id).catch((e) => e.response)
+
+        expect(res.status).toBe(404)
+        expect(res.data.message).toMatch(/don't deliver/)
+      })
+
+      it("is not found when Google has no such place", async () => {
+        const cartId = await newCart()
+
+        const res = await details(cartId, "ChIJ-nowhere").catch((e) => e.response)
+
+        expect(res.status).toBe(404)
+        expect(res.data.message).toMatch(/couldn't find this place/)
       })
 
       it("is for signed-in buyers with their own cart only", async () => {

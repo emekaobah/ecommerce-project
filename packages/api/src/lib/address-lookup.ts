@@ -49,7 +49,8 @@ export async function placeAddress(
 ): Promise<LookedUpPlace> {
   const { provider, countries } = await lookupFor(scope, cartId, customerId)
   const place = await provider.details({ placeId, sessionToken })
-  if (!place?.country_code || !countries.includes(place.country_code.toLowerCase())) {
+  if (!place) throw new MedusaError(MedusaError.Types.NOT_FOUND, "We couldn't find this place. Search again.")
+  if (!place.country_code || !countries.includes(place.country_code.toLowerCase())) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "We don't deliver to this place")
   }
   return place

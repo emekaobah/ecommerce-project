@@ -28,9 +28,11 @@ export function PinMap({
   onCancel: () => void;
 }>) {
   const theme = useTheme();
-  const [pin, setPin] = useState<Pin | null>(request?.at ?? null);
-  // Each time the map opens, the pin starts where it was asked to.
-  useEffect(() => setPin(request?.at ?? null), [request]);
+  // A found place or the buyer's location is a pin to adjust. A state or the country is only
+  // where the map opens: the buyer places the pin themselves.
+  const startingPin = (asked: PinRequest | null) => (asked?.zoom === 'place' ? asked.at : null);
+  const [pin, setPin] = useState<Pin | null>(() => startingPin(request));
+  useEffect(() => setPin(startingPin(request)), [request]);
 
   const span = request ? SPAN[request.zoom] : SPAN.country;
   return (

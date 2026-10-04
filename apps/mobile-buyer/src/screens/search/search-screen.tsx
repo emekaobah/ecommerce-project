@@ -7,10 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCategories } from '@/api/categories';
 import { useListings } from '@/api/listings';
 import { ShopResults } from '@/components/shop-results';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { openCategory } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
-
-import { useDebouncedValue } from './use-debounced-value';
 
 /** Search by product name; with no query, browse by category. */
 export function SearchScreen() {

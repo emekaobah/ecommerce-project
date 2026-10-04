@@ -9,6 +9,13 @@ type Address = { metadata?: Record<string, unknown> | null; [key: string]: unkno
 
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object"
 
+/** An object literal, as opposed to a class instance (a Date, Medusa's BigNumber) that serialises itself. */
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (!isObject(value)) return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
 function withoutPin(address: unknown): unknown {
   if (!isObject(address) || !isObject(address.metadata)) return address
   const { latitude: _latitude, longitude: _longitude, ...metadata } = (address as Address).metadata!
@@ -18,7 +25,7 @@ function withoutPin(address: unknown): unknown {
 /** The response with the pin left out of every buyer address in it, however deep. */
 export function withoutBuyerPins<T>(body: T): T {
   if (Array.isArray(body)) return body.map(withoutBuyerPins) as T
-  if (!isObject(body) || body instanceof Date) return body
+  if (!isPlainObject(body)) return body
   return Object.fromEntries(
     Object.entries(body).map(([key, value]) => {
       const inner = withoutBuyerPins(value)

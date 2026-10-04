@@ -5,6 +5,7 @@ import {
   deliveryEstimate,
   formatMoney,
   getAddressConfig,
+  pinOf,
   type AddressFieldKey,
   type AddressFormValues,
   type DeliveryTag,
@@ -37,12 +38,6 @@ import { AddressEntry } from './address-entry';
  * a page on the API that the payment WebView catches and never loads (see pay-screen).
  */
 export const PAYMENT_RETURN_URL = `${env.apiUrl}/paystack/return`;
-
-/** The pin the buyer confirmed for an address, kept in its metadata (ADR 0002). */
-function pinOf(address: Checkout['shipping_address']): Pin | null {
-  const { latitude, longitude } = address?.metadata ?? {};
-  return typeof latitude === 'number' && typeof longitude === 'number' ? { latitude, longitude } : null;
-}
 
 /** How the buyer came back from Paystack without paying: Paystack's cancel, or closing its page. */
 type PaymentLeft = Extract<PaymentReturn['kind'], 'cancelled'> | 'closed';

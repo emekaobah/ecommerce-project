@@ -36,12 +36,15 @@ async function fetchSuggestions(cartId: string, sessionToken: string, input: str
 
 export type AddressSuggestion = Awaited<ReturnType<typeof fetchSuggestions>>[number];
 
-/** Places matching what the buyer typed (already debounced), from three characters on. */
+/** How much the buyer types before suggestions are looked up. */
+export const MIN_SEARCH_LENGTH = 3;
+
+/** Places matching what the buyer typed (already debounced), from `MIN_SEARCH_LENGTH` characters on. */
 export function useAddressSuggestions(cartId: string, sessionToken: string, input: string) {
   const text = input.trim();
   return useQuery({
     queryKey: addressLookupKeys.suggestions(cartId, sessionToken, text),
-    queryFn: text.length >= 3 ? () => fetchSuggestions(cartId, sessionToken, text) : skipToken,
+    queryFn: text.length >= MIN_SEARCH_LENGTH ? () => fetchSuggestions(cartId, sessionToken, text) : skipToken,
     // The last list stays up while the next one loads, so it doesn't flicker as they type.
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,

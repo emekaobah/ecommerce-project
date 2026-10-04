@@ -29,6 +29,21 @@ describe("withoutBuyerPins", () => {
     expect(withoutBuyerPins(seller)).toEqual(seller)
   })
 
+  it("passes values that serialise themselves, like Medusa's BigNumber, through untouched", () => {
+    class Amount {
+      constructor(private readonly value: number) {}
+      toJSON() {
+        return this.value
+      }
+    }
+    const total = new Amount(42800)
+
+    const seen = withoutBuyerPins({ order: { total, shipping_address: pinned() } })
+
+    expect(seen.order.total).toBe(total)
+    expect(JSON.parse(JSON.stringify(seen)).order.total).toBe(42800)
+  })
+
   it("leaves an address without a pin, or none, alone", () => {
     const body = { order: { shipping_address: { address_1: "x", metadata: null }, billing_address: null }, at: new Date(0) }
 

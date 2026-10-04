@@ -118,7 +118,9 @@ export class GoogleAddressLookup implements AddressLookupProvider {
     const { status, body } = await this.places<DetailsResponse>(`/places/${encodeURIComponent(placeId)}?${query}`, {
       headers: { "X-Goog-FieldMask": ESSENTIALS_FIELD_MASK },
     })
-    if (status === 404 || (status === 400 && /not.*valid|invalid/i.test(JSON.stringify(body)))) return null
+    // Google answers a place id it doesn't know with 404, or 400 when the id isn't one of its ids.
+    const problem = (body as { error?: { status?: string } } | null)?.error?.status
+    if (status === 404 || (status === 400 && problem === "INVALID_ARGUMENT")) return null
     if (status !== 200 || !body?.location) GoogleAddressLookup.refused(status, body)
     return placeOf(body.formattedAddress ?? "", body.location, body.addressComponents ?? [])
   }
@@ -128,10 +130,8 @@ export class GoogleAddressLookup implements AddressLookupProvider {
     const { status, body } = await this.request<GeocodeResponse>(`${this.geocodingUrl}?${query}`)
     if (body?.status === "ZERO_RESULTS") return null
     if (status !== 200 || body?.status !== "OK") {
-      throw new MedusaError(
-        MedusaError.Types.UNEXPECTED_STATE,
-        `Google refused the address lookup: ${body?.error_message ?? body?.status ?? `HTTP ${status}`}`
-      )
+      // The Geocoding API reports its own refusals in the body, beside a 200.
+      GoogleAddressLookup.refused(status, { error: { message: body?.error_message ?? body?.status } })
     }
     // Results run from the most precise (a street address) to the country.
     const places = (body.results ?? []).map((r) =>

@@ -1,5 +1,5 @@
 import { getAddressConfig } from "./address"
-import type { AddressFormValues } from "./address-form"
+import type { AddressFormValues, Pin } from "./address-form"
 
 /**
  * Names an address lookup provider uses for a state that aren't on the country's list, by
@@ -42,7 +42,7 @@ export function stateFromLookup(name: string | null | undefined, countryCode: st
 export type LookedUpPlace = {
   formatted_address: string
   /** The provider's position for the place; the buyer's pin, not this, is kept (ADR 0002). */
-  location: { latitude: number; longitude: number }
+  location: Pin
   /** ISO 3166-1 alpha-2. */
   country_code: string | null
   /** House number and street, e.g. "3 Akin Adesola Street". */
@@ -66,10 +66,8 @@ export function formFromLookup(place: LookedUpPlace, countryCode: string): Addre
   }
 }
 
-type Point = { latitude: number; longitude: number }
-
 /** Where each country's map opens: the country, and each state (Google's geocode of it, 2026-10-04). */
-const MAP_CENTRES: Record<string, { country: Point; states: Record<string, Point> }> = {
+const MAP_CENTRES: Record<string, { country: Pin; states: Record<string, Pin> }> = {
   NG: {
     country: { latitude: 9.082, longitude: 8.6753 },
     states: {
@@ -118,7 +116,7 @@ const MAP_CENTRES: Record<string, { country: Point; states: Record<string, Point
  * Where the pin map opens for an address entered by hand with location off: the chosen state,
  * or the whole country before one is chosen. `zoom` says which, for how close to show it.
  */
-export function mapCentre(state: string | null | undefined, countryCode: string): Point & { zoom: "state" | "country" } {
+export function mapCentre(state: string | null | undefined, countryCode: string): Pin & { zoom: "state" | "country" } {
   const { countryCode: code } = getAddressConfig(countryCode)
   const centres = MAP_CENTRES[code]
   if (!centres) throw new Error(`No map centre for country ${code}`)

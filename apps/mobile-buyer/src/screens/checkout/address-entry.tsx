@@ -12,8 +12,14 @@ import * as Location from 'expo-location';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
-import { newLookupSession, useAddressAt, useAddressSuggestions, usePlaceAddress } from '@/api/address-lookup';
-import { useDebouncedValue } from '@/screens/search/use-debounced-value';
+import {
+  MIN_SEARCH_LENGTH,
+  newLookupSession,
+  useAddressAt,
+  useAddressSuggestions,
+  usePlaceAddress,
+} from '@/api/address-lookup';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { AddressForm } from './address-form';
 import { PinMap, type PinRequest } from './pin-map';
@@ -57,7 +63,8 @@ export function AddressEntry({
   onChange: (key: AddressFieldKey, value: string) => void;
   /** The form's location fields, filled from a place found by search or location. */
   onPlace: (values: AddressFormValues) => void;
-  onPin: (pin: Pin) => void;
+  /** The confirmed pin; null when a new place makes the old one stale. */
+  onPin: (pin: Pin | null) => void;
   /** Shows what each wrong field needs; false while any is wrong. */
   validate: () => boolean;
   onSave: (pin: Pin) => void;
@@ -72,8 +79,10 @@ export function AddressEntry({
   const [notice, setNotice] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
 
+  /** A new place: its address fills the form, and the old pin no longer marks it. */
   const fill = (place: LookedUpPlace | null) => {
     if (place) onPlace(formFromLookup(place, config.countryCode));
+    onPin(null);
     setMode('form');
   };
 
@@ -160,7 +169,14 @@ export function AddressEntry({
 
       {mode === 'form' ? (
         <>
-          <Button label="Search for an address" variant="link" onPress={() => setMode('search')} />
+          <Button
+            label="Search for an address"
+            variant="link"
+            onPress={() => {
+              onPin(null);
+              setMode('search');
+            }}
+          />
           <AddressForm config={config} values={values} errors={errors} onChange={onChange} />
           <View style={[styles.spread, { gap: theme.space.md }]}>
             <Text tone="secondary" style={styles.shrink}>
@@ -214,7 +230,7 @@ function AddressSearch({ cartId, onFound }: Readonly<{ cartId: string; onFound: 
     );
 
   const error = placeAddress.error ?? suggestions.error;
-  const list = settled.trim().length >= 3 ? suggestions.data : undefined;
+  const list = settled.trim().length >= MIN_SEARCH_LENGTH ? suggestions.data : undefined;
   return (
     <View style={{ gap: theme.space.sm }}>
       <Text variant="label">Find your address</Text>
@@ -240,6 +256,12 @@ function AddressSearch({ cartId, onFound }: Readonly<{ cartId: string; onFound: 
           },
         ]}
       />
+      {placeAddress.isPending ? (
+        <Text tone="secondary" accessibilityLiveRegion="polite">
+          Finding the address…
+        </Text>
+      ) : null}
+      {!list && suggestions.isFetching ? <Text tone="secondary">Searching…</Text> : null}
       {list?.map((suggestion) => (
         <ListRow
           key={suggestion.place_id}
