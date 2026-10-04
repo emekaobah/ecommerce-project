@@ -48,6 +48,22 @@ export function usePrepareCheckout(cartId: string) {
   });
 }
 
+/** Picks one shop's delivery from the choices checkout quoted it (best value, cheapest, fastest). */
+export function useChooseDelivery(cartId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sellerId, choiceId }: { sellerId: string; choiceId: string }) => {
+      const { checkout } = await storeClient.store.carts.$id.checkout.delivery.mutate({
+        $id: cartId,
+        seller_id: sellerId,
+        choice_id: choiceId,
+      });
+      return checkout;
+    },
+    onSuccess: (checkout) => queryClient.setQueryData(checkoutKeys.detail(cartId), checkout),
+  });
+}
+
 /** Starts a Paystack payment; each call starts a fresh one, so it is also the retry. */
 export function useStartPayment(cartId: string) {
   return useMutation({
