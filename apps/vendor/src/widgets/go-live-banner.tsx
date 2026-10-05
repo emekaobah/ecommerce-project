@@ -1,20 +1,15 @@
 import { ExclamationCircle } from "@medusajs/icons"
 import { Container, Text } from "@medusajs/ui"
 import { defineWidgetConfig } from "@mercurjs/dashboard-sdk"
-import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
-import { client } from "../lib/client"
-import { ONBOARDING_QUERY_KEY, type Onboarding } from "../routes/shop-setup/types"
+import { useOnboarding } from "../routes/shop-setup/types"
 
 // Until the shop is live, buyers can't see its offers (#26): say so where staff look at
 // orders and offers, and link to what is missing.
 const GoLiveBanner = () => {
   const { t } = useTranslation()
-  const { data } = useQuery<Onboarding>({
-    queryKey: ONBOARDING_QUERY_KEY,
-    queryFn: async () => (await client.vendor.onboarding.query()).onboarding,
-  })
+  const { data } = useOnboarding()
   if (!data || data.is_live) return null
   const missing = data.steps.filter((s) => !s.is_complete).map((s) => t(`shopSetup.steps.${s.key}`))
 

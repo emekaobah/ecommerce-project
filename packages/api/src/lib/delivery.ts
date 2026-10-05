@@ -69,7 +69,8 @@ const DEFAULT_DIMENSION_CM = 10
 /** When a product has no weight, grams. Publishing requires one (#33), so this is rare. */
 const DEFAULT_WEIGHT_G = 1000
 
-const ADDRESS_CODE = "shipbubble_address_code"
+/** Where an address keeps the code Shipbubble validated it as, in its metadata (ADR 0002). */
+export const ADDRESS_CODE = "shipbubble_address_code"
 
 const numberOrNull = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null)
 

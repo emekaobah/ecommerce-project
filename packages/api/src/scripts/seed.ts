@@ -22,6 +22,7 @@ import {
   createSellerAccountWorkflow,
   createSellerMembersStep,
   createSellerShippingOptionsWorkflow,
+  updateSellerAddressWorkflow,
   createSellerStockLocationsWorkflow,
   upsertMembersStep,
 } from "@mercurjs/core/workflows";
@@ -68,7 +69,7 @@ import {
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack";
 import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble";
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account";
-import { addressCodeOf, senderAddressCode } from "../lib/delivery";
+import { ADDRESS_CODE, addressCodeOf, validatedPickupChange } from "../lib/delivery";
 import { saveBankAccount } from "../lib/onboarding";
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account";
 import { errorMessage } from "../lib/errors";
@@ -664,23 +665,22 @@ async function seedOnboarding(container: MedusaContainer, seller: SeededSeller) 
     data: [row],
   } = await query.graph({ entity: "seller", fields: ["id", "currency_code", "address.id", "address.metadata"], filters: { id: seller.id } });
 
-  if (addressCodeOf(row.address) == null) {
-    if (process.env.SHIPBUBBLE_API_KEY) {
-      await senderAddressCode(container, seller.id);
-    } else {
-      await (container.resolve(MercurModules.SELLER) as any).updateSellerAddresses({
-        id: row.address!.id,
-        metadata: { ...row.address!.metadata, shipbubble_address_code: UNVALIDATED_ADDRESS_CODE },
-      });
-    }
+  // A placeholder from a seed run without Shipbubble is replaced once Shipbubble is configured.
+  const code = addressCodeOf(row.address);
+  const shipbubble = !!process.env.SHIPBUBBLE_API_KEY;
+  if (code == null || (shipbubble && code === UNVALIDATED_ADDRESS_CODE)) {
+    const { metadata } = shipbubble
+      ? await validatedPickupChange(container, seller.id, {})
+      : { metadata: { ...row.address!.metadata, [ADDRESS_CODE]: UNVALIDATED_ADDRESS_CODE } };
+    await updateSellerAddressWorkflow(container).run({ input: { seller_id: seller.id, data: { metadata } } });
   }
 
   const [account] = await container
     .resolve<ShopBankAccountModuleService>(SHOP_BANK_ACCOUNT_MODULE)
     .listShopBankAccounts({ seller_id: seller.id });
-  if (account) return;
   const { bank } = seller.config;
   if (!paystackClient()) {
+    if (account) return;
     await saveShopBankAccountWorkflow(container).run({
       input: {
         seller_id: seller.id,
@@ -694,6 +694,8 @@ async function seedOnboarding(container: MedusaContainer, seller: SeededSeller) 
     });
     return;
   }
+  // As above: a placeholder recipient is replaced once Paystack is configured.
+  if (account && account.recipient_code !== UNVERIFIED_RECIPIENT) return;
   try {
     await saveBankAccount(container, seller.id, { bank_code: bank.bank_code, account_number: bank.account_number });
   } catch (error) {

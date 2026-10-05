@@ -6,13 +6,8 @@ import { liveSellerIds } from "../../lib/onboarding"
 type Query = { graph: (config: GraphConfig, ...rest: unknown[]) => Promise<unknown> }
 type GraphConfig = { entity: string; filters?: Record<string, unknown> } & Record<string, unknown>
 
-/** The ids a filter on `key` asks for, narrowed to `allowed`; all of `allowed` when it asks for none. */
-function narrowed(filters: Record<string, unknown> | undefined, key: string, allowed: Set<string>): string[] {
-  const asked = filters?.[key]
-  if (asked == null) return [...allowed]
-  const ids = (Array.isArray(asked) ? asked : [asked]).filter((id): id is string => typeof id === "string")
-  return ids.filter((id) => allowed.has(id))
-}
+/** The column each entity Mercur's store routes read is narrowed on to hide shops that aren't live. */
+const SHOP_COLUMN: Record<string, string> = { offer: "seller_id", seller: "id" }
 
 /**
  * The request's container, with every query it makes for offers or sellers narrowed to live
@@ -23,8 +18,11 @@ function narrowed(filters: Record<string, unknown> | undefined, key: string, all
 function scopeOfLiveShops(scope: MedusaContainer, live: Set<string>): MedusaContainer {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY) as Query
   const graph = (config: GraphConfig, ...rest: unknown[]) => {
-    const key = config.entity === "offer" ? "seller_id" : config.entity === "seller" ? "id" : null
-    const filters = key ? { ...config.filters, [key]: narrowed(config.filters, key, live) } : config.filters
+    const column = SHOP_COLUMN[config.entity]
+    if (!column) return query.graph(config, ...rest)
+    // An added condition, so whatever the route already filters on (a list, an operator) still holds.
+    const and = Array.isArray(config.filters?.$and) ? config.filters.$and : []
+    const filters = { ...config.filters, $and: [...and, { [column]: [...live] }] }
     return query.graph({ ...config, filters }, ...rest)
   }
   const liveQuery = Object.create(query, { graph: { value: graph } })

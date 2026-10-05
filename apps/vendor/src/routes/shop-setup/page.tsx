@@ -1,12 +1,11 @@
 import { CheckCircleSolid, ExclamationCircle, ShoppingBag } from "@medusajs/icons"
 import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import type { RouteConfig } from "@mercurjs/dashboard-sdk"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { client } from "../../lib/client"
 import { BankAccountForm } from "./bank-account-form"
 import { PickupAddressForm } from "./pickup-address-form"
-import { ONBOARDING_QUERY_KEY, type Onboarding } from "./types"
+import { ONBOARDING_QUERY_KEY, useOnboarding, type Onboarding } from "./types"
 
 // eslint-disable-next-line react-refresh/only-export-components -- the dashboard SDK reads the sidebar entry from this export
 export const config: RouteConfig = {
@@ -28,10 +27,7 @@ export const handle = {
 const ShopSetupPage = () => {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { data, isError } = useQuery<Onboarding>({
-    queryKey: ONBOARDING_QUERY_KEY,
-    queryFn: async () => (await client.vendor.onboarding.query()).onboarding,
-  })
+  const { data, isError } = useOnboarding()
   const saved = (onboarding: Onboarding) => queryClient.setQueryData(ONBOARDING_QUERY_KEY, onboarding)
 
   return (

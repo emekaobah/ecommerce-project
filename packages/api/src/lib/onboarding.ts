@@ -37,8 +37,8 @@ async function gatesOf(scope: MedusaContainer, sellerIds: string[]): Promise<Map
     (data as SellerRow[]).map((seller) => [
       seller.id,
       {
-        // A Shipbubble code is only ever stored on a pickup address Shipbubble validated
-        // (workflows/hooks/pickup-address.ts).
+        // A Shipbubble code is only stored on a pickup address Shipbubble validated: every route
+        // that saves one validates it first (`validatedPickupChange` in lib/delivery.ts).
         pickup_address: addressCodeOf(seller.address) != null,
         bank_account: paid.has(seller.id),
       },
@@ -60,7 +60,8 @@ export async function liveSellerIds(scope: MedusaContainer): Promise<string[]> {
 
 /** Whether the shop is live: buyers can see it and add its offers to a cart. */
 export async function isLive(scope: MedusaContainer, sellerId: string): Promise<boolean> {
-  return (await liveSellerIds(scope)).includes(sellerId)
+  const [visible, gates] = await Promise.all([resolveVisibleSellerIds(scope), gatesOf(scope, [sellerId])])
+  return visible.includes(sellerId) && allPassed(gates.get(sellerId))
 }
 
 type PickupAddress = DeliveryAddress & { id: string; postal_code?: string | null }
@@ -96,16 +97,16 @@ export async function onboardingOf(scope: MedusaContainer, sellerId: string): Pr
   const { data } = await query.graph({ entity: "seller", fields: ["id", "status", "currency_code", "address.*"], filters: { id: sellerId } })
   const seller = data[0] as OnboardingSellerRow | undefined
   if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Seller ${sellerId} not found`)
-  const [gates, live, [account]] = await Promise.all([
+  const [gates, visible, [account]] = await Promise.all([
     gatesOf(scope, [sellerId]),
-    isLive(scope, sellerId),
+    resolveVisibleSellerIds(scope),
     scope.resolve<ShopBankAccountModuleService>(SHOP_BANK_ACCOUNT_MODULE).listShopBankAccounts({ seller_id: sellerId }),
   ])
   const passed = gates.get(sellerId)
   return {
     status: seller.status,
     country_code: seller.address?.country_code ?? (await countryForCurrency(scope, seller.currency_code)),
-    is_live: live,
+    is_live: visible.includes(sellerId) && allPassed(passed),
     steps: ONBOARDING_STEPS.map((key) => ({ key, is_complete: !!passed?.[key] })),
     pickup_address: seller.address ?? null,
     bank_account: account
@@ -138,7 +139,8 @@ function requirePaystack() {
 const accountRefused = (error: unknown) =>
   error instanceof PaystackRequestError && error.status >= 400 && error.status < 500 && ![401, 403].includes(error.status)
 
-async function currencyOf(scope: MedusaContainer, sellerId: string): Promise<string> {
+/** The one currency the shop trades and is paid in. */
+export async function currencyOf(scope: MedusaContainer, sellerId: string): Promise<string> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({ entity: "seller", fields: ["id", "currency_code"], filters: { id: sellerId } })
   const seller = data[0] as { currency_code: string } | undefined
@@ -197,7 +199,7 @@ export async function saveBankAccount(
 }
 
 /** A pickup address as the vendor panel's form sends it: Medusa's columns, the rest in `metadata`. */
-export type PickupAddressForm = {
+export type PickupAddressInput = {
   country_code: string
   metadata?: { landmark?: string | null; latitude?: number; longitude?: number } | null
 } & Partial<Record<"first_name" | "last_name" | "address_1" | "address_2" | "city" | "province" | "postal_code" | "phone", string | null>>
@@ -208,7 +210,7 @@ export type PickupAddressForm = {
  * needs. The pin goes into its metadata when the owner placed one (#41); without one, any pin
  * the shop had is cleared, since it belonged to the address being replaced.
  */
-export function pickupAddressFromForm(form: PickupAddressForm) {
+export function pickupAddressFromForm(form: PickupAddressInput) {
   const country = form.country_code.toUpperCase()
   try {
     getAddressConfig(country)
