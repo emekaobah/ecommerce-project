@@ -214,6 +214,8 @@ medusaIntegrationTestRunner({
         expect(authors.offer_authors).toEqual([
           {
             offer_id: data.offer_id,
+            // The barcode is the SKU a quick-add gives the offer.
+            sku: POWER_BANK,
             added_with: "quick_add",
             added_by: { id: await memberId(grocery.staff.email), name: "Kunle Adeyemi", email: grocery.staff.email },
             added_at: expect.any(String),

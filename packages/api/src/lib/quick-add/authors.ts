@@ -6,6 +6,8 @@ type Scope = Pick<MedusaContainer, "resolve">
 /** Who added one of the shop's offers, so an owner can review what staff quick-added (#38). */
 export type OfferAuthor = {
   offer_id: string
+  /** The shop's SKU, which tells its offers on one product apart. */
+  sku: string
   /** `quick_add` when a member added it by scanning in the vendor app; null otherwise. */
   added_with: "quick_add" | null
   /** The member who created it; null if they are no longer known. */
@@ -13,7 +15,7 @@ export type OfferAuthor = {
   added_at: string
 }
 
-type OfferRow = { id: string; created_by: string; created_at: string | Date; metadata: Record<string, unknown> | null }
+type OfferRow = { id: string; sku: string; created_by: string; created_at: string | Date; metadata: Record<string, unknown> | null }
 type MemberRow = { id: string; email: string; first_name: string | null; last_name: string | null }
 
 /** Who added each of the shop's offers on the product, oldest first. */
@@ -21,7 +23,7 @@ export async function loadOfferAuthors(scope: Scope, sellerId: string, productId
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "offer",
-    fields: ["id", "created_by", "created_at", "metadata"],
+    fields: ["id", "sku", "created_by", "created_at", "metadata"],
     filters: { seller_id: sellerId, product_id: productId },
   })
   const offers = data as OfferRow[]
@@ -36,6 +38,7 @@ export async function loadOfferAuthors(scope: Scope, sellerId: string, productId
       const name = [member?.first_name, member?.last_name].filter(Boolean).join(" ")
       return {
         offer_id: offer.id,
+        sku: offer.sku,
         added_with: offer.metadata?.added_with === "quick_add" ? ("quick_add" as const) : null,
         added_by: member ? { id: member.id, name: name || null, email: member.email } : null,
         added_at: new Date(offer.created_at).toISOString(),

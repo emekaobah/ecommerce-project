@@ -101,6 +101,14 @@
     "warning": "Selling at {{price}} loses money on every sale.",
     "private": "Only owners and managers see this."
   },
+  "offerAuthors": {
+    "title": "Added by",
+    "addedBy": "Added by {{member}}",
+    "unknown": "a former member",
+    "quickAdd": "Quick-add",
+    "details": "SKU {{sku}} · {{date}}",
+    "review": "Added by scanning in the vendor app. Check its price and stock."
+  },
   "productCompleteness": {
     "title": "Completeness",
     "loading": "Loading…",
