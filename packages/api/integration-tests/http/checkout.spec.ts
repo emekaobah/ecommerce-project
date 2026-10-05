@@ -1,6 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules } from "@medusajs/framework/utils"
-import { updateOffersWorkflow } from "@mercurjs/core/workflows"
+import { deleteOffersWorkflow, updateOffersWorkflow } from "@mercurjs/core/workflows"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "../helpers/auth"
@@ -135,7 +135,7 @@ medusaIntegrationTestRunner({
         expect(data.checkout.total).toBe(TOTAL)
       })
 
-      it("reprices every line at its shop's current price", async () => {
+      it("reprices every line at its shop's current price, and says which changed", async () => {
         const cartId = await adasCart()
         const lantern = await offerId(GADGETS, LANTERN.title)
         await updateOffersWorkflow(getContainer()).run({
@@ -146,6 +146,11 @@ medusaIntegrationTestRunner({
 
         expect(data.checkout.sellers[0].items.map((i: any) => i.unit_price)).toEqual([LANTERN.price + 1000])
         expect(data.checkout.total).toBe(TOTAL + 1000)
+        expect(data.price_changes.map((c: any) => [c.product_title, c.was.unit_price, c.now.unit_price])).toEqual([
+          [LANTERN.title, LANTERN.price, LANTERN.price + 1000],
+        ])
+        // Already repriced: preparing again reports nothing new.
+        expect((await prepare(cartId)).data.price_changes).toEqual([])
       })
 
       it("asks for the address fields a delivery needs", async () => {
@@ -354,20 +359,160 @@ medusaIntegrationTestRunner({
         expect(await orderGroupOf(cartId)).toMatch(/^og_/)
         expect((await capturedWithin(cartId)).captures.map((c: any) => c.amount)).toEqual([TOTAL])
       })
+    })
 
-      it("charges each line at its shop's price when the payment starts, not when the address was set", async () => {
+    describe("repricing before payment", () => {
+      const setPrice = async (shop: Shop, title: string, amount: number) =>
+        updateOffersWorkflow(getContainer()).run({
+          input: { offers: [{ id: await offerId(shop, title), prices: [{ amount, currency_code: "ngn" }] }] },
+        })
+      /** An active price list giving the shop's offer of a product its own price; returns its id. */
+      const priceList = async (shop: Shop, title: string, type: "sale" | "override", amount: number) => {
+        const offer = await offerId(shop, title)
+        const { data: offers } = await query().graph({
+          entity: "offer",
+          fields: ["product_variant.price_set.id"],
+          filters: { id: offer },
+        })
+        const [list] = await getContainer()
+          .resolve(Modules.PRICING)
+          .createPriceLists([
+            {
+              title: `${shop.name} ${type}`,
+              description: `${shop.name}'s ${title} ${type}`,
+              type,
+              status: "active",
+              prices: [
+                {
+                  amount,
+                  currency_code: "ngn",
+                  price_set_id: offers[0].product_variant!.price_set!.id,
+                  rules: { offer_id: offer },
+                },
+              ],
+            },
+          ])
+        return list.id
+      }
+      const pay = (cartId: string) => api.post(`/store/carts/${cartId}/checkout/payment`, { return_url: RETURN_URL }, ada())
+
+      it("tells the buyer what a shop's new price is before they pay, then charges it", async () => {
         const cartId = await adasCart()
         await prepare(cartId)
-        await updateOffersWorkflow(getContainer()).run({
-          input: {
-            offers: [{ id: await offerId(GADGETS, LANTERN.title), prices: [{ amount: LANTERN.price + 1000, currency_code: "ngn" }] }],
-          },
-        })
+        await setPrice(GADGETS, LANTERN.title, LANTERN.price + 1000)
 
+        const { data } = await pay(cartId)
+
+        // No payment yet: the buyer sees the new price first.
+        expect(data.payment).toBeNull()
+        expect(data.price_changes).toEqual([
+          expect.objectContaining({
+            product_title: LANTERN.title,
+            seller: expect.objectContaining({ name: GADGETS.name }),
+            quantity: 1,
+            was: { unit_price: LANTERN.price, compare_at_unit_price: null, is_tax_inclusive: true },
+            now: { unit_price: LANTERN.price + 1000, compare_at_unit_price: null, is_tax_inclusive: true },
+          }),
+        ])
+        expect(data.checkout.total).toBe(TOTAL + 1000)
+
+        const again = await pay(cartId)
+
+        expect(again.data.price_changes).toEqual([])
+        expect(paystack.transaction(again.data.payment.reference).amount).toBe((TOTAL + 1000) * 100)
+      })
+
+      it("charges the shop's normal price once a sale ends after the buyer added the item", async () => {
+        const sale = await priceList(GADGETS, LANTERN.title, "sale", LANTERN.price - 800)
+        const cartId = await adasCart()
+        const { data: onSale } = await prepare(cartId)
+        expect(onSale.checkout.total).toBe(TOTAL - 800)
+        await getContainer().resolve(Modules.PRICING).deletePriceLists([sale])
+
+        const { data } = await pay(cartId)
+
+        expect(data.payment).toBeNull()
+        expect(data.price_changes.map((c: any) => [c.product_title, c.was, c.now])).toEqual([
+          [
+            LANTERN.title,
+            { unit_price: LANTERN.price - 800, compare_at_unit_price: LANTERN.price, is_tax_inclusive: true },
+            { unit_price: LANTERN.price, compare_at_unit_price: null, is_tax_inclusive: true },
+          ],
+        ])
+        const { reference } = await startPayment(cartId)
+        expect(paystack.transaction(reference).amount).toBe(TOTAL * 100)
+      })
+
+      it("keeps each shop's own price for one variant both sell, through to their orders", async () => {
+        const groceryLantern = LANTERN.also_at![0].price
+        const { data: created } = await api.post("/store/carts", { region_id: buyer.regionId() }, ada())
+        const cartId = created.cart.id as string
+        for (const shop of [GADGETS, GROCERY]) {
+          await api.post(`/store/carts/${cartId}/line-items`, { offer_id: await offerId(shop, LANTERN.title), quantity: 1 }, ada())
+        }
+        await prepare(cartId)
+        // The grocery's new price comes as an override price list: Mercur's `updateOffersWorkflow`
+        // replaces the whole shared price set, dropping the gadget hub's price for the variant.
+        await priceList(GROCERY, LANTERN.title, "override", groceryLantern + 500)
+
+        const { data } = await pay(cartId)
+
+        // Only the grocery's line changed; the gadget hub's keeps its own price.
+        expect(data.price_changes.map((c: any) => [c.seller.name, c.was.unit_price, c.now.unit_price])).toEqual([
+          [GROCERY.name, groceryLantern, groceryLantern + 500],
+        ])
+        const total = LANTERN.price + groceryLantern + 500 + 2 * BEST_VALUE_FEE
+        const { reference } = await startPayment(cartId)
+        expect(paystack.transaction(reference).amount).toBe(total * 100)
+        paystack.pay(reference)
+        await postWebhook(paystack.chargeSuccess(reference))
+
+        const { data: group } = await api.get(`/store/order-groups/${await orderGroupOf(cartId)}?fields=${ORDER_GROUP_FIELDS}`, ada())
+        expect(
+          group.order_group.orders
+            .map((o: any) => [o.seller.name, o.items.map((i: any) => i.unit_price)])
+            .sort((a: any, b: any) => a[0].localeCompare(b[0]))
+        ).toEqual([
+          [GADGETS.name, [LANTERN.price]],
+          [GROCERY.name, [groceryLantern + 500]],
+        ])
+        expect(group.order_group.total).toBe(total)
+      })
+
+      it("adds VAT on top once the currency's prices stop including it", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        await getContainer()
+          .resolve(Modules.PRICING)
+          .updatePricePreferences({ attribute: "currency_code", value: "ngn" }, { is_tax_inclusive: false })
+
+        const { data } = await pay(cartId)
+
+        expect(data.price_changes.map((c: any) => [c.product_title, c.was.is_tax_inclusive, c.now.is_tax_inclusive])).toEqual([
+          [LANTERN.title, true, false],
+          [RICE.title, true, false],
+        ])
+        const items = LANTERN.price + 2 * RICE.price
+        expect(data.checkout.total).toBe(TOTAL + items * 0.075)
+      })
+
+      it("won't take payment for a line whose offer is gone until the buyer removes it", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        await deleteOffersWorkflow(getContainer()).run({ input: { ids: [await offerId(GROCERY, RICE.title)] } })
+
+        const refused = await pay(cartId).catch((e) => e.response)
+
+        expect(refused.status).toBe(400)
+        expect(refused.data.message).toMatch(/no longer sold by their shop/i)
+        const gone = (await checkout(cartId)).sellers.find((g: any) => !g.seller)
+        expect(gone.items.map((i: any) => i.product_title)).toEqual([RICE.title])
+
+        await api.delete(`/store/carts/${cartId}/line-items/${gone.items[0].id}`, ada())
         const { reference } = await startPayment(cartId)
 
-        expect(paystack.transaction(reference).amount).toBe((TOTAL + 1000) * 100)
-        expect((await checkout(cartId)).total).toBe(TOTAL + 1000)
+        // Nor for the delivery of a shop the cart no longer holds anything from.
+        expect(paystack.transaction(reference).amount).toBe((LANTERN.price + BEST_VALUE_FEE) * 100)
       })
     })
 

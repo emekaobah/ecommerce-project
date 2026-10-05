@@ -11,7 +11,8 @@ import type { DeliveryTag } from "@oja/domain"
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
 import type { PaystackSessionData } from "../modules/paystack/service"
 import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData } from "../modules/shipbubble"
-import { retrieveCartBySeller, type CartSellerGroup } from "./cart"
+import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
+import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
 import { addressCodeOf, quoteBasis, quoteDelivery, samePlace, withAddressCode } from "./delivery"
 
@@ -85,6 +86,30 @@ export type Checkout = {
 
 export type CheckoutPayment = { provider_id: string; reference: string; authorization_url: string }
 
+/** What a line is charged for one. */
+export type CheckoutLinePrice = { unit_price: number; compare_at_unit_price: number | null; is_tax_inclusive: boolean }
+
+/** A line whose shop's price changed since it was added or last repriced: what it was, and what it is now. */
+export type CheckoutPriceChange = {
+  line_item_id: string
+  seller: CartSeller
+  product_title: string | null
+  variant_title: string | null
+  quantity: number
+  was: CheckoutLinePrice
+  now: CheckoutLinePrice
+}
+
+/**
+ * Starting a payment reprices the cart first. When a price changed, no payment is started:
+ * `payment` is null and `price_changes` says what changed, for the buyer to see before paying.
+ */
+export type CheckoutPaymentStart = {
+  payment: CheckoutPayment | null
+  price_changes: CheckoutPriceChange[]
+  checkout: Checkout
+}
+
 type CartRow = {
   id: string
   customer_id: string | null
@@ -95,7 +120,13 @@ type CartRow = {
   shipping_total: number | string
   shipping_address: (CheckoutAddress & { id: string }) | null
   shipping_methods?:
-    | { shipping_option_id: string | null; name: string; amount: number | string; data: Record<string, unknown> | null }[]
+    | {
+        id: string
+        shipping_option_id: string | null
+        name: string
+        amount: number | string
+        data: Record<string, unknown> | null
+      }[]
     | null
   payment_collection?: {
     id: string
@@ -130,6 +161,7 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
       "total",
       "shipping_total",
       ...ADDRESS_FIELDS.map((f) => `shipping_address.${f}`),
+      "shipping_methods.id",
       "shipping_methods.shipping_option_id",
       "shipping_methods.name",
       "shipping_methods.amount",
@@ -161,6 +193,28 @@ async function sellerOfOptions(scope: MedusaContainer, optionIds: string[]): Pro
 
 const isMethodData = (data: unknown): data is ShipbubbleMethodData =>
   !!data && typeof data === "object" && "quote" in data && "choices" in data && "basis" in data
+
+/**
+ * Takes off the cart the delivery of each shop it no longer holds an item from: the buyer
+ * removed the shop's last item (say, one whose offer is gone) after its delivery was added.
+ */
+async function dropEmptyShopDeliveries(scope: MedusaContainer, cart: CartRow) {
+  const methods = cart.shipping_methods ?? []
+  if (!methods.length) return
+  const [{ sellers }, sellerByOption] = await Promise.all([
+    retrieveCartBySeller(scope, cart.id),
+    sellerOfOptions(scope, methods.flatMap((m) => (m.shipping_option_id ? [m.shipping_option_id] : []))),
+  ])
+  const shops = new Set(sellers.flatMap((g) => (g.seller ? [g.seller.id] : [])))
+  const empty = methods.filter((m) => {
+    const seller = m.shipping_option_id ? sellerByOption.get(m.shipping_option_id) : undefined
+    return !seller || !shops.has(seller)
+  })
+  if (!empty.length) return
+  await removeCartDeliveriesWorkflow(scope).run({
+    input: { cart_id: cart.id, shipping_method_ids: empty.map((m) => m.id) },
+  })
+}
 
 /** Each shop's Shipbubble delivery on the cart, by seller. */
 async function deliveriesBySeller(scope: MedusaContainer, cart: CartRow) {
@@ -248,12 +302,25 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
   }
 }
 
+const linePrice = ({ unit_price, compare_at_unit_price, is_tax_inclusive }: CheckoutLinePrice): CheckoutLinePrice => ({
+  unit_price,
+  compare_at_unit_price,
+  is_tax_inclusive,
+})
+
+const samePrice = (a: CheckoutLinePrice, b: CheckoutLinePrice) =>
+  a.unit_price === b.unit_price &&
+  a.compare_at_unit_price === b.compare_at_unit_price &&
+  a.is_tax_inclusive === b.is_tax_inclusive
+
 /**
  * Lines are pinned to the price their offer had when added (`cart-lines.ts`); before the buyer
- * pays, each is brought to its offer's current price. A line whose shop stopped selling it
- * has to be removed first.
+ * pays, each is brought to its offer's current price: unit price, compare-at price and tax
+ * inclusivity, priced per offer, so two shops' offers of one variant keep their own prices.
+ * Returns the lines whose price changed. A line whose shop stopped selling it has to be
+ * removed first.
  */
-async function repriceLines(scope: MedusaContainer, cartId: string) {
+async function repriceLines(scope: MedusaContainer, cartId: string): Promise<CheckoutPriceChange[]> {
   const { sellers } = await retrieveCartBySeller(scope, cartId)
   if (sellers.some((g) => !g.seller)) {
     throw new MedusaError(
@@ -261,27 +328,36 @@ async function repriceLines(scope: MedusaContainer, cartId: string) {
       "Some items are no longer sold by their shop. Remove them to check out."
     )
   }
-  const items = sellers.flatMap((g) => g.items)
-  const prices = await Promise.all(items.map((item) => offerLinePrice(scope, cartId, item.offer_id!)))
-  const changed = items.flatMap((item, i) => {
-    const price = prices[i]
-    const same = price.unit_price === item.unit_price && price.compare_at_unit_price === item.compare_at_unit_price
-    return same ? [] : [{ item, price }]
+  const lines = sellers.flatMap((g) => g.items.map((item) => ({ item, seller: g.seller! })))
+  const prices = await Promise.all(lines.map(({ item }) => offerLinePrice(scope, cartId, item.offer_id!)))
+  const changes = lines.flatMap(({ item, seller }, i): CheckoutPriceChange[] => {
+    const was = linePrice(item)
+    const now = linePrice(prices[i])
+    if (samePrice(was, now)) return []
+    const { id, product_title, variant_title, quantity } = item
+    return [{ line_item_id: id, seller, product_title, variant_title, quantity, was, now }]
   })
+  const cartModule = scope.resolve(Modules.CART)
   // One line at a time: each update is a workflow on the same cart.
-  for (const { item, price } of changed) {
+  for (const { line_item_id, quantity, was, now } of changes) {
+    // Medusa's line update keeps a tax-inclusive line inclusive, so a currency that stopped
+    // including VAT is set on the line first; the update then totals the cart with it.
+    if (was.is_tax_inclusive !== now.is_tax_inclusive) {
+      await cartModule.updateLineItems(line_item_id, { is_tax_inclusive: now.is_tax_inclusive })
+    }
     await updateLineItemInCartWorkflow(scope).run({
       input: {
         cart_id: cartId,
-        item_id: item.id,
+        item_id: line_item_id,
         update: {
-          quantity: item.quantity,
-          unit_price: price.unit_price,
-          compare_at_unit_price: price.compare_at_unit_price,
+          quantity,
+          unit_price: now.unit_price,
+          compare_at_unit_price: now.compare_at_unit_price,
         } as never,
       },
     })
   }
+  return changes
 }
 
 /** Each shop's Shipbubble shipping option, by seller. */
@@ -329,17 +405,19 @@ async function setShopDeliveries(scope: MedusaContainer, cartId: string, receive
 /**
  * Readies the buyer's cart to pay: every line at its shop's current price, the buyer's email
  * and delivery address, validated with Shipbubble, and each shop's delivery quoted with best
- * value chosen. Safe to repeat, e.g. after editing the address or the cart.
+ * value chosen. Safe to repeat, e.g. after editing the address or the cart. Returns the
+ * checkout and the lines whose price changed, for the buyer to see.
  */
 export async function prepareCheckout(
   scope: MedusaContainer,
   { cartId, customerId, shippingAddress }: { cartId: string; customerId: string; shippingAddress: CheckoutAddress }
-): Promise<Checkout> {
+): Promise<{ checkout: Checkout; price_changes: CheckoutPriceChange[] }> {
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
   const customer = await scope.resolve(Modules.CUSTOMER).retrieveCustomer(customerId)
 
-  await repriceLines(scope, cartId)
+  const priceChanges = await repriceLines(scope, cartId)
+  await dropEmptyShopDeliveries(scope, cart)
   // Validated unless it is the cart's own address sent again, which keeps its code (ADR 0002).
   // A code is never taken from the request: it sets what delivery costs and where it goes.
   const previous = cart.shipping_address
@@ -358,7 +436,7 @@ export async function prepareCheckout(
     },
   })
   await setShopDeliveries(scope, cartId, addressCodeOf(address)!)
-  return retrieveCheckout(scope, cartId, customerId)
+  return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
 }
 
 /**
@@ -406,21 +484,25 @@ async function refuseIfAlreadyPaid(cart: CartRow) {
 /**
  * Starts a Paystack transaction for the prepared cart's total and returns where to pay it.
  * Each call starts a new one, so a buyer whose payment failed or was abandoned pays again here.
+ * The cart is repriced first; when a price changed, no transaction is started and the buyer
+ * is told what changed, then pays the new total by calling again.
  * `returnUrl` is where Paystack sends the buyer afterwards: the app's deep link.
  */
 export async function startCheckoutPayment(
   scope: MedusaContainer,
   { cartId, customerId, returnUrl }: { cartId: string; customerId: string; returnUrl: string }
-): Promise<CheckoutPayment> {
+): Promise<CheckoutPaymentStart> {
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
   await refuseIfAlreadyPaid(cart)
   // The cart may have changed since its address was set, and shops change prices.
-  await repriceLines(scope, cartId)
+  const priceChanges = await repriceLines(scope, cartId)
+  await dropEmptyShopDeliveries(scope, cart)
   const checkout = await retrieveCheckout(scope, cartId, customerId)
   if (!checkout.ready_to_pay) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Set the delivery address before paying")
   }
+  if (priceChanges.length) return { payment: null, price_changes: priceChanges, checkout }
 
   let paymentCollectionId = cart.payment_collection?.id
   if (!paymentCollectionId) {
@@ -437,5 +519,9 @@ export async function startCheckoutPayment(
     },
   })
   const data = session.data as unknown as PaystackSessionData
-  return { provider_id: PAYSTACK_PROVIDER_ID, reference: data.reference, authorization_url: data.authorization_url }
+  return {
+    payment: { provider_id: PAYSTACK_PROVIDER_ID, reference: data.reference, authorization_url: data.authorization_url },
+    price_changes: [],
+    checkout,
+  }
 }
