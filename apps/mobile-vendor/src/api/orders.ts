@@ -1,3 +1,4 @@
+import { pickProgress } from '@oja/domain';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { vendorClient } from './client';
@@ -6,6 +7,7 @@ export const orderKeys = {
   all: ['orders'] as const,
   list: (sellerId: string) => [...orderKeys.all, 'list', { sellerId }] as const,
   detail: (orderId: string) => [...orderKeys.all, 'detail', orderId] as const,
+  pickList: (orderId: string) => [...orderKeys.all, 'pick-list', orderId] as const,
 };
 
 // The default fields leave out the order total; `+` adds it to them.
@@ -71,6 +73,65 @@ export function useRejectOrder(orderId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (reason: string) => vendorClient.vendor.orders.$id.reject.mutate({ $id: orderId, reason }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+  });
+}
+
+/** Starts picking an accepted order; staff then work through its pick list. */
+export function useStartPicking(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => vendorClient.vendor.orders.$id.startPicking.mutate({ $id: orderId }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+  });
+}
+
+const fetchPickList = async (orderId: string) =>
+  (await vendorClient.vendor.orders.$id.pickList.query({ $id: orderId })).pick_list;
+
+export type PickList = Awaited<ReturnType<typeof fetchPickList>>;
+export type PickListLine = PickList['lines'][number];
+
+/**
+ * The order's pick list: each line, how many to pick and how many are picked. Progress is
+ * kept on the server, so it is the same after leaving the screen or on another phone.
+ */
+export function usePickList(orderId: string) {
+  return useQuery({ queryKey: orderKeys.pickList(orderId), queryFn: () => fetchPickList(orderId) });
+}
+
+/** A tap sets how many of a line are picked; a scan adds one, so scans from two phones both count. */
+export type PickUpdate = { itemId: string } & ({ picked: number } | { add: number });
+
+/**
+ * Records a pick. The list shows the new count at once; if the server refuses it, the list is
+ * read again rather than rolled back, so picks confirmed meanwhile stay.
+ */
+export function useRecordPick(orderId: string) {
+  const queryClient = useQueryClient();
+  const key = orderKeys.pickList(orderId);
+  return useMutation({
+    mutationFn: ({ itemId, ...pick }: PickUpdate) =>
+      vendorClient.vendor.orders.$id.pickList.$itemId.mutate({ $id: orderId, $itemId: itemId, ...pick }),
+    onMutate: async (pick) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const current = queryClient.getQueryData<PickList>(key);
+      if (!current) return;
+      const lines = current.lines.map((line) =>
+        line.id === pick.itemId ? { ...line, picked: 'add' in pick ? line.picked + pick.add : pick.picked } : line,
+      );
+      queryClient.setQueryData<PickList>(key, { lines, progress: pickProgress(lines) });
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: key }),
+    onSuccess: ({ pick_list }) => queryClient.setQueryData(key, pick_list),
+  });
+}
+
+/** Marks a fully picked order packed, ready for a courier label. */
+export function usePackOrder(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => vendorClient.vendor.orders.$id.pack.mutate({ $id: orderId }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
   });
 }

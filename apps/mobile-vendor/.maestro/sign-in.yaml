@@ -1,0 +1,29 @@
+# Signs a seeded shop member in, and picks the shop when the member has several. The caller
+# passes MEMBER_EMAIL, MEMBER_PASSWORD and SHOP. Does nothing when already signed in.
+appId: com.emekaobah.oja.vendor
+---
+- runFlow:
+    when:
+      visible:
+        id: "email"
+    commands:
+      - tapOn:
+          id: "email"
+      - eraseText: 200
+      - inputText: ${MEMBER_EMAIL}
+      - tapOn:
+          id: "password"
+      - inputText: ${MEMBER_PASSWORD}
+      - tapOn: "Sign in"
+      - waitForAnimationToEnd
+      # iOS offers to save the password after a sign-in.
+      - runFlow:
+          when:
+            visible: "Not Now"
+          commands:
+            - tapOn: "Not Now"
+- runFlow:
+    when:
+      visible: "Choose a shop"
+    commands:
+      - tapOn: ${SHOP}

@@ -15,8 +15,13 @@ type Scope = Pick<MedusaContainer, "resolve">
 export const ORDER_ACCEPTED = "order_fulfilment.accepted"
 /** Emitted when a new order is rejected, by its shop or by the accept deadline, with `{ id, rejected_by }`. */
 export const ORDER_REJECTED = "order_fulfilment.rejected"
+/** Emitted when staff pack a picked order, ready for a courier label, with `{ id }` (the order). */
+export const ORDER_PACKED = "order_fulfilment.packed"
 
 export const fulfilmentService = (scope: Scope) => scope.resolve<OrderFulfilmentModuleService>(ORDER_FULFILMENT_MODULE)
+
+/** How many of each line staff have picked, by line item id; a line not listed has none. */
+export type Picks = Record<string, number>
 
 export type FulfilmentRecord = {
   id: string
@@ -25,6 +30,7 @@ export type FulfilmentRecord = {
   fulfilment: Fulfilment
   placed_at: Date
   reject_reason: string | null
+  picks: Picks | null
 }
 
 export type OrderRefundRecord = InferTypeOf<typeof OrderRefund>

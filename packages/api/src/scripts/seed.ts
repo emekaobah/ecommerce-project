@@ -699,7 +699,7 @@ async function seedProducts(
             weight: item.weight_grams,
             options: { Size: size },
           }))
-        : [{ title: item.title, sku, weight: item.weight_grams }],
+        : [{ title: item.title, sku, weight: item.weight_grams, ...(item.barcode && { barcode: item.barcode, ean: item.barcode }) }],
     };
   });
 
