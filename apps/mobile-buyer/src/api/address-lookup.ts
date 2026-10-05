@@ -1,4 +1,5 @@
 import type { Pin } from '@oja/domain';
+import { randomUUID } from 'expo-crypto';
 import { keepPreviousData, skipToken, useMutation, useQuery } from '@tanstack/react-query';
 
 import { storeClient } from './client';
@@ -15,14 +16,10 @@ export const addressLookupKeys = {
 
 /**
  * A new lookup session: Google bills a search and the place chosen from it as one session, so
- * the screen makes one when the buyer starts searching and a new one after they choose. Not a
- * secret, so `Math.random` is enough for its UUID v4 shape.
+ * the screen makes one when the buyer starts searching and a new one after they choose.
  */
 export function newLookupSession(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.trunc(Math.random() * 16);
-    return (c === 'x' ? r : (r % 4) + 8).toString(16);
-  });
+  return randomUUID();
 }
 
 async function fetchSuggestions(cartId: string, sessionToken: string, input: string) {

@@ -15,13 +15,11 @@ const STATE_ALIASES: Record<string, Record<string, string>> = {
 }
 
 /** "Akwa-Ibom State " reads as "akwa ibom". */
-const normalised = (name: string) =>
-  name
-    .trim()
-    .toLowerCase()
-    .replaceAll("-", " ")
-    .replace(/\s+state$/, "")
-    .replaceAll(/\s+/g, " ")
+function normalised(name: string): string {
+  const words = name.toLowerCase().replaceAll("-", " ").split(" ").filter(Boolean)
+  if (words.length > 1 && words.at(-1) === "state") words.pop()
+  return words.join(" ")
+}
 
 /**
  * The state on the country's list (`getAddressConfig`) a provider's state name stands for, or

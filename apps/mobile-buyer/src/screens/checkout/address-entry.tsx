@@ -270,7 +270,7 @@ function AddressSearch({ cartId, onFound }: Readonly<{ cartId: string; onFound: 
           onPress={() => choose(suggestion.place_id)}
         />
       ))}
-      {list && list.length === 0 ? (
+      {list?.length === 0 ? (
         <Text tone="secondary">No matches. Try the street name and area, or enter it manually.</Text>
       ) : null}
       {list?.length ? (

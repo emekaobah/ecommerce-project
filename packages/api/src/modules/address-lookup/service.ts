@@ -29,8 +29,8 @@ export default class AddressLookupModuleService {
   /** The provider a region looks addresses up with: its `metadata.address_lookup_provider`, else Google. */
   providerFor(region: { metadata?: Record<string, unknown> | null }): AddressLookupProvider {
     const id = region.metadata?.address_lookup_provider ?? DEFAULT_ADDRESS_LOOKUP_PROVIDER
-    const provider = this.providers[id as ProviderId]
-    if (!provider) throw new MedusaError(MedusaError.Types.INVALID_DATA, `No address lookup provider "${String(id)}"`)
+    const provider = typeof id === "string" ? this.providers[id as ProviderId] : undefined
+    if (!provider) throw new MedusaError(MedusaError.Types.INVALID_DATA, `No address lookup provider ${JSON.stringify(id)}`)
     return provider
   }
 }
