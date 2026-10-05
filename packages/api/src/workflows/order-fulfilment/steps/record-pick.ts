@@ -1,16 +1,19 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
-import { asFulfilmentRecord, fulfilmentService, fulfilmentsOf } from "../../../lib/order-fulfilment"
+import { asFulfilmentRecord, fulfilmentService, fulfilmentsOf, type Picks } from "../../../lib/order-fulfilment"
 import { itemsOf } from "../../../lib/order-picking"
 
-export type RecordPickInput = { order_id: string; item_id: string; /** How many of the line are now picked. */ picked: number }
+export type RecordPickInput = {
+  order_id: string
+  item_id: string
+} & ({ /** How many of the line are now picked. */ picked: number } | { /** How many more are picked. */ add: number })
 
-type Compensation = { id: string; picks: Record<string, number> | null }
+type Compensation = { id: string; picks: Picks | null }
 
-/** Sets how many of one line staff have picked; only while the order is being picked. */
+/** Sets, or adds to, how many of one line staff have picked; only while the order is being picked. */
 export const recordPickStep = createStep(
   "record-order-pick",
-  async ({ order_id, item_id, picked }: RecordPickInput, { container }) => {
+  async ({ order_id, item_id, ...pick }: RecordPickInput, { container }) => {
     const record = (await fulfilmentsOf(container, [order_id])).get(order_id)
     const state = record?.state ?? "new"
     if (!record || state !== "picking") {
@@ -18,8 +21,12 @@ export const recordPickStep = createStep(
     }
     const item = (await itemsOf(container, order_id)).find((i) => i.id === item_id)
     if (!item) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order ${order_id} has no line ${item_id}`)
+    const picked = "add" in pick ? (record.picks?.[item_id] ?? 0) + pick.add : pick.picked
     if (picked > item.quantity) {
-      throw new MedusaError(MedusaError.Types.INVALID_DATA, `Only ${item.quantity} of line ${item_id} were ordered`)
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Only ${item.quantity} of line ${item_id} were ordered${"add" in pick ? ", and all are picked" : ""}`
+      )
     }
     const saved = await fulfilmentService(container).updateOrderFulfilments({
       id: record.id,

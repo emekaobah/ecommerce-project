@@ -4,6 +4,12 @@ import { z } from "@medusajs/framework/zod"
 export const VendorRejectOrder = z.object({ reason: z.string().trim().min(1).max(500) })
 export type VendorRejectOrderType = z.infer<typeof VendorRejectOrder>
 
-/** How many of a line staff have picked: a whole number, from none up to the quantity ordered. */
-export const VendorRecordPick = z.object({ picked: z.number().int().min(0) })
+/**
+ * A line's pick: `picked` sets how many are picked (a tap), `add` picks that many more (a
+ * scan, so scans from two phones both count). Never past the quantity ordered.
+ */
+export const VendorRecordPick = z.union([
+  z.object({ picked: z.number().int().min(0) }).strict(),
+  z.object({ add: z.number().int().min(1) }).strict(),
+])
 export type VendorRecordPickType = z.infer<typeof VendorRecordPick>

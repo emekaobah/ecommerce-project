@@ -1,5 +1,5 @@
 import { scanBarcode, type ScanResult } from '@oja/domain';
-import { Button, LoadingState, Text, useTheme, type StatusTone } from '@oja/ui';
+import { Button, ErrorState, LoadingState, Text, useTheme, type StatusTone } from '@oja/ui';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -9,8 +9,11 @@ import { usePickList, useRecordPick, type PickListLine } from '@/api/orders';
 
 /** Product barcodes; QR and other symbologies aren't on shop shelves. */
 const BARCODE_TYPES = ['ean13', 'ean8', 'upc_a', 'upc_e', 'itf14'] as const;
-/** The camera reports a barcode many times a second while it is in view; one read counts per this long. */
-const SAME_CODE_MS = 2000;
+/**
+ * The camera reports a barcode many times a second while it is in view. A code counts again
+ * only once it has been out of view this long, so the next item of the same kind is a new scan.
+ */
+const OUT_OF_VIEW_MS = 1000;
 
 type Feedback = { tone: StatusTone; symbol: string; message: string };
 
@@ -30,18 +33,27 @@ export function ScanScreen() {
 
   const onScanned = ({ data }: BarcodeScanningResult) => {
     const now = Date.now();
-    if (lastRead.current?.code === data && now - lastRead.current.at < SAME_CODE_MS) return;
+    const stillInView = lastRead.current?.code === data && now - lastRead.current.at < OUT_OF_VIEW_MS;
     lastRead.current = { code: data, at: now };
+    if (stillInView) return;
     const lines = pickList.data?.lines;
     if (!lines) return;
     const result = scanBarcode(lines, data);
-    if (result.kind === 'picked') recordPick.mutate({ itemId: result.lineId, picked: result.picked });
+    if (result.kind === 'picked') recordPick.mutate({ itemId: result.lineId, add: 1 });
     setFeedback(feedbackFor(result, lines));
   };
 
   const done = <Button label="Done" variant="secondary" onPress={() => router.back()} />;
 
-  if (!permission) return <LoadingState />;
+  if (pickList.error && !pickList.data) {
+    return (
+      <View style={styles.fill}>
+        <ErrorState title="Couldn't load the pick list" message={pickList.error.message} onRetry={() => void pickList.refetch()} />
+        <View style={{ padding: theme.space.md }}>{done}</View>
+      </View>
+    );
+  }
+  if (!permission || !pickList.data) return <LoadingState />;
   if (!permission.granted) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', padding: theme.space.lg, gap: theme.space.md }}>
@@ -64,7 +76,7 @@ export function ScanScreen() {
         style={styles.fill}
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
-        onBarcodeScanned={pickList.data ? onScanned : undefined}
+        onBarcodeScanned={onScanned}
       />
       <View style={{ padding: theme.space.md, gap: theme.space.sm, backgroundColor: theme.colors.background }}>
         {feedback && colours ? (
@@ -76,7 +88,7 @@ export function ScanScreen() {
             </Text>
           </View>
         ) : (
-          <Text tone="secondary">Point the camera at an item's barcode.</Text>
+          <Text tone="secondary">Point the camera at an item's barcode. Move each item away before scanning the next.</Text>
         )}
         {recordPick.error ? <Text tone="danger">{recordPick.error.message}</Text> : null}
         {done}

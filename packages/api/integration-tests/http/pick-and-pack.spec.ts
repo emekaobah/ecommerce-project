@@ -104,6 +104,17 @@ medusaIntegrationTestRunner({
         expect((await pickList(orderId)).pick_list.lines[0].picked).toBe(0)
       })
 
+      it("adds a scan to the count already picked, so two phones scanning the same line both count", async () => {
+        const { orderId, itemId } = await picking()
+        const scan = async () => api.post(`/vendor/orders/${orderId}/pick-list/${itemId}`, { add: 1 }, await buyer.owner(GROCERY))
+
+        await Promise.all([scan(), scan()])
+
+        expect((await pickList(orderId)).pick_list.lines[0].picked).toBe(2)
+        expect(await status(scan())).toBe(400)
+        expect((await pickList(orderId)).pick_list.lines[0].picked).toBe(2)
+      })
+
       it("refuses a count below none or above what was ordered, and a line that isn't the order's", async () => {
         const { orderId, itemId } = await picking()
 

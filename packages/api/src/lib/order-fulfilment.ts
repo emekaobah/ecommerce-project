@@ -20,6 +20,9 @@ export const ORDER_PACKED = "order_fulfilment.packed"
 
 export const fulfilmentService = (scope: Scope) => scope.resolve<OrderFulfilmentModuleService>(ORDER_FULFILMENT_MODULE)
 
+/** How many of each line staff have picked, by line item id; a line not listed has none. */
+export type Picks = Record<string, number>
+
 export type FulfilmentRecord = {
   id: string
   order_id: string
@@ -27,8 +30,7 @@ export type FulfilmentRecord = {
   fulfilment: Fulfilment
   placed_at: Date
   reject_reason: string | null
-  /** Picked count by line item id (`lib/order-picking`). */
-  picks: Record<string, number> | null
+  picks: Picks | null
 }
 
 export type OrderRefundRecord = InferTypeOf<typeof OrderRefund>
