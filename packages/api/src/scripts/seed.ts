@@ -65,8 +65,13 @@ import {
   type Department,
   type SeedSeller,
 } from "./seed-data";
-import { PAYSTACK_PROVIDER_ID } from "../modules/paystack";
+import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack";
 import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble";
+import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account";
+import { addressCodeOf, senderAddressCode } from "../lib/delivery";
+import { saveBankAccount } from "../lib/onboarding";
+import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account";
+import { errorMessage } from "../lib/errors";
 
 // Seeds Oja's demo world (see seed-data.ts). Every section looks up what already
 // exists and creates only what is missing, so the seed is safe to re-run.
@@ -141,6 +146,9 @@ export default async function seedDemoData({ container }: ExecArgs) {
     logger.info(`Seeding seller "${config.name}"...`);
     sellers.push(await seedSeller(container, config, salesChannelId, shippingProfileId));
   }
+
+  logger.info("Completing the sellers' onboarding...");
+  for (const seller of sellers) await seedOnboarding(container, seller);
 
   logger.info("Seeding products...");
   const productsByHandle = await seedProducts(container, {
@@ -638,6 +646,61 @@ async function seedShipbubbleDelivery(
       ],
     },
   });
+}
+
+// The address code and Paystack recipient a shop gets where the seed can't ask Shipbubble or
+// Paystack (integration tests without their fakes). Such an environment can't deliver or pay
+// anyway; these only let its shops be live so the catalogue shows.
+const UNVALIDATED_ADDRESS_CODE = 0;
+const UNVERIFIED_RECIPIENT = "RCP_seed_unverified";
+
+// Each shop goes live the way a shop owner makes it (#26): its pickup address validated with
+// Shipbubble (by the seeded pin) and its bank account resolved with Paystack. A shop Paystack
+// can't resolve is left for its owner to finish in the vendor panel.
+async function seedOnboarding(container: MedusaContainer, seller: SeededSeller) {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
+  const query = container.resolve(ContainerRegistrationKeys.QUERY);
+  const {
+    data: [row],
+  } = await query.graph({ entity: "seller", fields: ["id", "currency_code", "address.id", "address.metadata"], filters: { id: seller.id } });
+
+  if (addressCodeOf(row.address) == null) {
+    if (process.env.SHIPBUBBLE_API_KEY) {
+      await senderAddressCode(container, seller.id);
+    } else {
+      await (container.resolve(MercurModules.SELLER) as any).updateSellerAddresses({
+        id: row.address!.id,
+        metadata: { ...row.address!.metadata, shipbubble_address_code: UNVALIDATED_ADDRESS_CODE },
+      });
+    }
+  }
+
+  const [account] = await container
+    .resolve<ShopBankAccountModuleService>(SHOP_BANK_ACCOUNT_MODULE)
+    .listShopBankAccounts({ seller_id: seller.id });
+  if (account) return;
+  const { bank } = seller.config;
+  if (!paystackClient()) {
+    await saveShopBankAccountWorkflow(container).run({
+      input: {
+        seller_id: seller.id,
+        currency_code: row.currency_code,
+        bank_code: bank.bank_code,
+        bank_name: bank.bank_name,
+        account_number: bank.account_number,
+        account_name: `${seller.config.owner.first_name} ${seller.config.owner.last_name}`.toUpperCase(),
+        recipient_code: UNVERIFIED_RECIPIENT,
+      },
+    });
+    return;
+  }
+  try {
+    await saveBankAccount(container, seller.id, { bank_code: bank.bank_code, account_number: bank.account_number });
+  } catch (error) {
+    logger.warn(
+      `"${seller.config.name}" isn't live: Paystack didn't take its bank account (${errorMessage(error)}). Its owner can add one in the vendor panel.`
+    );
+  }
 }
 
 type SeededProduct = { id: string; handle: string; variants: { id: string; sku: string }[] };

@@ -23,17 +23,43 @@ type Refund = {
   transaction: { id: number; reference: string }
 }
 
+/** Nigerian banks as Paystack lists them (GET /bank?currency=NGN), a few of them. */
+export const BANKS = [
+  { id: 1, name: "Access Bank", slug: "access-bank", code: "044", currency: "NGN", type: "nuban", active: true },
+  { id: 9, name: "Guaranty Trust Bank", slug: "guaranty-trust-bank", code: "058", currency: "NGN", type: "nuban", active: true },
+  { id: 21, name: "Zenith Bank", slug: "zenith-bank", code: "057", currency: "NGN", type: "nuban", active: true },
+  { id: 171, name: "OPay Digital Services Limited (OPay)", slug: "paycom", code: "999992", currency: "NGN", type: "nuban", active: true },
+]
+
+/** What the fake names an account it resolves: Paystack answers with the holder's name in capitals. */
+export const accountName = (accountNumber: string) => `OJA TEST HOLDER ${accountNumber.slice(-4)}`
+
+/** How Paystack refuses an account it can't find (422). */
+const UNRESOLVED = "Could not resolve account name. Check parameters or try again."
+
+type Recipient = {
+  recipient_code: string
+  type: string
+  name: string
+  currency: string
+  details: { account_number: string; account_name: string; bank_code: string; bank_name: string }
+}
+
 /**
  * Stands in for Paystack's API: the backend's `apiUrl` points here. It initialises and
  * verifies transactions and takes refunds like Paystack, and a test settles them (`pay`,
  * `fail`, `settleRefund`) and signs `charge.success` and `refund.*` webhooks with the same
- * secret key.
+ * secret key. It lists `BANKS`, resolves any 10-digit account at one of them (as
+ * `accountName`) unless a test says it doesn't exist (`unknownAccount`), and creates transfer
+ * recipients for accounts it resolves.
  */
 export function fakePaystack(port: number) {
   const secretKey = `sk_test_${randomUUID().replaceAll("-", "")}`
   const transactions = new Map<string, Transaction>()
   const refunds = new Map<number, Refund>()
   let refundError: string | undefined
+  const unknownAccounts = new Set<string>()
+  const recipients: Recipient[] = []
   let server: Server | undefined
 
   const readBody = async (req: IncomingMessage) => {
@@ -98,12 +124,51 @@ export function fakePaystack(port: number) {
     return found ? ok("Refund retrieved", found) : refused(404, "Refund not found")
   }
 
+  /** The account's holder, as Paystack resolves it, or null when no such account exists. */
+  const holderOf = (bankCode: string, accountNumber: string) => {
+    const bank = BANKS.find((b) => b.code === bankCode)
+    if (!bank || !/^\d{10}$/.test(accountNumber) || unknownAccounts.has(accountNumber)) return null
+    return { bank, name: accountName(accountNumber) }
+  }
+
+  const resolveAccount = (req: IncomingMessage) => {
+    const params = new URL(req.url ?? "", "http://paystack").searchParams
+    const accountNumber = params.get("account_number") ?? ""
+    const holder = holderOf(params.get("bank_code") ?? "", accountNumber)
+    if (!holder) return refused(422, UNRESOLVED)
+    return ok("Account number resolved", { account_number: accountNumber, account_name: holder.name, bank_id: holder.bank.id })
+  }
+
+  const createRecipient = async (req: IncomingMessage) => {
+    const body = await readBody(req)
+    if (body.type !== "nuban") return refused(400, "Invalid recipient type")
+    const holder = holderOf(body.bank_code, body.account_number)
+    if (!holder) return refused(422, UNRESOLVED)
+    const recipient: Recipient = {
+      recipient_code: `RCP_${randomUUID().replaceAll("-", "").slice(0, 14)}`,
+      type: body.type,
+      name: body.name,
+      currency: body.currency,
+      details: {
+        account_number: body.account_number,
+        account_name: holder.name,
+        bank_code: body.bank_code,
+        bank_name: holder.bank.name,
+      },
+    }
+    recipients.push(recipient)
+    return ok("Transfer recipient created successfully", { ...recipient, active: true, id: recipients.length })
+  }
+
   /** Paystack's endpoints the backend calls: method, path, and what answers it. */
   const routes: [string, RegExp, (req: IncomingMessage, param: string) => Reply | Promise<Reply>][] = [
     ["POST", /^\/transaction\/initialize$/, initialize],
     ["GET", /^\/transaction\/verify\/(.+)$/, (_, reference) => verify(reference)],
     ["POST", /^\/refund$/, createRefund],
     ["GET", /^\/refund\/(\d+)$/, (_, id) => fetchRefund(id)],
+    ["GET", /^\/bank\?/, () => ok("Banks retrieved", BANKS)],
+    ["GET", /^\/bank\/resolve\?/, resolveAccount],
+    ["POST", /^\/transferrecipient$/, createRecipient],
   ]
 
   const handle = async (req: IncomingMessage): Promise<Reply> => {
@@ -176,6 +241,12 @@ export function fakePaystack(port: number) {
     refuseRefunds: (message: string | undefined) => {
       refundError = message
     },
+    /** Paystack can't find this account number at any bank from now on. */
+    unknownAccount: (accountNumber: string) => {
+      unknownAccounts.add(accountNumber)
+    },
+    /** Every transfer recipient created, oldest first. */
+    recipients: () => [...recipients],
     /** A signed `refund.*` webhook for a refund, as Paystack would post it: it names the transaction, not the refund. */
     refundEvent: (id: number) => {
       const { status, amount, currency, transaction } = refund(id)

@@ -2,6 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { addToCartWorkflow } from "@medusajs/medusa/core-flows"
 import { priceOffers } from "./listings"
+import { isLive } from "./onboarding"
 
 // Cart lines are priced from their own offer and pinned there.
 //
@@ -50,11 +51,16 @@ async function priceLine(scope: MedusaContainer, cart: CartPricing, offerId: str
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: offers } = await query.graph({
     entity: "offer",
-    fields: ["id", "variant_id", "product_variant.price_set.id"],
+    fields: ["id", "seller_id", "variant_id", "product_variant.price_set.id"],
     filters: { id: offerId },
   })
-  const offer = offers[0] as { id: string; variant_id: string; product_variant?: { price_set?: { id: string } | null } }
-  if (!offer) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Offer ${offerId} not found`)
+  const offer = offers[0] as
+    | { id: string; seller_id: string; variant_id: string; product_variant?: { price_set?: { id: string } | null } }
+    | undefined
+  // Buyers can't see a shop that isn't live (onboarding gates, #26), so its offers aren't there to buy.
+  if (!offer || !(await isLive(scope, offer.seller_id))) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, `Offer ${offerId} not found`)
+  }
   if (!cart.region_id) throw new MedusaError(MedusaError.Types.INVALID_DATA, "The cart has no region to price it in")
 
   const [priced] = await priceOffers(scope, { id: cart.region_id, currency_code: cart.currency_code }, [offer])
