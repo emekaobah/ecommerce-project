@@ -72,18 +72,28 @@ export type BankAccountView = { bank_code: string; bank_name: string; account_nu
 export type Onboarding = {
   /** Mercur's seller status: a shop also waits for Oja to approve it. */
   status: string
+  /** The country the shop's address form is for: its pickup address's, else its currency's region's. */
+  country_code: string | null
   is_live: boolean
   steps: { key: OnboardingStep; is_complete: boolean }[]
   pickup_address: PickupAddress | null
   bank_account: BankAccountView | null
 }
 
-type OnboardingSellerRow = { id: string; status: string; address?: PickupAddress | null }
+type OnboardingSellerRow = { id: string; status: string; currency_code: string; address?: PickupAddress | null }
+
+/** The first country of a region trading in the currency. */
+async function countryForCurrency(scope: MedusaContainer, currencyCode: string): Promise<string | null> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "region", fields: ["countries.iso_2"], filters: { currency_code: currencyCode } })
+  const regions = data as { countries?: ({ iso_2: string } | null)[] | null }[]
+  return regions.flatMap((r) => r.countries ?? []).find((c) => !!c)?.iso_2 ?? null
+}
 
 /** A shop's onboarding checklist. */
 export async function onboardingOf(scope: MedusaContainer, sellerId: string): Promise<Onboarding> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "seller", fields: ["id", "status", "address.*"], filters: { id: sellerId } })
+  const { data } = await query.graph({ entity: "seller", fields: ["id", "status", "currency_code", "address.*"], filters: { id: sellerId } })
   const seller = data[0] as OnboardingSellerRow | undefined
   if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Seller ${sellerId} not found`)
   const [gates, live, [account]] = await Promise.all([
@@ -94,6 +104,7 @@ export async function onboardingOf(scope: MedusaContainer, sellerId: string): Pr
   const passed = gates.get(sellerId)
   return {
     status: seller.status,
+    country_code: seller.address?.country_code ?? (await countryForCurrency(scope, seller.currency_code)),
     is_live: live,
     steps: ONBOARDING_STEPS.map((key) => ({ key, is_complete: !!passed?.[key] })),
     pickup_address: seller.address ?? null,
@@ -204,7 +215,7 @@ export function pickupAddressFromForm(form: PickupAddressForm) {
   } catch {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, `Pickup addresses in ${country} can't be taken yet`)
   }
-  const values = addressFormValues({ ...form, metadata: form.metadata ?? null } as Parameters<typeof addressFormValues>[0], country)
+  const values = addressFormValues(form, country)
   const { latitude, longitude } = form.metadata ?? {}
   const pin = latitude != null && longitude != null ? { latitude, longitude } : null
   const result = pin ? addressFromForm(values, country, pin) : addressFromForm(values, country)

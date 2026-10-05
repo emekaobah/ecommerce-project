@@ -192,6 +192,12 @@ medusaIntegrationTestRunner({
         expect(data.onboarding.is_live).toBe(false)
       })
 
+      it("is entered on the form of the shop's country, its region's before it has an address", async () => {
+        const shop = await newShop()
+
+        expect((await onboardingOf(shop.owner)).country_code).toBe("ng")
+      })
+
       it("is validated by its pin when it has one (ADR 0002)", async () => {
         const shop = await newShop()
         const pin = { latitude: 6.4969, longitude: 3.3537 }
