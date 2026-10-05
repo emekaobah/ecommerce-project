@@ -48,7 +48,7 @@ export function AddressEditScreen() {
     <AddressEditor
       key={id ?? 'new'}
       saved={saved}
-      first={addresses.data.length === 0}
+      isFirstAddress={addresses.data.length === 0}
       regionId={region.id}
       countryCode={countryCode}
     />
@@ -57,17 +57,17 @@ export function AddressEditScreen() {
 
 function AddressEditor({
   saved,
-  first,
+  isFirstAddress,
   regionId,
   countryCode,
-}: Readonly<{ saved: SavedAddressRecord | undefined; first: boolean; regionId: string; countryCode: string }>) {
+}: Readonly<{ saved: SavedAddressRecord | undefined; isFirstAddress: boolean; regionId: string; countryCode: string }>) {
   const theme = useTheme();
   const { userId } = useAuth();
   const customer = useCustomer(userId);
   const draft = useAddressDraft(countryCode, saved, customer.data ?? undefined);
   const save = useSaveAddress(countryCode);
   // The first address is the default; a default stays one.
-  const alreadyDefault = first || !!saved?.is_default_shipping;
+  const alreadyDefault = isFirstAddress || !!saved?.is_default_shipping;
   const [makeDefault, setMakeDefault] = useState(alreadyDefault);
 
   const onSave = (confirmed: Pin) => {

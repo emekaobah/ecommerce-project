@@ -3,8 +3,10 @@ export { getAddressConfig } from "./address"
 export type { AddressConfig, AddressField, AddressFieldKey, PhoneConfig } from "./address"
 export { addressFormValues, addressFromForm, pinOf } from "./address-form"
 export type {
+  AddressFormErrors,
   AddressFormResult,
   AddressFormValues,
+  BuyerName,
   DeliveryAddress,
   Pin,
   PinnedDeliveryAddress,
@@ -13,12 +15,13 @@ export type {
 export {
   addressBook,
   addressLines,
+  addressStep,
   checkoutAddressOf,
   preselectedAddress,
   savedAddressEdit,
   savedAddressFor,
 } from "./saved-address"
-export type { AddressLines, SavedAddress } from "./saved-address"
+export type { AddressLines, AddressStep, SavedAddress } from "./saved-address"
 export { formFromLookup, mapCentre, stateFromLookup } from "./address-lookup"
 export type { LookedUpPlace } from "./address-lookup"
 export { toE164 } from "./phone"

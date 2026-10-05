@@ -4,23 +4,25 @@ import {
   getAddressConfig,
   pinOf,
   type AddressFieldKey,
+  type AddressFormErrors,
   type AddressFormValues,
+  type BuyerName,
   type Pin,
   type StoredAddress,
 } from '@oja/domain';
 import { useCallback, useState } from 'react';
 
-type Name = { first_name?: string | null; last_name?: string | null };
+
 
 /**
  * An address being entered or edited with `AddressEntry`: the form's values, what each wrong
  * field needs, and the confirmed pin. It starts from `start` (a saved address, or the cart's)
  * keeping its pin, or empty with the buyer's name.
  */
-export function useAddressDraft(countryCode: string, start: StoredAddress | null | undefined, name?: Name) {
+export function useAddressDraft(countryCode: string, start: StoredAddress | null | undefined, name?: BuyerName) {
   const config = getAddressConfig(countryCode);
-  const [typed, setValues] = useState<AddressFormValues>(() => addressFormValues(start, countryCode, name));
-  const [errors, setErrors] = useState<Partial<Record<AddressFieldKey, string>>>({});
+  const [typed, setTyped] = useState<AddressFormValues>(() => addressFormValues(start, countryCode, name));
+  const [errors, setErrors] = useState<AddressFormErrors>({});
   const [pin, setPin] = useState<Pin | null>(() => pinOf(start));
 
   // The buyer's profile may load after the form opens; their name fills the name fields left blank.
@@ -34,7 +36,7 @@ export function useAddressDraft(countryCode: string, start: StoredAddress | null
   /** Starts over from another address (or an empty form), e.g. "Add a new address". */
   const restart = useCallback(
     (from: StoredAddress | null | undefined) => {
-      setValues(addressFormValues(from, countryCode));
+      setTyped(addressFormValues(from, countryCode));
       setErrors({});
       setPin(pinOf(from));
     },
@@ -54,11 +56,11 @@ export function useAddressDraft(countryCode: string, start: StoredAddress | null
       errors,
       pin,
       onChange: (key: AddressFieldKey, value: string) => {
-        setValues((current) => ({ ...current, [key]: value }));
+        setTyped((current) => ({ ...current, [key]: value }));
         setErrors(({ [key]: _fixed, ...rest }) => rest);
       },
       onPlace: (found: AddressFormValues) => {
-        setValues((current) => ({ ...current, ...found }));
+        setTyped((current) => ({ ...current, ...found }));
         setErrors({});
       },
       onPin: setPin,

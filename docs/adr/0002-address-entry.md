@@ -60,7 +60,7 @@ In the address `metadata` (customer address, cart shipping address, seller picku
 - `landmark`
 - `shipbubble_address_code`
 
-No `place_id`, since nothing needs it. No custom module until something queries by location. Saved addresses are Medusa's customer addresses (#18); saving one, or changing its metadata, needs the pin. Medusa merges an edit's metadata, so the app clears a removed landmark by sending it empty.
+No `place_id`, since nothing needs it. No custom module until something queries by location. Saved addresses are Medusa's customer addresses (#18); saving one, or changing its metadata, needs the pin. Medusa merges an edit's metadata, so the app clears a removed landmark by sending it empty. A saved address isn't validated with Shipbubble when it is saved: checkout validates whichever address is set on the cart, and never takes a code from the request, so saved addresses carry no `shipbubble_address_code`.
 
 ### Privacy
 

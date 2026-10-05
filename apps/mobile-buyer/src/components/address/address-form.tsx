@@ -1,9 +1,7 @@
 import { Host, Picker } from '@expo/ui';
-import type { AddressConfig, AddressField, AddressFieldKey, AddressFormValues } from '@oja/domain';
+import type { AddressConfig, AddressField, AddressFieldKey, AddressFormErrors, AddressFormValues } from '@oja/domain';
 import { Text, useTheme } from '@oja/ui';
 import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
-
-type Errors = Partial<Record<AddressFieldKey, string>>;
 
 /** Keyboard and autofill hints per field, so the phone's own suggestions fill the form. */
 const INPUT_HINTS: Partial<Record<AddressFieldKey, TextInputProps>> = {
@@ -26,7 +24,7 @@ export function AddressForm({
 }: Readonly<{
   config: AddressConfig;
   values: AddressFormValues;
-  errors: Errors;
+  errors: AddressFormErrors;
   onChange: (key: AddressFieldKey, value: string) => void;
 }>) {
   const theme = useTheme();

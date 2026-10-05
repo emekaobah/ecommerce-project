@@ -49,6 +49,42 @@ export function preselectedAddress(
 }
 
 /**
+ * Where checkout's delivery address stands: finding the buyer's default (`starting`), set on
+ * the cart (`chosen`), choosing a saved one, or entering a new one.
+ */
+export type AddressStep = "starting" | "chosen" | "choosing" | "entering"
+
+/**
+ * The address step checkout follows until the buyer moves it themselves. The cart's address
+ * shows once it has one checkout can quote. Before that, checkout starts with the buyer's
+ * default saved address; without one it offers the saved ones, or a new address, which is also
+ * what the buyer gets when the saved addresses won't load.
+ */
+export function addressStep({
+  cartAddress,
+  readyToPay,
+  saved,
+  savedFailed = false,
+  countryCode,
+}: {
+  cartAddress: StoredAddress | null | undefined
+  readyToPay: boolean
+  /** The buyer's saved addresses; undefined while they load. */
+  saved: readonly SavedAddress[] | undefined
+  savedFailed?: boolean
+  countryCode: string
+}): AddressStep {
+  const offerSaved = () => (saved?.length ? "choosing" : "entering")
+  if (cartAddress) {
+    // An address saved before pins were required can't be quoted again: the buyer places one.
+    return readyToPay || checkoutAddressOf(cartAddress, countryCode) ? "chosen" : offerSaved()
+  }
+  if (savedFailed) return "entering"
+  if (!saved || preselectedAddress(saved, countryCode)) return "starting"
+  return offerSaved()
+}
+
+/**
  * An edited address as the store's update takes it. The store merges an edit's metadata into
  * the saved address's and removes only a key sent empty, so a metadata field of the country's
  * form the buyer cleared (the landmark) is sent empty.

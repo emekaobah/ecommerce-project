@@ -1,10 +1,12 @@
 import { useAuth } from '@clerk/expo';
 import {
+  addressStep,
   checkoutAddressOf,
   deliveryEstimate,
   formatMoney,
   preselectedAddress,
   savedAddressFor,
+  type AddressStep,
   type DeliveryTag,
   type PaymentReturn,
   type Pin,
@@ -33,12 +35,6 @@ import { ToggleRow } from '@/components/toggle-row';
 import { useCartSession } from '@/cart/cart-provider';
 import { env } from '@/config/env';
 import { useRegion } from '@/region/region-provider';
-
-/**
- * Where checkout's delivery address stands: finding the buyer's default (`starting`), set on
- * the cart (`chosen`), choosing a saved one, or entering a new one.
- */
-type AddressStep = 'starting' | 'chosen' | 'choosing' | 'entering';
 
 /**
  * Where Paystack sends the buyer back to. Paystack only redirects to an http(s) URL, so this is
@@ -89,43 +85,44 @@ function CheckoutForm({
   const { payment: returned } = useLocalSearchParams<{ payment?: PaymentLeft }>();
   const prepare = usePrepareCheckout(cartId);
   const startPayment = useStartPayment(cartId);
-  const keep = useSaveAddress(countryCode);
+  const saveToAddressBook = useSaveAddress(countryCode);
 
-  /** The buyer's own move: changing the address, or entering one. Null follows the cart. */
-  const [moved, setMoved] = useState<AddressStep | null>(null);
+  /** The step the buyer moved checkout to themselves (changing the address); null follows the cart. */
+  const [buyerStep, setBuyerStep] = useState<AddressStep | null>(null);
   const draft = useAddressDraft(countryCode, checkout.shipping_address, customer.data ?? undefined);
-  /** The saved address a new pin is being placed for, which the entry then updates. */
-  const [pinning, setPinning] = useState<SavedAddressRecord | null>(null);
-  const [keepNew, setKeepNew] = useState(true);
+  /** The saved address without a pin that the buyer is placing one for; the entry then updates it. */
+  const [pinningSaved, setPinningSaved] = useState<SavedAddressRecord | null>(null);
+  const [saveNew, setSaveNew] = useState(true);
 
   // The cart's address, as checkout can quote it again; null for one saved before pins were required.
   const cartAddress = checkout.shipping_address ? checkoutAddressOf(checkout.shipping_address, countryCode) : null;
-  const preselected = saved.data ? preselectedAddress(saved.data, countryCode) : null;
   const hasSaved = !!saved.data?.length;
-  // The cart's address shows once it has one. Before that, checkout starts with the buyer's
-  // default saved address (below); without one it offers the saved ones, or a new address.
-  // Without the saved addresses (offline, or the store failed) the buyer still enters one.
-  const followCart = (): AddressStep => {
-    if (checkout.shipping_address) {
-      if (cartAddress || checkout.ready_to_pay) return 'chosen';
-      return hasSaved ? 'choosing' : 'entering';
-    }
-    if (saved.error) return 'entering';
-    if (!saved.data || preselected) return 'starting';
-    return hasSaved ? 'choosing' : 'entering';
-  };
-  const step = moved ?? followCart();
+  const step =
+    buyerStep ??
+    addressStep({
+      cartAddress: checkout.shipping_address,
+      readyToPay: checkout.ready_to_pay,
+      saved: saved.data,
+      savedFailed: !!saved.error,
+      countryCode,
+    });
 
-  const deliverTo = (address: PinnedDeliveryAddress, onError?: () => void) =>
-    prepare.mutate(address, { onSuccess: () => setMoved(null), onError });
+  const deliverTo = (address: PinnedDeliveryAddress, onDelivered?: () => void) =>
+    prepare.mutate(address, {
+      onSuccess: () => {
+        setBuyerStep(null);
+        onDelivered?.();
+      },
+    });
 
   // Checkout starts with the buyer's default address, once; if it can't, the buyer chooses.
   const preselecting = useRef(false);
   useEffect(() => {
-    if (step !== 'starting' || !preselected || preselecting.current) return;
+    const preselected = step === 'starting' && saved.data ? preselectedAddress(saved.data, countryCode) : null;
+    if (!preselected || preselecting.current) return;
     preselecting.current = true;
-    prepare.mutate(preselected.address, { onError: () => setMoved('choosing') });
-  }, [step, preselected, prepare]);
+    prepare.mutate(preselected.address, { onError: () => setBuyerStep('choosing') });
+  }, [step, saved.data, countryCode, prepare]);
 
   // A cart changed since its delivery was quoted (a shop added, a quantity changed) has a shop
   // without rates. Quote it again at the cart's address, once; if that fails, the buyer chooses again.
@@ -138,21 +135,26 @@ function CheckoutForm({
     }
     if (requoted.current || !cartAddress) return;
     requoted.current = true;
-    prepare.mutate(cartAddress, { onError: () => setMoved('choosing') });
+    prepare.mutate(cartAddress, { onError: () => setBuyerStep('choosing') });
   }, [needsQuote, step, cartAddress, prepare]);
 
-  const enterNew = (from: SavedAddressRecord | null) => {
+  const enterAddress = (from: SavedAddressRecord | null) => {
     draft.restart(from);
-    setPinning(from);
-    setMoved('entering');
+    setPinningSaved(from);
+    setBuyerStep('entering');
   };
+  // Once checkout takes the address: a saved one getting its pin is updated, and a new one is
+  // saved when the buyer asks, unless they already have it.
   const deliverToEntered = (confirmed: Pin) => {
     const result = draft.pinned(confirmed);
     if (!result.ok) return;
-    deliverTo(result.address);
-    // A saved address getting its pin is updated; a new one is kept when the buyer asks.
-    if (pinning) keep.mutate({ id: pinning.id, address: result.address });
-    else if (keepNew) keep.mutate({ address: result.address, makeDefault: !hasSaved });
+    const address = result.address;
+    deliverTo(address, () => {
+      if (pinningSaved) saveToAddressBook.mutate({ id: pinningSaved.id, address });
+      else if (saveNew && !savedAddressFor(saved.data ?? [], address, countryCode)) {
+        saveToAddressBook.mutate({ address, makeDefault: !hasSaved });
+      }
+    });
   };
   const editing = step !== 'chosen';
   const pay = () =>
@@ -181,16 +183,16 @@ function CheckoutForm({
               busy={prepare.isPending}
               hasSaved={hasSaved}
               hasCartAddress={!!cartAddress || checkout.ready_to_pay}
-              onStep={(next) => setMoved(next === 'chosen' ? null : next)}
+              onStep={(next) => setBuyerStep(next === 'chosen' ? null : next)}
             />
           </View>
           {step === 'starting' ? (
             <Text tone="secondary">Getting your address…</Text>
           ) : null}
           {step === 'chosen' && checkout.shipping_address ? <AddressCard address={checkout.shipping_address} /> : null}
-          {step === 'chosen' && keep.error ? (
+          {step === 'chosen' && saveToAddressBook.error ? (
             <Text tone="secondary" accessibilityLiveRegion="polite">
-              {`Couldn't save it to your addresses: ${keep.error.message}`}
+              {`Couldn't save it to your addresses: ${saveToAddressBook.error.message}`}
             </Text>
           ) : null}
           {step === 'choosing' && saved.data ? (
@@ -201,8 +203,8 @@ function CheckoutForm({
               choosing={prepare.isPending ? prepare.variables : undefined}
               error={prepare.error}
               onChoose={(address) => deliverTo(address)}
-              onPin={enterNew}
-              onAdd={() => enterNew(null)}
+              onPin={enterAddress}
+              onAdd={() => enterAddress(null)}
             />
           ) : null}
           {step === 'entering' ? (
@@ -212,7 +214,7 @@ function CheckoutForm({
               onSave={deliverToEntered}
               saving={prepare.isPending}
               saveError={prepare.error}>
-              {pinning ? null : <ToggleRow label="Save to my addresses" value={keepNew} onChange={setKeepNew} />}
+              {pinningSaved ? null : <ToggleRow label="Save to my addresses" value={saveNew} onChange={setSaveNew} />}
             </AddressEntry>
           ) : null}
         </View>

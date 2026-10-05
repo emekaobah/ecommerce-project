@@ -3,6 +3,7 @@ import {
   mapCentre,
   type AddressConfig,
   type AddressFieldKey,
+  type AddressFormErrors,
   type AddressFormValues,
   type LookedUpPlace,
   type Pin,
@@ -25,7 +26,6 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { AddressForm } from './address-form';
 import { PinMap, type PinRequest } from './pin-map';
 
-type Errors = Partial<Record<AddressFieldKey, string>>;
 
 /** Where the buyer is, once they allow it; null when location is off. */
 async function currentPosition(): Promise<Pin | null> {
@@ -61,7 +61,7 @@ export function AddressEntry({
   lookup: LookupFor;
   config: AddressConfig;
   values: AddressFormValues;
-  errors: Errors;
+  errors: AddressFormErrors;
   pin: Pin | null;
   onChange: (key: AddressFieldKey, value: string) => void;
   /** The form's location fields, filled from a place found by search or location. */

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { addressBook, addressLines, checkoutAddressOf,preselectedAddress, savedAddressEdit, savedAddressFor } from "./saved-address"
+import { addressBook, addressLines, addressStep,checkoutAddressOf,preselectedAddress, savedAddressEdit, savedAddressFor } from "./saved-address"
 
 /** Ada's home, as the store keeps it: Medusa's columns, the landmark and her pin in metadata. */
 const home = {
@@ -83,6 +83,33 @@ describe("preselectedAddress", () => {
 
   test("is none when the default has no pin yet", () => {
     expect(preselectedAddress([{ ...home, metadata: {} }, office], "NG")).toBeNull()
+  })
+})
+
+describe("addressStep", () => {
+  const cart = (cartAddress: object | null, readyToPay = false) => ({ cartAddress, readyToPay, countryCode: "NG" })
+
+  test("shows the cart's address once it has one", () => {
+    expect(addressStep({ ...cart(office), saved: [home] })).toBe("chosen")
+  })
+
+  test("asks again for a cart address checkout can't quote (no pin) unless it is already paid for", () => {
+    const unpinned = { ...office, metadata: {} }
+
+    expect(addressStep({ ...cart(unpinned), saved: [home] })).toBe("choosing")
+    expect(addressStep({ ...cart(unpinned), saved: [] })).toBe("entering")
+    expect(addressStep({ ...cart(unpinned, true), saved: [] })).toBe("chosen")
+  })
+
+  test("starts with the default while the saved addresses load or the default is being set", () => {
+    expect(addressStep({ ...cart(null), saved: undefined })).toBe("starting")
+    expect(addressStep({ ...cart(null), saved: [office, home] })).toBe("starting")
+  })
+
+  test("without a default offers the saved addresses, or a new one when there are none or they won't load", () => {
+    expect(addressStep({ ...cart(null), saved: [office] })).toBe("choosing")
+    expect(addressStep({ ...cart(null), saved: [] })).toBe("entering")
+    expect(addressStep({ ...cart(null), saved: undefined, savedFailed: true })).toBe("entering")
   })
 })
 
