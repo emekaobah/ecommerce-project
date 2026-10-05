@@ -12,6 +12,6 @@ export const removeCartDeliveriesWorkflow = createWorkflow(
   function (input: RemoveCartDeliveriesInput) {
     removeShippingMethodFromCartStep({ shipping_method_ids: input.shipping_method_ids })
     refreshCartItemsWorkflow.runAsStep({ input: { cart_id: input.cart_id } })
-    return new WorkflowResponse(void 0)
+    return new WorkflowResponse(undefined)
   }
 )

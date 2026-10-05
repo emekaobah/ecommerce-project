@@ -1,9 +1,9 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { prepareCheckout, retrieveCheckout, type Checkout, type CheckoutPriceChange } from "../../../../../lib/checkout"
+import { prepareCheckout, retrieveCheckout, type Checkout, type CheckoutPrepared } from "../../../../../lib/checkout"
 import type { StorePrepareCheckoutType } from "./validators"
 
 export type StoreCheckoutResponse = { checkout: Checkout }
-export type StorePrepareCheckoutResponse = StoreCheckoutResponse & { price_changes: CheckoutPriceChange[] }
+export type StorePrepareCheckoutResponse = CheckoutPrepared
 
 /**
  * The buyer's checkout: shop by shop with each shop's delivery and the totals. Once Paystack's

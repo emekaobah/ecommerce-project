@@ -37,6 +37,15 @@ describe("priceChangeMessage", () => {
     )
   })
 
+  test("a sale price that stayed while the shop's normal price changed", () => {
+    expect(
+      priceChangeMessage(
+        lantern({ unit_price: 11200, compare_at_unit_price: 12000 }, { unit_price: 11200, compare_at_unit_price: 13000 }),
+        "ngn"
+      )
+    ).toBe(`Rechargeable LED Lantern from Ikeja Gadget Hub is still ${ngn(11200)} each, down from ${ngn(13000)}.`)
+  })
+
   test("names the variant when it differs from the product", () => {
     const kaftan = { ...lantern({}, { unit_price: 13000 }), product_title: "Adire Kaftan", variant_title: "M" }
     expect(priceChangeMessage(kaftan, "ngn")).toStartWith("Adire Kaftan (M) from Ikeja Gadget Hub is now")

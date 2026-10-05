@@ -7,7 +7,7 @@ import {
   updateLineItemInCartWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { addSellerShippingMethodToCartWorkflow } from "@mercurjs/core/workflows"
-import type { DeliveryTag } from "@oja/domain"
+import type { DeliveryTag, LinePrice, PriceChange } from "@oja/domain"
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
 import type { PaystackSessionData } from "../modules/paystack/service"
 import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData } from "../modules/shipbubble"
@@ -86,19 +86,11 @@ export type Checkout = {
 
 export type CheckoutPayment = { provider_id: string; reference: string; authorization_url: string }
 
-/** What a line is charged for one. */
-export type CheckoutLinePrice = { unit_price: number; compare_at_unit_price: number | null; is_tax_inclusive: boolean }
-
 /** A line whose shop's price changed since it was added or last repriced: what it was, and what it is now. */
-export type CheckoutPriceChange = {
-  line_item_id: string
-  seller: CartSeller
-  product_title: string | null
-  variant_title: string | null
-  quantity: number
-  was: CheckoutLinePrice
-  now: CheckoutLinePrice
-}
+export type CheckoutPriceChange = PriceChange & { seller: CartSeller; quantity: number }
+
+/** Setting the address reprices the cart too: the checkout, and the lines whose price changed. */
+export type CheckoutPrepared = { checkout: Checkout; price_changes: CheckoutPriceChange[] }
 
 /**
  * Starting a payment reprices the cart first. When a price changed, no payment is started:
@@ -205,14 +197,14 @@ async function dropEmptyShopDeliveries(scope: MedusaContainer, cart: CartRow) {
     retrieveCartBySeller(scope, cart.id),
     sellerOfOptions(scope, methods.flatMap((m) => (m.shipping_option_id ? [m.shipping_option_id] : []))),
   ])
-  const shops = new Set(sellers.flatMap((g) => (g.seller ? [g.seller.id] : [])))
-  const empty = methods.filter((m) => {
+  const sellerIds = new Set(sellers.flatMap((g) => (g.seller ? [g.seller.id] : [])))
+  const orphaned = methods.filter((m) => {
     const seller = m.shipping_option_id ? sellerByOption.get(m.shipping_option_id) : undefined
-    return !seller || !shops.has(seller)
+    return !seller || !sellerIds.has(seller)
   })
-  if (!empty.length) return
+  if (!orphaned.length) return
   await removeCartDeliveriesWorkflow(scope).run({
-    input: { cart_id: cart.id, shipping_method_ids: empty.map((m) => m.id) },
+    input: { cart_id: cart.id, shipping_method_ids: orphaned.map((m) => m.id) },
   })
 }
 
@@ -302,13 +294,13 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
   }
 }
 
-const linePrice = ({ unit_price, compare_at_unit_price, is_tax_inclusive }: CheckoutLinePrice): CheckoutLinePrice => ({
+const linePrice = ({ unit_price, compare_at_unit_price, is_tax_inclusive }: LinePrice): LinePrice => ({
   unit_price,
   compare_at_unit_price,
   is_tax_inclusive,
 })
 
-const samePrice = (a: CheckoutLinePrice, b: CheckoutLinePrice) =>
+const samePrice = (a: LinePrice, b: LinePrice) =>
   a.unit_price === b.unit_price &&
   a.compare_at_unit_price === b.compare_at_unit_price &&
   a.is_tax_inclusive === b.is_tax_inclusive
@@ -411,7 +403,7 @@ async function setShopDeliveries(scope: MedusaContainer, cartId: string, receive
 export async function prepareCheckout(
   scope: MedusaContainer,
   { cartId, customerId, shippingAddress }: { cartId: string; customerId: string; shippingAddress: CheckoutAddress }
-): Promise<{ checkout: Checkout; price_changes: CheckoutPriceChange[] }> {
+): Promise<CheckoutPrepared> {
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
   const customer = await scope.resolve(Modules.CUSTOMER).retrieveCustomer(customerId)
