@@ -254,13 +254,10 @@ medusaIntegrationTestRunner({
         await updateMemberRoleWorkflow(container).run({ input: { seller_member_id: me.seller_member.id, role_id: SellerRole.ACCOUNTING } })
 
         const accountant = await staff()
-        for (const request of [
-          api.get(`/vendor/quick-add/${POWER_BANK}`, accountant),
-          api.post("/vendor/quick-add", { barcode: POWER_BANK, price: 25000 }, accountant),
-        ]) {
-          const refused = await request.catch((e: any) => e.response)
-          expect(refused.status).toBe(403)
-        }
+        const lookup = await api.get(`/vendor/quick-add/${POWER_BANK}`, accountant).catch((e: any) => e.response)
+        expect(lookup.status).toBe(403)
+        const add = await api.post("/vendor/quick-add", { barcode: POWER_BANK, price: 25000 }, accountant).catch((e: any) => e.response)
+        expect(add.status).toBe(403)
         expect(await offersOn(POWER_BANK)).toEqual([])
       })
     })
