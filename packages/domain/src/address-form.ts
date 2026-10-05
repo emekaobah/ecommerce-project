@@ -17,7 +17,7 @@ export type DeliveryAddress = {
   /** E.164, e.g. "+2348031234567". */
   phone: string
   /** `landmark`, and the pin the buyer confirmed (`latitude`, `longitude`). */
-  metadata: Record<string, string | number>
+  metadata: { landmark?: string; latitude?: number; longitude?: number }
 }
 
 /** A point on the map, in degrees. */
@@ -32,8 +32,11 @@ export function pinOf(address: { metadata?: Record<string, unknown> | null } | n
 /** Six decimal places is about 11 cm, finer than any pin a finger places. */
 const toMicroDegrees = (degrees: number) => Math.round(degrees * 1e6) / 1e6
 
-export type AddressFormResult =
-  | { ok: true; address: DeliveryAddress }
+/** A delivery address with the pin the buyer confirmed, as checkout needs it. */
+export type PinnedDeliveryAddress = DeliveryAddress & { metadata: Pin & { landmark?: string } }
+
+export type AddressFormResult<A extends DeliveryAddress = DeliveryAddress> =
+  | { ok: true; address: A }
   | { ok: false; errors: Partial<Record<AddressFieldKey, string>> }
 
 const METADATA_PREFIX = "metadata."
@@ -60,11 +63,17 @@ function fieldError(field: AddressField, value: string, config: AddressConfig): 
  * into a delivery address, or names what each wrong field needs. The `pin` the buyer confirmed
  * on the map goes into its metadata (ADR 0002).
  */
+export function addressFromForm(values: AddressFormValues, countryCode: string): AddressFormResult
+export function addressFromForm(
+  values: AddressFormValues,
+  countryCode: string,
+  pin: Pin
+): AddressFormResult<PinnedDeliveryAddress>
 export function addressFromForm(values: AddressFormValues, countryCode: string, pin?: Pin): AddressFormResult {
   const config = getAddressConfig(countryCode)
   const errors: Partial<Record<AddressFieldKey, string>> = {}
   const address: Record<string, string | null> = {}
-  const metadata: Record<string, string | number> = {}
+  const metadata: DeliveryAddress["metadata"] & Record<string, string | number> = {}
 
   for (const field of config.fields) {
     const value = values[field.key]?.trim() ?? ""

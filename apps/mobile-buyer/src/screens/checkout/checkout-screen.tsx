@@ -110,8 +110,9 @@ function CheckoutForm({
     }
     if (requoted.current || prepare.isPending) return;
     requoted.current = true;
-    const result = addressFromForm(values, countryCode, pin ?? undefined);
-    if (result.ok) prepare.mutate(result.address, { onError: () => setEditing(true) });
+    // An address saved before pins were required has none: the buyer places one.
+    const result = pin ? addressFromForm(values, countryCode, pin) : null;
+    if (result?.ok) prepare.mutate(result.address, { onError: () => setEditing(true) });
     else setEditing(true);
   }, [needsQuote, prepare, values, countryCode, pin]);
 
