@@ -12,12 +12,13 @@ import { getSession } from '@/session/session-store';
 
 /** Opens the order a tapped push is about, acting for its shop first when the member is in several. */
 async function open(response: Notifications.NotificationResponse) {
-  // Handled once: a push tapped while signed out opens after sign-in, and never again on a later mount.
+  // A push tapped while signed out waits for sign-in (this layout mounts only for a session).
+  const session = getSession();
+  if (!session) return;
+  // Handled once, never again on a later mount.
   Notifications.clearLastNotificationResponse();
   const target = pushTarget(response.notification.request.content.data);
   if (!target) return;
-  const session = getSession();
-  if (!session) return;
   if (target.sellerId && target.sellerId !== session.sellerId) {
     const memberships = await queryClient.fetchQuery({
       queryKey: sellerKeys.memberships(),

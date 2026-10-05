@@ -1,18 +1,19 @@
+import type { MedusaContainer } from "@medusajs/framework/types"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { PUSH_TOKEN_MODULE, type PushTokenActor, type PushTokenModuleService } from "../../modules/push-token"
 
 export type PushTokenInput = { token: string; actor_type: PushTokenActor; actor_id: string }
 
-type Saved = { id: string; token: string; actor_type: PushTokenActor; actor_id: string }
+type SavedPushToken = PushTokenInput & { id: string }
 
-const service = (container: { resolve: <T>(key: string) => T }) => container.resolve<PushTokenModuleService>(PUSH_TOKEN_MODULE)
+const pushTokenService = (scope: Pick<MedusaContainer, "resolve">) => scope.resolve<PushTokenModuleService>(PUSH_TOKEN_MODULE)
 
 /** Registers the device for the person signed in on it, moving it from whoever had it before. */
 export const registerPushTokenStep = createStep(
   "register-push-token",
   async (input: PushTokenInput, { container }) => {
-    const tokens = service(container)
-    const [previous] = (await tokens.listPushTokens({ token: input.token })) as Saved[]
+    const tokens = pushTokenService(container)
+    const [previous] = (await tokens.listPushTokens({ token: input.token })) as SavedPushToken[]
     if (previous?.actor_type === input.actor_type && previous.actor_id === input.actor_id) {
       return new StepResponse({ token: input.token }, {})
     }
@@ -23,11 +24,12 @@ export const registerPushTokenStep = createStep(
     const created = await tokens.createPushTokens(input)
     return new StepResponse({ token: input.token }, { created: created.id })
   },
-  async (compensation: { previous?: Saved; created?: string } | undefined, { container }) => {
-    if (compensation?.created) await service(container).deletePushTokens(compensation.created)
+  async (compensation: { previous?: SavedPushToken; created?: string } | undefined, { container }) => {
+    const tokens = pushTokenService(container)
+    if (compensation?.created) await tokens.deletePushTokens(compensation.created)
     const previous = compensation?.previous
     if (previous) {
-      await service(container).updatePushTokens({ id: previous.id, actor_type: previous.actor_type, actor_id: previous.actor_id })
+      await tokens.updatePushTokens({ id: previous.id, actor_type: previous.actor_type, actor_id: previous.actor_id })
     }
   }
 )
@@ -36,13 +38,15 @@ export const registerPushTokenStep = createStep(
 export const removePushTokenStep = createStep(
   "remove-push-token",
   async (input: PushTokenInput, { container }) => {
-    const tokens = service(container)
-    const owned = (await tokens.listPushTokens(input)) as Saved[]
+    const tokens = pushTokenService(container)
+    const owned = (await tokens.listPushTokens(input)) as SavedPushToken[]
     if (owned.length) await tokens.deletePushTokens(owned.map((t) => t.id))
     return new StepResponse({ token: input.token }, owned)
   },
-  async (removed: Saved[] | undefined, { container }) => {
+  async (removed: SavedPushToken[] | undefined, { container }) => {
     if (!removed?.length) return
-    await service(container).createPushTokens(removed.map(({ token, actor_type, actor_id }) => ({ token, actor_type, actor_id })))
+    await pushTokenService(container).createPushTokens(
+      removed.map(({ token, actor_type, actor_id }) => ({ token, actor_type, actor_id }))
+    )
   }
 )

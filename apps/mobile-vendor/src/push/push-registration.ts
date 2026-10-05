@@ -3,22 +3,23 @@ import { useEffect } from 'react';
 
 import { vendorClient } from '@/api/client';
 import { env } from '@/config/env';
-import { getSession, useSession, type Session } from '@/session/session-store';
+import { useSession, type Session } from '@/session/session-store';
 
 import { devicePushToken } from './device-push-token';
 
-/** The device as last registered, with the credentials to remove it once the session is gone. */
-let registered: { pushToken: string; session: Session } | undefined;
+/** The device's push token once registered for the signed-in member; pending while registering. */
+let registered: Promise<string | null> = Promise.resolve(null);
 
-async function register(session: Session) {
+async function register(): Promise<string | null> {
   try {
     const pushToken = await devicePushToken();
-    if (!pushToken) return;
+    if (!pushToken) return null;
     await vendorClient.vendor.pushTokens.mutate({ token: pushToken });
-    registered = { pushToken, session };
+    return pushToken;
   } catch (error) {
     // Pushes are a convenience: the order list still refreshes on its own.
     console.warn('Registering for push notifications failed', error);
+    return null;
   }
 }
 
@@ -27,26 +28,27 @@ export function usePushRegistration(): void {
   // Again only when the member changes, not when they switch shop: pushes come from all their shops.
   const memberToken = useSession()?.token;
   useEffect(() => {
-    const session = getSession();
-    if (memberToken && session) void register(session);
+    if (memberToken) registered = register();
   }, [memberToken]);
 }
 
 /**
- * At sign-out, stops this device getting the member's pushes. Takes the credentials it was
- * registered with, so it works after the session is cleared, and never signs anyone out itself.
+ * At sign-out, stops this device getting the member's pushes. Takes the session as it was just
+ * before sign-out, so it works once the session is cleared, and never signs anyone out itself.
+ * Waits for a registration still under way, so it can't land after the removal.
  */
-export async function forgetDevice(): Promise<void> {
-  const device = registered;
-  registered = undefined;
-  if (!device) return;
+export async function forgetDevice(session: Session | undefined): Promise<void> {
+  const pending = registered;
+  registered = Promise.resolve(null);
+  const pushToken = await pending;
+  if (!pushToken || !session) return;
   const client = createVendorClient({
     baseUrl: env.apiUrl,
-    getToken: () => device.session.token,
-    getSellerId: () => device.session.sellerId,
+    getToken: () => session.token,
+    getSellerId: () => session.sellerId,
   });
   try {
-    await client.vendor.pushTokens.$token.delete({ $token: encodeURIComponent(device.pushToken) });
+    await client.vendor.pushTokens.$token.delete({ $token: encodeURIComponent(pushToken) });
   } catch (error) {
     // An expired session can't remove it; the next member to sign in on the device takes it over.
     console.warn('Removing the device from push notifications failed', error);

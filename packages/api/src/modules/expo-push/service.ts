@@ -28,7 +28,7 @@ export class ExpoPushNotificationProviderService extends AbstractNotificationPro
   constructor(_: unknown, options: ExpoPushOptions) {
     super()
     this.apiUrl = options.apiUrl || EXPO_PUSH_API_URL
-    this.accessToken = options.accessToken || undefined
+    this.accessToken = options.accessToken
   }
 
   async send(notification: ProviderSendNotificationDTO): Promise<ProviderSendNotificationResultsDTO> {
