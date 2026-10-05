@@ -11,7 +11,7 @@ import { verifyPaystackSignature } from "./hooks/paystack-signature";
 import { refuseVendorCapture } from "./vendor/payments/no-capture";
 import { showTheShopItsOwnOrder } from "./vendor/orders/shop-view";
 import { hideBuyerPins } from "./vendor/buyer-pins";
-import { VendorRejectOrder } from "./vendor/orders/validators";
+import { VendorRecordPick, VendorRejectOrder } from "./vendor/orders/validators";
 import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
@@ -136,6 +136,11 @@ export default defineMiddlewares({
             method: ["POST"],
             matcher: "/vendor/orders/:id/reject",
             middlewares: [validateAndTransformBody(VendorRejectOrder)],
+        },
+        {
+            method: ["POST"],
+            matcher: "/vendor/orders/:id/pick-list/:item_id",
+            middlewares: [validateAndTransformBody(VendorRecordPick)],
         },
         { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },

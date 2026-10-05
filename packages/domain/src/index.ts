@@ -52,3 +52,5 @@ export type {
 export type { AcceptTimeLeft } from "./accept-deadline"
 export { deliveryChoices, deliveryEstimate } from "./delivery"
 export type { DeliveryChoice, DeliveryRate, DeliveryTag } from "./delivery"
+export { pickProgress, scanBarcode } from "./picking"
+export type { PickLine, PickProgress, ScanResult } from "./picking"

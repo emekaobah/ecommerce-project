@@ -40,6 +40,7 @@ Visual direction: **Monochrome** (option C on the design canvas, researched in R
   - Owner/manager → `role_seller_administration`; fulfilment staff → `role_seller_order_management`.
   - Staff invited by owner from the web vendor panel.
 - Catalogue, onboarding, promotions and review replies remain in the **web vendor panel**.
+- **Pick and pack** (#21): Start picking opens a checklist of the order's lines. Staff tick a line off by hand or scan barcodes with the camera: a scan ticks one more of the line whose variant carries that barcode, EAN or UPC (GTINs compared as 14 digits, so a UPC-A read as EAN-13 still matches); a barcode on no line warns (`scanBarcode`, `@oja/domain`). Each line's picked count is kept on the order's fulfilment row (`picks`), so progress survives leaving the screen and shows on any phone. Mark packed is refused until every line is picked in full; partial availability (#22) adds "unavailable" as the other way to resolve a line. Vendor API: `POST /vendor/orders/:id/start-picking`, `GET /vendor/orders/:id/pick-list`, `POST /vendor/orders/:id/pick-list/:item_id` (`{ picked }`), `POST /vendor/orders/:id/pack`.
 - Push notifications (Expo): new order, accept deadline approaching, courier pickup scheduled, pickup order not collected.
 - **Pause / resume orders** (owner/manager only): closes the shop now, until reopened or until a set time (see Shop hours and closures).
 - Pickup counter: scan the buyer's QR or type the 6-digit code, record who collected.

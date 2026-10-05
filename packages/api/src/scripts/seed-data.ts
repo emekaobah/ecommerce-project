@@ -168,32 +168,37 @@ export type SeedProduct = {
   weight_grams: number
   /** One variant per size (S–XL) instead of a single variant. */
   sized?: boolean
+  /**
+   * The single variant's EAN-13, for scanning while picking. In-store codes (GS1 prefix 200),
+   * so they never clash with a real product's barcode.
+   */
+  barcode?: string
   /** Starter attribute values by attribute handle (select values by name). */
   attributes: Record<string, string>
 }
 
 export const SEED_PRODUCTS: SeedProduct[] = [
   // Groceries
-  { title: "Ofada Rice 5kg", department: "Groceries", category: "Rice & Grains", price: 14500, weight_grams: 5000, description: "Stone-free local ofada rice, bagged in Abeokuta.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
-  { title: "Long Grain Parboiled Rice 10kg", department: "Groceries", category: "Rice & Grains", price: 22000, weight_grams: 10000, description: "Everyday parboiled rice for jollof and fried rice.", attributes: { storage: "Cool, dry place", "shelf-life": "18 months" } },
-  { title: "Honey Beans (Oloyin) 2kg", department: "Groceries", category: "Beans & Garri", price: 6800, weight_grams: 2000, description: "Sweet brown beans, handpicked and cleaned.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
-  { title: "Ijebu Garri 4kg", department: "Groceries", category: "Beans & Garri", price: 5200, weight_grams: 4000, description: "Crisp, sour white garri for soaking or eba.", attributes: { storage: "Cool, dry place", "shelf-life": "6 months" } },
-  { title: "Red Palm Oil 3L", department: "Groceries", category: "Oils & Spices", price: 9500, weight_grams: 2800, description: "Unbleached red palm oil in a sealed jerrycan.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
-  { title: "Ground Crayfish 500g", department: "Groceries", category: "Oils & Spices", price: 4500, weight_grams: 500, description: "Finely ground dried crayfish for soups and stews.", attributes: { storage: "Refrigerate", "shelf-life": "3 months once opened" } },
-  { title: "Dried Zobo Leaves 250g", department: "Groceries", category: "Snacks & Drinks", price: 1800, weight_grams: 250, description: "Dried hibiscus petals for homemade zobo.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
-  { title: "Plantain Chips 150g", department: "Groceries", category: "Snacks & Drinks", price: 1200, also_at: [{ shop: "Ikeja Gadget Hub", price: 1300 }], weight_grams: 150, description: "Thin-sliced, lightly salted ripe plantain chips.", attributes: { storage: "Cool, dry place", "shelf-life": "3 months" } },
+  { title: "Ofada Rice 5kg", barcode: "2000000000015", department: "Groceries", category: "Rice & Grains", price: 14500, weight_grams: 5000, description: "Stone-free local ofada rice, bagged in Abeokuta.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
+  { title: "Long Grain Parboiled Rice 10kg", barcode: "2000000000022", department: "Groceries", category: "Rice & Grains", price: 22000, weight_grams: 10000, description: "Everyday parboiled rice for jollof and fried rice.", attributes: { storage: "Cool, dry place", "shelf-life": "18 months" } },
+  { title: "Honey Beans (Oloyin) 2kg", barcode: "2000000000039", department: "Groceries", category: "Beans & Garri", price: 6800, weight_grams: 2000, description: "Sweet brown beans, handpicked and cleaned.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
+  { title: "Ijebu Garri 4kg", barcode: "2000000000046", department: "Groceries", category: "Beans & Garri", price: 5200, weight_grams: 4000, description: "Crisp, sour white garri for soaking or eba.", attributes: { storage: "Cool, dry place", "shelf-life": "6 months" } },
+  { title: "Red Palm Oil 3L", barcode: "2000000000053", department: "Groceries", category: "Oils & Spices", price: 9500, weight_grams: 2800, description: "Unbleached red palm oil in a sealed jerrycan.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
+  { title: "Ground Crayfish 500g", barcode: "2000000000060", department: "Groceries", category: "Oils & Spices", price: 4500, weight_grams: 500, description: "Finely ground dried crayfish for soups and stews.", attributes: { storage: "Refrigerate", "shelf-life": "3 months once opened" } },
+  { title: "Dried Zobo Leaves 250g", barcode: "2000000000077", department: "Groceries", category: "Snacks & Drinks", price: 1800, weight_grams: 250, description: "Dried hibiscus petals for homemade zobo.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
+  { title: "Plantain Chips 150g", barcode: "2000000000084", department: "Groceries", category: "Snacks & Drinks", price: 1200, also_at: [{ shop: "Ikeja Gadget Hub", price: 1300 }], weight_grams: 150, description: "Thin-sliced, lightly salted ripe plantain chips.", attributes: { storage: "Cool, dry place", "shelf-life": "3 months" } },
   // Fashion
   { title: "Adire Kaftan", department: "Fashion", category: "Men's Clothing", price: 28000, weight_grams: 450, sized: true, description: "Indigo hand-dyed adire kaftan in soft cotton.", attributes: { fabric: "Adire cotton", "care-instructions": "Hand wash cold; dry in the shade" } },
   { title: "Ankara Wrap Dress", department: "Fashion", category: "Women's Clothing", price: 32000, weight_grams: 400, sized: true, description: "Midi wrap dress in a bold Ankara print.", attributes: { fabric: "Ankara wax print", "care-instructions": "Machine wash cold; iron inside out" } },
-  { title: "Aso Oke Fila Cap", department: "Fashion", category: "Bags & Accessories", price: 8500, weight_grams: 150, description: "Handwoven aso oke cap for owambe days.", attributes: { fabric: "Aso oke", "care-instructions": "Spot clean only" } },
-  { title: "Ankara Tote Bag", department: "Fashion", category: "Bags & Accessories", price: 12000, weight_grams: 350, description: "Lined canvas tote with an Ankara print panel.", attributes: { fabric: "Canvas", "care-instructions": "Spot clean only" } },
+  { title: "Aso Oke Fila Cap", barcode: "2000000000091", department: "Fashion", category: "Bags & Accessories", price: 8500, weight_grams: 150, description: "Handwoven aso oke cap for owambe days.", attributes: { fabric: "Aso oke", "care-instructions": "Spot clean only" } },
+  { title: "Ankara Tote Bag", barcode: "2000000000107", department: "Fashion", category: "Bags & Accessories", price: 12000, weight_grams: 350, description: "Lined canvas tote with an Ankara print panel.", attributes: { fabric: "Canvas", "care-instructions": "Spot clean only" } },
   // Electronics
-  { title: "20,000mAh Power Bank", department: "Electronics", category: "Power & Lighting", price: 24000, weight_grams: 420, description: "Charges a phone four times over; USB-C in and out.", attributes: { voltage: "5V USB", warranty: "6 months" } },
-  { title: "Rechargeable LED Lantern", department: "Electronics", category: "Power & Lighting", price: 9800, also_at: [{ shop: "Iya Bisi Foodstuff", price: 10500 }], weight_grams: 600, description: "Up to 12 hours of light for NEPA outages.", attributes: { voltage: "5V USB", warranty: "3 months" } },
-  { title: "Rechargeable Standing Fan 16-inch", department: "Electronics", category: "Power & Lighting", price: 65000, weight_grams: 5500, description: "Runs up to 8 hours on its built-in battery.", attributes: { voltage: "220-240V AC", warranty: "12 months" } },
-  { title: "6-Way Surge Protector", department: "Electronics", category: "Phone Accessories", price: 11500, weight_grams: 900, description: "Surge-protected extension with two USB ports.", attributes: { voltage: "220-240V AC", warranty: "6 months" } },
-  { title: "25W USB-C Fast Charger", department: "Electronics", category: "Phone Accessories", price: 7500, also_at: [{ shop: "Iya Bisi Foodstuff", price: 7900 }], weight_grams: 120, description: "Wall charger with a 1m USB-C cable.", attributes: { voltage: "220-240V AC", warranty: "6 months" } },
-  { title: "Wireless Earbuds", department: "Electronics", category: "Audio", price: 18500, weight_grams: 80, description: "Bluetooth 5.3 earbuds with a charging case.", attributes: { voltage: "5V USB", warranty: "3 months" } },
+  { title: "20,000mAh Power Bank", barcode: "2000000000114", department: "Electronics", category: "Power & Lighting", price: 24000, weight_grams: 420, description: "Charges a phone four times over; USB-C in and out.", attributes: { voltage: "5V USB", warranty: "6 months" } },
+  { title: "Rechargeable LED Lantern", barcode: "2000000000121", department: "Electronics", category: "Power & Lighting", price: 9800, also_at: [{ shop: "Iya Bisi Foodstuff", price: 10500 }], weight_grams: 600, description: "Up to 12 hours of light for NEPA outages.", attributes: { voltage: "5V USB", warranty: "3 months" } },
+  { title: "Rechargeable Standing Fan 16-inch", barcode: "2000000000138", department: "Electronics", category: "Power & Lighting", price: 65000, weight_grams: 5500, description: "Runs up to 8 hours on its built-in battery.", attributes: { voltage: "220-240V AC", warranty: "12 months" } },
+  { title: "6-Way Surge Protector", barcode: "2000000000145", department: "Electronics", category: "Phone Accessories", price: 11500, weight_grams: 900, description: "Surge-protected extension with two USB ports.", attributes: { voltage: "220-240V AC", warranty: "6 months" } },
+  { title: "25W USB-C Fast Charger", barcode: "2000000000152", department: "Electronics", category: "Phone Accessories", price: 7500, also_at: [{ shop: "Iya Bisi Foodstuff", price: 7900 }], weight_grams: 120, description: "Wall charger with a 1m USB-C cable.", attributes: { voltage: "220-240V AC", warranty: "6 months" } },
+  { title: "Wireless Earbuds", barcode: "2000000000169", department: "Electronics", category: "Audio", price: 18500, weight_grams: 80, description: "Bluetooth 5.3 earbuds with a charging case.", attributes: { voltage: "5V USB", warranty: "3 months" } },
 ]
 
 /**

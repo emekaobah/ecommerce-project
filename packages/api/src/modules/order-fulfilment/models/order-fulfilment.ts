@@ -17,6 +17,8 @@ const OrderFulfilment = model
     placed_at: model.dateTime(),
     /** Why the shop rejected the order, as staff gave it. */
     reject_reason: model.text().nullable(),
+    /** How many of each line staff have picked so far, by line item id; a line not listed has none. */
+    picks: model.json().nullable(),
   })
   .indexes([{ on: ["state", "placed_at"] }])
 

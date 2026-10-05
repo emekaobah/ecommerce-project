@@ -24,6 +24,15 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-secure-store',
+    // Staff scan item barcodes while picking; no video, so no microphone.
+    [
+      'expo-camera',
+      {
+        cameraPermission: 'Allow $(PRODUCT_NAME) to use the camera to scan item barcodes while picking orders.',
+        microphonePermission: false,
+        recordAudioAndroid: false,
+      },
+    ],
     ['expo-splash-screen', { backgroundColor: '#FFFFFF', image: './assets/splash-icon.png', imageWidth: 120 }],
     withIosSceneLifecycle,
   ],

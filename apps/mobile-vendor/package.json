@@ -9,6 +9,7 @@
     "@oja/ui": "workspace:*",
     "@tanstack/react-query": "5.64.2",
     "expo": "~57.0.25",
+    "expo-camera": "~57.0.6",
     "expo-constants": "~57.0.19",
     "expo-dev-client": "~57.0.19",
     "expo-device": "~57.0.2",
