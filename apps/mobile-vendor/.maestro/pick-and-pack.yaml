@@ -1,0 +1,47 @@
+# Staff accept a new order, pick it (leaving the checklist and coming back keeps what was
+# ticked) and pack it (#21). Needs the backend with the seeded shops and a new order for the
+# grocery shop: `bun run --cwd packages/api demo:order` places one. Scanning needs a real
+# camera, so lines are ticked by hand here.
+appId: com.emekaobah.oja.vendor
+env:
+  MEMBER_EMAIL: grocery.owner@oja.test
+  MEMBER_PASSWORD: supersecret
+  SHOP: Iya Bisi Foodstuff
+---
+- launchApp
+- runFlow:
+    file: sign-in.yaml
+    env:
+      MEMBER_EMAIL: ${MEMBER_EMAIL}
+      MEMBER_PASSWORD: ${MEMBER_PASSWORD}
+      SHOP: ${SHOP}
+- extendedWaitUntil:
+    visible: ${SHOP}
+    timeout: 15000
+# Orders are newest first; open the newest one waiting to be accepted. A row reads as one
+# label: its title, items and state chip.
+- tapOn: ".*, New · .*"
+- tapOn: "Accept order"
+- tapOn: "Start picking"
+- extendedWaitUntil:
+    visible: "0 of .* picked"
+    timeout: 10000
+# Tick the first line, leave the checklist, and come back to it: the tick is still there.
+- tapOn: ".*, To pick"
+- assertVisible: ".*, Picked"
+# The header's back button (Maestro's `back` is Android's).
+- tapOn: "Order #.*"
+- tapOn: "Continue picking"
+- assertVisible: ".*, Picked"
+# Packing waits for every line.
+- assertVisible:
+    text: "Pick every item to pack the order."
+- repeat:
+    while:
+      visible: ".*, To pick"
+    commands:
+      - tapOn: ".*, To pick"
+- tapOn: "Mark packed"
+- assertVisible: "Order #.* is packed"
+- tapOn: "Back to orders"
+- assertVisible: ".*, Packed"

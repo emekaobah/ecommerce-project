@@ -1,11 +1,11 @@
-import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
-import { WorkflowResponse, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
+import { releaseLockStep } from "@medusajs/medusa/core-flows"
+import { WorkflowResponse, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { recordPickStep, type RecordPickInput } from "../steps/record-pick"
+import { lockOrderFulfilment } from "../compose"
 
 /** Staff tick a line off (or back on) while picking: sets how many of it are picked. */
 export const recordPickWorkflow = createWorkflow("record-pick", (input: RecordPickInput) => {
-  const lock = transform({ input }, ({ input }) => `order-fulfilment:${input.order_id}`)
-  acquireLockStep({ key: lock, timeout: 5, ttl: 30 })
+  const lock = lockOrderFulfilment(input)
   const fulfilment = recordPickStep(input)
   releaseLockStep({ key: lock })
   return new WorkflowResponse(fulfilment)

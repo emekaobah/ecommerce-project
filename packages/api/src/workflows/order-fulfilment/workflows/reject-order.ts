@@ -1,5 +1,4 @@
 import {
-  acquireLockStep,
   cancelOrdersStep,
   deleteReservationsByLineItemsStep,
   emitEventStep,
@@ -10,6 +9,7 @@ import { OrderWorkflowEvents } from "@medusajs/framework/utils"
 import { WorkflowResponse, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
 import { ORDER_REJECTED } from "../../../lib/order-fulfilment"
 import { transitionFulfilmentStep } from "../steps/transition-fulfilment"
+import { lockOrderFulfilment } from "../compose"
 
 export type RejectOrderInput = {
   order_id: string
@@ -28,8 +28,7 @@ export type RejectOrderInput = {
  * isn't recorded as the order's refund.
  */
 export const rejectOrderWorkflow = createWorkflow("reject-order", (input: RejectOrderInput) => {
-  const lock = transform({ input }, ({ input }) => `order-fulfilment:${input.order_id}`)
-  acquireLockStep({ key: lock, timeout: 5, ttl: 30 })
+  const lock = lockOrderFulfilment(input)
   const trigger = transform({ input }, ({ input }) => {
     const at = new Date().toISOString()
     return input.actor

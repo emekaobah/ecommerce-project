@@ -9,6 +9,10 @@ Expo Router app for shop members. Architecture: [ADR 0001](../../docs/adr/0001-m
 3. Build and open a dev build: `bunx expo run:ios` or `bunx expo run:android`.
 4. Sign in as a seeded shop member.
 
+## End-to-end flows
+
+Maestro flows live in `.maestro/`. `pick-and-pack.yaml` signs in as the seeded grocery owner (`sign-in.yaml`), accepts the newest new order, picks it (leaving the checklist and coming back keeps the ticks) and packs it. Each run needs a new order for the grocery shop, which `bun run --cwd packages/api demo:order` places without a checkout (unpaid, so don't reject it). With the backend and the dev build running: `maestro test .maestro/pick-and-pack.yaml`. Scanning isn't covered: the simulator has no camera.
+
 ## Layout
 
 - `app.config.ts`: name, scheme (`ojavendor://`) and bundle id come from `appIdentity` in `@oja/domain`. The iOS scene life cycle plugin is shared with the buyer app from `@oja/expo-plugins`.

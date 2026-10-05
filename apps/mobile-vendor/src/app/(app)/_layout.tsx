@@ -21,10 +21,11 @@ export default function AppLayout() {
         name="orders/[id]/reject"
         options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: 'fitToContents' }}
       />
-      <Stack.Screen name="orders/[id]/pick" options={{ title: 'Pick items' }} />
+      {/* The pick list and packed screens set their own titles. */}
+      <Stack.Screen name="orders/[id]/pick" />
       {/* The scanner fills the screen; Done returns to the pick list. */}
       <Stack.Screen name="orders/[id]/scan" options={{ presentation: 'fullScreenModal', headerShown: false }} />
-      <Stack.Screen name="orders/[id]/packed" options={{ title: 'Packed', headerBackVisible: false }} />
+      <Stack.Screen name="orders/[id]/packed" options={{ headerBackVisible: false }} />
     </Stack>
   );
 }
