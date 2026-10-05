@@ -1,6 +1,7 @@
 import { defineMiddlewares } from "@medusajs/medusa";
 import { authenticate, validateAndTransformBody, validateAndTransformQuery } from "@medusajs/framework/http";
 import { clerkCustomerAuth } from "./store/clerk-customer-auth";
+import { savedAddressesNeedPins } from "./store/customers/address-pin";
 import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
@@ -121,6 +122,9 @@ export default defineMiddlewares({
             matcher: "/store/address-lookup/reverse-geocode",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreReverseGeocode, {})],
         },
+        // A saved delivery address carries the buyer's pin, like every address checkout takes (#18).
+        { method: ["POST"], matcher: "/store/customers/me/addresses", middlewares: [savedAddressesNeedPins] },
+        { method: ["POST"], matcher: "/store/customers/me/addresses/:address_id", middlewares: [savedAddressesNeedPins] },
         { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
         // Paystack signs the raw body, so it is kept for the check.
         {

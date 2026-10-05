@@ -193,6 +193,50 @@ medusaIntegrationTestRunner({
       })
     })
 
+    // A buyer adds to their saved addresses (#18) with no cart: the region the app shops in
+    // decides the countries instead.
+    describe("for the buyer's region, without a cart", () => {
+      const inRegion = (path: string, regionId = buyer.regionId()) =>
+        `/store/address-lookup/${path}${path.includes("?") ? "&" : "?"}region_id=${regionId}`
+
+      it("suggests places in the region's countries", async () => {
+        const { data } = await api.get(inRegion(`suggestions?session_token=${SESSION}&input=Akin%20Adesola`), ada())
+
+        expect(data.suggestions.map((s: { place_id: string }) => s.place_id)).toEqual([PLACES.victoriaIsland.id])
+        expect(google.autocompletes()).toEqual([
+          { input: "Akin Adesola", sessionToken: SESSION, includedRegionCodes: ["ng"] },
+        ])
+      })
+
+      it("finds a place's address and the address at a point only in the region's countries", async () => {
+        const { data: found } = await api.get(inRegion(`places/${PLACES.victoriaIsland.id}?session_token=${SESSION}`), ada())
+        const abroad = await status(api.get(inRegion(`places/${PLACES.accra.id}?session_token=${SESSION}`), ada()))
+        const { latitude, longitude } = PLACES.victoriaIsland.location
+        const { data: here } = await api.get(inRegion(`reverse-geocode?latitude=${latitude}&longitude=${longitude}`), ada())
+
+        expect(found.place).toMatchObject({ street: "3 Akin Adesola Street", state: "Lagos" })
+        expect(abroad).toBe(404)
+        expect(here.place).toMatchObject({ country_code: "NG", state: "Lagos" })
+      })
+
+      it("is for signed-in buyers only", async () => {
+        expect(await status(api.get(inRegion(`suggestions?session_token=${SESSION}&input=Akin`), guest()))).toBe(401)
+      })
+
+      it("needs a region the store has", async () => {
+        expect(await status(api.get(inRegion(`suggestions?session_token=${SESSION}&input=Akin`, "reg_nowhere"), ada()))).toBe(404)
+        expect(google.autocompletes()).toEqual([])
+      })
+
+      it("needs the cart or the region, not both", async () => {
+        const cartId = await newCart()
+        const neither = `/store/address-lookup/suggestions?session_token=${SESSION}&input=Akin`
+
+        expect(await status(api.get(neither, ada()))).toBe(400)
+        expect(await status(api.get(`${inRegion(`suggestions?session_token=${SESSION}&input=Akin`)}&cart_id=${cartId}`, ada()))).toBe(400)
+      })
+    })
+
     describe("what shops see of the address", () => {
       /** Ada pays for a cart delivered to her pinned address; the gadget shop's order of it. */
       const pinnedOrder = async () => {
