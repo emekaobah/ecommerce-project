@@ -2,7 +2,23 @@ export { formatMoney } from "./money"
 export { getAddressConfig } from "./address"
 export type { AddressConfig, AddressField, AddressFieldKey, PhoneConfig } from "./address"
 export { addressFormValues, addressFromForm, pinOf } from "./address-form"
-export type { AddressFormResult, AddressFormValues, DeliveryAddress, Pin, PinnedDeliveryAddress } from "./address-form"
+export type {
+  AddressFormResult,
+  AddressFormValues,
+  DeliveryAddress,
+  Pin,
+  PinnedDeliveryAddress,
+  StoredAddress,
+} from "./address-form"
+export {
+  addressBook,
+  addressLines,
+  checkoutAddressOf,
+  preselectedAddress,
+  savedAddressEdit,
+  savedAddressFor,
+} from "./saved-address"
+export type { AddressLines, SavedAddress } from "./saved-address"
 export { formFromLookup, mapCentre, stateFromLookup } from "./address-lookup"
 export type { LookedUpPlace } from "./address-lookup"
 export { toE164 } from "./phone"

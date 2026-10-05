@@ -20,6 +20,23 @@ export type DeliveryAddress = {
   metadata: { landmark?: string; latitude?: number; longitude?: number }
 }
 
+/**
+ * An address as the store returns it, saved to the buyer's account or on a cart: Medusa's
+ * columns, any of which may be empty, and `metadata` with the landmark and pin (ADR 0002).
+ */
+export type StoredAddress = {
+  first_name?: string | null
+  last_name?: string | null
+  address_1?: string | null
+  address_2?: string | null
+  city?: string | null
+  province?: string | null
+  postal_code?: string | null
+  country_code?: string | null
+  phone?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
 /** A point on the map, in degrees. */
 export type Pin = { latitude: number; longitude: number }
 
@@ -103,7 +120,7 @@ export function addressFromForm(values: AddressFormValues, countryCode: string, 
  * national format people type; empty fields, with the buyer's name, when there is none.
  */
 export function addressFormValues(
-  address: (Partial<Omit<DeliveryAddress, "metadata">> & { metadata?: Record<string, unknown> | null }) | null | undefined,
+  address: StoredAddress | null | undefined,
   countryCode: string,
   name?: { first_name?: string | null; last_name?: string | null }
 ): AddressFormValues {
