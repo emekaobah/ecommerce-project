@@ -136,23 +136,24 @@ medusaIntegrationTestRunner({
         const tomatoes = await productId(TOMATOES.title)
         const category = await categoryId(SEED_PERISHABLE_CATEGORIES[0])
 
+        // The flags' only routes are the operator's.
         const routes = [
           api.post(`/admin/products/${tomatoes}/perishable`, { override: false }, shop),
           api.post(`/admin/product-categories/${category}/perishable`, { perishable: false }, shop),
-          api.post(`/vendor/products/${tomatoes}/perishable`, { override: false }, shop),
-          api.post(`/vendor/product-categories/${category}/perishable`, { perishable: false }, shop),
         ]
         for (const res of await Promise.all(routes.map((r) => r.catch((e) => e.response)))) {
-          expect([401, 403, 404]).toContain(res.status)
+          expect(res.status).toBe(401)
         }
-        // Product metadata and custom-field data are the shop's to edit, and say nothing about it.
-        await api
+        // The shop's own product edit is taken (as a change for the operator to review), with
+        // metadata and custom-field data that say nothing about it.
+        const edit = await api
           .post(
             `/vendor/products/${tomatoes}`,
             { metadata: { perishable: false }, additional_data: { perishable: false } },
             shop
           )
           .catch((e) => e.response)
+        expect([200, 202]).toContain(edit.status)
 
         expect(await listedPerishable(GROCERY, TOMATOES.title)).toBe(true)
       })
@@ -232,6 +233,31 @@ medusaIntegrationTestRunner({
 
         expect((await shopIn(data.checkout, GROCERY)).delivery_unavailable).not.toBeNull()
         expect(data.checkout.shipping_total).toBe(LATER.amount)
+      })
+
+      it("won't take a delivery quoted before the order became perishable, nor keep refusing once it isn't", async () => {
+        shipbubble.setCouriers([LATER])
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        expect((await buyer.checkout(cartId)).ready_to_pay).toBe(true)
+
+        await flagCategory("Rice & Grains", true)
+        try {
+          const flagged = await buyer.checkout(cartId)
+          expect((await shopIn(flagged, GROCERY)).shipping).toBeNull()
+          expect(flagged.ready_to_pay).toBe(false)
+          const res = await api
+            .post(`/store/carts/${cartId}/checkout/payment`, { return_url: RETURN_URL }, ada())
+            .catch((e) => e.response)
+          expect(res.status).toBe(400)
+
+          const { data } = await buyer.prepare(cartId)
+          expect((await shopIn(data.checkout, GROCERY)).delivery_unavailable).not.toBeNull()
+        } finally {
+          await flagCategory("Rice & Grains", false)
+        }
+        // Unflagged, the old refusal no longer stands: checkout quotes the shop again.
+        expect((await shopIn(await buyer.checkout(cartId), GROCERY)).delivery_unavailable).toBeNull()
       })
 
       it("quotes every rate again once the perishable line is removed", async () => {

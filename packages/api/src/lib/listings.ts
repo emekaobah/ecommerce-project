@@ -400,6 +400,10 @@ export async function retrieveListing(
   const p = product as ProductDetailRow
   const attributeValues = (withAttributes as { product_attribute_values?: AttributeValueRow[] } | undefined)
     ?.product_attribute_values
+  const [attribution, perishable] = await Promise.all([
+    attributionOf(scope, p.id),
+    perishableProductIds(scope, [p.id]),
+  ])
   return toListing(group, {
     id: p.id,
     title: p.title,
@@ -410,8 +414,8 @@ export async function retrieveListing(
     weight: p.weight == null ? null : Number(p.weight),
     images: (p.images ?? []).map(({ id, url }) => ({ id, url })),
     attributes: attributesOf(attributeValues ?? []),
-    attribution: await attributionOf(scope, p.id),
-    perishable: (await perishableProductIds(scope, [p.id])).has(p.id),
+    attribution,
+    perishable: perishable.has(p.id),
   })
 }
 

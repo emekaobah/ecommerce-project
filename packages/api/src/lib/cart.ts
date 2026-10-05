@@ -33,6 +33,8 @@ export type CartSellerGroup = {
   seller: CartSeller | null
   items: CartItem[]
   item_subtotal: number
+  /** Some of the shop's items are perishable: it delivers only by rates arriving by the end of the next day (#69). */
+  perishable: boolean
 }
 
 export type CartBySeller = {
@@ -150,11 +152,15 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
     const offerId = offerIds[i]
     const seller = (offerId && sellers.get(offerId)) || null
     const key = seller?.id ?? ""
-    const group = groups.get(key) ?? { seller, items: [], item_subtotal: 0 }
+    const group = groups.get(key) ?? { seller, items: [], item_subtotal: 0, perishable: false }
     group.items.push(toItem(row, offerId, !!row.product_id && perishable.has(row.product_id)))
     groups.set(key, group)
   })
-  const sellerGroups = [...groups.values()].map((g) => ({ ...g, item_subtotal: sum(g.items.map((i) => i.subtotal)) }))
+  const sellerGroups = [...groups.values()].map((g) => ({
+    ...g,
+    item_subtotal: sum(g.items.map((i) => i.subtotal)),
+    perishable: g.items.some((i) => i.perishable),
+  }))
 
   return {
     id: cart.id,

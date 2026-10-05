@@ -1,6 +1,6 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { overrideProductPerishable, productPerishable, type ProductPerishable } from "../../../../../lib/perishable"
-import type { AdminOverrideProductPerishableType } from "../../../perishable-validators"
+import type { AdminOverrideProductPerishableType } from "./validators"
 
 export type AdminProductPerishableResponse = { perishable: ProductPerishable }
 

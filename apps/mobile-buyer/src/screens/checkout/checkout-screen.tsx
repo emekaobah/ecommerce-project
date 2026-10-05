@@ -9,7 +9,6 @@ import {
   type AddressFieldKey,
   type AddressFormValues,
   type DeliveryTag,
-  PERISHABLE_DELIVERY_RULE,
   type PaymentReturn,
   type Pin,
 } from '@oja/domain';
@@ -29,7 +28,7 @@ import {
 import { useCustomer } from '@/api/customer';
 import { isAlreadyPaid } from '@/api/errors';
 import { useCartSession } from '@/cart/cart-provider';
-import { PerishableChip } from '@/components/perishable';
+import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { env } from '@/config/env';
 import { useRegion } from '@/region/region-provider';
 
@@ -286,11 +285,7 @@ function ShopSummary({
           <Text>{formatMoney(item.subtotal, currencyCode)}</Text>
         </View>
       ))}
-      {group.perishable && !group.delivery_unavailable ? (
-        <Text variant="caption" tone="secondary">
-          {PERISHABLE_DELIVERY_RULE}
-        </Text>
-      ) : null}
+      {group.perishable && !group.delivery_unavailable ? <PerishableRule /> : null}
       <DeliveryChoices cartId={cartId} group={group} currencyCode={currencyCode} />
     </View>
   );

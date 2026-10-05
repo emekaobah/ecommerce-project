@@ -17,7 +17,8 @@ import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webh
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
 import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
-import { AdminOverrideProductPerishable, AdminSetCategoryPerishable } from "./admin/perishable-validators";
+import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
+import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 
 export default defineMiddlewares({

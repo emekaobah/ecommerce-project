@@ -16,7 +16,7 @@ export type ProductPerishable = { perishable: boolean; override: boolean | null;
 /** A category's own flag, and whether a parent category makes it perishable anyway. */
 export type CategoryPerishable = { perishable: boolean; inherited: boolean }
 
-const flags = (scope: Scope) => scope.resolve<PerishableModuleService>(PERISHABLE_MODULE)
+const perishableFlags = (scope: Scope) => scope.resolve<PerishableModuleService>(PERISHABLE_MODULE)
 
 type CategoryRow = { id: string; mpath?: string | null; parent_category_id?: string | null }
 
@@ -29,7 +29,7 @@ const lineageOf = (category: CategoryRow) =>
 /** The categories among `ids` the operator marked perishable. */
 async function flaggedCategories(scope: Scope, ids: string[]): Promise<Set<string>> {
   if (!ids.length) return new Set()
-  const rows = await flags(scope).listPerishableCategories({ category_id: ids, perishable: true })
+  const rows = await perishableFlags(scope).listPerishableCategories({ category_id: ids, perishable: true })
   return new Set(rows.map((r) => r.category_id))
 }
 
@@ -49,7 +49,7 @@ export async function productsPerishable(scope: Scope, productIds: string[]): Pr
   if (!ids.length) return new Map()
   const [products, overrides] = await Promise.all([
     categoriesOf(scope, ids),
-    flags(scope).listPerishableProducts({ product_id: ids }),
+    perishableFlags(scope).listPerishableProducts({ product_id: ids }),
   ])
   const lineages = new Map(
     products.map((p) => [p.id, (p.categories ?? []).flatMap((c) => (c ? [lineageOf(c)] : []))] as const)
@@ -88,7 +88,7 @@ export async function overrideProductPerishable(
   override: boolean | null
 ): Promise<ProductPerishable> {
   await productPerishable(scope, productId)
-  const service = flags(scope)
+  const service = perishableFlags(scope)
   const [existing] = await service.listPerishableProducts({ product_id: productId })
   if (override === null) {
     if (existing) await service.deletePerishableProducts(existing.id)
@@ -115,17 +115,18 @@ async function categoryRow(scope: Scope, categoryId: string): Promise<CategoryRo
 /** A category's own flag, and whether one of its parents makes it perishable, or not found. */
 export async function categoryPerishable(scope: Scope, categoryId: string): Promise<CategoryPerishable> {
   const category = await categoryRow(scope, categoryId)
-  const flagged = await flaggedCategories(scope, lineageOf(category))
+  const lineage = lineageOf(category)
+  const flagged = await flaggedCategories(scope, lineage)
   return {
     perishable: flagged.has(category.id),
-    inherited: lineageOf(category).some((id) => id !== category.id && flagged.has(id)),
+    inherited: lineage.some((id) => id !== category.id && flagged.has(id)),
   }
 }
 
 /** Marks a category perishable or not. */
 export async function setCategoryPerishable(scope: Scope, categoryId: string, perishable: boolean): Promise<CategoryPerishable> {
   await categoryRow(scope, categoryId)
-  const service = flags(scope)
+  const service = perishableFlags(scope)
   const [existing] = await service.listPerishableCategories({ category_id: categoryId })
   if (existing) await service.updatePerishableCategories({ id: existing.id, perishable })
   else await service.createPerishableCategories({ category_id: categoryId, perishable })

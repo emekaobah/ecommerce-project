@@ -1,6 +1,6 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { categoryPerishable, setCategoryPerishable, type CategoryPerishable } from "../../../../../lib/perishable"
-import type { AdminSetCategoryPerishableType } from "../../../perishable-validators"
+import type { AdminSetCategoryPerishableType } from "./validators"
 
 export type AdminCategoryPerishableResponse = { perishable: CategoryPerishable }
 

@@ -6,7 +6,7 @@ import { model } from "@medusajs/framework/utils"
  * product's metadata, which shops can write through the vendor routes.
  */
 const PerishableProduct = model.define("perishable_product", {
-  id: model.id({ prefix: "prod_per" }).primaryKey(),
+  id: model.id({ prefix: "perprod" }).primaryKey(),
   product_id: model.text().unique(),
   perishable: model.boolean(),
 })

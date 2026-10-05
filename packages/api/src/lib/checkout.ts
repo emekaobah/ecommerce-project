@@ -71,8 +71,6 @@ export type CheckoutSellerGroup = CartSellerGroup & {
   shipping: CheckoutShipping | null
   /** Best value (preselected), the cheapest and the fastest, as quoted for the current cart. */
   delivery_choices: CheckoutDeliveryChoice[]
-  /** Some of the order's items are perishable: only rates arriving by the end of tomorrow are offered. */
-  perishable: boolean
   /** Set when the shop can't deliver the order as it stands; checkout can't be paid until it changes. */
   delivery_unavailable: DeliveryUnavailable | null
 }
@@ -186,11 +184,24 @@ const isMethodData = (data: unknown): data is ShipbubbleMethodData =>
  * `quoteBasis` they were quoted for: a shop has no shipping method to say so on.
  */
 const UNAVAILABLE_KEY = "delivery_unavailable"
-type UnavailableDeliveries = Record<string, DeliveryUnavailable & { basis: string }>
+/** A shop's refusal as the cart keeps it: with the `quoteBasis` it was quoted for. */
+type QuotedUnavailable = DeliveryUnavailable & { basis: string }
+type UnavailableDeliveries = Record<string, QuotedUnavailable>
 
 const unavailableDeliveries = (cart: Pick<CartRow, "metadata">): UnavailableDeliveries => {
   const stored = cart.metadata?.[UNAVAILABLE_KEY]
-  return stored && typeof stored === "object" ? (stored as UnavailableDeliveries) : {}
+  if (!stored || typeof stored !== "object") return {}
+  // Only entries in the shape checkout writes; anything else counts as no refusal.
+  return Object.fromEntries(
+    Object.entries(stored).filter(
+      (entry): entry is [string, QuotedUnavailable] =>
+        !!entry[1] &&
+        typeof entry[1] === "object" &&
+        (entry[1] as QuotedUnavailable).code === "perishable_too_slow" &&
+        typeof (entry[1] as QuotedUnavailable).reason === "string" &&
+        typeof (entry[1] as QuotedUnavailable).basis === "string"
+    )
+  )
 }
 
 /** Why a shop can't deliver an order with perishable items, for the buyer. */
@@ -262,18 +273,22 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
   const address = cart.shipping_address
   const receiverCode = addressCodeOf(address)
   const unavailable = unavailableDeliveries(cart)
+  const timeZone = await regionTimeZone(scope, grouped.region_id)
   const sellers = grouped.sellers.map((group) => {
     const delivery = group.seller ? deliveries.get(group.seller.id) : undefined
     // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
-    // So does a shop's word that it can't deliver.
+    // So does a shop's word that it can't deliver. An order with perishable items (perhaps only
+    // since the quote) takes only a delivery still arriving by the end of tomorrow, and a shop
+    // refused one only while it has perishable items.
     const basis = quoteBasis(receiverCode, parcelLines(group))
-    const current = delivery?.data.basis === basis ? delivery : undefined
+    const inTime = !!delivery && ratesFor([delivery.data.quote], { perishable: group.perishable, timeZone }).length > 0
+    const current = delivery?.data.basis === basis && inTime ? delivery : undefined
     const refused = group.seller ? unavailable[group.seller.id] : undefined
     return {
       ...group,
       ...shopDelivery(current),
-      perishable: group.items.some((i) => i.perishable),
-      delivery_unavailable: refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null,
+      delivery_unavailable:
+        group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null,
     }
   })
   return {
@@ -348,7 +363,7 @@ async function shipbubbleOptionsBySeller(scope: MedusaContainer, sellerIds: stri
 
 type ShopQuote =
   | { sellerId: string; option: { id: string; data: ShipbubbleMethodData } }
-  | { sellerId: string; unavailable: DeliveryUnavailable & { basis: string } }
+  | { sellerId: string; unavailable: QuotedUnavailable }
 
 /**
  * Each shop's delivery to the cart's address: Shipbubble's rates for the shop's parcel, with
@@ -375,8 +390,7 @@ async function setShopDeliveries(scope: MedusaContainer, cart: CartRow, receiver
       if (!optionId || !rates.length) {
         throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller.name} doesn't deliver to this address`)
       }
-      const perishable = group.items.some((i) => i.perishable)
-      const choices = deliveryChoices(ratesFor(rates, { perishable, timeZone }))
+      const choices = deliveryChoices(ratesFor(rates, { perishable: group.perishable, timeZone }))
       if (!choices.length) return { sellerId: seller.id, unavailable: { ...perishableTooSlow(seller.name), basis } }
       // `deliveryChoices` puts best value first.
       return { sellerId: seller.id, option: { id: optionId, data: { quote: choices[0]!, choices, basis } } }

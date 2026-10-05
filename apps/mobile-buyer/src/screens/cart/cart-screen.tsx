@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { formatMoney, PERISHABLE_DELIVERY_RULE } from '@oja/domain';
+import { formatMoney } from '@oja/domain';
 import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -10,7 +10,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useCart, useSetCartItemQuantity, type Cart, type CartItem } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
 import { useCartSession } from '@/cart/cart-provider';
-import { PerishableChip } from '@/components/perishable';
+import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { Price } from '@/components/price';
 
 /** The cart, one section per shop: each shop ships, and becomes an order, on its own. */
@@ -79,11 +79,7 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
             {group.seller ? null : (
               <Text tone="secondary">These shops stopped selling these items. Remove them to check out.</Text>
             )}
-            {group.seller && group.items.some((i) => i.perishable) ? (
-              <Text variant="caption" tone="secondary">
-                {PERISHABLE_DELIVERY_RULE}
-              </Text>
-            ) : null}
+            {group.seller && group.perishable ? <PerishableRule /> : null}
           </View>
         )}
         renderItem={({ item, section: { group } }) => (

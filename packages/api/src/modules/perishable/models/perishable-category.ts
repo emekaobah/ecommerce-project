@@ -6,7 +6,7 @@ import { model } from "@medusajs/framework/utils"
  * not on the category's metadata, so only the operator's routes can set it.
  */
 const PerishableCategory = model.define("perishable_category", {
-  id: model.id({ prefix: "pcat_per" }).primaryKey(),
+  id: model.id({ prefix: "percat" }).primaryKey(),
   category_id: model.text().unique(),
   perishable: model.boolean(),
 })
