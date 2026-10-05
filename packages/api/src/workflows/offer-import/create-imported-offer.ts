@@ -25,6 +25,10 @@ export type CreateImportedOfferInput = {
   cost: number | null
   /** Units in stock; null leaves the offer untracked. */
   stock: number | null
+  /** Kept on the offer, e.g. how it was added (quick-add, #38). */
+  metadata?: Record<string, unknown>
+  /** The proposal's images already in our file storage, which enrichment keeps rather than copies again. */
+  stored_images?: string[]
 }
 
 /**
@@ -58,7 +62,13 @@ export const createImportedOfferWorkflow = createWorkflow(
         fields: ["id", "variants.id"],
         filters: { id: productId },
       }).config({ name: "load-proposed-variant" })
-      recordQueuedEnrichmentStep(transform({ input, productId }, ({ input, productId }) => ({ product_id: productId, supplied: input.supplied })))
+      recordQueuedEnrichmentStep(
+        transform({ input, productId }, ({ input, productId }) => ({
+          product_id: productId,
+          supplied: input.supplied,
+          stored_images: input.stored_images ?? [],
+        }))
+      )
       emitEventStep({ eventName: ENRICHMENT_QUEUED, data: transform({ productId }, ({ productId }) => ({ id: productId })) })
       return data
     })
@@ -82,6 +92,7 @@ export const createImportedOfferWorkflow = createWorkflow(
                 { stock_levels: tracked ? [{ location_id: input.stock_location_id!, stocked_quantity: input.stock! }] : [] },
               ],
               prices: [{ amount: input.price, currency_code: input.currency_code }],
+              ...(input.metadata ? { metadata: input.metadata } : {}),
             },
           ],
         }
