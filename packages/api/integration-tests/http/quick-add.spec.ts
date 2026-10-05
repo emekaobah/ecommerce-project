@@ -52,7 +52,15 @@ medusaIntegrationTestRunner({
       const { data: [variant] } = await query.graph({ entity: "product_variant", fields: ["id"], filters: { barcode } })
       const { data } = await query.graph({
         entity: "offer",
-        fields: ["id", "created_by", "metadata", "manage_inventory", "prices.amount", "inventory_items.location_levels.stocked_quantity"],
+        fields: [
+          "id",
+          "created_by",
+          "metadata",
+          "manage_inventory",
+          "prices.amount",
+          "inventory_items.id",
+          "inventory_items.location_levels.stocked_quantity",
+        ],
         filters: { variant_id: variant.id, seller_id: await sellerId(shop) },
       })
       return data as any[]
@@ -72,6 +80,20 @@ medusaIntegrationTestRunner({
         })
         expect(offer.prices.map((p: any) => Number(p.amount))).toEqual([25000])
         expect(offer.inventory_items.flatMap((i: any) => i.location_levels.map((l: any) => Number(l.stocked_quantity)))).toEqual([6])
+      })
+
+      it("adds it once when two phones scan it at the same time", async () => {
+        const [first, second] = await Promise.all(
+          [25000, 26000].map(async (price) =>
+            api.post("/vendor/quick-add", { barcode: POWER_BANK, price }, await staff()).then(
+              (r: any) => r.status,
+              (e: any) => e.response.status
+            )
+          )
+        )
+
+        expect([first, second].sort()).toEqual([201, 422])
+        expect(await offersOn(POWER_BANK)).toHaveLength(1)
       })
 
       it("shows what the scan found: the catalogue's product, not yet sold by the shop", async () => {
@@ -105,8 +127,16 @@ medusaIntegrationTestRunner({
         const [offer] = await offersOn(OFADA)
         const price = { prices: [{ amount: 15000, currency_code: "ngn" }] }
 
-        const refused = await api.post(`/vendor/offers/${offer.id}`, price, await staff()).catch((e: any) => e.response)
+        const crew = await staff()
+        const refused = await api.post(`/vendor/offers/${offer.id}`, price, crew).catch((e: any) => e.response)
         expect(refused.status).toBe(403)
+        // Nor its stock, nor taking it off sale.
+        const [item] = offer.inventory_items
+        const stock = { update: [{ inventory_item_id: item?.id, required_quantity: 1 }] }
+        const restock = await api.post(`/vendor/offers/${offer.id}/inventory-items/batch`, stock, crew).catch((e: any) => e.response)
+        expect(restock.status).toBe(403)
+        const removed = await api.delete(`/vendor/offers/${offer.id}`, crew).catch((e: any) => e.response)
+        expect(removed.status).toBe(403)
 
         await api.post(`/vendor/offers/${offer.id}`, price, await owner())
         const [updated] = await offersOn(OFADA)

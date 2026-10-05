@@ -1,5 +1,6 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { QUICK_ADD_METADATA } from "./quick-add"
 
 type Scope = Pick<MedusaContainer, "resolve">
 
@@ -39,7 +40,7 @@ export async function loadOfferAuthors(scope: Scope, sellerId: string, productId
       return {
         offer_id: offer.id,
         sku: offer.sku,
-        added_with: offer.metadata?.added_with === "quick_add" ? ("quick_add" as const) : null,
+        added_with: offer.metadata?.added_with === QUICK_ADD_METADATA.added_with ? QUICK_ADD_METADATA.added_with : null,
         added_by: member ? { id: member.id, name: name || null, email: member.email } : null,
         added_at: new Date(offer.created_at).toISOString(),
       }

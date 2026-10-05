@@ -1,5 +1,5 @@
 import { z } from "@medusajs/framework/zod"
-import { PHOTO_TYPES } from "../../../lib/quick-add"
+import { PHOTO_TYPE_ERROR, photoExtension } from "../../../lib/quick-add"
 
 export const VendorQuickAdd = z.object({
   barcode: z.string().min(1),
@@ -12,7 +12,7 @@ export const VendorQuickAdd = z.object({
   /** The product's photo, base64-encoded, for a barcode the catalogue lacks. */
   photo: z
     .object({
-      mime_type: z.string().refine((type) => type in PHOTO_TYPES, "The photo must be a JPEG, PNG or WebP image."),
+      mime_type: z.string().refine((type) => !!photoExtension(type), PHOTO_TYPE_ERROR),
       data: z.string().min(1),
     })
     .optional(),

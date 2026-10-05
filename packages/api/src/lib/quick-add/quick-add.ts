@@ -89,24 +89,29 @@ async function shopOfferOn(scope: Scope, sellerId: string, variantId: string, cu
   }
 }
 
-/** What a scanned barcode is to the shop: a catalogue product it sells, one it could sell, or one to propose. */
-export async function lookUpBarcode(scope: Scope, sellerId: string, scanned: string): Promise<QuickAddLookup> {
+/** A scan read against the catalogue for a shop, with the shop's setup it was read in. */
+async function lookUp(scope: Scope, sellerId: string, scanned: string) {
   const read = readOrRefuse(scanned)
-  const { currency_code } = await loadShopSetup(scope, sellerId)
+  const setup = await loadShopSetup(scope, sellerId)
+  const { currency_code } = setup
   const variant = await variantByCodes(scope, read.lookup)
-  if (!variant?.product) return { barcode: read.barcode.barcode, currency_code, product: null, offer: null }
-  return {
-    barcode: read.barcode.barcode,
-    currency_code,
-    product: {
+  const lookup: QuickAddLookup = { barcode: read.barcode.barcode, currency_code, product: null, offer: null }
+  if (variant?.product) {
+    lookup.product = {
       id: variant.product.id,
       variant_id: variant.id,
       title: variant.product.title,
       thumbnail: variant.product.thumbnail,
       in_review: variant.product.status !== ProductStatus.PUBLISHED,
-    },
-    offer: await shopOfferOn(scope, sellerId, variant.id, currency_code),
+    }
+    lookup.offer = await shopOfferOn(scope, sellerId, variant.id, currency_code)
   }
+  return { read, setup, lookup }
+}
+
+/** What a scanned barcode is to the shop: a catalogue product it sells, one it could sell, or one to propose. */
+export async function lookUpBarcode(scope: Scope, sellerId: string, scanned: string): Promise<QuickAddLookup> {
+  return (await lookUp(scope, sellerId, scanned)).lookup
 }
 
 export type QuickAddInput = {
@@ -139,17 +144,23 @@ async function freeSku(scope: Scope, sellerId: string, base: string) {
   return `${base}-${n}`
 }
 
-/** Stores the photo in our file storage (R2 in production) and returns its URL. */
+/** The file extension a quick-add photo of this type is stored with; undefined for any other type. */
+export const photoExtension = (mimeType: string) => (Object.prototype.hasOwnProperty.call(PHOTO_TYPES, mimeType) ? PHOTO_TYPES[mimeType] : undefined)
+export const PHOTO_TYPE_ERROR = "The photo must be a JPEG, PNG or WebP image."
+
+/** Stores the photo in our file storage (R2 in production). */
 async function storePhoto(scope: Scope, photo: NonNullable<QuickAddInput["photo"]>) {
-  const extension = PHOTO_TYPES[photo.mime_type]
-  if (!extension) throw new MedusaError(MedusaError.Types.INVALID_DATA, "The photo must be a JPEG, PNG or WebP image.")
-  const bytes = Buffer.from(photo.data, "base64")
+  const extension = photoExtension(photo.mime_type)
+  if (!extension) throw new MedusaError(MedusaError.Types.INVALID_DATA, PHOTO_TYPE_ERROR)
+  // Some cameras wrap their base64 in lines; file providers take it unwrapped.
+  const content = photo.data.replace(/\s/g, "")
+  const bytes = Buffer.from(content, "base64")
   if (!bytes.length) throw new MedusaError(MedusaError.Types.INVALID_DATA, "The photo is empty.")
   if (bytes.length > MAX_PHOTO_BYTES) throw new MedusaError(MedusaError.Types.INVALID_DATA, "The photo is larger than 10 MB.")
   const [file] = await scope.resolve(Modules.FILE).createFiles([
-    { filename: `quick-add.${extension}`, mimeType: photo.mime_type, content: photo.data, access: "public" },
+    { filename: `quick-add.${extension}`, mimeType: photo.mime_type, content, access: "public" },
   ])
-  return file.url
+  return file
 }
 
 /**
@@ -160,16 +171,23 @@ async function storePhoto(scope: Scope, photo: NonNullable<QuickAddInput["photo"
  * the offer records the member who added it. It never changes an offer the shop
  * already has: that stays with owners and managers.
  */
-export async function quickAdd(
-  scope: MedusaContainer,
-  { seller_id, member_id }: { seller_id: string; member_id: string },
-  input: QuickAddInput
-): Promise<QuickAddResult> {
-  const lookup = await lookUpBarcode(scope, seller_id, input.barcode)
-  if (lookup.offer) {
+export async function quickAdd(scope: MedusaContainer, actor: QuickAddActor, input: QuickAddInput): Promise<QuickAddResult> {
+  const read = readOrRefuse(input.barcode)
+  // One quick-add of a barcode at a time, across shops: two phones scanning the same item
+  // would otherwise both find no offer and add two, or propose the product twice.
+  const key = `quick-add:${read.lookup.at(-1)}`
+  return scope.resolve(Modules.LOCKING).execute(key, () => addOnce(scope, actor, input))
+}
+
+/** Who quick-adds: the shop, and the member acting for it. */
+export type QuickAddActor = { seller_id: string; member_id: string }
+
+async function addOnce(scope: MedusaContainer, { seller_id, member_id }: QuickAddActor, input: QuickAddInput): Promise<QuickAddResult> {
+  const { read, setup, lookup } = await lookUp(scope, seller_id, input.barcode)
+  if (lookup.product && lookup.offer) {
     throw new MedusaError(
       MedusaError.Types.DUPLICATE_ERROR,
-      `Your shop already sells ${lookup.product!.title}. Only owners and managers can change its price or stock, in the web vendor panel.`
+      `Your shop already sells ${lookup.product.title}. Only owners and managers can change its price or stock, in the web vendor panel.`
     )
   }
   if (lookup.product?.in_review) {
@@ -179,12 +197,12 @@ export async function quickAdd(
     )
   }
   const title = input.title?.trim()
-  if (!lookup.product && (!title || !input.photo)) {
+  const photo = input.photo
+  if (!lookup.product && (!title || !photo)) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, "The catalogue doesn't have this barcode: add a photo and the product's name.")
   }
-
-  const setup = await loadShopSetup(scope, seller_id)
-  if (!setup.shipping_profile_id) {
+  const shippingProfileId = setup.shipping_profile_id
+  if (!shippingProfileId) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, "The shop has no shipping profile for its offers yet.")
   }
   const stock = input.stock ?? null
@@ -192,35 +210,40 @@ export async function quickAdd(
     throw new MedusaError(MedusaError.Types.INVALID_DATA, "The shop has no stock location to count stock at.")
   }
 
-  const { barcode } = readOrRefuse(input.barcode)
   let proposal: ProposedProduct | null = null
-  let stored: string[] = []
+  let storedPhoto: { id: string; url: string } | null = null
   let supplied: EnrichableField[] = []
-  if (!lookup.product) {
-    const url = await storePhoto(scope, input.photo!)
-    proposal = { title: title!, thumbnail: url, images: [{ url }], variants: [{ title: title!, ...barcode }] }
-    stored = [url]
+  if (!lookup.product && title && photo) {
+    storedPhoto = await storePhoto(scope, photo)
+    const { url } = storedPhoto
+    proposal = { title, thumbnail: url, images: [{ url }], variants: [{ title, ...read.barcode }] }
     supplied = ["title", "images"]
   }
 
-  const { result } = await createImportedOfferWorkflow(scope).run({
-    input: {
-      seller_id,
-      member_id,
-      currency_code: setup.currency_code,
-      shipping_profile_id: setup.shipping_profile_id,
-      stock_location_id: setup.stock_location_id,
-      sales_channel_id: setup.sales_channel_id,
-      proposal,
-      supplied,
-      stored_images: stored,
-      variant_id: lookup.product?.variant_id ?? null,
-      sku: await freeSku(scope, seller_id, barcode.barcode),
-      price: input.price,
-      cost: null,
-      stock,
-      metadata: { ...QUICK_ADD_METADATA },
-    },
-  })
-  return { result: proposal ? "proposed" : "offered", offer_id: result.id, product_id: result.product_id }
+  try {
+    const { result } = await createImportedOfferWorkflow(scope).run({
+      input: {
+        seller_id,
+        member_id,
+        currency_code: setup.currency_code,
+        shipping_profile_id: shippingProfileId,
+        stock_location_id: setup.stock_location_id,
+        sales_channel_id: setup.sales_channel_id,
+        proposal,
+        supplied,
+        stored_images: storedPhoto ? [storedPhoto.url] : [],
+        variant_id: lookup.product?.variant_id ?? null,
+        sku: await freeSku(scope, seller_id, read.barcode.barcode),
+        price: input.price,
+        cost: null,
+        stock,
+        metadata: { ...QUICK_ADD_METADATA },
+      },
+    })
+    return { result: proposal ? "proposed" : "offered", offer_id: result.id, product_id: result.product_id }
+  } catch (error) {
+    // Nothing of a failed quick-add is kept, its photo included.
+    if (storedPhoto) await scope.resolve(Modules.FILE).deleteFiles(storedPhoto.id)
+    throw error
+  }
 }
