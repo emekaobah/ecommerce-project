@@ -3,7 +3,7 @@ import { Button, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 
-import { orderValue, useAcceptOrder, useOrder, useStartPicking } from '@/api/orders';
+import { orderValue, useAcceptOrder, useOrder, useStartPicking, type OrderFulfilment } from '@/api/orders';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { lineLabel } from '@/orders/items';
 import { useNow } from '@/orders/use-now';
@@ -14,12 +14,8 @@ import { useNow } from '@/orders/use-now';
  */
 export function OrderScreen() {
   const theme = useTheme();
-  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const order = useOrder(id);
-  const accept = useAcceptOrder(id);
-  const startPicking = useStartPicking(id);
-  const openPickList = () => router.push({ pathname: '/orders/[id]/pick', params: { id } });
   const now = useNow();
 
   const content = () => {
@@ -28,22 +24,12 @@ export function OrderScreen() {
     }
     if (!order.data) return <LoadingState />;
     const { fulfilment, items, currency_code } = order.data;
-    const isNew = fulfilment.state === 'new';
 
     return (
       <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
         <View style={{ gap: theme.space.sm }}>
           <FulfilmentChip fulfilment={fulfilment} now={now} />
-          {isNew && fulfilment.accept_by ? (
-            <Text tone="secondary">Accept by {new Date(fulfilment.accept_by).toLocaleString()}, or it is rejected and refunded.</Text>
-          ) : null}
-          {fulfilment.state === 'packed' ? <Text tone="secondary">Packed, ready for a courier label.</Text> : null}
-          {fulfilment.state === 'rejected' ? (
-            <Text tone="secondary">
-              {fulfilment.rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${fulfilment.reject_reason}.`} The
-              buyer's payment for this order is being refunded.
-            </Text>
-          ) : null}
+          <StateNote fulfilment={fulfilment} />
         </View>
 
         <View>
@@ -53,30 +39,7 @@ export function OrderScreen() {
           <ListRow title="Total" trailing={<Text variant="label">{formatMoney(orderValue(order.data), currency_code)}</Text>} />
         </View>
 
-        {isNew ? (
-          <View style={{ gap: theme.space.sm }}>
-            {accept.error ? <Text tone="danger">{accept.error.message}</Text> : null}
-            <Button label="Accept order" onPress={() => accept.mutate()} loading={accept.isPending} />
-            <Button
-              label="Reject order"
-              variant="secondary"
-              disabled={accept.isPending}
-              onPress={() => router.push({ pathname: '/orders/[id]/reject', params: { id } })}
-            />
-          </View>
-        ) : null}
-
-        {fulfilment.state === 'accepted' ? (
-          <View style={{ gap: theme.space.sm }}>
-            {startPicking.error ? <Text tone="danger">{startPicking.error.message}</Text> : null}
-            <Button
-              label="Start picking"
-              loading={startPicking.isPending}
-              onPress={() => startPicking.mutate(undefined, { onSuccess: openPickList })}
-            />
-          </View>
-        ) : null}
-        {fulfilment.state === 'picking' ? <Button label="Continue picking" onPress={openPickList} /> : null}
+        <NextStep orderId={id} state={fulfilment.state} />
       </ScrollView>
     );
   };
@@ -87,4 +50,59 @@ export function OrderScreen() {
       {content()}
     </>
   );
+}
+
+/** What the order's state means for staff: the accept deadline, packed, or why it was rejected. */
+function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
+  if (fulfilment.state === 'new' && fulfilment.accept_by) {
+    return <Text tone="secondary">Accept by {new Date(fulfilment.accept_by).toLocaleString()}, or it is rejected and refunded.</Text>;
+  }
+  if (fulfilment.state === 'packed') return <Text tone="secondary">Packed, ready for a courier label.</Text>;
+  if (fulfilment.state === 'rejected') {
+    return (
+      <Text tone="secondary">
+        {fulfilment.rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${fulfilment.reject_reason}.`} The
+        buyer's payment for this order is being refunded.
+      </Text>
+    );
+  }
+  return null;
+}
+
+/** What staff do next with the order: Accept / Reject while new, then pick it. */
+function NextStep({ orderId, state }: Readonly<{ orderId: string; state: OrderFulfilment['state'] }>) {
+  const theme = useTheme();
+  const router = useRouter();
+  const accept = useAcceptOrder(orderId);
+  const startPicking = useStartPicking(orderId);
+  const openPickList = () => router.push({ pathname: '/orders/[id]/pick', params: { id: orderId } });
+
+  if (state === 'new') {
+    return (
+      <View style={{ gap: theme.space.sm }}>
+        {accept.error ? <Text tone="danger">{accept.error.message}</Text> : null}
+        <Button label="Accept order" onPress={() => accept.mutate()} loading={accept.isPending} />
+        <Button
+          label="Reject order"
+          variant="secondary"
+          disabled={accept.isPending}
+          onPress={() => router.push({ pathname: '/orders/[id]/reject', params: { id: orderId } })}
+        />
+      </View>
+    );
+  }
+  if (state === 'accepted') {
+    return (
+      <View style={{ gap: theme.space.sm }}>
+        {startPicking.error ? <Text tone="danger">{startPicking.error.message}</Text> : null}
+        <Button
+          label="Start picking"
+          loading={startPicking.isPending}
+          onPress={() => startPicking.mutate(undefined, { onSuccess: openPickList })}
+        />
+      </View>
+    );
+  }
+  if (state === 'picking') return <Button label="Continue picking" onPress={openPickList} />;
+  return null;
 }
