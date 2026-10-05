@@ -1,22 +1,21 @@
 import { useAuth } from '@clerk/expo';
 import {
-  addressFormValues,
-  addressFromForm,
+  checkoutAddressOf,
   deliveryEstimate,
   formatMoney,
-  getAddressConfig,
-  pinOf,
-  type AddressFieldKey,
-  type AddressFormValues,
+  preselectedAddress,
+  savedAddressFor,
   type DeliveryTag,
   type PaymentReturn,
   type Pin,
+  type PinnedDeliveryAddress,
 } from '@oja/domain';
-import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
+import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { useSaveAddress, useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
 import {
   useCheckout,
   useChooseDelivery,
@@ -27,11 +26,19 @@ import {
 } from '@/api/checkout';
 import { useCustomer } from '@/api/customer';
 import { isAlreadyPaid } from '@/api/errors';
+import { AddressCard } from '@/components/address/address-card';
+import { AddressEntry } from '@/components/address/address-entry';
+import { useAddressDraft } from '@/components/address/use-address-draft';
+import { ToggleRow } from '@/components/toggle-row';
 import { useCartSession } from '@/cart/cart-provider';
 import { env } from '@/config/env';
 import { useRegion } from '@/region/region-provider';
 
-import { AddressEntry } from './address-entry';
+/**
+ * Where checkout's delivery address stands: finding the buyer's default (`starting`), set on
+ * the cart (`chosen`), choosing a saved one, or entering a new one.
+ */
+type AddressStep = 'starting' | 'chosen' | 'choosing' | 'entering';
 
 /**
  * Where Paystack sends the buyer back to. Paystack only redirects to an http(s) URL, so this is
@@ -78,61 +85,76 @@ function CheckoutForm({
   const theme = useTheme();
   const { userId } = useAuth();
   const customer = useCustomer(userId);
+  const saved = useSavedAddresses(userId);
   const { payment: returned } = useLocalSearchParams<{ payment?: PaymentLeft }>();
-  const config = getAddressConfig(countryCode);
-  // The form opens until the cart has an address; a cart quoted before it changed is quoted again below.
-  const [editing, setEditing] = useState(!checkout.shipping_address);
-  const [values, setValues] = useState<AddressFormValues>(() =>
-    addressFormValues(checkout.shipping_address, countryCode, customer.data ?? undefined)
-  );
-  const [errors, setErrors] = useState<Partial<Record<AddressFieldKey, string>>>({});
-  const [pin, setPin] = useState<Pin | null>(() => pinOf(checkout.shipping_address));
-  // The buyer's profile may load after the form opens; their name fills whatever they left blank.
-  const { first_name, last_name } = customer.data ?? {};
-  useEffect(() => {
-    setValues((current) => ({
-      ...current,
-      first_name: current.first_name || first_name || '',
-      last_name: current.last_name || last_name || '',
-    }));
-  }, [first_name, last_name]);
   const prepare = usePrepareCheckout(cartId);
   const startPayment = useStartPayment(cartId);
+  const keep = useSaveAddress(countryCode);
+
+  /** The buyer's own move: changing the address, or entering one. Null follows the cart. */
+  const [moved, setMoved] = useState<AddressStep | null>(null);
+  const draft = useAddressDraft(countryCode, checkout.shipping_address, customer.data ?? undefined);
+  /** The saved address a new pin is being placed for, which the entry then updates. */
+  const [pinning, setPinning] = useState<SavedAddressRecord | null>(null);
+  const [keepNew, setKeepNew] = useState(true);
+
+  // The cart's address, as checkout can quote it again; null for one saved before pins were required.
+  const cartAddress = checkout.shipping_address ? checkoutAddressOf(checkout.shipping_address, countryCode) : null;
+  const preselected = saved.data ? preselectedAddress(saved.data, countryCode) : null;
+  const hasSaved = !!saved.data?.length;
+  // The cart's address shows once it has one. Before that, checkout starts with the buyer's
+  // default saved address (below); without one it offers the saved ones, or a new address.
+  // Without the saved addresses (offline, or the store failed) the buyer still enters one.
+  const followCart = (): AddressStep => {
+    if (checkout.shipping_address) {
+      if (cartAddress || checkout.ready_to_pay) return 'chosen';
+      return hasSaved ? 'choosing' : 'entering';
+    }
+    if (saved.error) return 'entering';
+    if (!saved.data || preselected) return 'starting';
+    return hasSaved ? 'choosing' : 'entering';
+  };
+  const step = moved ?? followCart();
+
+  const deliverTo = (address: PinnedDeliveryAddress, onError?: () => void) =>
+    prepare.mutate(address, { onSuccess: () => setMoved(null), onError });
+
+  // Checkout starts with the buyer's default address, once; if it can't, the buyer chooses.
+  const preselecting = useRef(false);
+  useEffect(() => {
+    if (step !== 'starting' || !preselected || preselecting.current) return;
+    preselecting.current = true;
+    prepare.mutate(preselected.address, { onError: () => setMoved('choosing') });
+  }, [step, preselected, prepare]);
 
   // A cart changed since its delivery was quoted (a shop added, a quantity changed) has a shop
-  // without rates. Quote it again at the cart's address, once; if that fails, the form shows why.
-  const needsQuote = !editing && !checkout.ready_to_pay && !!checkout.shipping_address;
+  // without rates. Quote it again at the cart's address, once; if that fails, the buyer chooses again.
+  const needsQuote = step === 'chosen' && !checkout.ready_to_pay && !!cartAddress && !prepare.isPending;
   const requoted = useRef(false);
   useEffect(() => {
     if (!needsQuote) {
-      requoted.current = false;
+      if (step !== 'chosen') requoted.current = false;
       return;
     }
-    if (requoted.current || prepare.isPending) return;
+    if (requoted.current || !cartAddress) return;
     requoted.current = true;
-    // An address saved before pins were required has none: the buyer places one.
-    const result = pin ? addressFromForm(values, countryCode, pin) : null;
-    if (result?.ok) prepare.mutate(result.address, { onError: () => setEditing(true) });
-    else setEditing(true);
-  }, [needsQuote, prepare, values, countryCode, pin]);
+    prepare.mutate(cartAddress, { onError: () => setMoved('choosing') });
+  }, [needsQuote, step, cartAddress, prepare]);
 
-  const change = (key: AddressFieldKey, value: string) => {
-    setValues((current) => ({ ...current, [key]: value }));
-    setErrors(({ [key]: _fixed, ...rest }) => rest);
+  const enterNew = (from: SavedAddressRecord | null) => {
+    draft.restart(from);
+    setPinning(from);
+    setMoved('entering');
   };
-  const fillFromPlace = (found: AddressFormValues) => {
-    setValues((current) => ({ ...current, ...found }));
-    setErrors({});
+  const deliverToEntered = (confirmed: Pin) => {
+    const result = draft.pinned(confirmed);
+    if (!result.ok) return;
+    deliverTo(result.address);
+    // A saved address getting its pin is updated; a new one is kept when the buyer asks.
+    if (pinning) keep.mutate({ id: pinning.id, address: result.address });
+    else if (keepNew) keep.mutate({ address: result.address, makeDefault: !hasSaved });
   };
-  const validate = () => {
-    const result = addressFromForm(values, countryCode);
-    if (!result.ok) setErrors(result.errors);
-    return result.ok;
-  };
-  const saveAddress = (confirmed: Pin) => {
-    const result = addressFromForm(values, countryCode, confirmed);
-    if (result.ok) prepare.mutate(result.address, { onSuccess: () => setEditing(false) });
-  };
+  const editing = step !== 'chosen';
   const pay = () =>
     startPayment.mutate(PAYMENT_RETURN_URL, {
       onSuccess: ({ authorization_url }) =>
@@ -154,26 +176,45 @@ function CheckoutForm({
         <View style={{ gap: theme.space.md }}>
           <View style={styles.spread}>
             <Text variant="heading">Delivery address</Text>
-            {editing ? null : <Button label="Change" variant="link" onPress={() => setEditing(true)} />}
-          </View>
-          {editing ? (
-            <AddressEntry
-              cartId={cartId}
-              config={config}
-              values={values}
-              errors={errors}
-              pin={pin}
-              onChange={change}
-              onPlace={fillFromPlace}
-              onPin={setPin}
-              validate={validate}
-              onSave={saveAddress}
-              saving={prepare.isPending}
-              saveError={prepare.error}
+            <AddressStepLink
+              step={step}
+              busy={prepare.isPending}
+              hasSaved={hasSaved}
+              hasCartAddress={!!cartAddress || checkout.ready_to_pay}
+              onStep={(next) => setMoved(next === 'chosen' ? null : next)}
             />
-          ) : (
-            <AddressSummary checkout={checkout} />
-          )}
+          </View>
+          {step === 'starting' ? (
+            <Text tone="secondary">Getting your address…</Text>
+          ) : null}
+          {step === 'chosen' && checkout.shipping_address ? <AddressCard address={checkout.shipping_address} /> : null}
+          {step === 'chosen' && keep.error ? (
+            <Text tone="secondary" accessibilityLiveRegion="polite">
+              {`Couldn't save it to your addresses: ${keep.error.message}`}
+            </Text>
+          ) : null}
+          {step === 'choosing' && saved.data ? (
+            <SavedAddressPicker
+              addresses={saved.data}
+              chosenId={savedAddressFor(saved.data, checkout.shipping_address, countryCode)}
+              countryCode={countryCode}
+              choosing={prepare.isPending ? prepare.variables : undefined}
+              error={prepare.error}
+              onChoose={(address) => deliverTo(address)}
+              onPin={enterNew}
+              onAdd={() => enterNew(null)}
+            />
+          ) : null}
+          {step === 'entering' ? (
+            <AddressEntry
+              lookup={{ cart_id: cartId }}
+              {...draft.entry}
+              onSave={deliverToEntered}
+              saving={prepare.isPending}
+              saveError={prepare.error}>
+              {pinning ? null : <ToggleRow label="Save to my addresses" value={keepNew} onChange={setKeepNew} />}
+            </AddressEntry>
+          ) : null}
         </View>
 
         {editing ? null : (
@@ -234,21 +275,93 @@ function paymentNotice(error: Error | null, returned: PaymentLeft | undefined): 
   return null;
 }
 
-function AddressSummary({ checkout }: Readonly<{ checkout: Checkout }>) {
+/**
+ * The link beside "Delivery address": change the cart's address, go back to the saved ones
+ * from a new one, or keep the cart's address after all.
+ */
+function AddressStepLink({
+  step,
+  busy,
+  hasSaved,
+  hasCartAddress,
+  onStep,
+}: Readonly<{
+  step: AddressStep;
+  busy: boolean;
+  hasSaved: boolean;
+  hasCartAddress: boolean;
+  onStep: (step: AddressStep) => void;
+}>) {
+  if (busy || step === 'starting') return null;
+  if (step === 'chosen') {
+    return <Button label="Change" variant="link" onPress={() => onStep(hasSaved ? 'choosing' : 'entering')} />;
+  }
+  if (step === 'entering' && hasSaved) {
+    return <Button label="Saved addresses" variant="link" onPress={() => onStep('choosing')} />;
+  }
+  return hasCartAddress ? <Button label="Cancel" variant="link" onPress={() => onStep('chosen')} /> : null;
+}
+
+/**
+ * The buyer's saved addresses to deliver to (#18), the one the cart has outlined. One without
+ * a pin is pinned first; "Add a new address" opens the entry.
+ */
+function SavedAddressPicker({
+  addresses,
+  chosenId,
+  countryCode,
+  choosing,
+  error,
+  onChoose,
+  onPin,
+  onAdd,
+}: Readonly<{
+  addresses: SavedAddressRecord[];
+  chosenId: string | null;
+  countryCode: string;
+  /** The address being set on the cart, shown as chosen meanwhile. */
+  choosing: PinnedDeliveryAddress | undefined;
+  error: Error | null;
+  onChoose: (address: PinnedDeliveryAddress) => void;
+  onPin: (saved: SavedAddressRecord) => void;
+  onAdd: () => void;
+}>) {
   const theme = useTheme();
-  const address = checkout.shipping_address;
-  if (!address) return null;
-  const landmark = address.metadata?.landmark;
+  const busy = !!choosing;
   return (
-    <View style={{ gap: theme.space.xs }}>
-      <Text>
-        {address.first_name} {address.last_name}
-      </Text>
-      <Text tone="secondary">
-        {[address.address_1, address.address_2, address.city, address.province].filter(Boolean).join(', ')}
-      </Text>
-      {typeof landmark === 'string' && landmark ? <Text tone="secondary">{landmark}</Text> : null}
-      <Text tone="secondary">{address.phone}</Text>
+    <View style={{ gap: theme.space.sm }} accessibilityRole="radiogroup" accessibilityLabel="Delivery address">
+      {addresses.map((saved) => {
+        const address = checkoutAddressOf(saved, countryCode);
+        const selected = choosing ? savedAddressFor([saved], choosing, countryCode) !== null : saved.id === chosenId;
+        return (
+          <Pressable
+            key={saved.id}
+            accessibilityRole="radio"
+            accessibilityState={{ selected, disabled: busy }}
+            disabled={busy}
+            onPress={() => (address ? onChoose(address) : onPin(saved))}
+            style={{
+              minHeight: theme.touchTarget,
+              padding: theme.space.md,
+              gap: theme.space.sm,
+              borderRadius: theme.radius.md,
+              borderColor: selected ? theme.colors.ink : theme.colors.divider,
+              borderWidth: selected ? 2 : 1,
+            }}>
+            <AddressCard
+              address={saved}
+              badge={saved.is_default_shipping ? <StatusChip label="Default" tone="info" /> : null}
+            />
+            {address ? null : <Text tone="accent">Place its pin on the map to deliver here</Text>}
+          </Pressable>
+        );
+      })}
+      {error ? (
+        <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+          {error.message}
+        </Text>
+      ) : null}
+      <Button label="Add a new address" variant="secondary" onPress={onAdd} disabled={busy} />
     </View>
   );
 }

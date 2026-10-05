@@ -49,7 +49,7 @@ Checked 2026-10-04 (#40) with Places API (New) Details for 19 places (Victoria I
 
 - Apps never call Google directly. The backend exposes lookup routes: store routes for a signed-in customer, vendor routes for a member. No guest access.
 - A thin `AddressLookupProvider` interface (`suggest`, `details`, `reverseGeocode`) with one Google implementation, chosen per region like the shipment provider.
-- The server derives the country restriction (`includedRegionCodes`) from the Medusa region's countries. The app never hardcodes a country.
+- The server derives the country restriction (`includedRegionCodes`) from the Medusa region's countries: the cart's region at checkout, or the region the app shops in when a buyer adds a saved address with no cart (#18). The app never hardcodes a country.
 - The client generates the Places session token and passes it through, so billing stays per session. Details requests use the Essentials field mask only.
 
 ### Storage
@@ -60,7 +60,7 @@ In the address `metadata` (customer address, cart shipping address, seller picku
 - `landmark`
 - `shipbubble_address_code`
 
-No `place_id`, since nothing needs it. No custom module until something queries by location.
+No `place_id`, since nothing needs it. No custom module until something queries by location. Saved addresses are Medusa's customer addresses (#18); saving one, or changing its metadata, needs the pin. Medusa merges an edit's metadata, so the app clears a removed landmark by sending it empty.
 
 ### Privacy
 

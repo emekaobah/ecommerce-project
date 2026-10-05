@@ -1,0 +1,127 @@
+# A buyer saves a delivery address from Account → Addresses, edits it keeping its pin, sees
+# checkout preselect it as their default, and deletes it (#18). Needs the backend with
+# GOOGLE_MAPS_API_KEY and the seeded shops, and a Clerk development instance (see sign-in.yaml).
+# A buyer of its own, so it starts with no saved addresses and leaves none behind.
+appId: com.emekaobah.oja.buyer
+env:
+  BUYER_EMAIL: maestro-addresses+clerk_test@example.com
+  BUYER_PASSWORD: Maestro-Addresses-Test-2026!
+---
+- launchApp:
+    permissions:
+      location: inuse
+- tapOn: "Account"
+# Another buyer may be signed in from an earlier flow.
+- runFlow:
+    when:
+      visible: "Sign out"
+    commands:
+      - tapOn: "Sign out"
+      - extendedWaitUntil:
+          visible: "Sign in"
+          timeout: 15000
+- tapOn: "Sign in"
+- runFlow:
+    file: sign-in.yaml
+    env:
+      BUYER_EMAIL: ${BUYER_EMAIL}
+      BUYER_PASSWORD: ${BUYER_PASSWORD}
+- tapOn: "Addresses"
+- extendedWaitUntil:
+    visible: "No saved addresses"
+    timeout: 15000
+- tapOn: "Add an address"
+
+# Add: search, confirm the pin, fill the rest of the NG form.
+- tapOn:
+    id: "address-search"
+- inputText: "Akin Adesola"
+- extendedWaitUntil:
+    visible: "Akin Adesola Street.*"
+    timeout: 15000
+- tapOn: "Akin Adesola Street.*"
+- extendedWaitUntil:
+    visible: "Confirm the delivery spot"
+    timeout: 15000
+- tapOn: "Confirm pin"
+- assertVisible: "Eti Osa"
+- assertVisible: "Lagos"
+# The field, not its label above it.
+- tapOn:
+    text: "First name"
+    index: 1
+- eraseText
+- inputText: "Ada"
+- tapOn:
+    text: "Last name"
+    index: 1
+- eraseText
+- inputText: "Obi"
+- scrollUntilVisible:
+    element: "Save address"
+- tapOn:
+    text: "Phone number"
+    index: 1
+- eraseText
+- inputText: "08031234567"
+# The landmark last: its keyboard has a return key, which puts the keyboard away.
+- tapOn:
+    text: "Landmark / directions for the rider (optional)"
+    index: 1
+- eraseText
+- inputText: "Blue gate by the pharmacy"
+- pressKey: Enter
+- scrollUntilVisible:
+    element: "Save address"
+- assertVisible: "Delivery pin placed on the map."
+- tapOn: "Save address"
+
+# The list shows it with its landmark; the first address is the default.
+- extendedWaitUntil:
+    visible: "Blue gate by the pharmacy"
+    timeout: 15000
+- assertVisible: "Default"
+
+# Edit: the pin is kept, so only the landmark changes.
+- tapOn: "Edit"
+- scrollUntilVisible:
+    element: "Save address"
+- assertVisible: "Delivery pin placed on the map."
+- tapOn:
+    text: "Landmark / directions for the rider (optional)"
+    index: 1
+- eraseText
+- inputText: "Green gate opposite the church"
+- pressKey: Enter
+- scrollUntilVisible:
+    element: "Save address"
+- tapOn: "Save address"
+- extendedWaitUntil:
+    visible: "Green gate opposite the church"
+    timeout: 15000
+- assertNotVisible: "Blue gate by the pharmacy"
+
+# Checkout starts with the default address and quotes delivery to it.
+- back
+- tapOn: "Home"
+- tapOn: "Ofada Rice 5kg.*"
+- tapOn: "Add to cart.*"
+- tapOn: "View cart"
+- tapOn: "Checkout.*"
+- extendedWaitUntil:
+    visible: "Pay with Paystack.*"
+    timeout: 30000
+- assertVisible: "Green gate opposite the church"
+
+# Delete it again, leaving the buyer as the flow found them.
+- back
+- tapOn: "Account"
+- tapOn: "Addresses"
+- tapOn: "Delete"
+# The alert's Delete, not the link under it.
+- tapOn:
+    text: "Delete"
+    index: 1
+- extendedWaitUntil:
+    visible: "No saved addresses"
+    timeout: 15000

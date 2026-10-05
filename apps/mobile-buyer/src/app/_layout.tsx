@@ -63,6 +63,8 @@ function RootStack() {
         <Stack.Screen name="checkout/pay" options={{ title: 'Pay with Paystack', gestureEnabled: false }} />
         <Stack.Screen name="checkout/confirmation" options={{ title: 'Confirming payment', gestureEnabled: false }} />
         <Stack.Screen name="wishlist" options={{ title: 'Wishlist' }} />
+        <Stack.Screen name="addresses/index" options={{ title: 'Addresses' }} />
+        <Stack.Screen name="addresses/edit" options={{ title: 'Address' }} />
         <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
       </Stack.Protected>
       {/* AuthView draws its own chrome, including the dismiss button. */}
