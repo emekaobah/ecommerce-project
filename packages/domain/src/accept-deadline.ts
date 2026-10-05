@@ -17,6 +17,15 @@ export function acceptDeadline(placedAt: string): string {
   return new Date(Date.parse(placedAt) + ACCEPT_WINDOW_MS).toISOString()
 }
 
+/**
+ * Whether staff should be reminded of a new order placed at `placedAt` (ISO 8601): from when its
+ * countdown turns urgent until the deadline, after which the order is rejected instead.
+ */
+export function acceptReminderDue(placedAt: string, now: Date): boolean {
+  const left = Date.parse(acceptDeadline(placedAt)) - now.getTime()
+  return left > 0 && left <= URGENT_MS
+}
+
 export type AcceptTimeLeft = { label: string; urgent: boolean }
 
 /** The countdown staff see on a new order: "5h 12m left", "24m left", or "Overdue". */

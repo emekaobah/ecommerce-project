@@ -1,9 +1,10 @@
-import { acceptDeadline } from "@oja/domain"
+import { acceptDeadline, acceptReminderDue } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { refundOrderShareWorkflow } from "../workflows/order-fulfilment/workflows/refund-order-share"
 import { refundUnclaimedPaymentWorkflow } from "../workflows/order-fulfilment/workflows/refund-unclaimed-payment"
 import { rejectOrderWorkflow } from "../workflows/order-fulfilment/workflows/reject-order"
+import { remindAcceptDeadlineWorkflow } from "../workflows/order-fulfilment/workflows/remind-accept-deadline"
 import { errorMessage } from "./errors"
 import { asFulfilmentRecord, fulfilmentService, orderMoney, paymentsOfOrder } from "./order-fulfilment"
 import { refundPlan } from "./order-refund"
@@ -70,6 +71,28 @@ export async function rejectOverdueOrders(scope: Scope, now = new Date()) {
     if (await refundRejected(scope, row.order_id, undefined, row.reject_reason ?? DEADLINE_REASON)) continue
     const lastTry = new Date(new Date(row.updated_at).getTime() + REFUND_RETRY_MS).toISOString()
     logger.error(`Rejected order ${row.order_id} is still unrefunded; retries stop at ${lastTry}, after which it must be refunded by hand`)
+  }
+}
+
+/**
+ * The accept-deadline job's reminder: each new order whose deadline is near, and whose shop
+ * hasn't been reminded of it yet, is reminded once (#27).
+ */
+export async function remindAcceptDeadlines(scope: Scope, now = new Date()) {
+  const waiting = (await fulfilmentService(scope).listOrderFulfilments({ state: "new", accept_reminded_at: null })).map(
+    asFulfilmentRecord
+  )
+  const due = waiting.filter((row) => acceptReminderDue(new Date(row.placed_at).toISOString(), now))
+  const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  for (const row of due) {
+    try {
+      await remindAcceptDeadlineWorkflow(scope as MedusaContainer).run({
+        input: { order_id: row.order_id, at: now.toISOString() },
+      })
+    } catch (error) {
+      // Accepted or rejected meanwhile, most likely; the next run looks again.
+      logger.warn(`Reminding the shop of order ${row.order_id} failed: ${errorMessage(error)}`)
+    }
   }
 }
 
