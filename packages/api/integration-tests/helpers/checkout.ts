@@ -25,6 +25,8 @@ export const ORDER_TOTALS = new Map<Shop, number>([
 ])
 
 export const RETURN_URL = "https://api.oja.test/paystack/return"
+/** The pin Ada confirmed on the map for her address (ADR 0002); checkout needs one. */
+export const PIN = { latitude: 6.4281, longitude: 3.4219 }
 export const ADDRESS = {
   first_name: "Ada",
   last_name: "Obi",
@@ -34,7 +36,7 @@ export const ADDRESS = {
   province: "Lagos",
   country_code: "ng",
   phone: "+2348031234567",
-  metadata: { landmark: "Opposite the Mobil station" },
+  metadata: { landmark: "Opposite the Mobil station", ...PIN },
 }
 
 /** Polls `read` until `done` holds of what it returns, then returns that; throws after ~`tries` tenths of a second. */

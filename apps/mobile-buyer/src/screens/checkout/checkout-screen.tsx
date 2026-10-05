@@ -5,10 +5,12 @@ import {
   deliveryEstimate,
   formatMoney,
   getAddressConfig,
+  pinOf,
   type AddressFieldKey,
   type AddressFormValues,
   type DeliveryTag,
   type PaymentReturn,
+  type Pin,
 } from '@oja/domain';
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -29,7 +31,7 @@ import { useCartSession } from '@/cart/cart-provider';
 import { env } from '@/config/env';
 import { useRegion } from '@/region/region-provider';
 
-import { AddressForm } from './address-form';
+import { AddressEntry } from './address-entry';
 
 /**
  * Where Paystack sends the buyer back to. Paystack only redirects to an http(s) URL, so this is
@@ -84,6 +86,7 @@ function CheckoutForm({
     addressFormValues(checkout.shipping_address, countryCode, customer.data ?? undefined)
   );
   const [errors, setErrors] = useState<Partial<Record<AddressFieldKey, string>>>({});
+  const [pin, setPin] = useState<Pin | null>(() => pinOf(checkout.shipping_address));
   // The buyer's profile may load after the form opens; their name fills whatever they left blank.
   const { first_name, last_name } = customer.data ?? {};
   useEffect(() => {
@@ -107,22 +110,28 @@ function CheckoutForm({
     }
     if (requoted.current || prepare.isPending) return;
     requoted.current = true;
-    const result = addressFromForm(values, countryCode);
-    if (result.ok) prepare.mutate(result.address, { onError: () => setEditing(true) });
+    // An address saved before pins were required has none: the buyer places one.
+    const result = pin ? addressFromForm(values, countryCode, pin) : null;
+    if (result?.ok) prepare.mutate(result.address, { onError: () => setEditing(true) });
     else setEditing(true);
-  }, [needsQuote, prepare, values, countryCode]);
+  }, [needsQuote, prepare, values, countryCode, pin]);
 
   const change = (key: AddressFieldKey, value: string) => {
     setValues((current) => ({ ...current, [key]: value }));
     setErrors(({ [key]: _fixed, ...rest }) => rest);
   };
-  const saveAddress = () => {
+  const fillFromPlace = (found: AddressFormValues) => {
+    setValues((current) => ({ ...current, ...found }));
+    setErrors({});
+  };
+  const validate = () => {
     const result = addressFromForm(values, countryCode);
-    if (!result.ok) {
-      setErrors(result.errors);
-      return;
-    }
-    prepare.mutate(result.address, { onSuccess: () => setEditing(false) });
+    if (!result.ok) setErrors(result.errors);
+    return result.ok;
+  };
+  const saveAddress = (confirmed: Pin) => {
+    const result = addressFromForm(values, countryCode, confirmed);
+    if (result.ok) prepare.mutate(result.address, { onSuccess: () => setEditing(false) });
   };
   const pay = () =>
     startPayment.mutate(PAYMENT_RETURN_URL, {
@@ -148,15 +157,20 @@ function CheckoutForm({
             {editing ? null : <Button label="Change" variant="link" onPress={() => setEditing(true)} />}
           </View>
           {editing ? (
-            <>
-              <AddressForm config={config} values={values} errors={errors} onChange={change} />
-              {prepare.error ? (
-                <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
-                  {prepare.error.message}
-                </Text>
-              ) : null}
-              <Button label="Use this address" onPress={saveAddress} loading={prepare.isPending} />
-            </>
+            <AddressEntry
+              cartId={cartId}
+              config={config}
+              values={values}
+              errors={errors}
+              pin={pin}
+              onChange={change}
+              onPlace={fillFromPlace}
+              onPin={setPin}
+              validate={validate}
+              onSave={saveAddress}
+              saving={prepare.isPending}
+              saveError={prepare.error}
+            />
           ) : (
             <AddressSummary checkout={checkout} />
           )}

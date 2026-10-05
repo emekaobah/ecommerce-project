@@ -5,8 +5,12 @@ Expo Router app for buyers. Architecture: [ADR 0001](../../docs/adr/0001-mobile-
 ## Run
 
 1. Start the backend (`bun run dev` at the repo root).
-2. `cp .env.example .env` and fill in the publishable key. On a physical device, use your machine's LAN IP for `EXPO_PUBLIC_API_URL`.
+2. `cp .env.example .env` and fill in the publishable key and the Maps SDK keys for the delivery pin map (`GOOGLE_MAPS_IOS_API_KEY`, `GOOGLE_MAPS_ANDROID_API_KEY`; a build without them has no pin map). On a physical device, use your machine's LAN IP for `EXPO_PUBLIC_API_URL`.
 3. Build and open a dev build: `bunx expo run:ios` or `bunx expo run:android`.
+
+## End-to-end flows
+
+Maestro flows live in `.maestro/`. With the backend running (with `GOOGLE_MAPS_API_KEY`) and the dev build open: `maestro test .maestro/add-address-by-search.yaml`. The flow signs in a Clerk test buyer (`sign-in.yaml`; a development instance accepts `+clerk_test` emails with code 424242), signing up on the first run. In a dev build, first turn off "Tools button" in the dev menu: the floating button sits over checkout's "Change" and takes its taps.
 
 ## Layout
 

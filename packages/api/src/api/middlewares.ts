@@ -10,12 +10,14 @@ import { deliveryChosenAtCheckout } from "./store/carts/[id]/checkout/delivery-b
 import { verifyPaystackSignature } from "./hooks/paystack-signature";
 import { refuseVendorCapture } from "./vendor/payments/no-capture";
 import { showTheShopItsOwnOrder } from "./vendor/orders/shop-view";
+import { hideBuyerPins } from "./vendor/buyer-pins";
 import { VendorRejectOrder } from "./vendor/orders/validators";
 import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
 import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
+import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 
 export default defineMiddlewares({
     routes: [
@@ -103,6 +105,22 @@ export default defineMiddlewares({
             matcher: "/store/order-history/:id",
             middlewares: [authenticate("customer", ["session", "bearer"])],
         },
+        // Address lookup through the backend's Google key, for signed-in buyers only (ADR 0002, #40).
+        {
+            method: ["GET"],
+            matcher: "/store/address-lookup/suggestions",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreSuggestAddresses, {})],
+        },
+        {
+            method: ["GET"],
+            matcher: "/store/address-lookup/places/:place_id",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreGetPlaceAddress, {})],
+        },
+        {
+            method: ["GET"],
+            matcher: "/store/address-lookup/reverse-geocode",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreReverseGeocode, {})],
+        },
         { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
         // Paystack signs the raw body, so it is kept for the check.
         {
@@ -111,6 +129,8 @@ export default defineMiddlewares({
             bodyParser: { preserveRawBody: true },
             middlewares: [verifyPaystackSignature],
         },
+        // Shop staff never see where a buyer's pin is, whatever fields they ask for (ADR 0002).
+        { matcher: "/vendor/*", middlewares: [hideBuyerPins] },
         { method: ["POST"], matcher: "/vendor/payments/:id/capture", middlewares: [refuseVendorCapture] },
         {
             method: ["POST"],

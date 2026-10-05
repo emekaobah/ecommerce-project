@@ -31,7 +31,15 @@ Maps: `react-native-maps` with the Google provider on iOS and Android, so the ma
 
 ### State and LGA (NG)
 
-Filled from Google's `administrative_area_level_1` (state) and `administrative_area_level_2` (LGA). Shipbubble's returned `state` is the fallback. A state-name alias map in `@oja/domain` maps Google's names onto the fixed state list (e.g. "Lagos State" → "Lagos", "Abuja" → "Federal Capital Territory"). This mapping is **unverified**. The buyer ticket starts with a check using real Lagos, Abuja and Port Harcourt lookups.
+Filled from Google's `administrative_area_level_1` (state) and `administrative_area_level_2` (LGA). Shipbubble's returned `state` is the fallback. A state-name alias map in `@oja/domain` maps Google's names onto the fixed state list (e.g. "Lagos State" → "Lagos", "Abuja" → "Federal Capital Territory").
+
+Checked 2026-10-04 (#40) with Places API (New) Details for 19 places (Victoria Island, Ikeja, Lekki, Yaba; Wuse, Garki, Gwarinpa; Aba Road, Trans Amadi, Rumuola in Port Harcourt; Kano, Ibadan, Enugu, Benin City, Uyo, Calabar, Keffi, Zaria, Mararaba) and Geocoding API reverse lookups in Lagos, Abuja and Port Harcourt:
+
+- `administrative_area_level_1` is the state in every result. Its `longText` already matches the state list: "Lagos", "Federal Capital Territory" (not "Abuja"), "Rivers", "Akwa Ibom", "Cross River", "Nasarawa". `shortText` is a code ("LA", "RV"), so the long name is used. The alias map stays as a guard against variants ("Lagos State", "Abuja", "FCT", "Nassarawa").
+- `administrative_area_level_2` is the LGA, in Google's spelling: "Eti Osa" (officially Eti-Osa), "Port-Harcourt", "Abuja Municipal Area Council", "Obio/Akpor". The LGA field is free text, so it is filled as Google writes it and the buyer can correct it.
+- `administrative_area_level_3` is a ward ("Ikoyi I", "Worji"), not the LGA. `locality` is the town ("Lagos", "Port Harcourt", "Abuja").
+- Area-only results are common: Gwarinpa, Trans Amadi and Garki have no `route` or `street_number`, so the street field is left for the buyer.
+- Reverse geocoding returns the same components (snake_case: `long_name`) with a street address first.
 
 ### Form fields
 

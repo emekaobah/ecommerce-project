@@ -147,6 +147,18 @@ module.exports = withMercur({
     { resolve: './src/modules/wishlist' },
     // Each seller order's place in the fulfilment state machine, and its refunds (#20).
     { resolve: './src/modules/order-fulfilment' },
+    // Address search, place details and reverse geocode for the buyer's address (ADR 0002, #40).
+    // Refuses to start without GOOGLE_MAPS_API_KEY outside tests.
+    {
+      resolve: './src/modules/address-lookup',
+      options: {
+        google: {
+          apiKey: process.env.GOOGLE_MAPS_API_KEY,
+          placesUrl: process.env.GOOGLE_PLACES_API_URL || undefined,
+          geocodingUrl: process.env.GOOGLE_GEOCODING_API_URL || undefined,
+        },
+      },
+    },
     // Shops' private offer cost prices and their saved import mappings (#37).
     { resolve: './src/modules/offer-import' },
     {

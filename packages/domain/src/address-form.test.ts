@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { addressFromForm, addressFormValues } from "./address-form"
+import { addressFromForm, addressFormValues, pinOf } from "./address-form"
 
 const filled = {
   first_name: " Ada ",
@@ -49,6 +49,16 @@ describe("addressFromForm", () => {
     })
   })
 
+  test("keeps the pin the buyer confirmed, to six decimal places", () => {
+    const result = addressFromForm(filled, "NG", { latitude: 6.431812345, longitude: 3.421498765 })
+
+    expect(result.ok && result.address.metadata).toEqual({
+      landmark: "Opposite the Mobil station",
+      latitude: 6.431812,
+      longitude: 3.421499,
+    })
+  })
+
   test("only takes a state from the country's list", () => {
     const result = addressFromForm({ ...filled, province: "Lagos State" }, "NG")
 
@@ -80,5 +90,20 @@ describe("addressFormValues", () => {
       address_1: "",
       province: "",
     })
+  })
+})
+
+describe("pinOf", () => {
+  test("reads the pin the buyer confirmed back from an address's metadata", () => {
+    expect(pinOf({ metadata: { landmark: "x", latitude: 6.4281, longitude: 3.4219 } })).toEqual({
+      latitude: 6.4281,
+      longitude: 3.4219,
+    })
+  })
+
+  test("is null for an address without a whole pin, or none", () => {
+    expect(pinOf({ metadata: { latitude: 6.4281 } })).toBeNull()
+    expect(pinOf({ metadata: null })).toBeNull()
+    expect(pinOf(null)).toBeNull()
   })
 })

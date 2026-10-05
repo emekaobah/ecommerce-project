@@ -1,0 +1,56 @@
+# Signs a buyer in through Clerk's native sign-in, which the app opens for a guest at checkout.
+# A Clerk development instance takes any `+clerk_test` email with the code 424242, so the first
+# run signs the buyer up and later runs sign them in. The caller passes BUYER_EMAIL and
+# BUYER_PASSWORD.
+appId: com.emekaobah.oja.buyer
+---
+- tapOn:
+    id: "clerk.auth.start.identifier"
+# Clerk fills in the email last used on this device.
+- eraseText: 200
+- inputText: ${BUYER_EMAIL}
+- tapOn:
+    id: "clerk.auth.start.continue"
+- waitForAnimationToEnd
+# First run: a new buyer verifies the email, then chooses a password (15 characters or more).
+- runFlow:
+    when:
+      visible:
+        id: "clerk.auth.signUp.code"
+    commands:
+      - tapOn:
+          id: "clerk.auth.signUp.code"
+      - inputText: "424242"
+      - extendedWaitUntil:
+          visible:
+            id: "clerk.auth.signUp.password"
+          timeout: 15000
+      - tapOn:
+          id: "clerk.auth.signUp.password"
+      - inputText: ${BUYER_PASSWORD}
+      - tapOn:
+          id: "clerk.auth.signUp.continue"
+- runFlow:
+    when:
+      visible:
+        id: "clerk.auth.signIn.password"
+    commands:
+      - tapOn:
+          id: "clerk.auth.signIn.password"
+      - inputText: ${BUYER_PASSWORD}
+      - tapOn:
+          id: "clerk.auth.signIn.continue"
+      - waitForAnimationToEnd
+# Clerk asks for a code when the buyer signs in from a device it hasn't seen.
+- runFlow:
+    when:
+      visible:
+        id: "clerk.auth.signIn.code"
+    commands:
+      - tapOn:
+          id: "clerk.auth.signIn.code"
+      - inputText: "424242"
+- extendedWaitUntil:
+    notVisible:
+      id: "clerk.dismissButton"
+    timeout: 20000

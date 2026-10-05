@@ -3,8 +3,9 @@ import { z } from "@medusajs/framework/zod"
 const required = z.string().trim().min(1)
 
 /**
- * A delivery address: the NG form's columns (ADR 0002). Its metadata holds the rider's landmark,
- * the pin the buyer confirmed, and Shipbubble's code for an address validated before (a saved one).
+ * A delivery address: the NG form's columns (ADR 0002). Its metadata holds the rider's landmark
+ * and the pin the buyer confirmed on the map, which every delivery address needs: Shipbubble
+ * validates it by the pin, and the rider goes there.
  */
 export const StoreCheckoutAddress = z.object({
   first_name: required,
@@ -16,14 +17,14 @@ export const StoreCheckoutAddress = z.object({
   postal_code: z.string().trim().nullish(),
   country_code: z.string().length(2).toLowerCase(),
   phone: required,
-  metadata: z
-    .object({
+  metadata: z.object(
+    {
       landmark: z.string().trim().nullish(),
-      latitude: z.number().min(-90).max(90).optional(),
-      longitude: z.number().min(-180).max(180).optional(),
-    })
-    .refine((m) => (m.latitude == null) === (m.longitude == null), "A pin needs both latitude and longitude")
-    .nullish(),
+      latitude: z.number({ required_error: "Place the delivery pin on the map" }).min(-90).max(90),
+      longitude: z.number({ required_error: "Place the delivery pin on the map" }).min(-180).max(180),
+    },
+    { required_error: "Place the delivery pin on the map" }
+  ),
 })
 
 export const StorePrepareCheckout = z.object({ shipping_address: StoreCheckoutAddress })

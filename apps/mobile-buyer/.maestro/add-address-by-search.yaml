@@ -1,0 +1,103 @@
+# A buyer adds a delivery address at checkout by searching for it and confirming the pin (#40).
+# Needs the backend with GOOGLE_MAPS_API_KEY and the seeded shops, and a Clerk development
+# instance (see sign-in.yaml).
+appId: com.emekaobah.oja.buyer
+env:
+  BUYER_EMAIL: maestro-buyer+clerk_test@example.com
+  BUYER_PASSWORD: Maestro-Buyer-Test-2026!
+---
+- launchApp:
+    permissions:
+      location: inuse
+# Start as a guest: checkout asks a guest to sign in.
+- tapOn: "Account"
+- runFlow:
+    when:
+      visible: "Sign out"
+    commands:
+      - tapOn: "Sign out"
+      - extendedWaitUntil:
+          notVisible: "Sign out"
+          timeout: 15000
+- tapOn: "Home"
+- tapOn: "Ofada Rice 5kg.*"
+- tapOn: "Add to cart.*"
+- tapOn: "View cart"
+- tapOn: "Checkout.*"
+- runFlow:
+    file: sign-in.yaml
+    env:
+      BUYER_EMAIL: ${BUYER_EMAIL}
+      BUYER_PASSWORD: ${BUYER_PASSWORD}
+# Signed in, the cart is the buyer's; checkout from it again.
+- tapOn: "Checkout.*"
+- extendedWaitUntil:
+    visible: "Delivery address"
+    timeout: 15000
+# A cart with an address opens on it; go back to finding one.
+- runFlow:
+    when:
+      visible: "Change"
+    commands:
+      - tapOn: "Change"
+- runFlow:
+    when:
+      visible: "Search for an address"
+    commands:
+      - tapOn: "Search for an address"
+
+- tapOn:
+    id: "address-search"
+- inputText: "Akin Adesola"
+- extendedWaitUntil:
+    visible: "Akin Adesola Street.*"
+    timeout: 15000
+- tapOn: "Akin Adesola Street.*"
+
+# The pin map opens on the place found; the buyer confirms where the rider comes.
+- extendedWaitUntil:
+    visible: "Confirm the delivery spot"
+    timeout: 15000
+- tapOn: "Confirm pin"
+
+# The search filled the street and state; the buyer reviews the form and adds the rest.
+- assertVisible: "Akin Adesola Street.*"
+- assertVisible: "Eti Osa"
+- assertVisible: "Lagos"
+# The field, not its label above it.
+- tapOn:
+    text: "First name"
+    index: 1
+- eraseText
+- inputText: "Ada"
+# The field, not its label above it.
+- tapOn:
+    text: "Last name"
+    index: 1
+- eraseText
+- inputText: "Obi"
+- scrollUntilVisible:
+    element: "Use this address"
+# The field, not its label above it.
+- tapOn:
+    text: "Phone number"
+    index: 1
+- eraseText
+- inputText: "08031234567"
+# The landmark last: its keyboard has a return key, which puts the keyboard away.
+- tapOn:
+    text: "Landmark / directions for the rider (optional)"
+    index: 1
+- eraseText
+- inputText: "Opposite the Mobil station"
+- pressKey: Enter
+- scrollUntilVisible:
+    element: "Use this address"
+- assertVisible: "Delivery pin placed on the map."
+- tapOn: "Use this address"
+
+# Saved with its pin: checkout quotes delivery to it.
+- extendedWaitUntil:
+    visible: "Pay with Paystack.*"
+    timeout: 30000
+- assertVisible: "Opposite the Mobil station"

@@ -1,4 +1,4 @@
-import type { DeliveryAddress } from '@oja/domain';
+import type { PinnedDeliveryAddress } from '@oja/domain';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { cartKeys } from './cart';
@@ -31,11 +31,11 @@ export function useCheckout(cartId: string | null | undefined, { waitForOrder = 
   });
 }
 
-/** Sets the delivery address; the backend reprices the cart and adds each shop's delivery. */
+/** Sets the delivery address, with its pin; the backend reprices the cart and adds each shop's delivery. */
 export function usePrepareCheckout(cartId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (shippingAddress: DeliveryAddress) => {
+    mutationFn: async (shippingAddress: PinnedDeliveryAddress) => {
       const { checkout } = await storeClient.store.carts.$id.checkout.mutate({
         $id: cartId,
         shipping_address: shippingAddress,

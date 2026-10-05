@@ -1,5 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { ADDRESS, buyerCheckout, GADGETS, GROCERY, LANTERN, RETURN_URL, RICE, TOTAL } from "../helpers/checkout"
+import { ADDRESS, buyerCheckout, GADGETS, GROCERY, LANTERN, PIN, RETURN_URL, RICE, TOTAL } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
 import { BEST_VALUE_FEE, COURIERS, categoryId, fakeShipbubble } from "../helpers/shipbubble"
@@ -19,8 +19,7 @@ process.env.SHIPBUBBLE_API_KEY = shipbubble.apiKey
 process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
 
 /** Ada's address with the pin she confirmed on the map (ADR 0002). */
-const PIN = { latitude: 6.4281, longitude: 3.4219 }
-const PINNED = { ...ADDRESS, metadata: { ...ADDRESS.metadata, ...PIN } }
+const PINNED = ADDRESS
 
 medusaIntegrationTestRunner({
   inApp: true,
@@ -67,15 +66,15 @@ medusaIntegrationTestRunner({
         })
       })
 
-      it("sends the address text alone when there's no pin", async () => {
+      it("refuses an address without a pin, before asking Shipbubble", async () => {
         const cartId = await adasCart()
+        const { latitude: _latitude, longitude: _longitude, ...unpinned } = ADDRESS.metadata
 
-        await prepareAt(cartId, ADDRESS)
+        const res = await prepareAt(cartId, { ...ADDRESS, metadata: unpinned }).catch((e) => e.response)
 
-        const [validation] = adasValidations()
-        expect(validation.address).toBe("3 Akin Adesola Street, Flat 4, Eti-Osa, Lagos, Nigeria")
-        expect(validation).not.toHaveProperty("latitude")
-        expect(validation).not.toHaveProperty("longitude")
+        expect(res.status).toBe(400)
+        expect(res.data.message).toMatch(/pin/)
+        expect(adasValidations()).toEqual([])
       })
 
       it("validates again only an address without a code", async () => {
@@ -94,7 +93,7 @@ medusaIntegrationTestRunner({
         const cartId = await adasCart()
         const elsewhere = 999999
 
-        const { data } = await prepareAt(cartId, { ...ADDRESS, metadata: { shipbubble_address_code: elsewhere } })
+        const { data } = await prepareAt(cartId, { ...ADDRESS, metadata: { ...ADDRESS.metadata, shipbubble_address_code: elsewhere } })
 
         expect(adasValidations()).toHaveLength(1)
         expect(data.checkout.shipping_address.metadata.shipbubble_address_code).not.toBe(elsewhere)

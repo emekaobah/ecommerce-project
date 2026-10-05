@@ -15,8 +15,8 @@ const INPUT_HINTS: Partial<Record<AddressFieldKey, TextInputProps>> = {
 };
 
 /**
- * The delivery address form for a country, field by field from its config (ADR 0002): the
- * plain form; address search, current location and the map pin come in #40.
+ * The delivery address form for a country, field by field from its config (ADR 0002). Address
+ * search and current location fill it, and every field stays editable (`address-entry`).
  */
 export function AddressForm({
   config,
