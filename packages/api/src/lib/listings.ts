@@ -4,6 +4,7 @@ import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/
 import { resolveVisibleSellerIds } from "@mercurjs/core/api/utils/sellers"
 import { ProductStatus } from "@mercurjs/types"
 import { attributionOf, type Attribution } from "./enrichment"
+import { perishableProductIds } from "./perishable"
 
 // A listing is one shop's offer of one product: the product page and the feed are always
 // in a shop's context, and prices are never compared across shops (docs/design.md).
@@ -43,6 +44,8 @@ export type ListingProductDetail = ListingProduct & {
   attributes: { name: string; values: string[] }[]
   /** Credits the product page must show for data it took from product databases (#35). */
   attribution: Attribution[]
+  /** Fresh or chilled: delivered only by the end of the next day (#69). */
+  perishable: boolean
 }
 
 export type Listing<P extends ListingProduct = ListingProduct> = {
@@ -408,6 +411,7 @@ export async function retrieveListing(
     images: (p.images ?? []).map(({ id, url }) => ({ id, url })),
     attributes: attributesOf(attributeValues ?? []),
     attribution: await attributionOf(scope, p.id),
+    perishable: (await perishableProductIds(scope, [p.id])).has(p.id),
   })
 }
 

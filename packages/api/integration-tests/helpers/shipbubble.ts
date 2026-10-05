@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage, type Server } from "node:http"
 
-/** A courier the fake quotes: its price, and how many hours after the request it delivers. */
+/**
+ * A courier the fake quotes: its price, and how many hours after the request it delivers, or
+ * at a set time of day `arrives.day` days after the request's day in Lagos.
+ */
 export type FakeCourier = {
   courier_id: string
   courier_name: string
@@ -9,6 +12,7 @@ export type FakeCourier = {
   amount: number
   hours: number
   tracking_level: number
+  arrives?: { day: number; at: string }
 }
 
 /**
@@ -55,6 +59,13 @@ type RateRequest = {
 
 /** "yyyy-mm-dd HH:mm:ss" in Lagos time, as Shipbubble writes ETAs. */
 const lagosTime = (at: Date) => new Date(at.getTime() + 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ")
+
+/** "yyyy-mm-dd HH:mm:ss" in Lagos time, `day` days after `now`'s day in Lagos, at `at` (HH:mm:ss). */
+export const lagosDayAt = (now: Date, day: number, at: string) => {
+  const date = new Date(`${lagosTime(now).slice(0, 10)}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + day)
+  return `${date.toISOString().slice(0, 10)} ${at}`
+}
 
 /**
  * Stands in for Shipbubble's API: the backend's `SHIPBUBBLE_API_URL` points here. It validates
@@ -134,7 +145,9 @@ export function fakeShipbubble(port: number) {
       total: c.amount,
       pickup_eta_time: lagosTime(now),
       delivery_eta: `Within ${c.hours} hrs`,
-      delivery_eta_time: lagosTime(new Date(now.getTime() + c.hours * 60 * 60 * 1000)),
+      delivery_eta_time: c.arrives
+        ? lagosDayAt(now, c.arrives.day, c.arrives.at)
+        : lagosTime(new Date(now.getTime() + c.hours * 60 * 60 * 1000)),
     }))
     return ok({ request_token: `token_${randomUUID()}`, couriers: quoted })
   }

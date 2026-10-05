@@ -17,6 +17,7 @@ import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webh
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
 import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
+import { AdminOverrideProductPerishable, AdminSetCategoryPerishable } from "./admin/perishable-validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 
 export default defineMiddlewares({
@@ -159,6 +160,17 @@ export default defineMiddlewares({
         },
         // A shop's own product list, imported as offers and proposals, and its private cost prices (#37).
         ...vendorOfferImportMiddlewares,
+        // Perishable flags (#69): the operator's alone, so there are no vendor routes for them.
+        {
+            method: ["POST"],
+            matcher: "/admin/product-categories/:id/perishable",
+            middlewares: [validateAndTransformBody(AdminSetCategoryPerishable)],
+        },
+        {
+            method: ["POST"],
+            matcher: "/admin/products/:id/perishable",
+            middlewares: [validateAndTransformBody(AdminOverrideProductPerishable)],
+        },
         {
             method: ["GET"],
             matcher: "/admin/catalogue-enrichment",

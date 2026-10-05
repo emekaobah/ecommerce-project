@@ -161,6 +161,8 @@ module.exports = withMercur({
     },
     // Shops' private offer cost prices and their saved import mappings (#37).
     { resolve: './src/modules/offer-import' },
+    // Which categories and products are perishable, set by the operator only (#69).
+    { resolve: './src/modules/perishable' },
     {
       resolve: '@medusajs/medusa/file',
       options: {

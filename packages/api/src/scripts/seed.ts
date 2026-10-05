@@ -54,8 +54,10 @@ import {
   SEED_CATEGORIES,
   SEED_CATEGORY_ATTRIBUTES,
   SEED_PASSWORD,
+  SEED_PERISHABLE_CATEGORIES,
   SEED_PRODUCTS,
   SEED_REGION,
+  SEED_REGION_TIME_ZONE,
   SEED_SALES_CHANNEL,
   SEED_SELLERS,
   SEED_SIZES,
@@ -67,6 +69,7 @@ import {
 } from "./seed-data";
 import { PAYSTACK_PROVIDER_ID } from "../modules/paystack";
 import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble";
+import { setCategoryPerishable } from "../lib/perishable";
 
 // Seeds Oja's demo world (see seed-data.ts). Every section looks up what already
 // exists and creates only what is missing, so the seed is safe to re-run.
@@ -129,6 +132,9 @@ export default async function seedDemoData({ container }: ExecArgs) {
 
   logger.info("Seeding categories and attributes...");
   const categoryIds = await seedCategories(container);
+  for (const name of SEED_PERISHABLE_CATEGORIES) {
+    await setCategoryPerishable(container, categoryIds.get(name)!, true);
+  }
   const sizeAttribute = await seedSizeAttribute(container);
   const categoryAttributes = await seedCategoryAttributes(container, categoryIds);
 
@@ -224,6 +230,7 @@ async function seedRegion(container: MedusaContainer) {
         regions: [
           {
             ...SEED_REGION,
+            metadata: { time_zone: SEED_REGION_TIME_ZONE },
             payment_providers,
             automatic_taxes: true,
             // Nigerian shelf prices include VAT.
@@ -234,7 +241,10 @@ async function seedRegion(container: MedusaContainer) {
     });
   } else {
     await updateRegionsWorkflow(container).run({
-      input: { selector: { id: existing.id }, update: { payment_providers } },
+      input: {
+        selector: { id: existing.id },
+        update: { payment_providers, metadata: { ...existing.metadata, time_zone: SEED_REGION_TIME_ZONE } },
+      },
     });
   }
 

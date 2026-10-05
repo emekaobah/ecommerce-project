@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
-import { deliveryChoices, type DeliveryChoice } from "@oja/domain"
+import { arrivesByEndOfNextDay, deliveryChoices, type DeliveryChoice } from "@oja/domain"
 import {
   ShipbubbleError,
   SHIPBUBBLE_TIMEZONE,
@@ -296,8 +296,8 @@ async function deliveryAddressOf(scope: MedusaContainer, customerId: string) {
 /**
  * How a shop would deliver one of a product to the buyer's saved address: its best-value rate,
  * for the product page (#23). Null for a guest, a buyer with no saved address, an address
- * Shipbubble can't place, or a parcel no courier takes: the page then shows the shop's dispatch time.
- * A saved address validated here keeps its code.
+ * Shipbubble can't place, or a parcel no courier takes (for a perishable product, none in time):
+ * the page then shows the shop's dispatch time. A saved address validated here keeps its code.
  */
 export async function estimateDelivery(
   scope: MedusaContainer,
@@ -306,7 +306,16 @@ export async function estimateDelivery(
     sellerId,
     line,
     currencyCode,
-  }: { customerId: string | null | undefined; sellerId: string; line: ParcelLine; currencyCode: string }
+    perishable,
+    timeZone,
+  }: {
+    customerId: string | null | undefined
+    sellerId: string
+    line: ParcelLine
+    currencyCode: string
+    perishable: boolean
+    timeZone: string
+  }
 ): Promise<DeliveryEstimate | null> {
   if (!customerId) return null
   const saved = await deliveryAddressOf(scope, customerId)
@@ -329,7 +338,7 @@ export async function estimateDelivery(
       .updateCustomerAddresses(address.id, { metadata: { ...address.metadata, [ADDRESS_CODE]: receiverCode } })
   }
 
-  const [best] = await quoteDelivery(scope, { sellerId, receiverCode, lines: [line], currencyCode })
+  const [best] = await quoteDelivery(scope, { sellerId, receiverCode, lines: [line], currencyCode, perishable, timeZone })
   return best
     ? {
         courier_name: best.courier_name,
@@ -342,13 +351,49 @@ export async function estimateDelivery(
 }
 
 /**
+ * Where a region counts its days (ADR 0004): its `metadata.time_zone`. A region without one
+ * counts in Shipbubble's, the only courier network there is.
+ */
+export async function regionTimeZone(scope: MedusaContainer, regionId: string | null | undefined): Promise<string> {
+  if (!regionId) return SHIPBUBBLE_TIMEZONE
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "region", fields: ["id", "metadata"], filters: { id: regionId } })
+  const zone = (data[0] as { metadata?: Record<string, unknown> | null } | undefined)?.metadata?.time_zone
+  return typeof zone === "string" && zone ? zone : SHIPBUBBLE_TIMEZONE
+}
+
+/**
+ * The rates a parcel with perishable items may go by (#69): those arriving by the end of the
+ * next day in the region's timezone. Other parcels go by any rate.
+ */
+export function ratesFor<R extends { delivery_eta_time: string }>(
+  rates: R[],
+  { perishable, timeZone, now = new Date() }: { perishable: boolean; timeZone: string; now?: Date }
+): R[] {
+  return perishable ? rates.filter((r) => arrivesByEndOfNextDay(r.delivery_eta_time, now, timeZone)) : rates
+}
+
+/**
  * A shop's delivery choices for a parcel to an address code: best value first, then the cheapest
- * and the fastest. Empty when no courier will take it.
+ * and the fastest, of the rates it may go by (`ratesFor`). Empty when no courier will take it,
+ * or, for perishables, none arrives in time.
  */
 export async function quoteDelivery(
   scope: MedusaContainer,
-  { sellerId, receiverCode, lines, currencyCode }: { sellerId: string; receiverCode: number; lines: ParcelLine[]; currencyCode: string }
+  {
+    perishable,
+    timeZone,
+    ...parcel
+  }: { sellerId: string; receiverCode: number; lines: ParcelLine[]; currencyCode: string; perishable: boolean; timeZone: string }
 ): Promise<DeliveryChoice<ShipbubbleQuote>[]> {
+  return deliveryChoices(ratesFor(await quoteRates(scope, parcel), { perishable, timeZone }))
+}
+
+/** Every courier's rate for a shop's parcel to an address code. Empty when no courier will take it. */
+export async function quoteRates(
+  scope: MedusaContainer,
+  { sellerId, receiverCode, lines, currencyCode }: { sellerId: string; receiverCode: number; lines: ParcelLine[]; currencyCode: string }
+): Promise<ShipbubbleQuote[]> {
   const senderCode = await senderAddressCode(scope, sellerId)
   const parcel = await parcelOf(scope, lines)
   let rates
@@ -365,7 +410,7 @@ export async function quoteDelivery(
     if (error instanceof ShipbubbleError && !error.isAccountProblem && (error.status === 400 || error.status === 422)) return []
     throw error
   }
-  const quotes: ShipbubbleQuote[] = rates.couriers
+  return rates.couriers
     .filter((c) => c.currency?.toLowerCase() === currencyCode.toLowerCase())
     .map((c) => ({
       id: `${c.service_code}:${c.courier_id}`,
@@ -379,5 +424,4 @@ export async function quoteDelivery(
       delivery_eta_time: shipbubbleTime(c.delivery_eta_time),
       tracking_level: c.tracking_level ?? null,
     }))
-  return deliveryChoices(quotes)
 }
