@@ -1,17 +1,10 @@
 import { WorkflowResponse, createWorkflow, transform, when } from "@medusajs/framework/workflows-sdk"
 import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
 import { updateOffersWorkflow } from "@mercurjs/core/workflows"
+import { setOfferPricesStep, type OfferPriceInput } from "../offer-prices/steps"
 import { setOfferCostStep } from "./steps"
 
-/** An offer price as Mercur's update-offers workflow takes the whole list: kept by id, changed or added. */
-export type OfferPriceInput = {
-  id?: string
-  amount: number
-  currency_code: string
-  min_quantity?: number | null
-  max_quantity?: number | null
-  rules?: Record<string, string>
-}
+export type { OfferPriceInput }
 
 export type UpdateImportedOfferInput = {
   offer_id: string
@@ -38,16 +31,15 @@ export type UpdateImportedOfferInput = {
  * undoes the ones before it.
  */
 export const updateImportedOfferWorkflow = createWorkflow("update-imported-offer", (input: UpdateImportedOfferInput) => {
+  // Only the offer's own prices: Mercur's workflow would rewrite every shop's prices for the variant (#84).
+  when("set-offer-prices", input, (i) => i.prices !== null).then(() => {
+    setOfferPricesStep(transform({ input }, ({ input }) => ({ offer_id: input.offer_id, prices: input.prices! })))
+  })
+
   when("update-offer", input, (i) => i.prices !== null || i.stock !== null).then(() => {
     updateOffersWorkflow.runAsStep({
       input: transform({ input }, ({ input }) => ({
-        offers: [
-          {
-            id: input.offer_id,
-            ...(input.prices ? { prices: input.prices } : {}),
-            ...(input.stock ? { manage_inventory: true } : {}),
-          },
-        ],
+        offers: [{ id: input.offer_id, ...(input.stock ? { manage_inventory: true } : {}) }],
       })),
     })
   })
