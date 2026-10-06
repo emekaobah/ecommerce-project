@@ -1,6 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { SellerRole } from "@mercurjs/types"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import type { IFileModuleService } from "@medusajs/framework/types"
+import { MercurModules, SellerRole } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { claudeDraftSource } from "../../src/lib/enrichment/ai-draft"
@@ -203,6 +204,25 @@ medusaIntegrationTestRunner({
           manage_inventory: false,
         })
         expect(offer.prices.map((p: any) => Number(p.amount))).toEqual([2500])
+      })
+
+      it("deletes the stored photo, and proposes nothing, when the quick-add fails after storing it", async () => {
+        const files = getContainer().resolve<IFileModuleService>(Modules.FILE)
+        const stored = jest.spyOn(files, "createFiles")
+        const offers = getContainer().resolve(MercurModules.OFFER) as { createOffers: (...args: unknown[]) => Promise<unknown> }
+        jest.spyOn(offers, "createOffers").mockRejectedValueOnce(new Error("offer refused"))
+
+        const failed = await api
+          .post("/vendor/quick-add", { barcode: KILISHI, title: "Kilishi 100g", price: 2500, photo: PHOTO }, await staff())
+          .catch((e: any) => e.response)
+
+        expect(failed.status).toBeGreaterThanOrEqual(400)
+        expect(stored).toHaveBeenCalledTimes(1)
+        const [photo] = (await stored.mock.results[0].value) as { id: string }[]
+        await expect(files.getAsBuffer(photo.id)).rejects.toThrow()
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: products } = await query.graph({ entity: "product", fields: ["id"], filters: { title: "Kilishi 100g" } })
+        expect(products).toEqual([])
       })
 
       it("needs a photo and the product's name", async () => {
