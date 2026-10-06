@@ -44,3 +44,18 @@ export function quickAddForm(input: QuickAddFormInput, { newProduct }: { newProd
   if (Object.keys(errors).length) return { ok: false, errors }
   return { ok: true, value: { price, stock, ...(newProduct ? { title } : {}) } }
 }
+
+/** The longest side, in pixels, a quick-add photo is shrunk to before upload. */
+export const QUICK_ADD_PHOTO_MAX_SIDE = 1600
+
+/**
+ * The size to shrink a photo to so its longest side is at most `maxSide`, keeping its shape.
+ * Null when it already fits, so a small photo isn't re-encoded for nothing.
+ */
+export function photoUploadSize(
+  { width, height }: { width: number; height: number },
+  maxSide = QUICK_ADD_PHOTO_MAX_SIDE,
+): { width: number } | { height: number } | null {
+  if (Math.max(width, height) <= maxSide) return null
+  return width >= height ? { width: maxSide } : { height: maxSide }
+}

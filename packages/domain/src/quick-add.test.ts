@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { quickAddForm } from "./quick-add"
+import { photoUploadSize, quickAddForm } from "./quick-add"
 
 describe("quickAddForm", () => {
   test("reads the price and stock staff type for a catalogue product", () => {
@@ -40,5 +40,19 @@ describe("quickAddForm", () => {
       ok: false,
       errors: { price: "Enter a price above zero.", stock: "Enter a whole number of items, or leave it empty." },
     })
+  })
+})
+
+describe("photoUploadSize", () => {
+  test("shrinks a landscape photo by its width", () => {
+    expect(photoUploadSize({ width: 4032, height: 3024 })).toEqual({ width: 1600 })
+  })
+
+  test("shrinks a portrait photo by its height", () => {
+    expect(photoUploadSize({ width: 3024, height: 4032 })).toEqual({ height: 1600 })
+  })
+
+  test("leaves a photo that already fits alone", () => {
+    expect(photoUploadSize({ width: 1600, height: 1200 })).toBeNull()
   })
 })
