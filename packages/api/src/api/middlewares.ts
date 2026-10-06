@@ -2,7 +2,7 @@ import { defineMiddlewares } from "@medusajs/medusa";
 import { authenticate, validateAndTransformBody, validateAndTransformQuery } from "@medusajs/framework/http";
 import { clerkCustomerAuth } from "./store/clerk-customer-auth";
 import { savedAddressesNeedPins } from "./store/customers/address-pin";
-import { promoteDefaultOnDelete, savedAddressesValidatedForDelivery } from "./store/customers/saved-address-delivery";
+import { savedAddressesValidatedForDelivery } from "./store/customers/saved-address-delivery";
 import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
@@ -124,7 +124,7 @@ export default defineMiddlewares({
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreReverseGeocode, {})],
         },
         // A saved delivery address carries the buyer's pin and Shipbubble's address code, like
-        // every address checkout takes, and deleting the default leaves another (#18).
+        // every address checkout takes (#18). Deleting the default leaves another: see the route.
         {
             method: ["POST"],
             matcher: "/store/customers/me/addresses",
@@ -135,7 +135,6 @@ export default defineMiddlewares({
             matcher: "/store/customers/me/addresses/:address_id",
             middlewares: [savedAddressesNeedPins, savedAddressesValidatedForDelivery],
         },
-        { method: ["DELETE"], matcher: "/store/customers/me/addresses/:address_id", middlewares: [promoteDefaultOnDelete] },
         { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
         // Paystack signs the raw body, so it is kept for the check.
         {

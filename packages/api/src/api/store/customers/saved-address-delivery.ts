@@ -1,7 +1,5 @@
-import type { MedusaNextFunction, MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import type { AuthenticatedMedusaRequest, MedusaNextFunction, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { updateCustomerAddressesWorkflow } from "@medusajs/medusa/core-flows"
-import { defaultAfterDeleting } from "@oja/domain"
 import { ADDRESS_CODE, validateAddress, type DeliveryAddress } from "../../../lib/delivery"
 
 // A saved delivery address (#18) is one the buyer checks out with, so Shipbubble validates it
@@ -21,21 +19,17 @@ const DELIVERY_FIELDS = [
   "metadata",
 ] as const
 
-type AuthedRequest = MedusaRequest & { auth_context?: { actor_id?: string }; validatedBody?: unknown }
 type AddressBody = DeliveryAddress & Record<string, unknown>
-type SavedRow = DeliveryAddress & { id: string; is_default_shipping: boolean; created_at: string | Date }
 
-/** The signed-in buyer's saved addresses; none for a guest, whom Medusa's route then refuses. */
-async function savedAddressesOf(req: AuthedRequest): Promise<SavedRow[]> {
-  const customerId = req.auth_context?.actor_id
-  if (!customerId) return []
+/** One of the buyer's saved addresses, or none when it isn't theirs. */
+async function savedAddressOf(req: AuthenticatedMedusaRequest, customerId: string, addressId: string) {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "customer_address",
-    fields: ["id", "is_default_shipping", "created_at", ...DELIVERY_FIELDS],
-    filters: { customer_id: customerId },
+    fields: ["id", ...DELIVERY_FIELDS],
+    filters: { id: addressId, customer_id: customerId },
   })
-  return data as SavedRow[]
+  return data[0] as (DeliveryAddress & { id: string }) | undefined
 }
 
 /**
@@ -46,47 +40,40 @@ async function savedAddressesOf(req: AuthedRequest): Promise<SavedRow[]> {
  * Runs after `savedAddressesNeedPins`, so an address that reaches it has its pin.
  */
 export async function savedAddressesValidatedForDelivery(
-  req: AuthedRequest,
+  req: AuthenticatedMedusaRequest,
   _res: MedusaResponse,
   next: MedusaNextFunction
 ) {
+  try {
+    await stampAddressCode(req)
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+
+async function stampAddressCode(req: AuthenticatedMedusaRequest) {
+  // A guest has none; Medusa's route refuses them.
   const customerId = req.auth_context?.actor_id
   // Medusa's route saves `validatedBody`, which its own validation (run before a project's
-  // middlewares on the same route) built from `body`.
+  // middlewares on the same route) built from `body`; both are replaced, whichever runs first.
   const body = (req.validatedBody ?? req.body ?? {}) as AddressBody
   const addressId = req.params.address_id
-  if (!customerId || (addressId && !DELIVERY_FIELDS.some((field) => body[field] !== undefined))) return next()
+  if (!customerId || (addressId && !DELIVERY_FIELDS.some((field) => body[field] !== undefined))) return
 
   // An edit is validated as it will be saved: the address with the edit merged in, metadata too.
   let address: DeliveryAddress = body
   if (addressId) {
-    const saved = (await savedAddressesOf(req)).find((a) => a.id === addressId)
+    const saved = await savedAddressOf(req, customerId, addressId)
     // Not the buyer's: Medusa's route answers 404, and Shipbubble is never asked.
-    if (!saved) return next()
+    if (!saved) return
     address = { ...saved, ...body, metadata: { ...saved.metadata, ...body.metadata } }
   }
 
   const customer = await req.scope.resolve(Modules.CUSTOMER).retrieveCustomer(customerId)
-  const name = [address.first_name ?? customer.first_name, address.last_name ?? customer.last_name].filter(Boolean).join(" ")
+  const name = [address.first_name || customer.first_name, address.last_name || customer.last_name].filter(Boolean).join(" ")
   const code = await validateAddress(address, { name, email: customer.email })
 
   const { [ADDRESS_CODE]: _sent, ...metadata } = body.metadata ?? {}
   req.validatedBody = req.body = { ...body, metadata: { ...metadata, [ADDRESS_CODE]: code } }
-  next()
-}
-
-/**
- * When the buyer deletes their default address and has others, the most recently added of the
- * rest becomes the default, so checkout still starts with one. It is promoted just before
- * Medusa's route deletes the address; one that isn't the buyer's changes nothing (404).
- */
-export async function promoteDefaultOnDelete(req: AuthedRequest, _res: MedusaResponse, next: MedusaNextFunction) {
-  const customerId = req.auth_context?.actor_id
-  const promoted = defaultAfterDeleting(await savedAddressesOf(req), req.params.address_id)
-  if (customerId && promoted) {
-    await updateCustomerAddressesWorkflow(req.scope).run({
-      input: { selector: { id: promoted, customer_id: customerId }, update: { is_default_shipping: true } },
-    })
-  }
-  next()
 }

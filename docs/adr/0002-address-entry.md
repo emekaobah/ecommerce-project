@@ -25,7 +25,7 @@ Buyer addresses (saved addresses and checkout) in the buyer app, and the seller'
 2. The result pre-fills the per-country form from `@oja/domain` (`getAddressConfig`). Every field stays editable. Google fills the form; it doesn't replace it.
 3. The user confirms or drags a **map pin**. The pin is the location of record.
 4. "Can't find it? Enter manually" opens the plain form, but the user still places a pin. The map opens at their current location, or at the chosen state if location is off.
-5. On save the backend validates with Shipbubble, sending the pin's coordinates plus the address text, and stores the returned `address_code`. An address Shipbubble can't place is refused (400) and not saved. At checkout, the address is re-validated only when the code is missing.
+5. On save the backend validates with Shipbubble, sending the pin's coordinates plus the address text, and stores the returned `address_code`. An address Shipbubble can't place is refused (400) and not saved. Checkout validates the address it is given again, unless it is the cart's own address sent back, which keeps its code; it never takes a code from the request.
 
 Maps: `react-native-maps` with the Google provider on iOS and Android, so the map matches the autocomplete data. Google Maps JavaScript in the web vendor panel.
 
@@ -60,7 +60,7 @@ In the address `metadata` (customer address, cart shipping address, seller picku
 - `landmark`
 - `shipbubble_address_code`
 
-No `place_id`, since nothing needs it. No custom module until something queries by location. Saved addresses are Medusa's customer addresses (#18); saving one, or changing its metadata, needs the pin. Medusa merges an edit's metadata, so the app clears a removed landmark by sending it empty. A saved address is validated with Shipbubble when it is added, and again when an edit changes the name, phone, address or pin (making it the default doesn't); the backend stores the returned `shipbubble_address_code` and drops any code the app sent (2026-10-06, #18: the point of saving an address is to check out with it, so one Shipbubble can't place is refused on the form, not at checkout). Checkout still validates whichever address is set on the cart and never takes a code from the request. Deleting the default saved address makes the most recently added of the rest the default.
+No `place_id`, since nothing needs it. No custom module until something queries by location. Saved addresses are Medusa's customer addresses (#18); saving one, or changing its metadata, needs the pin. Medusa merges an edit's metadata, so the app clears a removed landmark by sending it empty. A saved address is validated with Shipbubble when it is added, and again on any edit of its name, phone, address or metadata (an edit's metadata always carries the pin); making it the default doesn't; the backend stores the returned `shipbubble_address_code` and drops any code the app sent (2026-10-06, #18: the point of saving an address is to check out with it, so one Shipbubble can't place is refused on the form, not at checkout). Checkout still validates whichever address is set on the cart and never takes a code from the request. Deleting the default saved address makes the most recently added of the rest the default.
 
 ### Privacy
 
