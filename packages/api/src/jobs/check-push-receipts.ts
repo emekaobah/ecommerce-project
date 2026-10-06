@@ -6,5 +6,5 @@ export default async function checkPushReceiptsJob(container: MedusaContainer) {
   await checkPushReceipts(container)
 }
 
-// Hourly, matching RECEIPT_CHECK_EVERY_MS.
+// Hourly: each run checks the pushes of the hour before (`checkPushReceipts`).
 export const config = { name: "check-push-receipts", schedule: "0 * * * *" }

@@ -8,6 +8,14 @@ type SavedPushToken = PushTokenInput & { id: string }
 
 const pushTokenService = (scope: Pick<MedusaContainer, "resolve">) => scope.resolve<PushTokenModuleService>(PUSH_TOKEN_MODULE)
 
+/** Puts deleted tokens back, as they were: what a step that deleted them undoes. */
+async function restorePushTokens(deleted: SavedPushToken[] | undefined, { container }: { container: Pick<MedusaContainer, "resolve"> }) {
+  if (!deleted?.length) return
+  await pushTokenService(container).createPushTokens(
+    deleted.map(({ token, actor_type, actor_id }) => ({ token, actor_type, actor_id }))
+  )
+}
+
 /** Registers the device for the person signed in on it, moving it from whoever had it before. */
 export const registerPushTokenStep = createStep(
   "register-push-token",
@@ -43,12 +51,7 @@ export const removePushTokenStep = createStep(
     if (owned.length) await tokens.deletePushTokens(owned.map((t) => t.id))
     return new StepResponse({ token: input.token }, owned)
   },
-  async (removed: SavedPushToken[] | undefined, { container }) => {
-    if (!removed?.length) return
-    await pushTokenService(container).createPushTokens(
-      removed.map(({ token, actor_type, actor_id }) => ({ token, actor_type, actor_id }))
-    )
-  }
+  restorePushTokens
 )
 
 /** Forgets devices Expo says are gone (`DeviceNotRegistered`), whoever they were registered to. */
@@ -60,10 +63,5 @@ export const forgetPushDevicesStep = createStep(
     if (gone.length) await tokens.deletePushTokens(gone.map((t) => t.id))
     return new StepResponse({ forgotten: gone.map((t) => t.token) }, gone)
   },
-  async (gone: SavedPushToken[] | undefined, { container }) => {
-    if (!gone?.length) return
-    await pushTokenService(container).createPushTokens(
-      gone.map(({ token, actor_type, actor_id }) => ({ token, actor_type, actor_id }))
-    )
-  }
+  restorePushTokens
 )

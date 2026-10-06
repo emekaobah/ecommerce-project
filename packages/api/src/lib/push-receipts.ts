@@ -15,7 +15,7 @@ const MINUTE = 60 * 1000
 /** Expo has a ticket's receipt ready about 15 minutes after the push. */
 const RECEIPT_DELAY_MS = 15 * MINUTE
 /** How often the receipts job runs. */
-export const RECEIPT_CHECK_EVERY_MS = 60 * MINUTE
+const RECEIPT_CHECK_EVERY_MS = 60 * MINUTE
 /** Each run looks a little further back than the last run, so a late run misses no push. */
 const RECEIPT_CHECK_OVERLAP_MS = 5 * MINUTE
 
