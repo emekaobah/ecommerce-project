@@ -11,7 +11,7 @@ Facts that shaped the decision (checked 2026-10-05):
 - Mercur 2.3.5 decides which shops buyers may see with `resolveVisibleSellerIds` (`@mercurjs/core/api/utils/sellers`): approved, not suspended, not in a closure. It has no notion of onboarding.
 - Mercur's store routes for offers, sellers and products (including each variant's cheapest offer) read through `req.scope`'s `query.graph` with their own filters. Copying their handlers to add a filter would fork them.
 - A shop's pickup address is Mercur's seller address. Three routes save it: our checklist, Mercur's `POST /vendor/sellers/:id/address` and `POST /admin/sellers/:id/address`. The last two run `updateSellerAddressWorkflow`, which has an `addressUpdated` hook after the save step. Registration (`POST /vendor/sellers`) can also carry an address, but its body takes no `metadata`.
-- Mercur's seller payment details can be written by any member with the seller update permission, and nothing checks the account with the bank.
+- Mercur's seller payment details are free-form fields saved as entered: nothing checks the account with the bank or registers a Paystack transfer recipient.
 - Integration tests and local setups often run without Shipbubble or Paystack keys, but still need a seeded catalogue to show.
 
 ## Decision
@@ -23,17 +23,17 @@ A shop is **live** when Mercur has it open (`resolveVisibleSellerIds`) **and** i
 Every store route that shows a shop or its offers reads it:
 
 - Our listing, shop, wishlist and cart routes call it directly. Adding a non-live shop's offer to a cart is a 404.
-- Mercur's `/store/offers*`, `/store/sellers*` and `/store/products*` get the `onlyLiveShops` middleware (`src/api/store/live-shops.ts`). It replaces the request's `query` with one that adds `seller_id IN live` (offers) or `id IN live` (sellers) to every `query.graph` call, as an extra `$and` so the route's own filters still hold. Mercur's handlers stay as they are, whatever order their middlewares run in.
+- Mercur's `/store/offers*`, `/store/sellers*` and `/store/products*` get the `onlyLiveShops` middleware (`src/api/store/live-shops.ts`). It swaps the request's container (`req.scope`) for one whose `query` adds `seller_id IN live` (offers) or `id IN live` (sellers) to every `query.graph` call, as an extra `$and` so the route's own filters still hold. Mercur's handlers stay as they are, whatever order their middlewares run in.
 
 Routes that show a buyer **their own** records are left alone: `/store/order-groups` and `/store/order-history` (a buyer's past orders keep their shop even if it later stops being live), and Mercur's `/store/reviews`. Despite its name, that route lists only the reviews the signed-in buyer wrote (`customer_id` from the session). A review also has no shop column, only a link table, so it can't be narrowed through the query wrapper. The public review routes in the design (`GET /store/sellers/:id/reviews`, `GET /store/products/:id/reviews`) aren't built yet. When they are, they must read `liveSellerIds`.
 
-### Pickup address codes are only written by a validated save
+### Pickup address codes are only written once Shipbubble has validated the address
 
-The pickup gate passes when the seller address carries a `shipbubble_address_code` in its metadata. To make that code trustworthy, only a save that Shipbubble validated writes it:
+The pickup gate passes when the seller address carries a `shipbubble_address_code` in its metadata. To make that code trustworthy, it is only ever written for the address Shipbubble just validated, and never taken from a request:
 
 - `validatedPickupChange` (`src/lib/delivery.ts`) merges the change with the saved address, asks Shipbubble to place it, and returns the change with the code. If Shipbubble refuses, it fails with a 400 before anything is saved. It drops any code the request itself carries.
 - Every save route runs it **before** writing. `POST /vendor/onboarding/pickup-address` first checks the country's form (`@oja/domain`, ADR 0002). Mercur's vendor and admin address routes get the `validatePickupAddressFirst` middleware (`src/api/pickup-address-check.ts`).
-- An address saved without a code (e.g. at registration) fails the gate until it is saved through one of these routes.
+- An address saved without a code (e.g. at registration) fails the gate until it is saved through one of these routes. The one other writer is `senderAddressCode`, which validates a code-less address the first time a delivery is quoted from it and keeps the code. It also writes only after Shipbubble has placed that address, and a shop that isn't live can't be quoted, so it opens no way around the gate.
 
 The first attempt validated in Mercur's `addressUpdated` hook instead. That hook runs after `updateSellerAddressStep` has saved the address, so a refused address depends on the step's compensation to undo it. Mercur's compensation for an updated address didn't restore the old one. A refused change stayed saved, still carrying the previous address's code, so the shop stayed live with an address Shipbubble never placed. Validating before the save avoids relying on compensation.
 
