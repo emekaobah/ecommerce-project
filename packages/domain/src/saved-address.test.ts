@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test"
-import { addressBook, addressLines, addressStep,checkoutAddressOf,preselectedAddress, savedAddressEdit, savedAddressFor } from "./saved-address"
+import {
+  addressBook,
+  addressLines,
+  addressStep,
+  checkoutAddressOf,
+  defaultAfterDeleting,
+  preselectedAddress,
+  savedAddressEdit,
+  savedAddressFor,
+} from "./saved-address"
 
 /** Ada's home, as the store keeps it: Medusa's columns, the landmark and her pin in metadata. */
 const home = {
@@ -153,5 +162,32 @@ describe("savedAddressFor", () => {
     expect(savedAddressFor([home, office], moved, "NG")).toBeNull()
     expect(savedAddressFor([home, office], { ...onCart, address_2: "Floor 2" }, "NG")).toBeNull()
     expect(savedAddressFor([home, office], null, "NG")).toBeNull()
+  })
+})
+
+describe("defaultAfterDeleting", () => {
+  const saved = (id: string, created_at: string, is_default_shipping = false) => ({ id, created_at, is_default_shipping })
+  const home = saved("caddr_home", "2026-10-01T09:00:00Z", true)
+  const office = saved("caddr_office", "2026-10-02T09:00:00Z")
+  const mums = saved("caddr_mums", "2026-10-03T09:00:00Z")
+
+  test("makes the most recently added of the rest the default when the default goes", () => {
+    expect(defaultAfterDeleting([office, home, mums], home.id)).toBe(mums.id)
+    expect(defaultAfterDeleting([home, office], home.id)).toBe(office.id)
+  })
+
+  test("reads the dates the store sends, as strings or dates", () => {
+    const older = { ...mums, created_at: new Date("2026-09-30T09:00:00Z") }
+    expect(defaultAfterDeleting([home, office, older], home.id)).toBe(office.id)
+  })
+
+  test("changes nothing when another address goes, or the last one", () => {
+    expect(defaultAfterDeleting([home, office, mums], office.id)).toBeNull()
+    expect(defaultAfterDeleting([home], home.id)).toBeNull()
+  })
+
+  test("changes nothing when there was no default to lose", () => {
+    const undefaulted = { ...home, is_default_shipping: false }
+    expect(defaultAfterDeleting([undefaulted, office], undefaulted.id)).toBeNull()
   })
 })

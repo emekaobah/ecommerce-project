@@ -127,3 +127,23 @@ export function savedAddressFor(
   if (!cartAddress) return null
   return addresses.find((saved) => samePlace(saved, cartAddress, countryCode))?.id ?? null
 }
+
+/** A saved address as far as which one is the default goes. */
+export type DefaultCandidate = { id: string; is_default_shipping?: boolean | null; created_at: string | Date }
+
+/**
+ * The saved address that becomes the default when the buyer deletes `deletedId`: the most
+ * recently added of the rest, when the one deleted was the default. Null when nothing changes:
+ * another address was deleted, the default was the last one, or there was no default.
+ */
+export function defaultAfterDeleting(addresses: readonly DefaultCandidate[], deletedId: string): string | null {
+  const deleted = addresses.find((a) => a.id === deletedId)
+  if (!deleted?.is_default_shipping) return null
+  const newest = addresses
+    .filter((a) => a.id !== deletedId)
+    .reduce<DefaultCandidate | null>(
+      (latest, a) => (!latest || new Date(a.created_at).getTime() > new Date(latest.created_at).getTime() ? a : latest),
+      null
+    )
+  return newest?.id ?? null
+}

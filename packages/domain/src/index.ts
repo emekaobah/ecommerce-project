@@ -17,11 +17,12 @@ export {
   addressLines,
   addressStep,
   checkoutAddressOf,
+  defaultAfterDeleting,
   preselectedAddress,
   savedAddressEdit,
   savedAddressFor,
 } from "./saved-address"
-export type { AddressLines, AddressStep, SavedAddress } from "./saved-address"
+export type { AddressLines, AddressStep, DefaultCandidate, SavedAddress } from "./saved-address"
 export { formFromLookup, mapCentre, stateFromLookup } from "./address-lookup"
 export type { LookedUpPlace } from "./address-lookup"
 export { toE164 } from "./phone"
