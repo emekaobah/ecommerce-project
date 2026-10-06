@@ -1,6 +1,7 @@
 import { CheckCircleSolid, ExclamationCircle, ShoppingBag } from "@medusajs/icons"
 import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import type { RouteConfig } from "@mercurjs/dashboard-sdk"
+import { PermissionGuard } from "@mercurjs/dashboard-shared"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { BankAccountForm } from "./bank-account-form"
@@ -22,7 +23,8 @@ export const handle = {
 /**
  * The shop's onboarding checklist (#26): buyers see its offers only once couriers can collect
  * from it (a pickup address Shipbubble validated) and Oja can pay it (a bank account Paystack
- * resolved). The API decides what is complete; this page shows it and takes the details.
+ * resolved). The API decides what is complete; this page shows it and takes the details. Only
+ * members who may change the shop (owners and managers) get the forms; the API refuses the rest.
  */
 const ShopSetupPage = () => {
   const { t } = useTranslation()
@@ -74,8 +76,23 @@ const ShopSetupPage = () => {
           ))}
         </div>
       </Container>
-      {data && <PickupAddressForm onboarding={data} onSaved={saved} />}
-      {data && <BankAccountForm onboarding={data} onSaved={saved} />}
+      {data && (
+        <PermissionGuard
+          resource="seller"
+          operation="update"
+          showLoading
+          fallback={
+            <Container className="px-6 py-4">
+              <Text size="small" className="text-ui-fg-subtle">
+                {t("shopSetup.askAnOwner")}
+              </Text>
+            </Container>
+          }
+        >
+          <PickupAddressForm onboarding={data} onSaved={saved} />
+          <BankAccountForm onboarding={data} onSaved={saved} />
+        </PermissionGuard>
+      )}
     </div>
   )
 }

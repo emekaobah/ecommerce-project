@@ -122,6 +122,7 @@
     "notLive": "Not live yet",
     "loadError": "Could not load your shop setup.",
     "missing": "Still to do",
+    "askAnOwner": "Ask a shop owner or manager to enter the pickup address and bank account.",
     "optional": "optional",
     "choose": "Choose",
     "status": {

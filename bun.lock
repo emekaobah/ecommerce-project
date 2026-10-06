@@ -207,6 +207,7 @@
       "name": "@acme/vendor",
       "version": "2.3.5",
       "dependencies": {
+        "@mercurjs/dashboard-shared": "2.3.5",
         "@mercurjs/vendor": "2.3.5",
         "@oja/domain": "workspace:*",
         "react": "^18.3.1",
