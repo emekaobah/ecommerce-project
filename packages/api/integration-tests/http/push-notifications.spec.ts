@@ -4,6 +4,8 @@ import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { remindAcceptDeadlines } from "../../src/lib/order-acceptance"
 import { ORDER_PICKUP_SCHEDULED } from "../../src/lib/order-fulfilment"
+import { checkPushReceipts } from "../../src/lib/push-receipts"
+import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../../src/modules/push-token"
 import { vendorHeaders } from "../helpers/auth"
 import { buyerCheckout, eventually, GADGETS, GROCERY, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -27,7 +29,8 @@ process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
 process.env.EXPO_ACCESS_TOKEN = expo.accessToken
 process.env.EXPO_PUSH_API_URL = expo.apiUrl
 
-const HOUR = 60 * 60 * 1000
+const MINUTE = 60 * 1000
+const HOUR = 60 * MINUTE
 
 medusaIntegrationTestRunner({
   inApp: true,
@@ -74,6 +77,9 @@ medusaIntegrationTestRunner({
       const { data } = await buyer.query().graph({ entity: "order", fields: ["display_id"], filters: { id: orderId } })
       return data[0].display_id as number
     }
+    /** Whether the device is still registered for pushes, to anyone. */
+    const registered = async (token: string) =>
+      (await getContainer().resolve<PushTokenModuleService>(PUSH_TOKEN_MODULE).listPushTokens({ token })).length > 0
     const opens = (orderId: string, sellerId: string): Partial<PushMessage> => ({
       data: { url: `/orders/${orderId}`, order_id: orderId, seller_id: sellerId },
     })
@@ -101,7 +107,7 @@ medusaIntegrationTestRunner({
         expect(expo.sentTo(ownerDevice)).toHaveLength(1)
       })
 
-      it("still reaches the other devices when Expo says one is no longer installed", async () => {
+      it("forgets a device Expo says is no longer installed, and still reaches the others", async () => {
         const gone = await registerMember(await buyer.owner(GROCERY))
         const device = await registerMember(await staff(GROCERY))
         expo.uninstall(gone)
@@ -110,6 +116,35 @@ medusaIntegrationTestRunner({
 
         const [push] = await pushesTo(device)
         expect(push).toMatchObject(opens(grocery, await buyer.sellerId(GROCERY)))
+        await eventually(() => registered(gone), (still) => !still)
+        expect(await registered(device)).toBe(true)
+
+        await paidOrders()
+        await pushesTo(device, 2)
+        expect(await settledPushesTo(gone, async () => {})).toHaveLength(1)
+      })
+    })
+
+    describe("checking push receipts", () => {
+      it("forgets a device whose receipt says it is no longer installed, and keeps the others", async () => {
+        const gone = await registerMember(await buyer.owner(GROCERY))
+        const device = await registerMember(await staff(GROCERY))
+        expo.uninstallAfterSend(gone)
+        await paidOrders()
+        await pushesTo(gone)
+        await pushesTo(device)
+
+        // Before Expo has had time to deliver, the receipts aren't asked for.
+        await checkPushReceipts(getContainer(), new Date(Date.now() + 5 * MINUTE))
+        expect(await registered(gone)).toBe(true)
+
+        await checkPushReceipts(getContainer(), new Date(Date.now() + 20 * MINUTE))
+        expect(await registered(gone)).toBe(false)
+        expect(await registered(device)).toBe(true)
+
+        await paidOrders()
+        await pushesTo(device, 2)
+        expect(await settledPushesTo(gone, async () => {})).toHaveLength(1)
       })
     })
 

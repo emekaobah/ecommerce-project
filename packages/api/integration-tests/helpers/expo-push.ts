@@ -14,15 +14,25 @@ export type PushMessage = {
 /** A made-up Expo push token, as `getExpoPushTokenAsync` returns on a device. */
 export const pushToken = () => `ExponentPushToken[${randomUUID().slice(0, 22)}]`
 
+const DEVICE_NOT_REGISTERED = (token: string) => ({
+  status: "error",
+  message: `"${token}" is not a registered push notification recipient`,
+  details: { error: "DeviceNotRegistered", expoPushToken: token },
+})
+
 /**
  * Stands in for Expo's push service: the backend's `EXPO_PUSH_API_URL` points here. It accepts
  * every message for a token it hasn't been told is gone, answers with a ticket as Expo does,
- * and records each message for tests to inspect.
+ * and records each message for tests to inspect. Asked for the receipts of its tickets, it
+ * reports the messages to a device uninstalled after they were sent as never delivered.
  */
 export function fakeExpoPush(port: number) {
   const accessToken = `expo_${randomUUID().replaceAll("-", "")}`
   const messages: PushMessage[] = []
   const unregistered = new Set<string>()
+  const uninstalledAfterSend = new Set<string>()
+  /** The token each accepted ticket was for. */
+  const tickets = new Map<string, string>()
   let server: Server | undefined
 
   const readBody = async (req: IncomingMessage) => {
@@ -31,23 +41,41 @@ export function fakeExpoPush(port: number) {
     return raw ? JSON.parse(raw) : {}
   }
 
+  const unauthorized = (req: IncomingMessage) =>
+    req.headers.authorization === `Bearer ${accessToken}`
+      ? null
+      : { status: 401, body: { errors: [{ code: "UNAUTHORIZED", message: "Invalid access token" }] } }
+
   const send = async (req: IncomingMessage) => {
-    if (req.headers.authorization !== `Bearer ${accessToken}`) {
-      return { status: 401, body: { errors: [{ code: "UNAUTHORIZED", message: "Invalid access token" }] } }
-    }
+    const refused = unauthorized(req)
+    if (refused) return refused
     const body = (await readBody(req)) as PushMessage | PushMessage[]
     const batch = Array.isArray(body) ? body : [body]
     messages.push(...batch)
-    const tickets = batch.map((m) =>
-      unregistered.has(m.to)
-        ? {
-            status: "error",
-            message: `"${m.to}" is not a registered push notification recipient`,
-            details: { error: "DeviceNotRegistered", expoPushToken: m.to },
-          }
-        : { status: "ok", id: randomUUID() }
-    )
-    return { status: 200, body: { data: Array.isArray(body) ? tickets : tickets[0] } }
+    const replies = batch.map((m) => {
+      if (unregistered.has(m.to)) return DEVICE_NOT_REGISTERED(m.to)
+      const id = randomUUID()
+      tickets.set(id, m.to)
+      return { status: "ok", id }
+    })
+    return { status: 200, body: { data: Array.isArray(body) ? replies : replies[0] } }
+  }
+
+  const receipts = async (req: IncomingMessage) => {
+    const refused = unauthorized(req)
+    if (refused) return refused
+    const { ids } = (await readBody(req)) as { ids?: string[] }
+    const data: Record<string, unknown> = {}
+    for (const id of ids ?? []) {
+      const token = tickets.get(id)
+      if (token) data[id] = uninstalledAfterSend.has(token) ? DEVICE_NOT_REGISTERED(token) : { status: "ok" }
+    }
+    return { status: 200, body: { data } }
+  }
+
+  const routes: Record<string, (req: IncomingMessage) => Promise<{ status: number; body: unknown }>> = {
+    "/push/send": send,
+    "/push/getReceipts": receipts,
   }
 
   return {
@@ -56,10 +84,8 @@ export function fakeExpoPush(port: number) {
     start: () =>
       new Promise<void>((resolve) => {
         server = createServer((req, res) => {
-          const reply =
-            req.method === "POST" && req.url === "/push/send"
-              ? send(req)
-              : Promise.resolve({ status: 404, body: { errors: [{ code: "NOT_FOUND" }] } })
+          const route = req.method === "POST" ? routes[req.url ?? ""] : undefined
+          const reply = route ? route(req) : Promise.resolve({ status: 404, body: { errors: [{ code: "NOT_FOUND" }] } })
           void reply.then(({ status, body }) => {
             res.writeHead(status, { "content-type": "application/json" })
             res.end(JSON.stringify(body))
@@ -76,9 +102,18 @@ export function fakeExpoPush(port: number) {
     uninstall: (token: string) => {
       unregistered.add(token)
     },
+    /**
+     * Expo accepts messages to this token, then reports in their receipts that the device is
+     * gone: the app was uninstalled after Expo last heard from it.
+     */
+    uninstallAfterSend: (token: string) => {
+      uninstalledAfterSend.add(token)
+    },
     reset: () => {
       messages.length = 0
       unregistered.clear()
+      uninstalledAfterSend.clear()
+      tickets.clear()
     },
   }
 }

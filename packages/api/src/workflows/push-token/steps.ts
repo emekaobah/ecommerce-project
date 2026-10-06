@@ -50,3 +50,20 @@ export const removePushTokenStep = createStep(
     )
   }
 )
+
+/** Forgets devices Expo says are gone (`DeviceNotRegistered`), whoever they were registered to. */
+export const forgetPushDevicesStep = createStep(
+  "forget-push-devices",
+  async (input: { tokens: string[] }, { container }) => {
+    const tokens = pushTokenService(container)
+    const gone = input.tokens.length ? ((await tokens.listPushTokens({ token: input.tokens })) as SavedPushToken[]) : []
+    if (gone.length) await tokens.deletePushTokens(gone.map((t) => t.id))
+    return new StepResponse({ forgotten: gone.map((t) => t.token) }, gone)
+  },
+  async (gone: SavedPushToken[] | undefined, { container }) => {
+    if (!gone?.length) return
+    await pushTokenService(container).createPushTokens(
+      gone.map(({ token, actor_type, actor_id }) => ({ token, actor_type, actor_id }))
+    )
+  }
+)
