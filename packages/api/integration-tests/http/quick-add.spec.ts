@@ -216,7 +216,8 @@ medusaIntegrationTestRunner({
           .post("/vendor/quick-add", { barcode: KILISHI, title: "Kilishi 100g", price: 2500, photo: PHOTO }, await staff())
           .catch((e: any) => e.response)
 
-        expect(failed.status).toBeGreaterThanOrEqual(400)
+        // The mocked failure is unexpected, so the API reports it as a server error.
+        expect(failed.status).toBe(500)
         expect(stored).toHaveBeenCalledTimes(1)
         const [photo] = (await stored.mock.results[0].value) as { id: string }[]
         await expect(files.getAsBuffer(photo.id)).rejects.toThrow()

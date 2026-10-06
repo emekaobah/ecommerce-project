@@ -52,6 +52,10 @@ describe("photoUploadSize", () => {
     expect(photoUploadSize({ width: 3024, height: 4032 })).toEqual({ height: 1600 })
   })
 
+  test("shrinks a square photo to 1600px a side", () => {
+    expect(photoUploadSize({ width: 3000, height: 3000 })).toEqual({ width: 1600 })
+  })
+
   test("leaves a photo that already fits alone", () => {
     expect(photoUploadSize({ width: 1600, height: 1200 })).toBeNull()
   })

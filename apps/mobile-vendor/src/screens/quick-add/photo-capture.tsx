@@ -12,14 +12,14 @@ export type ProductPhoto = { mime_type: 'image/jpeg'; data: string; uri: string 
 const UPLOAD_QUALITY = 0.7;
 
 /**
- * Shrinks a camera photo so its longest side is at most 1600px and re-encodes it as JPEG, so
- * an upload over mobile data stays a few hundred KB rather than several MB.
+ * Shrinks a camera photo to the upload size (photoUploadSize) and re-encodes it as JPEG, so an
+ * upload over mobile data stays a few hundred KB rather than several MB.
  */
-async function forUpload(picture: { uri: string; width: number; height: number }): Promise<ProductPhoto> {
+async function shrinkForUpload(picture: { uri: string; width: number; height: number }): Promise<ProductPhoto> {
   const context = ImageManipulator.manipulate(picture.uri);
-  const size = photoUploadSize(picture);
-  if (size) context.resize(size);
   try {
+    const size = photoUploadSize(picture);
+    if (size) context.resize(size);
     const image = await context.renderAsync();
     try {
       const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: UPLOAD_QUALITY, base64: true });
@@ -51,10 +51,10 @@ export function PhotoCapture({ onTaken, onCancel }: Props) {
     setTaking(true);
     setError(null);
     try {
-      // Full quality here: the photo is shrunk and compressed once, in forUpload.
+      // Full quality here: the photo is shrunk and compressed once, in shrinkForUpload.
       const picture = await camera.current?.takePictureAsync({ quality: 1, imageType: 'jpg', shutterSound: false });
       if (!picture) throw new Error('The camera returned no photo. Try again.');
-      onTaken(await forUpload(picture));
+      onTaken(await shrinkForUpload(picture));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
