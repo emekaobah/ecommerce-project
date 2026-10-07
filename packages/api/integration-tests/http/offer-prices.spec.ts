@@ -138,6 +138,9 @@ medusaIntegrationTestRunner({
         )
 
         expect(data.offer).toMatchObject({ id: offer.id, sku: "GROCERY-LANTERN", manage_inventory: false })
+        // Mercur's GET on the same path still answers.
+        const { data: read } = await api.get(`/vendor/offers/${offer.id}`, await owner(GROCERY))
+        expect(read.offer).toMatchObject({ id: offer.id, sku: "GROCERY-LANTERN" })
         expect(await amounts(GROCERY)).toEqual([["ngn", GROCERY_PRICE]])
         expect(await amounts(GADGETS)).toEqual([["ngn", LANTERN.price]])
       })
