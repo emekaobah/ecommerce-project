@@ -84,6 +84,18 @@ medusaIntegrationTestRunner({
       data: { url: `/orders/${orderId}`, order_id: orderId, seller_id: sellerId },
     })
 
+    /** The grocery owner's device, about to be uninstalled, and a staff member's. */
+    const ownerAndStaffDevices = async () => ({
+      gone: await registerMember(await buyer.owner(GROCERY)),
+      device: await registerMember(await staff(GROCERY)),
+    })
+    /** The next order's push reaches `device` and not the forgotten `gone`, which got only the first. */
+    const expectOnlyReached = async (device: string, gone: string) => {
+      await paidOrders()
+      await pushesTo(device, 2)
+      expect(await settledPushesTo(gone, async () => {})).toHaveLength(1)
+    }
+
     describe("a new order", () => {
       it("pushes to every device of the shop's members, and to no other shop", async () => {
         const ownerDevice = await registerMember(await buyer.owner(GROCERY))
@@ -108,8 +120,7 @@ medusaIntegrationTestRunner({
       })
 
       it("forgets a device Expo says is no longer installed, and still reaches the others", async () => {
-        const gone = await registerMember(await buyer.owner(GROCERY))
-        const device = await registerMember(await staff(GROCERY))
+        const { gone, device } = await ownerAndStaffDevices()
         expo.uninstall(gone)
 
         const { grocery } = await paidOrders()
@@ -119,16 +130,13 @@ medusaIntegrationTestRunner({
         await eventually(() => registered(gone), (still) => !still)
         expect(await registered(device)).toBe(true)
 
-        await paidOrders()
-        await pushesTo(device, 2)
-        expect(await settledPushesTo(gone, async () => {})).toHaveLength(1)
+        await expectOnlyReached(device, gone)
       })
     })
 
     describe("checking push receipts", () => {
       it("forgets a device whose receipt says it is no longer installed, and keeps the others", async () => {
-        const gone = await registerMember(await buyer.owner(GROCERY))
-        const device = await registerMember(await staff(GROCERY))
+        const { gone, device } = await ownerAndStaffDevices()
         expo.uninstallAfterSend(gone)
         await paidOrders()
         await pushesTo(gone)
@@ -142,9 +150,7 @@ medusaIntegrationTestRunner({
         expect(await registered(gone)).toBe(false)
         expect(await registered(device)).toBe(true)
 
-        await paidOrders()
-        await pushesTo(device, 2)
-        expect(await settledPushesTo(gone, async () => {})).toHaveLength(1)
+        await expectOnlyReached(device, gone)
       })
     })
 

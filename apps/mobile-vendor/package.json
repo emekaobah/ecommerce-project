@@ -6,6 +6,7 @@
     "@expo/ui": "~57.0.20",
     "@oja/api-client": "workspace:*",
     "@oja/domain": "workspace:*",
+    "@oja/expo-push": "workspace:*",
     "@oja/ui": "workspace:*",
     "@tanstack/react-query": "5.64.2",
     "expo": "~57.0.25",
