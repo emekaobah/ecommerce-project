@@ -69,12 +69,10 @@ export function expoPushApi({ accessToken, apiUrl = EXPO_PUSH_API_URL }: ExpoPus
     },
     /** The receipts Expo has for these tickets, by ticket id. Tickets it has none for yet are left out. */
     receipts: async (ticketIds: string[]): Promise<Record<string, ExpoReceipt>> => {
-      const receipts: Record<string, ExpoReceipt> = {}
-      for (let i = 0; i < ticketIds.length; i += RECEIPTS_PER_REQUEST) {
-        const ids = ticketIds.slice(i, i + RECEIPTS_PER_REQUEST)
-        Object.assign(receipts, await post<Record<string, ExpoReceipt>>("/push/getReceipts", { ids }))
-      }
-      return receipts
+      const batches: string[][] = []
+      for (let i = 0; i < ticketIds.length; i += RECEIPTS_PER_REQUEST) batches.push(ticketIds.slice(i, i + RECEIPTS_PER_REQUEST))
+      const answers = await Promise.all(batches.map((ids) => post<Record<string, ExpoReceipt>>("/push/getReceipts", { ids })))
+      return Object.assign({}, ...answers)
     },
   }
 }

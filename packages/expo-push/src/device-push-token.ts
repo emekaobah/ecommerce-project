@@ -22,12 +22,13 @@ export type PushModules = {
  */
 export function pushTokenSource({ Constants, Device, Notifications, Platform }: PushModules) {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
+    handleNotification: () =>
+      Promise.resolve({
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
   });
 
   return async function devicePushToken(): Promise<string | null> {

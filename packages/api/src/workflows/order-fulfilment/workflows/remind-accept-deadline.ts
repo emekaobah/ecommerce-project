@@ -11,7 +11,7 @@ const markRemindedStep = createStep(
   async ({ order_id, at }: RemindAcceptDeadlineInput, { container }) => {
     const service = fulfilmentService(container)
     const [row] = (await service.listOrderFulfilments({ order_id })).map(asFulfilmentRecord)
-    if (!row || row.state !== "new" || row.accept_reminded_at) return new StepResponse(false, null)
+    if (row?.state !== "new" || row.accept_reminded_at) return new StepResponse(false, null)
     await service.updateOrderFulfilments({ id: row.id, accept_reminded_at: new Date(at) })
     return new StepResponse(true, row.id)
   },

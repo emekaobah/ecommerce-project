@@ -84,16 +84,17 @@ export async function remindAcceptDeadlines(scope: Scope, now = new Date()) {
   )
   const due = waiting.filter((row) => acceptReminderDue(new Date(row.placed_at).toISOString(), now))
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
-  for (const row of due) {
-    try {
-      await remindAcceptDeadlineWorkflow(scope as MedusaContainer).run({
-        input: { order_id: row.order_id, at: now.toISOString() },
-      })
-    } catch (error) {
-      // Accepted or rejected meanwhile, most likely; the next run looks again.
-      logger.warn(`Reminding the shop of order ${row.order_id} failed: ${errorMessage(error)}`)
-    }
-  }
+  // Each order's reminder is its own, so they go out together.
+  await Promise.all(
+    due.map((row) =>
+      remindAcceptDeadlineWorkflow(scope as MedusaContainer)
+        .run({ input: { order_id: row.order_id, at: now.toISOString() } })
+        .catch((error: unknown) => {
+          // Accepted or rejected meanwhile, most likely; the next run looks again.
+          logger.warn(`Reminding the shop of order ${row.order_id} failed: ${errorMessage(error)}`)
+        })
+    )
+  )
 }
 
 async function isRefundDue(scope: Scope, orderId: string) {
