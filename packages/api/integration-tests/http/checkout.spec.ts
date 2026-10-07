@@ -1,6 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules } from "@medusajs/framework/utils"
-import { deleteOffersWorkflow, updateOffersWorkflow } from "@mercurjs/core/workflows"
+import { deleteOffersWorkflow } from "@mercurjs/core/workflows"
+import { updateOfferWorkflow } from "../../src/workflows/offer-prices/update-offer"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "../helpers/auth"
@@ -138,8 +139,8 @@ medusaIntegrationTestRunner({
       it("reprices every line at its shop's current price, and says which changed", async () => {
         const cartId = await adasCart()
         const lantern = await offerId(GADGETS, LANTERN.title)
-        await updateOffersWorkflow(getContainer()).run({
-          input: { offers: [{ id: lantern, prices: [{ amount: LANTERN.price + 1000, currency_code: "ngn" }] }] },
+        await updateOfferWorkflow(getContainer()).run({
+          input: { offer: { id: lantern, prices: [{ amount: LANTERN.price + 1000, currency_code: "ngn" }] } },
         })
 
         const { data } = await prepare(cartId)
@@ -363,11 +364,11 @@ medusaIntegrationTestRunner({
 
     describe("repricing before payment", () => {
       const setPrice = async (shop: Shop, title: string, amount: number) =>
-        updateOffersWorkflow(getContainer()).run({
-          input: { offers: [{ id: await offerId(shop, title), prices: [{ amount, currency_code: "ngn" }] }] },
+        updateOfferWorkflow(getContainer()).run({
+          input: { offer: { id: await offerId(shop, title), prices: [{ amount, currency_code: "ngn" }] } },
         })
       /** An active price list giving the shop's offer of a product its own price; returns its id. */
-      const priceList = async (shop: Shop, title: string, type: "sale" | "override", amount: number) => {
+      const priceList = async (shop: Shop, title: string, type: "sale", amount: number) => {
         const offer = await offerId(shop, title)
         const { data: offers } = await query().graph({
           entity: "offer",
@@ -451,9 +452,7 @@ medusaIntegrationTestRunner({
           await api.post(`/store/carts/${cartId}/line-items`, { offer_id: await offerId(shop, LANTERN.title), quantity: 1 }, ada())
         }
         await prepare(cartId)
-        // The grocery's new price comes as an override price list: Mercur's `updateOffersWorkflow`
-        // replaces the whole shared price set, dropping the gadget hub's price for the variant.
-        await priceList(GROCERY, LANTERN.title, "override", groceryLantern + 500)
+        await setPrice(GROCERY, LANTERN.title, groceryLantern + 500)
 
         const { data } = await pay(cartId)
 
