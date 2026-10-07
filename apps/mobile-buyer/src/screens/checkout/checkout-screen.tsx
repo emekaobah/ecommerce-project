@@ -14,7 +14,7 @@ import {
 } from '@oja/domain';
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useSaveAddress, useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
@@ -113,28 +113,16 @@ function CheckoutForm({
       },
     });
 
-  // Checkout starts with the buyer's default address, once; if it can't, the buyer chooses.
-  const preselecting = useRef(false);
-  useEffect(() => {
-    const preselected = step === 'starting' && saved.data ? preselectedAddress(saved.data, countryCode) : null;
-    if (!preselected || preselecting.current) return;
-    preselecting.current = true;
-    prepare.mutate(preselected.address, { onError: () => setBuyerStep('choosing') });
-  }, [step, saved.data, countryCode, prepare]);
-
-  // A cart changed since its delivery was quoted (a shop added, a quantity changed) has a shop
-  // without rates. Quote it again at the cart's address, once; if that fails, the buyer chooses again.
-  const needsQuote = step === 'chosen' && !checkout.ready_to_pay && !!cartAddress && !prepare.isPending;
-  const requoted = useRef(false);
-  useEffect(() => {
-    if (!needsQuote) {
-      if (step !== 'chosen') requoted.current = false;
-      return;
-    }
-    if (requoted.current || !cartAddress) return;
-    requoted.current = true;
-    prepare.mutate(cartAddress, { onError: () => setBuyerStep('choosing') });
-  }, [needsQuote, step, cartAddress, prepare]);
+  const chooseAddress = useCallback(() => setBuyerStep('choosing'), []);
+  useAutomaticQuotes({
+    step,
+    saved: saved.data,
+    countryCode,
+    cartAddress,
+    readyToPay: checkout.ready_to_pay,
+    prepare,
+    onFailed: chooseAddress,
+  });
 
   const enterAddress = (from: SavedAddressRecord | null) => {
     draft.restart(from);
@@ -272,6 +260,50 @@ function PayBar({ cartId, checkout, quoting }: Readonly<{ cartId: string; checko
       />
     </View>
   );
+}
+
+/**
+ * The quotes checkout asks for by itself. It starts with the buyer's default address, once.
+ * A cart changed since its delivery was quoted (a shop added, a quantity changed) has a shop
+ * without rates, so it is quoted again at the cart's address, once. If either fails, the buyer
+ * chooses an address.
+ */
+function useAutomaticQuotes({
+  step,
+  saved,
+  countryCode,
+  cartAddress,
+  readyToPay,
+  prepare,
+  onFailed,
+}: {
+  step: AddressStep;
+  saved: SavedAddressRecord[] | undefined;
+  countryCode: string;
+  cartAddress: PinnedDeliveryAddress | null;
+  readyToPay: boolean;
+  prepare: ReturnType<typeof usePrepareCheckout>;
+  onFailed: () => void;
+}) {
+  const preselecting = useRef(false);
+  useEffect(() => {
+    const preselected = step === 'starting' && saved ? preselectedAddress(saved, countryCode) : null;
+    if (!preselected || preselecting.current) return;
+    preselecting.current = true;
+    prepare.mutate(preselected.address, { onError: onFailed });
+  }, [step, saved, countryCode, prepare, onFailed]);
+
+  const needsQuote = step === 'chosen' && !readyToPay && !!cartAddress && !prepare.isPending;
+  const requoted = useRef(false);
+  useEffect(() => {
+    if (!needsQuote) {
+      if (step !== 'chosen') requoted.current = false;
+      return;
+    }
+    if (requoted.current || !cartAddress) return;
+    requoted.current = true;
+    prepare.mutate(cartAddress, { onError: onFailed });
+  }, [needsQuote, step, cartAddress, prepare, onFailed]);
 }
 
 /** What to tell the buyer above the Pay button: why starting a payment failed, or how they left Paystack. */
