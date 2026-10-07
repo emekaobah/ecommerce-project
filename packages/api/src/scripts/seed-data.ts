@@ -31,6 +31,11 @@ export type SeedSeller = {
     latitude: number
     longitude: number
   }
+  /**
+   * Where the shop is paid (#26): a Paystack bank code and a 10-digit NUBAN. Invented numbers at
+   * GTBank, which Paystack's test mode resolves to a dummy holder; live keys need real accounts.
+   */
+  bank: { bank_code: string; bank_name: string; account_number: string }
   owner: SeedPerson
   staff: SeedPerson
 }
@@ -49,6 +54,7 @@ export const SEED_SELLERS: SeedSeller[] = [
       latitude: 6.4953,
       longitude: 3.3548,
     },
+    bank: { bank_code: "058", bank_name: "Guaranty Trust Bank", account_number: "0123456781" },
     owner: { email: "grocery.owner@oja.test", first_name: "Bisi", last_name: "Adeyemi" },
     staff: { email: "grocery.staff@oja.test", first_name: "Kunle", last_name: "Adeyemi" },
   },
@@ -65,6 +71,7 @@ export const SEED_SELLERS: SeedSeller[] = [
       latitude: 6.4478,
       longitude: 3.4723,
     },
+    bank: { bank_code: "058", bank_name: "Guaranty Trust Bank", account_number: "0123456782" },
     owner: { email: "fashion.owner@oja.test", first_name: "Ngozi", last_name: "Okafor" },
     staff: { email: "fashion.staff@oja.test", first_name: "Chidi", last_name: "Eze" },
   },
@@ -81,6 +88,7 @@ export const SEED_SELLERS: SeedSeller[] = [
       latitude: 6.5965,
       longitude: 3.3421,
     },
+    bank: { bank_code: "058", bank_name: "Guaranty Trust Bank", account_number: "0123456783" },
     owner: { email: "electronics.owner@oja.test", first_name: "Emeka", last_name: "Nwosu" },
     staff: { email: "electronics.staff@oja.test", first_name: "Musa", last_name: "Bello" },
   },

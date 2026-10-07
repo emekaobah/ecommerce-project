@@ -103,7 +103,12 @@ export function addressFromForm(values: AddressFormValues, countryCode: string, 
  * national format people type; empty fields, with the buyer's name, when there is none.
  */
 export function addressFormValues(
-  address: (Partial<Omit<DeliveryAddress, "metadata">> & { metadata?: Record<string, unknown> | null }) | null | undefined,
+  address:
+    | ({ [K in keyof Omit<DeliveryAddress, "metadata">]?: DeliveryAddress[K] | null } & {
+        metadata?: Record<string, unknown> | null
+      })
+    | null
+    | undefined,
   countryCode: string,
   name?: { first_name?: string | null; last_name?: string | null }
 ): AddressFormValues {
