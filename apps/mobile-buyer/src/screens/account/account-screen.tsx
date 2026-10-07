@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCustomer, type Customer } from '@/api/customer';
 import { SignInPrompt } from '@/components/sign-in-prompt';
+import { forgetDevice } from '@/push/push-registration';
 
 export function AccountScreen() {
   const theme = useTheme();
@@ -52,6 +53,8 @@ function SignedIn({ customer }: Readonly<{ customer: Customer }>) {
   const onSignOut = async () => {
     setSigningOut(true);
     try {
+      // While the session still works, so the API knows whose device it is.
+      await forgetDevice();
       // The root layout clears cached data when the buyer changes.
       await signOut();
     } finally {

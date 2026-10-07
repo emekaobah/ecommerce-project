@@ -19,6 +19,8 @@ const OrderFulfilment = model
     reject_reason: model.text().nullable(),
     /** How many of each line staff have picked so far, by line item id; a line not listed has none. */
     picks: model.json().nullable(),
+    /** When staff were reminded that the order waits to be accepted; it is reminded once (#27). */
+    accept_reminded_at: model.dateTime().nullable(),
   })
   .indexes([{ on: ["state", "placed_at"] }])
 

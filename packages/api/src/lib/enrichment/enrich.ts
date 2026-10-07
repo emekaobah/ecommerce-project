@@ -20,6 +20,9 @@ export type EnrichableField = (typeof ENRICHABLE_FIELDS)[number]
 export type Provenance = { source: string; url: string | null; drafted?: true }
 export type StoredImage = { url: string; source: string; source_url: string }
 
+/** A submitter's image that is already in our file storage (a quick-add photo, #38): its own source. */
+export const storedBySubmitter = (url: string): StoredImage => ({ url, source: "supplied", source_url: url })
+
 const LABELS: Record<EnrichableField, string> = {
   title: "Title",
   description: "Description",
@@ -54,7 +57,8 @@ export async function enrichProduct(container: MedusaContainer, productId: strin
   if (record?.status !== "queued") return
   try {
     const supplied = (record.supplied as { items?: EnrichableField[] }).items ?? []
-    const result = await fill(container, productId, supplied)
+    const stored = (record.images as { items?: StoredImage[] } | null)?.items ?? []
+    const result = await fill(container, productId, supplied, stored)
     const outcome = await decide(container, productId, record.submitter, result)
     await enrichments.updateProductEnrichments({
       id: record.id,
@@ -94,7 +98,12 @@ type FillState = FillResult & {
   categories: Category[]
 }
 
-async function fill(container: MedusaContainer, productId: string, supplied: EnrichableField[]): Promise<FillResult> {
+async function fill(
+  container: MedusaContainer,
+  productId: string,
+  supplied: EnrichableField[],
+  stored: StoredImage[]
+): Promise<FillResult> {
   const { product, categories } = await loadProduct(container, productId)
   const state: FillState = {
     fields: Object.fromEntries(supplied.map((f) => [f, { source: "supplied", url: null }])),
@@ -108,9 +117,10 @@ async function fill(container: MedusaContainer, productId: string, supplied: Enr
   }
 
   // The submitter's own images are copied too: nothing is hotlinked, so one that
-  // can't be copied is dropped, and a source may fill the gap.
+  // can't be copied is dropped, and a source may fill the gap. One the submitter
+  // already put in our storage is kept as it is.
   if (state.fields.images) {
-    state.images = await copyAll(container, (product.images ?? []).map((i) => i.url), "supplied", state.errors)
+    state.images = await keepOrCopy(container, (product.images ?? []).map((i) => i.url), stored, state.errors)
     state.update.images = state.images
     if (!state.images.length) delete state.fields.images
   }
@@ -227,6 +237,14 @@ async function valueOf(
       return matched.length ? matched : undefined
     }
   }
+}
+
+/** The submitter's images in order: those already in our storage kept, the rest copied there. */
+async function keepOrCopy(scope: Scope, urls: string[], stored: StoredImage[], errors: string[]): Promise<StoredImage[]> {
+  const storedByUrl = new Map(stored.map((s) => [s.url, s]))
+  const copied = await copyAll(scope, urls.filter((url) => !storedByUrl.has(url)), "supplied", errors)
+  const copiedByUrl = new Map(copied.map((c) => [c.source_url, c]))
+  return urls.flatMap((url) => storedByUrl.get(url) ?? copiedByUrl.get(url) ?? [])
 }
 
 /** Copies the images at once, keeping their order; one that can't be copied is dropped, saying why. */

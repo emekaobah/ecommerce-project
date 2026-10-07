@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { acceptDeadline, acceptTimeLeft } from "./accept-deadline"
+import { acceptDeadline, acceptReminderDue, acceptTimeLeft } from "./accept-deadline"
 
 describe("acceptDeadline", () => {
   test("is 24 hours after the order was placed", () => {
@@ -24,5 +24,18 @@ describe("acceptTimeLeft", () => {
     expect(acceptTimeLeft(deadline, new Date("2026-10-04T17:29:00.000Z")).urgent).toBe(false)
     expect(acceptTimeLeft(deadline, new Date("2026-10-04T17:30:00.000Z")).urgent).toBe(true)
     expect(acceptTimeLeft(deadline, new Date("2026-10-05T00:00:00.000Z")).urgent).toBe(true)
+  })
+})
+
+describe("acceptReminderDue", () => {
+  const placedAt = "2026-10-03T19:30:00.000Z"
+
+  test.each([
+    ["not before the countdown turns urgent", "2026-10-04T17:29:59.000Z", false],
+    ["once two hours are left", "2026-10-04T17:30:00.000Z", true],
+    ["while the order still waits", "2026-10-04T19:29:00.000Z", true],
+    ["not once the deadline has passed: the order is rejected instead", "2026-10-04T19:30:00.000Z", false],
+  ])("is %s", (_, now, due) => {
+    expect(acceptReminderDue(placedAt, new Date(now))).toBe(due)
   })
 })

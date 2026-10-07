@@ -10,6 +10,8 @@ import { useEffect } from 'react';
 import { queryClient } from '@/api/query-client';
 import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
+import { usePushRegistration } from '@/push/push-registration';
+import { useOpenTappedPush } from '@/push/use-open-tapped-push';
 import { RegionProvider } from '@/region/region-provider';
 import { useClearCacheOnUserChange } from '@/session/use-clear-cache-on-user-change';
 
@@ -37,6 +39,8 @@ export default function RootLayout() {
 function RootStack() {
   const { isLoaded, isSignedIn } = useAuth();
   useClearCacheOnUserChange();
+  usePushRegistration();
+  useOpenTappedPush(isLoaded);
 
   useEffect(() => {
     if (isLoaded) SplashScreen.hide();

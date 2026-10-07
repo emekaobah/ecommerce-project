@@ -19,8 +19,10 @@ import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares"
 import { onlyLiveShops } from "./store/live-shops";
 import { validatePickupAddressFirst } from "./pickup-address-check";
 import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
+import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
+import { PushTokenBody } from "./push-tokens";
 
 export default defineMiddlewares({
     routes: [
@@ -128,6 +130,17 @@ export default defineMiddlewares({
             matcher: "/store/address-lookup/reverse-geocode",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreReverseGeocode, {})],
         },
+        // A signed-in buyer's device registers for pushes, and is removed at sign-out (#27).
+        {
+            method: ["POST"],
+            matcher: "/store/push-tokens",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(PushTokenBody)],
+        },
+        {
+            method: ["DELETE"],
+            matcher: "/store/push-tokens/:token",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
         { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
         // Paystack signs the raw body, so it is kept for the check.
         {
@@ -150,6 +163,8 @@ export default defineMiddlewares({
             middlewares: [validateAndTransformBody(VendorRecordPick)],
         },
         { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
+        // A member's device registers for their shops' pushes (#27); Mercur authenticates the member.
+        { method: ["POST"], matcher: "/vendor/push-tokens", middlewares: [validateAndTransformBody(PushTokenBody)] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },
         // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows (lib/catalogue-import/sheet).
         {
@@ -170,6 +185,8 @@ export default defineMiddlewares({
         ...vendorOnboardingMiddlewares,
         { method: ["POST"], matcher: "/vendor/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
         { method: ["POST"], matcher: "/admin/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
+        // Staff scan a product the shop doesn't sell yet and add it (#38, ADR 0006).
+        ...vendorQuickAddMiddlewares,
         {
             method: ["GET"],
             matcher: "/admin/catalogue-enrichment",
