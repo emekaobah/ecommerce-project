@@ -1,6 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { offerIdOf } from "./cart-lines"
+import { perishableProductIds } from "./perishable"
 
 // The buyer's cart shown shop by shop: a cart can hold several shops' offers, and each shop
 // ships (and later becomes an order) on its own (docs/design.md). This reads the cart back
@@ -25,6 +26,8 @@ export type CartItem = {
   is_tax_inclusive: boolean
   /** `unit_price` × `quantity`, before shipping and promotions. */
   subtotal: number
+  /** Fresh or chilled: its shop delivers it only by the end of the next day (#69). */
+  perishable: boolean
 }
 
 export type CartSellerGroup = {
@@ -32,6 +35,8 @@ export type CartSellerGroup = {
   seller: CartSeller | null
   items: CartItem[]
   item_subtotal: number
+  /** Some of the shop's items are perishable: it delivers only by rates arriving by the end of the next day (#69). */
+  perishable: boolean
 }
 
 export type CartBySeller = {
@@ -87,7 +92,7 @@ async function sellersByOffer(scope: MedusaContainer, offerIds: string[]): Promi
   return byOffer
 }
 
-function toItem(row: ItemRow, offerId: string | null): CartItem {
+function toItem(row: ItemRow, offerId: string | null, perishable: boolean): CartItem {
   const quantity = Number(row.quantity)
   const unitPrice = Number(row.unit_price)
   return {
@@ -103,6 +108,7 @@ function toItem(row: ItemRow, offerId: string | null): CartItem {
     compare_at_unit_price: row.compare_at_unit_price == null ? null : Number(row.compare_at_unit_price),
     is_tax_inclusive: !!row.is_tax_inclusive,
     subtotal: unitPrice * quantity,
+    perishable,
   }
 }
 
@@ -141,18 +147,25 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime() || a.id.localeCompare(b.id)
   )
   const offerIds = rows.map(offerIdOf)
-  const sellers = await sellersByOffer(scope, [...new Set(offerIds.filter((id): id is string => !!id))])
+  const [sellers, perishable] = await Promise.all([
+    sellersByOffer(scope, [...new Set(offerIds.filter((id): id is string => !!id))]),
+    perishableProductIds(scope, rows.flatMap((r) => (r.product_id ? [r.product_id] : []))),
+  ])
 
   const groups = new Map<string, CartSellerGroup>()
   rows.forEach((row, i) => {
     const offerId = offerIds[i]
     const seller = (offerId && sellers.get(offerId)) || null
     const key = seller?.id ?? ""
-    const group = groups.get(key) ?? { seller, items: [], item_subtotal: 0 }
-    group.items.push(toItem(row, offerId))
+    const group = groups.get(key) ?? { seller, items: [], item_subtotal: 0, perishable: false }
+    group.items.push(toItem(row, offerId, !!row.product_id && perishable.has(row.product_id)))
     groups.set(key, group)
   })
-  const sellerGroups = [...groups.values()].map((g) => ({ ...g, item_subtotal: sum(g.items.map((i) => i.subtotal)) }))
+  const sellerGroups = [...groups.values()].map((g) => ({
+    ...g,
+    item_subtotal: sum(g.items.map((i) => i.subtotal)),
+    perishable: g.items.some((i) => i.perishable),
+  }))
 
   return {
     id: cart.id,

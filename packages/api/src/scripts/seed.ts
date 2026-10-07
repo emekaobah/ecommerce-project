@@ -55,8 +55,10 @@ import {
   SEED_CATEGORIES,
   SEED_CATEGORY_ATTRIBUTES,
   SEED_PASSWORD,
+  SEED_PERISHABLE_CATEGORIES,
   SEED_PRODUCTS,
   SEED_REGION,
+  SEED_REGION_TIME_ZONE,
   SEED_SALES_CHANNEL,
   SEED_SELLERS,
   SEED_SIZES,
@@ -68,6 +70,7 @@ import {
 } from "./seed-data";
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack";
 import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble";
+import { setCategoryPerishable } from "../lib/perishable";
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account";
 import { ADDRESS_CODE, addressCodeOf, validatedPickupChange } from "../lib/delivery";
 import { saveBankAccount } from "../lib/onboarding";
@@ -135,6 +138,7 @@ export default async function seedDemoData({ container }: ExecArgs) {
 
   logger.info("Seeding categories and attributes...");
   const categoryIds = await seedCategories(container);
+  await Promise.all(SEED_PERISHABLE_CATEGORIES.map((name) => setCategoryPerishable(container, categoryIds.get(name)!, true)));
   const sizeAttribute = await seedSizeAttribute(container);
   const categoryAttributes = await seedCategoryAttributes(container, categoryIds);
 
@@ -235,6 +239,7 @@ async function seedRegion(container: MedusaContainer) {
         regions: [
           {
             ...SEED_REGION,
+            metadata: { time_zone: SEED_REGION_TIME_ZONE },
             payment_providers,
             automatic_taxes: true,
             // Nigerian shelf prices include VAT.
@@ -245,7 +250,10 @@ async function seedRegion(container: MedusaContainer) {
     });
   } else {
     await updateRegionsWorkflow(container).run({
-      input: { selector: { id: existing.id }, update: { payment_providers } },
+      input: {
+        selector: { id: existing.id },
+        update: { payment_providers, metadata: { ...existing.metadata, time_zone: SEED_REGION_TIME_ZONE } },
+      },
     });
   }
 

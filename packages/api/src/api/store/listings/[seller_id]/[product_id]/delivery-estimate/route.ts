@@ -1,5 +1,5 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { estimateDelivery, type DeliveryEstimate } from "../../../../../../lib/delivery"
+import { estimateDelivery, regionTimeZone, type DeliveryEstimate } from "../../../../../../lib/delivery"
 import { retrieveListing } from "../../../../../../lib/listings"
 import type { StoreGetListingParamsType } from "../../../validators"
 
@@ -38,6 +38,8 @@ export const GET = async (
       unit_price: offer.calculated_price.calculated_amount,
     },
     currencyCode: offer.calculated_price.currency_code,
+    perishable: listing.product.perishable,
+    timeZone: await regionTimeZone(req.scope, req.validatedQuery.region_id),
   })
   res.json({ estimate })
 }

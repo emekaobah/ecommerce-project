@@ -35,6 +35,7 @@ import { AddressEntry } from '@/components/address/address-entry';
 import { useAddressDraft } from '@/components/address/use-address-draft';
 import { ToggleRow } from '@/components/toggle-row';
 import { useCartSession } from '@/cart/cart-provider';
+import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { env } from '@/config/env';
 import { useRegion } from '@/region/region-provider';
 
@@ -121,7 +122,7 @@ function CheckoutForm({
     saved: saved.data,
     countryCode,
     cartAddress,
-    readyToPay: checkout.ready_to_pay,
+    checkout,
     prepare,
     onFailed: chooseAddress,
   });
@@ -273,7 +274,8 @@ function PayBar({
 /**
  * The quotes checkout asks for by itself. It starts with the buyer's default address, once.
  * A cart changed since its delivery was quoted (a shop added, a quantity changed) has a shop
- * without rates, so it is quoted again at the cart's address, once. If either fails, the buyer
+ * without rates, so it is quoted again at the cart's address, once. A shop that can't deliver
+ * isn't missing rates. If either fails, the buyer
  * chooses an address.
  */
 function useAutomaticQuotes({
@@ -281,7 +283,7 @@ function useAutomaticQuotes({
   saved,
   countryCode,
   cartAddress,
-  readyToPay,
+  checkout,
   prepare,
   onFailed,
 }: {
@@ -289,7 +291,7 @@ function useAutomaticQuotes({
   saved: SavedAddressRecord[] | undefined;
   countryCode: string;
   cartAddress: PinnedDeliveryAddress | null;
-  readyToPay: boolean;
+  checkout: Checkout;
   prepare: ReturnType<typeof usePrepareCheckout>;
   onFailed: () => void;
 }) {
@@ -301,7 +303,10 @@ function useAutomaticQuotes({
     prepare.mutate(preselected.address, { onError: onFailed });
   }, [step, saved, countryCode, prepare, onFailed]);
 
-  const needsQuote = step === 'chosen' && !readyToPay && !!cartAddress && !prepare.isPending;
+  // A shop that can't deliver its order (perishables no courier brings in time, #69) says why
+  // instead of being quoted again.
+  const missingRates = !checkout.ready_to_pay && checkout.sellers.some((g) => !g.shipping && !g.delivery_unavailable);
+  const needsQuote = step === 'chosen' && missingRates && !!cartAddress && !prepare.isPending;
   const requoted = useRef(false);
   useEffect(() => {
     if (!needsQuote) {
@@ -474,12 +479,16 @@ function ShopSummary({
       <Text variant="heading">{group.seller?.name ?? 'No longer available'}</Text>
       {group.items.map((item) => (
         <View key={item.id} style={styles.spread}>
-          <Text style={styles.shrink} numberOfLines={2}>
-            {item.quantity} × {item.product_title ?? 'Item'}
-          </Text>
+          <View style={[styles.shrink, { gap: theme.space.xs }]}>
+            <Text numberOfLines={2}>
+              {item.quantity} × {item.product_title ?? 'Item'}
+            </Text>
+            {item.perishable ? <PerishableChip /> : null}
+          </View>
           <Text>{formatMoney(item.subtotal, currencyCode)}</Text>
         </View>
       ))}
+      {group.perishable && !group.delivery_unavailable ? <PerishableRule /> : null}
       <DeliveryChoices cartId={cartId} group={group} currencyCode={currencyCode} />
     </View>
   );
@@ -499,6 +508,14 @@ function DeliveryChoices({
   const theme = useTheme();
   const choose = useChooseDelivery(cartId);
   const sellerId = group.seller?.id;
+  if (group.delivery_unavailable) {
+    return (
+      <View style={{ gap: theme.space.xs }} accessibilityLiveRegion="polite">
+        <Text variant="label">Delivery unavailable</Text>
+        <Text tone="secondary">{group.delivery_unavailable.reason}</Text>
+      </View>
+    );
+  }
   if (!sellerId || !group.delivery_choices.length) {
     return (
       <View style={styles.spread}>

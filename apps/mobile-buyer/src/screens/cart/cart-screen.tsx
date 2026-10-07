@@ -10,6 +10,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useCart, useSetCartItemQuantity, type Cart, type CartItem } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
 import { useCartSession } from '@/cart/cart-provider';
+import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { Price } from '@/components/price';
 
 /** The cart, one section per shop: each shop ships, and becomes an order, on its own. */
@@ -78,6 +79,7 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
             {group.seller ? null : (
               <Text tone="secondary">These shops stopped selling these items. Remove them to check out.</Text>
             )}
+            {group.seller && group.perishable ? <PerishableRule /> : null}
           </View>
         )}
         renderItem={({ item, section: { group } }) => (
@@ -152,6 +154,7 @@ function CartRow({
       <View style={[styles.details, { gap: theme.space.xs }]}>
         <Text numberOfLines={2}>{title}</Text>
         {variant ? <Text variant="caption" tone="secondary">{variant}</Text> : null}
+        {item.perishable ? <PerishableChip /> : null}
         <Price price={{ amount: item.unit_price, compareAt: item.compare_at_unit_price }} currencyCode={currencyCode} />
         {available ? (
           <Stepper title={title} quantity={item.quantity} disabled={busy} onChange={onChange} />

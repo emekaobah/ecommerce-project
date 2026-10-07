@@ -172,6 +172,8 @@ module.exports = withMercur({
     },
     // Shops' private offer cost prices and their saved import mappings (#37).
     { resolve: './src/modules/offer-import' },
+    // Which categories and products are perishable, set by the operator only (#69).
+    { resolve: './src/modules/perishable' },
     // The bank account each shop is paid into, resolved with Paystack (onboarding gates, #26).
     { resolve: './src/modules/shop-bank-account' },
     // Each device's Expo push token, and the buyer or shop member signed in on it (#27).
