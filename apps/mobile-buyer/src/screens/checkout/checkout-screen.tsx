@@ -164,11 +164,8 @@ function CheckoutForm({
           {step === 'starting' ? (
             <Text tone="secondary">Getting your address…</Text>
           ) : null}
-          {step === 'chosen' && checkout.shipping_address ? <AddressCard address={checkout.shipping_address} /> : null}
-          {step === 'chosen' && saveToAddressBook.error ? (
-            <Text tone="secondary" accessibilityLiveRegion="polite">
-              {`Couldn't save it to your addresses: ${saveToAddressBook.error.message}`}
-            </Text>
+          {step === 'chosen' ? (
+            <ChosenAddress address={checkout.shipping_address} saveError={saveToAddressBook.error} />
           ) : null}
           {step === 'choosing' && saved.data ? (
             <SavedAddressPicker
@@ -304,6 +301,23 @@ function useAutomaticQuotes({
     requoted.current = true;
     prepare.mutate(cartAddress, { onError: onFailed });
   }, [needsQuote, step, cartAddress, prepare, onFailed]);
+}
+
+/** The cart's address once chosen, and why saving it to the buyer's addresses failed, if it did. */
+function ChosenAddress({
+  address,
+  saveError,
+}: Readonly<{ address: Checkout['shipping_address']; saveError: Error | null }>) {
+  return (
+    <>
+      {address ? <AddressCard address={address} /> : null}
+      {saveError ? (
+        <Text tone="secondary" accessibilityLiveRegion="polite">
+          {`Couldn't save it to your addresses: ${saveError.message}`}
+        </Text>
+      ) : null}
+    </>
+  );
 }
 
 /** What to tell the buyer above the Pay button: why starting a payment failed, or how they left Paystack. */
