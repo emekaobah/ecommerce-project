@@ -17,6 +17,21 @@
       "weight": "Weight"
     }
   },
+  "perishable": {
+    "title": "Perishable",
+    "loadError": "Could not load whether this is perishable.",
+    "saved": "Perishable setting saved.",
+    "yes": "Perishable",
+    "no": "Not perishable",
+    "categoryLabel": "Products in this category are perishable",
+    "categoryHint": "Perishable products, here and in its sub-categories, are delivered only by couriers arriving by the end of the next day. Shops can't change this.",
+    "inheritedFromParent": "A parent category is perishable, so these products are perishable anyway.",
+    "productLabel": "This product is",
+    "follow": "As its categories say ({{current}})",
+    "always": "Always perishable",
+    "never": "Never perishable",
+    "productHint": "Perishable products are delivered only by couriers arriving by the end of the next day. Shops can't change this."
+  },
   "productEnrichment": {
     "title": "Enrichment",
     "loadError": "Could not load where this product's fields came from.",

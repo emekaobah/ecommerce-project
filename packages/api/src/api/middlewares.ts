@@ -21,6 +21,8 @@ import { validatePickupAddressFirst } from "./pickup-address-check";
 import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
+import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
+import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
 
@@ -181,6 +183,17 @@ export default defineMiddlewares({
         },
         // A shop's own product list, imported as offers and proposals, and its private cost prices (#37).
         ...vendorOfferImportMiddlewares,
+        // Perishable flags (#69): the operator's alone, so there are no vendor routes for them.
+        {
+            method: ["POST"],
+            matcher: "/admin/product-categories/:id/perishable",
+            middlewares: [validateAndTransformBody(AdminSetCategoryPerishable)],
+        },
+        {
+            method: ["POST"],
+            matcher: "/admin/products/:id/perishable",
+            middlewares: [validateAndTransformBody(AdminOverrideProductPerishable)],
+        },
         // A shop's onboarding checklist, pickup address and bank account (#26).
         ...vendorOnboardingMiddlewares,
         { method: ["POST"], matcher: "/vendor/sellers/:id/address", middlewares: [validatePickupAddressFirst] },

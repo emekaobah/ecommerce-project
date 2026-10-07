@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
 import { ProductStatus } from "@mercurjs/types"
 import { attributionOf, type Attribution } from "./enrichment"
+import { perishableProductIds } from "./perishable"
 import { liveSellerIds } from "./onboarding"
 
 // A listing is one shop's offer of one product: the product page and the feed are always
@@ -43,6 +44,8 @@ export type ListingProductDetail = ListingProduct & {
   attributes: { name: string; values: string[] }[]
   /** Credits the product page must show for data it took from product databases (#35). */
   attribution: Attribution[]
+  /** Fresh or chilled: delivered only by the end of the next day (#69). */
+  perishable: boolean
 }
 
 export type Listing<P extends ListingProduct = ListingProduct> = {
@@ -397,6 +400,10 @@ export async function retrieveListing(
   const p = product as ProductDetailRow
   const attributeValues = (withAttributes as { product_attribute_values?: AttributeValueRow[] } | undefined)
     ?.product_attribute_values
+  const [attribution, perishable] = await Promise.all([
+    attributionOf(scope, p.id),
+    perishableProductIds(scope, [p.id]),
+  ])
   return toListing(group, {
     id: p.id,
     title: p.title,
@@ -407,7 +414,8 @@ export async function retrieveListing(
     weight: p.weight == null ? null : Number(p.weight),
     images: (p.images ?? []).map(({ id, url }) => ({ id, url })),
     attributes: attributesOf(attributeValues ?? []),
-    attribution: await attributionOf(scope, p.id),
+    attribution,
+    perishable: perishable.has(p.id),
   })
 }
 

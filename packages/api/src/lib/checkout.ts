@@ -7,14 +7,14 @@ import {
   updateLineItemInCartWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { addSellerShippingMethodToCartWorkflow } from "@mercurjs/core/workflows"
-import type { DeliveryTag, LinePrice, PriceChange } from "@oja/domain"
+import { deliveryChoices, type DeliveryTag, type LinePrice, type PriceChange } from "@oja/domain"
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
 import type { PaystackSessionData } from "../modules/paystack/service"
 import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData } from "../modules/shipbubble"
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
-import { addressCodeOf, quoteBasis, quoteDelivery, samePlace, withAddressCode } from "./delivery"
+import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
 
 // Checkout of a multi-shop cart (#16): the buyer's address, each shop's delivery, then a
 // Paystack payment for the lot. Paystack's webhook completes the cart into an order group
@@ -61,11 +61,19 @@ export type CheckoutShipping = {
   delivery_eta_time: string
 }
 
+/**
+ * Why a shop can't deliver its order (#69): `perishable_too_slow` when the order has
+ * perishable items and no courier delivers it by the end of tomorrow.
+ */
+export type DeliveryUnavailable = { code: "perishable_too_slow"; reason: string }
+
 export type CheckoutSellerGroup = CartSellerGroup & {
   /** The shop's chosen delivery, once quoted; null before, or when the cart changed since. */
   shipping: CheckoutShipping | null
   /** Best value (preselected), the cheapest and the fastest, as quoted for the current cart. */
   delivery_choices: CheckoutDeliveryChoice[]
+  /** Set when the shop can't deliver the order as it stands; checkout can't be paid until it changes. */
+  delivery_unavailable: DeliveryUnavailable | null
 }
 
 export type Checkout = {
@@ -110,6 +118,7 @@ type CartRow = {
   currency_code: string
   total: number | string
   shipping_total: number | string
+  metadata: Record<string, unknown> | null
   shipping_address: (CheckoutAddress & { id: string }) | null
   shipping_methods?:
     | {
@@ -152,6 +161,7 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
       "currency_code",
       "total",
       "shipping_total",
+      "metadata",
       ...ADDRESS_FIELDS.map((f) => `shipping_address.${f}`),
       "shipping_methods.id",
       "shipping_methods.shipping_option_id",
@@ -187,6 +197,37 @@ const isMethodData = (data: unknown): data is ShipbubbleMethodData =>
   !!data && typeof data === "object" && "quote" in data && "choices" in data && "basis" in data
 
 /**
+ * Shops that can't deliver, by seller, kept in the cart's metadata under this key with the
+ * `quoteBasis` they were quoted for: a shop has no shipping method to say so on.
+ */
+const UNAVAILABLE_KEY = "delivery_unavailable"
+/** A shop's refusal as the cart keeps it: with the `quoteBasis` it was quoted for. */
+type QuotedUnavailable = DeliveryUnavailable & { basis: string }
+type UnavailableDeliveries = Record<string, QuotedUnavailable>
+
+const unavailableDeliveries = (cart: Pick<CartRow, "metadata">): UnavailableDeliveries => {
+  const stored = cart.metadata?.[UNAVAILABLE_KEY]
+  if (!stored || typeof stored !== "object") return {}
+  // Only entries in the shape checkout writes; anything else counts as no refusal.
+  return Object.fromEntries(
+    Object.entries(stored).filter(
+      (entry): entry is [string, QuotedUnavailable] =>
+        !!entry[1] &&
+        typeof entry[1] === "object" &&
+        (entry[1] as QuotedUnavailable).code === "perishable_too_slow" &&
+        typeof (entry[1] as QuotedUnavailable).reason === "string" &&
+        typeof (entry[1] as QuotedUnavailable).basis === "string"
+    )
+  )
+}
+
+/** Why a shop can't deliver an order with perishable items, for the buyer. */
+const perishableTooSlow = (shopName: string): DeliveryUnavailable => ({
+  code: "perishable_too_slow",
+  reason: `Fresh and chilled items have to arrive by the end of tomorrow, and no courier can bring ${shopName}'s order to this address in time. Remove the fresh items from ${shopName} to have the rest delivered.`,
+})
+
+/**
  * Takes off the cart the delivery of each shop it no longer holds an item from: the buyer
  * removed the shop's last item (say, one whose offer is gone) after its delivery was added.
  */
@@ -215,7 +256,7 @@ async function deliveriesBySeller(scope: MedusaContainer, cart: CartRow) {
   return new Map(
     methods.map((m) => [
       sellerByOption.get(m.shipping_option_id!),
-      { shipping_option_id: m.shipping_option_id!, amount: Number(m.amount), data: m.data as ShipbubbleMethodData },
+      { id: m.id, shipping_option_id: m.shipping_option_id!, amount: Number(m.amount), data: m.data as ShipbubbleMethodData },
     ])
   )
 }
@@ -270,11 +311,24 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
 
   const address = cart.shipping_address
   const receiverCode = addressCodeOf(address)
+  const unavailable = unavailableDeliveries(cart)
+  const timeZone = await regionTimeZone(scope, grouped.region_id)
   const sellers = grouped.sellers.map((group) => {
     const delivery = group.seller ? deliveries.get(group.seller.id) : undefined
     // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
-    const current = delivery?.data.basis === quoteBasis(receiverCode, parcelLines(group)) ? delivery : undefined
-    return { ...group, ...shopDelivery(current) }
+    // So does a shop's word that it can't deliver. An order with perishable items (perhaps only
+    // since the quote) takes only a delivery still arriving by the end of tomorrow, and a shop
+    // refused one only while it has perishable items.
+    const basis = quoteBasis(receiverCode, parcelLines(group))
+    const inTime = !!delivery && ratesFor([delivery.data.quote], { perishable: group.perishable, timeZone }).length > 0
+    const current = delivery?.data.basis === basis && inTime ? delivery : undefined
+    const refused = group.seller ? unavailable[group.seller.id] : undefined
+    return {
+      ...group,
+      ...shopDelivery(current),
+      delivery_unavailable:
+        group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null,
+    }
   })
   return {
     cart_id: cart.id,
@@ -368,30 +422,58 @@ async function shipbubbleOptionsBySeller(scope: MedusaContainer, sellerIds: stri
   )
 }
 
+type ShopQuote =
+  | { sellerId: string; option: { id: string; data: ShipbubbleMethodData } }
+  | { sellerId: string; unavailable: QuotedUnavailable }
+
 /**
  * Each shop's delivery to the cart's address: Shipbubble's rates for the shop's parcel, with
- * best value chosen. A shop no courier will deliver for refuses the checkout.
+ * best value chosen. A shop no courier will deliver for refuses the checkout. An order with
+ * perishable items goes only by rates arriving by the end of tomorrow (#69); with none, that
+ * shop's delivery is unavailable, which the cart keeps so checkout can say why.
  */
-async function setShopDeliveries(scope: MedusaContainer, cartId: string, receiverCode: number) {
-  const { sellers, currency_code } = await retrieveCartBySeller(scope, cartId)
-  const optionBySeller = await shipbubbleOptionsBySeller(scope, sellers.map((g) => g.seller!.id))
+async function setShopDeliveries(scope: MedusaContainer, cart: CartRow, receiverCode: number) {
+  const { sellers, currency_code, region_id } = await retrieveCartBySeller(scope, cart.id)
+  const [optionBySeller, timeZone] = await Promise.all([
+    shipbubbleOptionsBySeller(scope, sellers.map((g) => g.seller!.id)),
+    regionTimeZone(scope, region_id),
+  ])
   // Each shop is quoted from its own pickup address, so the quotes are asked for at once.
-  const options: { id: string; data: ShipbubbleMethodData }[] = await Promise.all(
-    sellers.map(async (group) => {
+  const quotes: ShopQuote[] = await Promise.all(
+    sellers.map(async (group): Promise<ShopQuote> => {
       const seller = group.seller!
       const optionId = optionBySeller.get(seller.id)
       const lines = parcelLines(group)
-      const choices = optionId
-        ? await quoteDelivery(scope, { sellerId: seller.id, receiverCode, lines, currencyCode: currency_code })
+      const basis = quoteBasis(receiverCode, lines)
+      const rates = optionId
+        ? await quoteRates(scope, { sellerId: seller.id, receiverCode, lines, currencyCode: currency_code })
         : []
-      if (!optionId || !choices.length) {
+      if (!optionId || !rates.length) {
         throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller.name} doesn't deliver to this address`)
       }
+      const choices = deliveryChoices(ratesFor(rates, { perishable: group.perishable, timeZone }))
+      if (!choices.length) return { sellerId: seller.id, unavailable: { ...perishableTooSlow(seller.name), basis } }
       // `deliveryChoices` puts best value first.
-      return { id: optionId, data: { quote: choices[0]!, choices, basis: quoteBasis(receiverCode, lines) } }
+      return { sellerId: seller.id, option: { id: optionId, data: { quote: choices[0]!, choices, basis } } }
     })
   )
-  await addSellerShippingMethodToCartWorkflow(scope).run({ input: { cart_id: cartId, options } })
+
+  const options = quotes.flatMap((q) => ("option" in q ? [q.option] : []))
+  const unavailable = Object.fromEntries(quotes.flatMap((q) => ("unavailable" in q ? [[q.sellerId, q.unavailable]] : [])))
+  // A shop that can't deliver keeps no delivery quoted for an earlier cart, which would still be charged.
+  const deliveries = await deliveriesBySeller(scope, cart)
+  const stale = Object.keys(unavailable).flatMap((sellerId) => {
+    const method = deliveries.get(sellerId)
+    return method ? [method.id] : []
+  })
+  const carts = scope.resolve(Modules.CART)
+  if (stale.length) await carts.softDeleteShippingMethods(stale)
+  if (options.length) await addSellerShippingMethodToCartWorkflow(scope).run({ input: { cart_id: cart.id, options } })
+  const { data } = await scope
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({ entity: "cart", fields: ["id", "metadata"], filters: { id: cart.id } })
+  const metadata = (data[0] as Pick<CartRow, "metadata"> | undefined)?.metadata ?? {}
+  await carts.updateCarts(cart.id, { metadata: { ...metadata, [UNAVAILABLE_KEY]: unavailable } })
 }
 
 /**
@@ -427,7 +509,7 @@ export async function prepareCheckout(
       billing_address: address as CreateAddressDTO,
     },
   })
-  await setShopDeliveries(scope, cartId, addressCodeOf(address)!)
+  await setShopDeliveries(scope, await buyersCart(scope, cartId, customerId), addressCodeOf(address)!)
   return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
 }
 
@@ -491,6 +573,8 @@ export async function startCheckoutPayment(
   const priceChanges = await repriceLines(scope, cartId)
   await dropEmptyShopDeliveries(scope, cart)
   const checkout = await retrieveCheckout(scope, cartId, customerId)
+  const undeliverable = checkout.sellers.find((g) => g.delivery_unavailable)
+  if (undeliverable) throw new MedusaError(MedusaError.Types.NOT_ALLOWED, undeliverable.delivery_unavailable!.reason)
   if (!checkout.ready_to_pay) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Set the delivery address before paying")
   }

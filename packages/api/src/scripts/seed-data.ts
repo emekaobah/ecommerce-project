@@ -8,6 +8,9 @@ export const SEED_PASSWORD = "supersecret"
 
 export const SEED_REGION = { name: "Nigeria", currency_code: "ngn", countries: ["ng"] }
 
+/** Where the region counts its days (ADR 0004), kept in the region's `metadata.time_zone`. */
+export const SEED_REGION_TIME_ZONE = "Africa/Lagos"
+
 /** Nigerian VAT, charged on the region's tax-inclusive prices. */
 export const SEED_VAT = { name: "VAT", code: "VAT", rate: 7.5 }
 
@@ -96,10 +99,13 @@ export const SEED_SELLERS: SeedSeller[] = [
 
 /** Departments (roots) and their sub-categories; array order sets `rank`. */
 export const SEED_CATEGORIES: Record<Department, string[]> = {
-  Groceries: ["Rice & Grains", "Beans & Garri", "Oils & Spices", "Snacks & Drinks"],
+  Groceries: ["Rice & Grains", "Beans & Garri", "Oils & Spices", "Snacks & Drinks", "Fresh Produce", "Chilled & Frozen"],
   Fashion: ["Men's Clothing", "Women's Clothing", "Bags & Accessories"],
   Electronics: ["Phone Accessories", "Power & Lighting", "Audio"],
 }
+
+/** Fresh and chilled groceries: perishable, so delivered only by the end of the next day (#69). */
+export const SEED_PERISHABLE_CATEGORIES = ["Fresh Produce", "Chilled & Frozen"]
 
 export const SEED_SIZES = ["S", "M", "L", "XL"]
 
@@ -150,6 +156,8 @@ const SUBCATEGORY_SHIPPING: Record<string, Partial<ShippingDefaults>> = {
   "Rice & Grains": { weight: 5000, length: 50, width: 35, height: 12 },
   "Beans & Garri": { weight: 2000, length: 35, width: 25, height: 10 },
   "Snacks & Drinks": { weight: 300, length: 25, width: 18, height: 10 },
+  "Fresh Produce": { weight: 1000, length: 30, width: 20, height: 12 },
+  "Chilled & Frozen": { weight: 1200, length: 30, width: 20, height: 12 },
   "Bags & Accessories": { weight: 350, length: 40, width: 35, height: 8 },
   "Power & Lighting": { weight: 1500, length: 35, width: 30, height: 25 },
   Audio: { weight: 200, length: 12, width: 10, height: 6 },
@@ -195,6 +203,8 @@ export const SEED_PRODUCTS: SeedProduct[] = [
   { title: "Ground Crayfish 500g", barcode: "2000000000060", department: "Groceries", category: "Oils & Spices", price: 4500, weight_grams: 500, description: "Finely ground dried crayfish for soups and stews.", attributes: { storage: "Refrigerate", "shelf-life": "3 months once opened" } },
   { title: "Dried Zobo Leaves 250g", barcode: "2000000000077", department: "Groceries", category: "Snacks & Drinks", price: 1800, weight_grams: 250, description: "Dried hibiscus petals for homemade zobo.", attributes: { storage: "Cool, dry place", "shelf-life": "12 months" } },
   { title: "Plantain Chips 150g", barcode: "2000000000084", department: "Groceries", category: "Snacks & Drinks", price: 1200, also_at: [{ shop: "Ikeja Gadget Hub", price: 1300 }], weight_grams: 150, description: "Thin-sliced, lightly salted ripe plantain chips.", attributes: { storage: "Cool, dry place", "shelf-life": "3 months" } },
+  { title: "Fresh Tomatoes 1kg", barcode: "2000000000176", department: "Groceries", category: "Fresh Produce", price: 3500, weight_grams: 1000, description: "Firm, ripe Jos tomatoes for stew, picked this week.", attributes: { storage: "Refrigerate", "shelf-life": "5 days" } },
+  { title: "Frozen Whole Chicken 1.2kg", barcode: "2000000000183", department: "Groceries", category: "Chilled & Frozen", price: 9800, weight_grams: 1200, description: "Cleaned whole chicken, kept frozen until it leaves the shop.", attributes: { storage: "Freeze", "shelf-life": "3 months frozen" } },
   // Fashion
   { title: "Adire Kaftan", department: "Fashion", category: "Men's Clothing", price: 28000, weight_grams: 450, sized: true, description: "Indigo hand-dyed adire kaftan in soft cotton.", attributes: { fabric: "Adire cotton", "care-instructions": "Hand wash cold; dry in the shade" } },
   { title: "Ankara Wrap Dress", department: "Fashion", category: "Women's Clothing", price: 32000, weight_grams: 400, sized: true, description: "Midi wrap dress in a bold Ankara print.", attributes: { fabric: "Ankara wax print", "care-instructions": "Machine wash cold; iron inside out" } },
