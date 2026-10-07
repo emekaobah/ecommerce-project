@@ -12,7 +12,11 @@ type Scope = Pick<MedusaContainer, "resolve">
 export const QUICK_ADD_METADATA = { added_with: "quick_add" } as const
 
 /** A quick-add photo: product shots only, at most 10 MB. */
-export const PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" }
+export const PHOTO_TYPES = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"],
+])
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024
 
 export type QuickAddLookup = {
@@ -145,7 +149,7 @@ async function freeSku(scope: Scope, sellerId: string, base: string) {
 }
 
 /** The file extension a quick-add photo of this type is stored with; undefined for any other type. */
-export const photoExtension = (mimeType: string) => (Object.prototype.hasOwnProperty.call(PHOTO_TYPES, mimeType) ? PHOTO_TYPES[mimeType] : undefined)
+export const photoExtension = (mimeType: string) => PHOTO_TYPES.get(mimeType)
 export const PHOTO_TYPE_ERROR = "The photo must be a JPEG, PNG or WebP image."
 
 /** Stores the photo in our file storage (R2 in production). */
@@ -171,7 +175,7 @@ async function storePhoto(scope: Scope, photo: NonNullable<QuickAddInput["photo"
  * the offer records the member who added it. It never changes an offer the shop
  * already has: that stays with owners and managers.
  */
-export async function quickAdd(scope: MedusaContainer, actor: QuickAddActor, input: QuickAddInput): Promise<QuickAddResult> {
+export function quickAdd(scope: MedusaContainer, actor: QuickAddActor, input: QuickAddInput): Promise<QuickAddResult> {
   const read = readOrRefuse(input.barcode)
   // One quick-add of a barcode at a time, across shops: two phones scanning the same item
   // would otherwise both find no offer and add two, or propose the product twice.

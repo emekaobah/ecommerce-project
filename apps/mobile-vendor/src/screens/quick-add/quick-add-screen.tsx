@@ -64,7 +64,12 @@ export function QuickAddScreen() {
   );
 }
 
-function Notice({ chip, title, lines, onScanAgain }: { chip: React.ReactNode; title: string; lines: string[]; onScanAgain: () => void }) {
+function Notice({
+  chip,
+  title,
+  lines,
+  onScanAgain,
+}: Readonly<{ chip: React.ReactNode; title: string; lines: string[]; onScanAgain: () => void }>) {
   const theme = useTheme();
   const router = useRouter();
   return (
@@ -82,7 +87,7 @@ function Notice({ chip, title, lines, onScanAgain }: { chip: React.ReactNode; ti
   );
 }
 
-function AddForm({ lookup }: { lookup: BarcodeLookup }) {
+function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
   const theme = useTheme();
   const router = useRouter();
   const quickAdd = useQuickAdd();

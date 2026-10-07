@@ -40,7 +40,7 @@ type Props = { onTaken: (photo: ProductPhoto) => void; onCancel: () => void };
  * and the AI drafts the description from it, so staff are asked for a clean shot: product flat
  * on a plain surface, not in hand (docs/design.md, Images).
  */
-export function PhotoCapture({ onTaken, onCancel }: Props) {
+export function PhotoCapture({ onTaken, onCancel }: Readonly<Props>) {
   const theme = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);

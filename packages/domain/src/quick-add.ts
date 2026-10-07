@@ -31,7 +31,7 @@ export function quickAddForm(input: QuickAddFormInput, { newProduct }: { newProd
 
   const price = amount(input.price)
   if (!input.price.trim()) errors.price = "Enter a price."
-  else if (!(price > 0)) errors.price = "Enter a price above zero."
+  else if (Number.isNaN(price) || price <= 0) errors.price = "Enter a price above zero."
 
   const stockText = input.stock.trim()
   const stock = stockText ? amount(stockText) : null
