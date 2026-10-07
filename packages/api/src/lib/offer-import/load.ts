@@ -2,7 +2,8 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules, ProductStatus } from "@medusajs/framework/utils"
 import { barcodeCodes, parseBarcode, type CsvTable, type ImportMapping } from "../catalogue-import"
 import { OFFER_IMPORT_MODULE, type OfferImportModuleService } from "../../modules/offer-import"
-import type { OfferPriceInput, UpdateImportedOfferInput } from "../../workflows/offer-import/update-imported-offer"
+import type { OfferPriceInput } from "../../workflows/offer-prices/steps"
+import type { UpdateImportedOfferInput } from "../../workflows/offer-import/update-imported-offer"
 import type { CatalogueVariant, OfferImportContext, OfferUpdate, ShopOffer } from "./rows"
 
 type Scope = Pick<MedusaContainer, "resolve">

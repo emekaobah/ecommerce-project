@@ -5,12 +5,14 @@ import {
   deliveryEstimate,
   formatMoney,
   preselectedAddress,
+  priceChangeMessage,
   savedAddressFor,
   type AddressStep,
   type DeliveryTag,
   type PaymentReturn,
   type Pin,
   type PinnedDeliveryAddress,
+  type PriceChange,
 } from '@oja/domain';
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -193,7 +195,7 @@ function CheckoutForm({
 
         {editing ? null : <CheckoutSummary cartId={cartId} checkout={checkout} />}
       </ScrollView>
-      {editing ? null : <PayBar cartId={cartId} checkout={checkout} quoting={prepare.isPending} />}
+      {editing ? null : <PayBar cartId={cartId} checkout={checkout} prepare={prepare} />}
     </KeyboardAvoidingView>
   );
 }
@@ -219,14 +221,22 @@ function CheckoutSummary({ cartId, checkout }: Readonly<{ cartId: string; checko
 }
 
 /** The Pay button, with why the last payment didn't start or how the buyer left Paystack. */
-function PayBar({ cartId, checkout, quoting }: Readonly<{ cartId: string; checkout: Checkout; quoting: boolean }>) {
+function PayBar({
+  cartId,
+  checkout,
+  prepare,
+}: Readonly<{ cartId: string; checkout: Checkout; prepare: ReturnType<typeof usePrepareCheckout> }>) {
   const theme = useTheme();
   const { payment: returned } = useLocalSearchParams<{ payment?: PaymentLeft }>();
   const startPayment = useStartPayment(cartId);
+  // Both reprice the cart; the lines the latest one repriced are shown until the buyer pays.
+  const priceChanges = latestPriceChanges(prepare, startPayment);
   const pay = () =>
     startPayment.mutate(PAYMENT_RETURN_URL, {
-      onSuccess: ({ authorization_url }) =>
-        router.push({ pathname: '/checkout/pay', params: { cartId, url: authorization_url } }),
+      // No payment means a shop's price changed: the buyer sees the new total, then pays again.
+      onSuccess: ({ payment }) => {
+        if (payment) router.push({ pathname: '/checkout/pay', params: { cartId, url: payment.authorization_url } });
+      },
       // The last payment went through: wait for Paystack's confirmation rather than pay twice.
       onError: (error) => {
         if (isAlreadyPaid(error)) router.push({ pathname: '/checkout/confirmation', params: { cartId } });
@@ -243,6 +253,7 @@ function PayBar({ cartId, checkout, quoting }: Readonly<{ cartId: string; checko
         borderTopColor: theme.colors.divider,
         backgroundColor: theme.colors.background,
       }}>
+      <PriceChanges changes={priceChanges} currencyCode={checkout.currency_code} />
       {notice ? (
         <Text tone="secondary" accessibilityLiveRegion="polite">
           {notice}
@@ -252,7 +263,7 @@ function PayBar({ cartId, checkout, quoting }: Readonly<{ cartId: string; checko
         label="Pay with Paystack"
         detail={formatMoney(checkout.total, checkout.currency_code)}
         onPress={pay}
-        loading={startPayment.isPending || quoting}
+        loading={startPayment.isPending || prepare.isPending}
         disabled={!checkout.ready_to_pay}
       />
     </View>
@@ -328,6 +339,31 @@ function paymentNotice(error: Error | null, returned: PaymentLeft | undefined): 
     return "You closed the payment page. If you finished paying, your order appears in Orders once Paystack confirms it; otherwise, pay again.";
   }
   return null;
+}
+
+type Repricing = { data?: { price_changes: PriceChange[] }; submittedAt: number };
+
+/** The price changes the buyer's latest address save or payment start found. */
+function latestPriceChanges(...repricings: Repricing[]): PriceChange[] {
+  const [latest] = repricings.filter((r) => r.data).sort((a, b) => b.submittedAt - a.submittedAt);
+  return latest?.data?.price_changes ?? [];
+}
+
+/** The lines a shop repriced since the buyer added them, so the new total is no surprise. */
+function PriceChanges({ changes, currencyCode }: Readonly<{ changes: PriceChange[]; currencyCode: string }>) {
+  const theme = useTheme();
+  if (!changes.length) return null;
+  return (
+    <View style={{ gap: theme.space.xs }} accessibilityLiveRegion="polite">
+      <Text variant="label">Some prices changed since you added these items</Text>
+      {changes.map((change) => (
+        <Text key={change.line_item_id} tone="secondary">
+          {priceChangeMessage(change, currencyCode)}
+        </Text>
+      ))}
+      <Text tone="secondary">The total below is what you'll pay.</Text>
+    </View>
+  );
 }
 
 /**

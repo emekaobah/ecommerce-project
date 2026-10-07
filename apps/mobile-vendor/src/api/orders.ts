@@ -42,8 +42,8 @@ export type Order = Awaited<ReturnType<typeof fetchOrder>>;
 
 /**
  * The shop's orders, newest first. Waits while there is no session. Checked again every
- * minute while on screen, so a new order shows up before its accept deadline runs down
- * (until push notifications, #27).
+ * minute while on screen, so a new order shows up before its accept deadline runs down even
+ * on a device that gets no pushes; a push arriving refreshes it at once (#27).
  */
 export function useOrders(sellerId: string | undefined) {
   return useQuery({

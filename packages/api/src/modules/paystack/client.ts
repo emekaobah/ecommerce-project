@@ -40,6 +40,26 @@ export type PaystackRefund = {
 
 type Envelope<T> = { status: boolean; message: string; data: T }
 
+/** A bank Paystack can resolve accounts at and pay out to (GET /bank). */
+export type PaystackBank = { name: string; code: string; currency: string; type: string; active: boolean }
+
+/** A transfer recipient: who a payout is sent to (POST /transferrecipient). */
+export type PaystackRecipient = {
+  recipient_code: string
+  name: string
+  details: { account_number: string; account_name: string | null; bank_code: string; bank_name: string }
+}
+
+/** A request Paystack refused; `status` is the HTTP status (422 when it can't resolve an account). */
+export class PaystackRequestError extends MedusaError {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(MedusaError.Types.UNEXPECTED_STATE, message)
+  }
+}
+
 /**
  * Paystack amounts are integers in the currency's subunit; every currency Paystack takes
  * (NGN, GHS, ZAR, KES, USD) has 100. Medusa amounts are decimal major units.
@@ -62,7 +82,7 @@ export function isPaystackSignatureValid(
   return received.length === expected.length && timingSafeEqual(received, expected)
 }
 
-/** The few Paystack Transactions and Refunds API calls checkout and refunds need. */
+/** The few Paystack Transactions, Refunds, Miscellaneous and Transfer Recipients API calls we need. */
 export class PaystackClient {
   constructor(
     private readonly secretKey: string,
@@ -77,8 +97,8 @@ export class PaystackClient {
     })
     const envelope = (await res.json().catch(() => null)) as Envelope<T> | null
     if (!res.ok || !envelope?.status) {
-      throw new MedusaError(
-        MedusaError.Types.UNEXPECTED_STATE,
+      throw new PaystackRequestError(
+        res.status,
         `Paystack ${method} ${path} failed (${res.status}): ${envelope?.message ?? "no response"}`
       )
     }
@@ -110,5 +130,23 @@ export class PaystackClient {
 
   fetchRefund(id: number | string) {
     return this.request<PaystackRefund>("GET", `/refund/${encodeURIComponent(String(id))}`)
+  }
+
+  /** Banks in a currency that accounts can be resolved at (NUBAN banks for NGN). */
+  listBanks(currency: string) {
+    return this.request<PaystackBank[]>("GET", `/bank?${new URLSearchParams({ currency, perPage: "100" })}`)
+  }
+
+  /** The holder's name of an account at a bank; refused (422) when the bank has no such account. */
+  resolveAccount(input: { account_number: string; bank_code: string }) {
+    return this.request<{ account_number: string; account_name: string }>(
+      "GET",
+      `/bank/resolve?${new URLSearchParams(input)}`
+    )
+  }
+
+  /** Registers a bank account as somewhere transfers can be sent. */
+  createTransferRecipient(input: { type: "nuban"; name: string; account_number: string; bank_code: string; currency: string }) {
+    return this.request<PaystackRecipient>("POST", "/transferrecipient", input)
   }
 }

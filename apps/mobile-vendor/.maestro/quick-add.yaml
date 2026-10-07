@@ -1,0 +1,55 @@
+# Fulfilment staff quick-add a catalogue product the shop doesn't sell yet (#38): the seeded
+# power bank, which only the electronics shop sells. The simulator has no camera, so the barcode
+# is typed. A second run finds the product already in the shop, which staff can't change.
+# Proposing an unknown barcode needs a photo, so it is checked on a device.
+appId: com.emekaobah.oja.vendor
+env:
+  MEMBER_EMAIL: grocery.staff@oja.test
+  MEMBER_PASSWORD: supersecret
+  SHOP: Iya Bisi Foodstuff
+---
+- launchApp
+- runFlow:
+    file: sign-in.yaml
+    env:
+      MEMBER_EMAIL: ${MEMBER_EMAIL}
+      MEMBER_PASSWORD: ${MEMBER_PASSWORD}
+      SHOP: ${SHOP}
+- extendedWaitUntil:
+    visible: ${SHOP}
+    timeout: 15000
+- tapOn: "Add product"
+- tapOn:
+    id: "barcode"
+- inputText: "2000000000114"
+- tapOn: "Look up"
+- extendedWaitUntil:
+    visible: "20,000mAh Power Bank"
+    timeout: 10000
+- runFlow:
+    when:
+      visible: "Add to shop"
+    commands:
+      # Nothing typed: the form says what it needs.
+      - tapOn: "Add to shop"
+      - assertVisible: "Enter a price."
+      - tapOn:
+          id: "price"
+      - inputText: "25000"
+      - tapOn:
+          id: "stock"
+      - inputText: "6"
+      - tapOn: "Add to shop"
+      - assertVisible: "20,000mAh Power Bank is in your shop"
+      - tapOn: "Scan another"
+      - tapOn:
+          id: "barcode"
+      - inputText: "2000000000114"
+      - tapOn: "Look up"
+# Already sold by the shop: shown, not changeable by staff.
+- extendedWaitUntil:
+    visible: "Already in your shop"
+    timeout: 10000
+- assertVisible: "Only owners and managers can change its price or stock, in the web vendor panel."
+- tapOn: "Back to orders"
+- assertVisible: ${SHOP}

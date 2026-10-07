@@ -1,19 +1,21 @@
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
-import { enrichmentService, type EnrichableField } from "../../lib/enrichment"
+import { enrichmentService, storedBySubmitter, type EnrichableField } from "../../lib/enrichment"
 import { OFFER_IMPORT_MODULE, type OfferImportModuleService } from "../../modules/offer-import"
 
 /**
  * Records a shop's proposal as queued for enrichment, as a vendor's (its data
- * isn't trusted). The worker is told by the event the workflow emits once the
+ * isn't trusted). Images it already stored (a quick-add photo) are recorded as
+ * stored, so enrichment keeps them rather than copying them again. The worker is told by the event the workflow emits once the
  * whole row has gone through; undone if a later step fails.
  */
 export const recordQueuedEnrichmentStep = createStep(
   "record-queued-enrichment",
-  async (input: { product_id: string; supplied: EnrichableField[] }, { container }) => {
+  async (input: { product_id: string; supplied: EnrichableField[]; stored_images?: string[] }, { container }) => {
     const record = await enrichmentService(container).createProductEnrichments({
       product_id: input.product_id,
       submitter: "vendor",
       supplied: { items: input.supplied },
+      images: { items: (input.stored_images ?? []).map(storedBySubmitter) },
     })
     return new StepResponse(record, record.id)
   },

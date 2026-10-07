@@ -69,7 +69,7 @@ const DEFAULT_DIMENSION_CM = 10
 /** When a product has no weight, grams. Publishing requires one (#33), so this is rare. */
 const DEFAULT_WEIGHT_G = 1000
 
-/** Where an address keeps its Shipbubble address code, in its metadata. */
+/** Where an address keeps the code Shipbubble validated it as, in its metadata (ADR 0002). */
 export const ADDRESS_CODE = "shipbubble_address_code"
 
 const numberOrNull = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null)
@@ -149,11 +149,7 @@ type SellerRow = {
   address?: (DeliveryAddress & { id: string }) | null
 }
 
-/**
- * The shop's pickup address's Shipbubble code: where couriers collect its parcels. Validated the
- * first time it is needed and kept on the address (the vendor panel will validate on save, #26).
- */
-export async function senderAddressCode(scope: MedusaContainer, sellerId: string): Promise<number> {
+async function loadSellerRow(scope: MedusaContainer, sellerId: string): Promise<SellerRow> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "seller",
@@ -161,17 +157,50 @@ export async function senderAddressCode(scope: MedusaContainer, sellerId: string
     filters: { id: sellerId },
   })
   const seller = data[0] as SellerRow | undefined
-  const address = seller?.address
-  if (!seller || !address?.address_1) {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller?.name ?? "This shop"} has no pickup address to deliver from yet`)
+  if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Seller ${sellerId} not found`)
+  return seller
+}
+
+/** Validates a shop's address with Shipbubble, the shop as the contact; its phone when the address has none. */
+const validateShopAddress = (seller: SellerRow, address: DeliveryAddress) =>
+  validateAddress({ ...address, phone: address.phone ?? seller.phone ?? null }, { name: seller.name, email: seller.email ?? "" })
+
+/**
+ * A change to the shop's pickup address, validated with Shipbubble before it is saved (by its
+ * pin when it has one) and carrying the address code in its metadata: the onboarding gate's
+ * mark that couriers can collect from it (#26). The address it leaves is what Shipbubble
+ * validated, so its code can be trusted later. An address Shipbubble can't place is refused
+ * (400) and nothing is saved. Any code the change itself carries is ignored.
+ */
+export async function validatedPickupChange<C extends DeliveryAddress>(
+  scope: MedusaContainer,
+  sellerId: string,
+  change: C
+): Promise<C & { metadata: Record<string, unknown> }> {
+  const seller = await loadSellerRow(scope, sellerId)
+  const current: DeliveryAddress = seller.address ?? {}
+  // Fields the change leaves out keep their saved values; metadata it sends replaces the saved metadata.
+  const defined = Object.fromEntries(Object.entries(change).filter(([, value]) => value !== undefined)) as DeliveryAddress
+  const { [ADDRESS_CODE]: _ignored, ...metadata } = (change.metadata !== undefined ? change.metadata : current.metadata) ?? {}
+  const code = await validateShopAddress(seller, { ...current, ...defined, metadata })
+  return { ...change, metadata: { ...metadata, [ADDRESS_CODE]: code } }
+}
+
+/**
+ * The shop's pickup address's Shipbubble code: where couriers collect its parcels. Pickup
+ * addresses are validated as they are saved; one saved without (e.g. at registration) is
+ * validated the first time it is needed and the code kept on it.
+ */
+export async function senderAddressCode(scope: MedusaContainer, sellerId: string): Promise<number> {
+  const seller = await loadSellerRow(scope, sellerId)
+  const address = seller.address
+  if (!address?.address_1) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller.name} has no pickup address to deliver from yet`)
   }
   const known = addressCodeOf(address)
   if (known != null) return known
 
-  const code = await validateAddress(
-    { ...address, phone: address.phone ?? seller.phone ?? null },
-    { name: seller.name, email: seller.email ?? "" }
-  )
+  const code = await validateShopAddress(seller, address)
   // The module's generated update; Mercur's types don't list the seller module's service.
   const sellers = scope.resolve(MercurModules.SELLER) as {
     updateSellerAddresses: (data: { id: string; metadata: Record<string, unknown> }) => Promise<unknown>
