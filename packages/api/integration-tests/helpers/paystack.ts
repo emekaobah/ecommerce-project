@@ -132,7 +132,7 @@ export function fakePaystack(port: number) {
   }
 
   const resolveAccount = (req: IncomingMessage) => {
-    const params = new URL(req.url ?? "", "http://paystack").searchParams
+    const params = new URL(req.url ?? "", "https://paystack.test").searchParams
     const accountNumber = params.get("account_number") ?? ""
     const holder = holderOf(params.get("bank_code") ?? "", accountNumber)
     if (!holder) return refused(422, UNRESOLVED)

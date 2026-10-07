@@ -149,6 +149,8 @@ export default async function seedDemoData({ container }: ExecArgs) {
   }
 
   logger.info("Completing the sellers' onboarding...");
+  // One shop at a time, like the sellers above: run together, Mercur's seller-address and
+  // bank-account workflows race and a shop can be left not live.
   for (const seller of sellers) await seedOnboarding(container, seller);
 
   logger.info("Seeding products...");
