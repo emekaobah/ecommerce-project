@@ -17,6 +17,13 @@ export const ORDER_ACCEPTED = "order_fulfilment.accepted"
 export const ORDER_REJECTED = "order_fulfilment.rejected"
 /** Emitted when staff pack a picked order, ready for a courier label, with `{ id }` (the order). */
 export const ORDER_PACKED = "order_fulfilment.packed"
+/** Emitted once when a new order nears its accept deadline unaccepted, with `{ id }` (the order). */
+export const ORDER_ACCEPT_DEADLINE_NEAR = "order_fulfilment.accept_deadline_near"
+/**
+ * Emitted when the courier's pickup of a packed order is scheduled, with `{ id }` (the order).
+ * Label booking (#24) emits it; the shop is pushed to have the parcel ready.
+ */
+export const ORDER_PICKUP_SCHEDULED = "order_fulfilment.pickup_scheduled"
 
 export const fulfilmentService = (scope: Scope) => scope.resolve<OrderFulfilmentModuleService>(ORDER_FULFILMENT_MODULE)
 
@@ -31,6 +38,7 @@ export type FulfilmentRecord = {
   placed_at: Date
   reject_reason: string | null
   picks: Picks | null
+  accept_reminded_at: Date | null
 }
 
 export type OrderRefundRecord = InferTypeOf<typeof OrderRefund>

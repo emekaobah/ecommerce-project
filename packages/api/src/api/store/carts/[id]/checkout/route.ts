@@ -1,8 +1,9 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { prepareCheckout, retrieveCheckout, type Checkout } from "../../../../../lib/checkout"
+import { prepareCheckout, retrieveCheckout, type Checkout, type CheckoutPrepared } from "../../../../../lib/checkout"
 import type { StorePrepareCheckoutType } from "./validators"
 
 export type StoreCheckoutResponse = { checkout: Checkout }
+export type StorePrepareCheckoutResponse = CheckoutPrepared
 
 /**
  * The buyer's checkout: shop by shop with each shop's delivery and the totals. Once Paystack's
@@ -12,15 +13,19 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse<S
   res.json({ checkout: await retrieveCheckout(req.scope, req.params.id, req.auth_context.actor_id) })
 }
 
-/** Sets the delivery address, reprices every line and adds each shop's delivery. */
+/**
+ * Sets the delivery address, reprices every line and adds each shop's delivery. `price_changes`
+ * lists the lines whose shop's price changed, for the buyer to see.
+ */
 export const POST = async (
   req: AuthenticatedMedusaRequest<StorePrepareCheckoutType>,
-  res: MedusaResponse<StoreCheckoutResponse>
+  res: MedusaResponse<StorePrepareCheckoutResponse>
 ) => {
-  const checkout = await prepareCheckout(req.scope, {
-    cartId: req.params.id,
-    customerId: req.auth_context.actor_id,
-    shippingAddress: req.validatedBody.shipping_address,
-  })
-  res.json({ checkout })
+  res.json(
+    await prepareCheckout(req.scope, {
+      cartId: req.params.id,
+      customerId: req.auth_context.actor_id,
+      shippingAddress: req.validatedBody.shipping_address,
+    })
+  )
 }

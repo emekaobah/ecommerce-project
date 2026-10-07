@@ -21,6 +21,8 @@ export type CartItem = {
   unit_price: number
   /** The shop's normal price when this one is a sale. */
   compare_at_unit_price: number | null
+  /** Whether `unit_price` includes VAT, as the currency's price preference says. */
+  is_tax_inclusive: boolean
   /** `unit_price` × `quantity`, before shipping and promotions. */
   subtotal: number
 }
@@ -54,6 +56,7 @@ type ItemRow = {
   quantity: number | string
   unit_price: number | string
   compare_at_unit_price: number | string | null
+  is_tax_inclusive: boolean | null
   created_at: string | Date
   metadata: Record<string, unknown> | null
   offer?: { id: string } | null
@@ -98,6 +101,7 @@ function toItem(row: ItemRow, offerId: string | null): CartItem {
     quantity,
     unit_price: unitPrice,
     compare_at_unit_price: row.compare_at_unit_price == null ? null : Number(row.compare_at_unit_price),
+    is_tax_inclusive: !!row.is_tax_inclusive,
     subtotal: unitPrice * quantity,
   }
 }
@@ -123,6 +127,7 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
       "items.quantity",
       "items.unit_price",
       "items.compare_at_unit_price",
+      "items.is_tax_inclusive",
       "items.created_at",
       "items.metadata",
       "items.offer.id",
