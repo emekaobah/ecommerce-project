@@ -21,6 +21,7 @@ import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares"
 import { onlyLiveShops } from "./store/live-shops";
 import { validatePickupAddressFirst } from "./pickup-address-check";
 import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
+import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
@@ -210,6 +211,8 @@ export default defineMiddlewares({
         },
         // A shop's onboarding checklist, pickup address and bank account (#26).
         ...vendorOnboardingMiddlewares,
+        // Pickup address lookup through the backend's Google key, in the shop's region (ADR 0002, #41).
+        ...vendorAddressLookupMiddlewares,
         { method: ["POST"], matcher: "/vendor/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
         { method: ["POST"], matcher: "/admin/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
         // Staff scan a product the shop doesn't sell yet and add it (#38, ADR 0006).

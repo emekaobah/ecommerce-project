@@ -3,20 +3,29 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import type { LookedUpPlace } from "@oja/domain"
 import { ADDRESS_LOOKUP_MODULE, type AddressLookupModuleService, type AddressSuggestion } from "../modules/address-lookup"
 
-// Address lookup for the buyer's delivery address (ADR 0002, #40): Google's suggestions, a
-// place's address, and the address at the buyer's location, through the backend's key. Lookups
-// are confined to the countries of the buyer's cart's region or, for a saved address added with
-// no cart (#18), of the region the app shops in; the app never names a country.
+// Address lookup (ADR 0002): Google's suggestions, a place's address, and the address at a
+// point, through the backend's key. A buyer's delivery address (#40) is confined to the countries
+// of their cart's region or, for a saved address added with no cart (#18), of the region the app
+// shops in. A shop's pickup address (#41) is confined to the countries of the region it trades
+// in (its currency's). The apps never name a country.
 
 type LookupRegion = { metadata?: Record<string, unknown> | null; countries?: { iso_2: string }[] | null }
 type CartRegion = { customer_id: string | null; region?: LookupRegion | null }
 
-/** Who looks up, for their cart or for a region (one of the two, as the store routes check). */
-export type LookupScope = { customerId: string; cartId?: string; regionId?: string }
+/**
+ * Who looks up: a buyer, for their cart or for a region (one of the two, as the store routes
+ * check), or a shop, for its pickup address.
+ */
+export type LookupScope = { customerId: string; cartId?: string; regionId?: string } | { sellerId: string }
 
-/** The region a lookup is for: the buyer's cart's, or the one named. Another buyer's cart is not found. */
-async function regionFor(scope: MedusaContainer, { cartId, regionId, customerId }: LookupScope): Promise<LookupRegion> {
+/**
+ * The region a lookup is for: the buyer's cart's, or the one named; or the region the shop
+ * trades in. Another buyer's cart is not found.
+ */
+async function regionFor(scope: MedusaContainer, lookup: LookupScope): Promise<LookupRegion> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  if ("sellerId" in lookup) return shopRegion(scope, lookup.sellerId)
+  const { cartId, regionId, customerId } = lookup
   if (regionId) {
     const { data } = await query.graph({ entity: "region", fields: ["metadata", "countries.iso_2"], filters: { id: regionId } })
     const region = data[0] as LookupRegion | undefined
@@ -35,6 +44,24 @@ async function regionFor(scope: MedusaContainer, { cartId, regionId, customerId 
   return cart.region
 }
 
+/** The region trading in the shop's currency, as the vendor panel's address form also takes it (lib/onboarding.ts). */
+async function shopRegion(scope: MedusaContainer, sellerId: string): Promise<LookupRegion> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: sellers } = await query.graph({ entity: "seller", fields: ["currency_code"], filters: { id: sellerId } })
+  const seller = sellers[0] as { currency_code: string } | undefined
+  if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Seller ${sellerId} not found`)
+  const { data: regions } = await query.graph({
+    entity: "region",
+    fields: ["metadata", "countries.iso_2"],
+    filters: { currency_code: seller.currency_code },
+  })
+  const region = regions[0] as LookupRegion | undefined
+  if (!region) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, `No region trades in ${seller.currency_code.toUpperCase()} yet`)
+  }
+  return region
+}
+
 /** The lookup provider and countries of the region a lookup is for. */
 async function lookupFor(scope: MedusaContainer, lookup: LookupScope) {
   const region = await regionFor(scope, lookup)
@@ -45,7 +72,7 @@ async function lookupFor(scope: MedusaContainer, lookup: LookupScope) {
   }
 }
 
-/** Places matching what the buyer typed, in the region's countries. */
+/** Places matching what was typed, in the region's countries. */
 export async function suggestAddresses(
   scope: MedusaContainer,
   { text, sessionToken, ...lookup }: LookupScope & { text: string; sessionToken: string }
@@ -68,7 +95,7 @@ export async function placeAddress(
   return place
 }
 
-/** The address at the buyer's location, or null when it isn't in the region's countries. */
+/** The address at a point (the buyer's or the shop owner's location), or null when it isn't in the region's countries. */
 export async function addressAt(
   scope: MedusaContainer,
   { latitude, longitude, ...lookup }: LookupScope & { latitude: number; longitude: number }
