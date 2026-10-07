@@ -16,6 +16,7 @@ import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
 import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares";
+import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
@@ -173,6 +174,8 @@ export default defineMiddlewares({
         },
         // A shop's own product list, imported as offers and proposals, and its private cost prices (#37).
         ...vendorOfferImportMiddlewares,
+        // Staff scan a product the shop doesn't sell yet and add it (#38, ADR 0006).
+        ...vendorQuickAddMiddlewares,
         {
             method: ["GET"],
             matcher: "/admin/catalogue-enrichment",

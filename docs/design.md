@@ -37,7 +37,7 @@ Visual direction: **Monochrome** (option C on the design canvas, researched in R
 ## Vendor app (fulfilment only)
 
 - Auth: Mercur member (`/auth/member/emailpass`) + `x-seller-id`. Enable Medusa `rbac` flag.
-  - Owner/manager → `role_seller_administration`; fulfilment staff → `role_seller_order_management`.
+  - Owner/manager → `role_seller_administration`; fulfilment staff → `role_seller_order_management`. Staff may quick-add new offers (ADR 0006) but never change existing ones.
   - Staff invited by owner from the web vendor panel.
 - Catalogue, onboarding, promotions and review replies remain in the **web vendor panel**.
 - **Pick and pack** (#21): Start picking opens a checklist of the order's lines. Staff tick a line off by hand or scan barcodes with the camera: a scan ticks one more of the line whose variant carries that barcode, EAN or UPC (GTINs compared as 14 digits, so a UPC-A read as EAN-13 still matches); a barcode on no line warns (`scanBarcode`, `@oja/domain`). Each line's picked count is kept on the order's fulfilment row (`picks`), so progress survives leaving the screen and shows on any phone. Mark packed is refused until every line is picked in full; partial availability (#22) adds "unavailable" as the other way to resolve a line. Vendor API: `POST /vendor/orders/:id/start-picking`, `GET /vendor/orders/:id/pick-list`, `POST /vendor/orders/:id/pick-list/:item_id` (`{ picked }` sets a tapped line; `{ add }` counts a scan, so two phones scanning at once both count), `POST /vendor/orders/:id/pack`.
@@ -124,7 +124,7 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 
 **B. Vendor offer import (vendor panel).** Adapt the `product-import-export` block. Vendor uploads any list (barcode, name, selling price, cost, stock…). Rows whose barcode matches a catalogue variant → **offers**. Unmatched rows → **seller-linked proposals** carrying whatever fields the vendor had; they land in the admin queue where A's enrichment runs before approval.
 
-**C. Vendor app quick-add.** Scan barcode → if unmatched, take a photo + enter name/price → creates a proposal with a real image.
+**C. Vendor app quick-add** (#38, ADR 0006). Scan (or type) a barcode → `GET /vendor/quick-add/:barcode` says what it is to the shop. A catalogue product the shop doesn't sell: set price and stock → `POST /vendor/quick-add` creates the offer. Unmatched: take a photo + enter name/price → the same route proposes the product with that photo (a vendor proposal, enriched and reviewed like an import row) and offers it. Open to fulfilment staff through a custom permission check, not a wider role; it only ever adds, so a product the shop already sells is refused. Offers record the member who added them (`created_by`, and `metadata.added_with = "quick_add"`), shown on the web vendor panel's offer page.
 
 ### Shop-scoped listings (no price comparison)
 

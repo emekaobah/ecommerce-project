@@ -30,6 +30,10 @@ export default function AppLayout() {
       {/* The scanner fills the screen; Done returns to the pick list. */}
       <Stack.Screen name="orders/[id]/scan" options={{ presentation: 'fullScreenModal', headerShown: false }} />
       <Stack.Screen name="orders/[id]/packed" options={{ headerBackVisible: false }} />
+      {/* Quick-add (#38): the scanner fills the screen, then the product's form and its confirmation. */}
+      <Stack.Screen name="quick-add/index" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+      <Stack.Screen name="quick-add/[barcode]" />
+      <Stack.Screen name="quick-add/done" options={{ headerBackVisible: false }} />
     </Stack>
   );
 }

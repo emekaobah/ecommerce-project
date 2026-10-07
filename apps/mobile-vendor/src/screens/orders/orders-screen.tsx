@@ -57,12 +57,19 @@ export function OrdersScreen() {
       <Stack.Screen
         options={{
           title: seller.data?.name ?? 'Orders',
+          headerLeft: AddProductButton,
           headerRight: () => <Button label="Settings" variant="link" onPress={() => router.push('/settings')} />,
         }}
       />
       {content()}
     </>
   );
+}
+
+/** Quick-add (#38): scan a product the shop stocks but doesn't sell online yet. */
+function AddProductButton() {
+  const router = useRouter();
+  return <Button label="Add product" variant="link" onPress={() => router.push('/quick-add')} />;
 }
 
 const styles = StyleSheet.create({
