@@ -1,6 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { MercurModules } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "../helpers/auth"
@@ -64,6 +63,17 @@ medusaIntegrationTestRunner({
       )
     }
 
+    /** Each shop's lantern added to a new cart, as the line's unit price per shop. */
+    const cartPrices = async () => {
+      const { data: { cart } } = await api.post("/store/carts", { region_id: regionId }, storeHeaders)
+      for (const shop of [GROCERY, GADGETS]) {
+        await api.post(`/store/carts/${cart.id}/line-items`, { offer_id: (await lanternOffer(shop)).id, quantity: 1 }, storeHeaders)
+      }
+      const { data } = await api.get(`/store/carts/${cart.id}`, storeHeaders)
+      const shopOf = new Map([[(await lanternOffer(GROCERY)).id, GROCERY.name], [(await lanternOffer(GADGETS)).id, GADGETS.name]])
+      return Object.fromEntries(data.cart.items.map((i: any) => [shopOf.get(i.metadata?.offer_id ?? i.offer_id), Number(i.unit_price)]))
+    }
+
     const status = (request: Promise<unknown>) =>
       request.then(
         () => 200,
@@ -83,6 +93,7 @@ medusaIntegrationTestRunner({
         expect(await amounts(GROCERY)).toEqual([["ngn", GROCERY_PRICE + 500]])
         expect(await amounts(GADGETS)).toEqual([["ngn", LANTERN.price]])
         expect(await listedPrices()).toEqual({ [GROCERY.name]: GROCERY_PRICE + 500, [GADGETS.name]: LANTERN.price })
+        expect(await cartPrices()).toEqual({ [GROCERY.name]: GROCERY_PRICE + 500, [GADGETS.name]: LANTERN.price })
       })
 
       it("adds and drops the offer's own prices without touching the other shop's", async () => {
@@ -120,9 +131,13 @@ medusaIntegrationTestRunner({
       it("still updates the offer's other fields, leaving its prices alone", async () => {
         const offer = await lanternOffer(GROCERY)
 
-        const { data } = await api.post(`/vendor/offers/${offer.id}`, { sku: "GROCERY-LANTERN" }, await owner(GROCERY))
+        const { data } = await api.post(
+          `/vendor/offers/${offer.id}`,
+          { sku: "GROCERY-LANTERN", manage_inventory: false },
+          await owner(GROCERY)
+        )
 
-        expect(data.offer).toMatchObject({ id: offer.id, sku: "GROCERY-LANTERN" })
+        expect(data.offer).toMatchObject({ id: offer.id, sku: "GROCERY-LANTERN", manage_inventory: false })
         expect(await amounts(GROCERY)).toEqual([["ngn", GROCERY_PRICE]])
         expect(await amounts(GADGETS)).toEqual([["ngn", LANTERN.price]])
       })
@@ -130,7 +145,7 @@ medusaIntegrationTestRunner({
       describe("when the rest of the update fails", () => {
         afterEach(() => jest.restoreAllMocks())
 
-        it("puts the offer's changed and dropped prices back", async () => {
+        it("puts the offer's changed and dropped prices back, and its fields", async () => {
           const offer = await lanternOffer(GROCERY)
           const headers = await owner(GROCERY)
           await api.post(
@@ -138,21 +153,23 @@ medusaIntegrationTestRunner({
             { prices: [{ id: offer.prices[0].id, amount: GROCERY_PRICE, currency_code: "ngn" }, { amount: 7, currency_code: "usd" }] },
             headers
           )
-          const offers = getContainer().resolve(MercurModules.OFFER) as { updateOffers: (...args: unknown[]) => Promise<unknown> }
-          jest.spyOn(offers, "updateOffers").mockRejectedValueOnce(new Error("offer refused"))
+          // The last step, linking the added price, fails after every price has been written.
+          const link = getContainer().resolve(ContainerRegistrationKeys.LINK) as { create: (...args: unknown[]) => Promise<unknown> }
+          jest.spyOn(link, "create").mockRejectedValueOnce(new Error("link refused"))
 
           const ngn = (await lanternOffer(GROCERY)).prices.find((p) => p.currency_code === "ngn")!
           expect(
             await status(
               api.post(
                 `/vendor/offers/${offer.id}`,
-                { sku: "GROCERY-LANTERN", prices: [{ id: ngn.id, amount: 1, currency_code: "ngn" }] },
+                { sku: "GROCERY-LANTERN", prices: [{ id: ngn.id, amount: 1, currency_code: "ngn" }, { amount: 5, currency_code: "eur" }] },
                 headers
               )
             )
           ).toBe(500)
 
           expect(await amounts(GROCERY)).toEqual([["ngn", GROCERY_PRICE], ["usd", 7]])
+          expect((await lanternOffer(GROCERY)).sku).toBe(offer.sku)
           expect(await amounts(GADGETS)).toEqual([["ngn", LANTERN.price]])
           expect(await listedPrices()).toEqual({ [GROCERY.name]: GROCERY_PRICE, [GADGETS.name]: LANTERN.price })
         })
@@ -183,6 +200,7 @@ medusaIntegrationTestRunner({
         expect(await amounts(GROCERY)).toEqual([["ngn", GROCERY_PRICE + 1000]])
         expect(await amounts(GADGETS)).toEqual([["ngn", LANTERN.price]])
         expect(await listedPrices()).toEqual({ [GROCERY.name]: GROCERY_PRICE + 1000, [GADGETS.name]: LANTERN.price })
+        expect(await cartPrices()).toEqual({ [GROCERY.name]: GROCERY_PRICE + 1000, [GADGETS.name]: LANTERN.price })
       })
     })
   },

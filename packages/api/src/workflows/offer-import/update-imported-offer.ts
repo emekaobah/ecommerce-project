@@ -1,10 +1,8 @@
 import { WorkflowResponse, createWorkflow, transform, when } from "@medusajs/framework/workflows-sdk"
 import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
-import { updateOffersWorkflow } from "@mercurjs/core/workflows"
-import { setOfferPricesStep, type OfferPriceInput } from "../offer-prices/steps"
+import type { OfferPriceInput } from "../offer-prices/steps"
+import { updateOfferWorkflow } from "../offer-prices/update-offer"
 import { setOfferCostStep } from "./steps"
-
-export type { OfferPriceInput }
 
 export type UpdateImportedOfferInput = {
   offer_id: string
@@ -31,15 +29,14 @@ export type UpdateImportedOfferInput = {
  * undoes the ones before it.
  */
 export const updateImportedOfferWorkflow = createWorkflow("update-imported-offer", (input: UpdateImportedOfferInput) => {
-  // Only the offer's own prices: Mercur's workflow would rewrite every shop's prices for the variant (#84).
-  when("set-offer-prices", input, (i) => i.prices !== null).then(() => {
-    setOfferPricesStep(transform({ input }, ({ input }) => ({ offer_id: input.offer_id, prices: input.prices! })))
-  })
-
   when("update-offer", input, (i) => i.prices !== null || i.stock !== null).then(() => {
-    updateOffersWorkflow.runAsStep({
+    updateOfferWorkflow.runAsStep({
       input: transform({ input }, ({ input }) => ({
-        offers: [{ id: input.offer_id, ...(input.stock ? { manage_inventory: true } : {}) }],
+        offer: {
+          id: input.offer_id,
+          ...(input.prices ? { prices: input.prices } : {}),
+          ...(input.stock ? { manage_inventory: true } : {}),
+        },
       })),
     })
   })
