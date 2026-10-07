@@ -29,7 +29,7 @@ Routes that show a buyer **their own** records are left alone: `/store/order-gro
 
 ### Pickup address codes are only written once Shipbubble has validated the address
 
-The pickup gate passes when the seller address carries a `shipbubble_address_code` in its metadata. To make that code trustworthy, it is only ever written for the address Shipbubble just validated, and never taken from a request:
+The pickup gate passes when the seller address carries the pin its owner confirmed on the map (`latitude`, `longitude`) and a `shipbubble_address_code` in its metadata. `validatedPickupChange` refuses an address without a pin, so no route saves one (#41); an address with a code but no pin, saved before pins were required, fails the gate. To make that code trustworthy, it is only ever written for the address Shipbubble just validated, and never taken from a request:
 
 - `validatedPickupChange` (`src/lib/delivery.ts`) merges the change with the saved address, asks Shipbubble to place it, and returns the change with the code. If Shipbubble refuses, it fails with a 400 before anything is saved. It drops any code the request itself carries.
 - Every save route runs it **before** writing. `POST /vendor/onboarding/pickup-address` first checks the country's form (`@oja/domain`, ADR 0002). Mercur's vendor and admin address routes get the `validatePickupAddressFirst` middleware (`src/api/pickup-address-check.ts`).
