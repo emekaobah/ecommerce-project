@@ -1,5 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { Modules } from "@medusajs/framework/utils"
+import { Modules, NotificationStatus } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { remindAcceptDeadlines } from "../../src/lib/order-acceptance"
@@ -63,6 +63,15 @@ medusaIntegrationTestRunner({
       api.delete(`/vendor/push-tokens/${encodeURIComponent(token)}`, headers)
     /** The pushes a device has had, once at least `count` have arrived. */
     const pushesTo = (token: string, count = 1) => eventually(async () => expo.sentTo(token), (sent) => sent.length >= count)
+    /**
+     * Waits until a push to the device is recorded as sent, with Expo's ticket id: the fake gets
+     * the push before the notification module records the ticket, and receipts are asked by ticket.
+     */
+    const ticketRecorded = (token: string) =>
+      eventually(
+        () => getContainer().resolve(Modules.NOTIFICATION).listNotifications({ to: token }, { select: ["status", "external_id"] }),
+        (pushes) => pushes.some((p) => p.status === NotificationStatus.SUCCESS && !!p.external_id)
+      )
     /** Waits long enough for a push that would have been sent, then says what arrived. */
     const settledPushesTo = async (token: string, after: () => Promise<unknown>) => {
       await after()
@@ -141,6 +150,7 @@ medusaIntegrationTestRunner({
         await paidOrders()
         await pushesTo(gone)
         await pushesTo(device)
+        await ticketRecorded(gone)
 
         // Before Expo has had time to deliver, the receipts aren't asked for.
         await checkPushReceipts(getContainer(), new Date(Date.now() + 5 * MINUTE))
