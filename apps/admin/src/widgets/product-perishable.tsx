@@ -6,7 +6,10 @@ import { client } from "../lib/client"
 
 type Choice = "follow" | "always" | "never"
 const OVERRIDES: Record<Choice, boolean | null> = { follow: null, always: true, never: false }
-const choiceOf = (override: boolean | null): Choice => (override === null ? "follow" : override ? "always" : "never")
+const choiceOf = (override: boolean | null): Choice => {
+  if (override === null) return "follow"
+  return override ? "always" : "never"
+}
 
 // Whether this product is perishable (#69): it follows its categories unless the operator
 // overrides it here, either way. Shops can't change it.

@@ -132,9 +132,7 @@ export default async function seedDemoData({ container }: ExecArgs) {
 
   logger.info("Seeding categories and attributes...");
   const categoryIds = await seedCategories(container);
-  for (const name of SEED_PERISHABLE_CATEGORIES) {
-    await setCategoryPerishable(container, categoryIds.get(name)!, true);
-  }
+  await Promise.all(SEED_PERISHABLE_CATEGORIES.map((name) => setCategoryPerishable(container, categoryIds.get(name)!, true)));
   const sizeAttribute = await seedSizeAttribute(container);
   const categoryAttributes = await seedCategoryAttributes(container, categoryIds);
 
