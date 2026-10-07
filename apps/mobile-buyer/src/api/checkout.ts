@@ -31,18 +31,19 @@ export function useCheckout(cartId: string | null | undefined, { waitForOrder = 
   });
 }
 
-/** Sets the delivery address, with its pin; the backend reprices the cart and adds each shop's delivery. */
+/**
+ * Sets the delivery address, with its pin; the backend reprices the cart and adds each shop's
+ * delivery. Resolves to the lines whose shop's price changed, for the buyer to see.
+ */
 export function usePrepareCheckout(cartId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (shippingAddress: PinnedDeliveryAddress) => {
-      const { checkout } = await storeClient.store.carts.$id.checkout.mutate({
+    mutationFn: (shippingAddress: PinnedDeliveryAddress) =>
+      storeClient.store.carts.$id.checkout.mutate({
         $id: cartId,
         shipping_address: shippingAddress,
-      });
-      return checkout;
-    },
-    onSuccess: (checkout) => queryClient.setQueryData(checkoutKeys.detail(cartId), checkout),
+      }),
+    onSuccess: ({ checkout }) => queryClient.setQueryData(checkoutKeys.detail(cartId), checkout),
     // Repricing may have changed the cart's lines.
     onSettled: () => queryClient.invalidateQueries({ queryKey: cartKeys.all }),
   });
@@ -64,15 +65,22 @@ export function useChooseDelivery(cartId: string) {
   });
 }
 
-/** Starts a Paystack payment; each call starts a fresh one, so it is also the retry. */
+/**
+ * Starts a Paystack payment; each call starts a fresh one, so it is also the retry. The backend
+ * reprices the cart first: when a shop's price changed, `payment` is null and `price_changes`
+ * says what changed, for the buyer to see before paying the new total.
+ */
 export function useStartPayment(cartId: string) {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (returnUrl: string) => {
-      const { payment } = await storeClient.store.carts.$id.checkout.payment.mutate({
+    mutationFn: (returnUrl: string) =>
+      storeClient.store.carts.$id.checkout.payment.mutate({
         $id: cartId,
         return_url: returnUrl,
-      });
-      return payment;
+      }),
+    onSuccess: ({ checkout, price_changes }) => {
+      queryClient.setQueryData(checkoutKeys.detail(cartId), checkout);
+      if (price_changes.length) void queryClient.invalidateQueries({ queryKey: cartKeys.all });
     },
   });
 }
