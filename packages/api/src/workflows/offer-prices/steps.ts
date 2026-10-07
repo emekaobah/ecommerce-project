@@ -33,7 +33,7 @@ const toPricingInput = (offerId: string, p: OfferPriceInput): CreatePricesDTO & 
   currency_code: p.currency_code,
   ...(p.min_quantity != null ? { min_quantity: p.min_quantity } : {}),
   ...(p.max_quantity != null ? { max_quantity: p.max_quantity } : {}),
-  rules: { ...(p.rules ?? {}), offer_id: offerId },
+  rules: { ...p.rules, offer_id: offerId },
 })
 
 /** Ids of the offer's prices in the set (those with its `offer_id` rule). */
