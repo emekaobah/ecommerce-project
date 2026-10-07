@@ -1,0 +1,23 @@
+{
+  "name": "@oja/expo-push",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "expo": "~57.0.25",
+    "expo-constants": "~57.0.19",
+    "expo-device": "~57.0.2",
+    "expo-notifications": "~57.0.21",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "typescript": "~6.0.3"
+  }
+}

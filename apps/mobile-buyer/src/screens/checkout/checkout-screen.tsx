@@ -6,11 +6,13 @@ import {
   formatMoney,
   getAddressConfig,
   pinOf,
+  priceChangeMessage,
   type AddressFieldKey,
   type AddressFormValues,
   type DeliveryTag,
   type PaymentReturn,
   type Pin,
+  type PriceChange,
 } from '@oja/domain';
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -99,6 +101,8 @@ function CheckoutForm({
   }, [first_name, last_name]);
   const prepare = usePrepareCheckout(cartId);
   const startPayment = useStartPayment(cartId);
+  // Both reprice the cart; the lines the latest one repriced are shown until the buyer pays.
+  const priceChanges = latestPriceChanges(prepare, startPayment);
 
   // A cart changed since its delivery was quoted (a shop added, a quantity changed) has a shop
   // without rates. Quote it again at the cart's address, once; if that fails, the form shows why.
@@ -141,8 +145,10 @@ function CheckoutForm({
   };
   const pay = () =>
     startPayment.mutate(PAYMENT_RETURN_URL, {
-      onSuccess: ({ authorization_url }) =>
-        router.push({ pathname: '/checkout/pay', params: { cartId, url: authorization_url } }),
+      // No payment means a shop's price changed: the buyer sees the new total, then pays again.
+      onSuccess: ({ payment }) => {
+        if (payment) router.push({ pathname: '/checkout/pay', params: { cartId, url: payment.authorization_url } });
+      },
       // The last payment went through: wait for Paystack's confirmation rather than pay twice.
       onError: (error) => {
         if (isAlreadyPaid(error)) router.push({ pathname: '/checkout/confirmation', params: { cartId } });
@@ -212,6 +218,7 @@ function CheckoutForm({
             borderTopColor: theme.colors.divider,
             backgroundColor: theme.colors.background,
           }}>
+          <PriceChanges changes={priceChanges} currencyCode={checkout.currency_code} />
           {notice ? (
             <Text tone="secondary" accessibilityLiveRegion="polite">
               {notice}
@@ -238,6 +245,31 @@ function paymentNotice(error: Error | null, returned: PaymentLeft | undefined): 
     return "You closed the payment page. If you finished paying, your order appears in Orders once Paystack confirms it; otherwise, pay again.";
   }
   return null;
+}
+
+type Repricing = { data?: { price_changes: PriceChange[] }; submittedAt: number };
+
+/** The price changes the buyer's latest address save or payment start found. */
+function latestPriceChanges(...repricings: Repricing[]): PriceChange[] {
+  const [latest] = repricings.filter((r) => r.data).sort((a, b) => b.submittedAt - a.submittedAt);
+  return latest?.data?.price_changes ?? [];
+}
+
+/** The lines a shop repriced since the buyer added them, so the new total is no surprise. */
+function PriceChanges({ changes, currencyCode }: Readonly<{ changes: PriceChange[]; currencyCode: string }>) {
+  const theme = useTheme();
+  if (!changes.length) return null;
+  return (
+    <View style={{ gap: theme.space.xs }} accessibilityLiveRegion="polite">
+      <Text variant="label">Some prices changed since you added these items</Text>
+      {changes.map((change) => (
+        <Text key={change.line_item_id} tone="secondary">
+          {priceChangeMessage(change, currencyCode)}
+        </Text>
+      ))}
+      <Text tone="secondary">The total below is what you'll pay.</Text>
+    </View>
+  );
 }
 
 function AddressSummary({ checkout }: Readonly<{ checkout: Checkout }>) {

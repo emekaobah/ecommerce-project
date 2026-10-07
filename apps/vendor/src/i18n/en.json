@@ -101,6 +101,14 @@
     "warning": "Selling at {{price}} loses money on every sale.",
     "private": "Only owners and managers see this."
   },
+  "offerAuthors": {
+    "title": "Added by",
+    "addedBy": "Added by {{member}}",
+    "unknown": "a former member",
+    "quickAdd": "Quick-add",
+    "details": "SKU {{sku}} · {{date}}",
+    "review": "Added by scanning in the vendor app. Check its price and stock."
+  },
   "productCompleteness": {
     "title": "Completeness",
     "loading": "Loading…",
@@ -113,6 +121,44 @@
       "image": "Image",
       "category": "Category",
       "weight": "Weight"
+    }
+  },
+  "shopSetup": {
+    "title": "Shop setup",
+    "description": "Buyers see your offers once couriers can collect from you and Oja can pay you.",
+    "live": "Live",
+    "notLive": "Not live yet",
+    "loadError": "Could not load your shop setup.",
+    "missing": "Still to do",
+    "askAnOwner": "Ask a shop owner or manager to enter the pickup address and bank account.",
+    "optional": "optional",
+    "choose": "Choose",
+    "status": {
+      "pending_approval": "Oja is reviewing your shop. It goes live once approved and every step below is done.",
+      "suspended": "Your shop is suspended. Contact Oja to reopen it.",
+      "other": "Your shop isn't open. Contact Oja."
+    },
+    "steps": {
+      "pickup_address": "Pickup address",
+      "bank_account": "Bank account for payouts"
+    },
+    "pickup": {
+      "description": "Where couriers collect your orders. We check it with our delivery partner when you save.",
+      "validated": "Couriers can find this address. Changing it checks it again.",
+      "noCountry": "We can't tell which country your shop is in. Contact Oja.",
+      "save": "Save pickup address"
+    },
+    "bank": {
+      "description": "Where your payouts go. We check the account with your bank when you save.",
+      "resolved": "Payouts go to {{name}} at {{bank}}.",
+      "bank": "Bank",
+      "accountNumber": "Account number",
+      "save": "Save bank account"
+    },
+    "banner": {
+      "missing": "Buyers can't see your offers yet. Still to do: {{items}}.",
+      "waiting": "Buyers can't see your offers until Oja approves your shop.",
+      "link": "Finish shop setup"
     }
   }
 }

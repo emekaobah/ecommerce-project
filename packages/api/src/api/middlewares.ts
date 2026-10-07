@@ -16,15 +16,24 @@ import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
 import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares";
+import { onlyLiveShops } from "./store/live-shops";
+import { validatePickupAddressFirst } from "./pickup-address-check";
+import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
+import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
+import { PushTokenBody } from "./push-tokens";
 
 export default defineMiddlewares({
     routes: [
         // Before any store route's own auth check, so a Clerk session token reads as the customer.
         { matcher: "/store/*", middlewares: [clerkCustomerAuth] },
+        // A shop that isn't through onboarding is hidden from Mercur's store routes (#26).
+        { method: ["GET"], matcher: "/store/offers*", middlewares: [onlyLiveShops] },
+        { method: ["GET"], matcher: "/store/sellers*", middlewares: [onlyLiveShops] },
+        { method: ["GET"], matcher: "/store/products*", middlewares: [onlyLiveShops] },
         {
             method: ["GET"],
             matcher: "/store/listings",
@@ -123,6 +132,17 @@ export default defineMiddlewares({
             matcher: "/store/address-lookup/reverse-geocode",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreReverseGeocode, {})],
         },
+        // A signed-in buyer's device registers for pushes, and is removed at sign-out (#27).
+        {
+            method: ["POST"],
+            matcher: "/store/push-tokens",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(PushTokenBody)],
+        },
+        {
+            method: ["DELETE"],
+            matcher: "/store/push-tokens/:token",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
         { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
         // Paystack signs the raw body, so it is kept for the check.
         {
@@ -145,6 +165,8 @@ export default defineMiddlewares({
             middlewares: [validateAndTransformBody(VendorRecordPick)],
         },
         { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
+        // A member's device registers for their shops' pushes (#27); Mercur authenticates the member.
+        { method: ["POST"], matcher: "/vendor/push-tokens", middlewares: [validateAndTransformBody(PushTokenBody)] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },
         // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows (lib/catalogue-import/sheet).
         {
@@ -172,6 +194,12 @@ export default defineMiddlewares({
             matcher: "/admin/products/:id/perishable",
             middlewares: [validateAndTransformBody(AdminOverrideProductPerishable)],
         },
+        // A shop's onboarding checklist, pickup address and bank account (#26).
+        ...vendorOnboardingMiddlewares,
+        { method: ["POST"], matcher: "/vendor/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
+        { method: ["POST"], matcher: "/admin/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
+        // Staff scan a product the shop doesn't sell yet and add it (#38, ADR 0006).
+        ...vendorQuickAddMiddlewares,
         {
             method: ["GET"],
             matcher: "/admin/catalogue-enrichment",

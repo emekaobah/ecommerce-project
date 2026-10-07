@@ -1,11 +1,15 @@
 import { vendorTheme } from '@oja/ui';
 import { Stack } from 'expo-router';
 
+import { usePushRegistration } from '@/push/push-registration';
+import { useOpenTappedPush } from '@/push/use-open-tapped-push';
 import { useKeepCurrentShop } from '@/session/keep-current-shop';
 
 // The order stack (accept → pick → pack → label → handover) is pushed over the list.
 export default function AppLayout() {
   useKeepCurrentShop();
+  usePushRegistration();
+  useOpenTappedPush();
 
   return (
     <Stack
@@ -26,6 +30,10 @@ export default function AppLayout() {
       {/* The scanner fills the screen; Done returns to the pick list. */}
       <Stack.Screen name="orders/[id]/scan" options={{ presentation: 'fullScreenModal', headerShown: false }} />
       <Stack.Screen name="orders/[id]/packed" options={{ headerBackVisible: false }} />
+      {/* Quick-add (#38): the scanner fills the screen, then the product's form and its confirmation. */}
+      <Stack.Screen name="quick-add/index" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+      <Stack.Screen name="quick-add/[barcode]" />
+      <Stack.Screen name="quick-add/done" options={{ headerBackVisible: false }} />
     </Stack>
   );
 }

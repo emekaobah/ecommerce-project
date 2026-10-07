@@ -29,8 +29,8 @@ What we found (checked 2026-09-28):
 - **Vendors can't capture.** `POST /vendor/payments/:id/capture` returns `403`.
 - **Paystack is the region's only payment provider** once `PAYSTACK_SECRET_KEY` is set (seed). The system provider is kept only when Paystack isn't configured, for local tries.
 - Checkout routes (signed-in buyer, own cart only):
-  - `POST /store/carts/:id/checkout` reprices every line from its offer, sets the email and address, and adds each shop's cheapest delivery option (the flat rate until #23).
-  - `POST /store/carts/:id/checkout/payment` reprices the lines again, since the cart or a shop's price may have changed since the address was set. It then starts a new Paystack transaction each time, which is how a buyer retries after a failed or abandoned payment.
+  - `POST /store/carts/:id/checkout` reprices every line from its offer (unit price, compare-at price and tax inclusivity, reporting the changed lines as `price_changes`), sets the email and address, and adds each shop's cheapest delivery option (the flat rate until #23).
+  - `POST /store/carts/:id/checkout/payment` reprices the lines again, since the cart or a shop's price may have changed since the address was set. When a price changed it starts nothing: it answers `payment: null` with `price_changes` (each line's price before and after) and the repriced checkout, so the buyer sees what changed before paying, and pays the new total by calling again (#57). Otherwise it starts a new Paystack transaction each time, which is how a buyer retries after a failed or abandoned payment. A line whose offer is gone blocks payment until it is removed, and a shop's delivery is dropped once the cart holds nothing from it.
   - `GET /store/carts/:id/checkout` returns the checkout, whether it is `ready_to_pay`, and, once the cart is completed, its order group.
 
 ## Consequences

@@ -48,8 +48,12 @@ const config: ExpoConfig = {
         androidGoogleMapsApiKey: mapsKey('GOOGLE_MAPS_ANDROID_API_KEY'),
       },
     ],
+    // Pushes about the buyer's orders (#27, #28).
+    'expo-notifications',
     withIosSceneLifecycle,
   ],
+  // Expo push tokens are issued per EAS project; without one the app runs but gets no pushes.
+  extra: { eas: { projectId: process.env.EAS_PROJECT_ID || undefined } },
   experiments: { typedRoutes: true, reactCompiler: true },
 };
 

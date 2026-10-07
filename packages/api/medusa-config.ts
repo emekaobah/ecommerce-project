@@ -124,6 +124,17 @@ module.exports = withMercur({
             id: 'local',
             options: { name: 'Local Notification Provider', channels: ['feed', 'email'] },
           },
+          // Pushes to the buyer and vendor apps through Expo (#27). Sends without an access token
+          // until the Expo project turns on enhanced push security.
+          {
+            resolve: './src/modules/expo-push',
+            id: 'expo',
+            options: {
+              channels: ['push'],
+              accessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
+              apiUrl: process.env.EXPO_PUSH_API_URL || undefined,
+            },
+          },
         ],
       },
     },
@@ -163,6 +174,10 @@ module.exports = withMercur({
     { resolve: './src/modules/offer-import' },
     // Which categories and products are perishable, set by the operator only (#69).
     { resolve: './src/modules/perishable' },
+    // The bank account each shop is paid into, resolved with Paystack (onboarding gates, #26).
+    { resolve: './src/modules/shop-bank-account' },
+    // Each device's Expo push token, and the buyer or shop member signed in on it (#27).
+    { resolve: './src/modules/push-token' },
     {
       resolve: '@medusajs/medusa/file',
       options: {

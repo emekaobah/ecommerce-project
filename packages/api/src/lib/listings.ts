@@ -1,10 +1,10 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
-import { resolveVisibleSellerIds } from "@mercurjs/core/api/utils/sellers"
 import { ProductStatus } from "@mercurjs/types"
 import { attributionOf, type Attribution } from "./enrichment"
 import { perishableProductIds } from "./perishable"
+import { liveSellerIds } from "./onboarding"
 
 // A listing is one shop's offer of one product: the product page and the feed are always
 // in a shop's context, and prices are never compared across shops (docs/design.md).
@@ -103,9 +103,9 @@ async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Reg
   return { id: region.id, currency_code: region.currency_code, countries: (region.countries ?? []).map((c) => c.iso_2) }
 }
 
-/** Open shops based in one of the region's countries. */
+/** Live shops (open and through onboarding) based in one of the region's countries. */
 async function sellersServing(scope: MedusaContainer, region: Region, sellerId?: string) {
-  const visible = await resolveVisibleSellerIds(scope)
+  const visible = await liveSellerIds(scope)
   const ids = sellerId ? visible.filter((id) => id === sellerId) : visible
   if (!ids.length) return new Map<string, SellerRow>()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)

@@ -90,6 +90,20 @@ medusaIntegrationTestRunner({
         expect(areas.size).toBe(3)
       })
 
+      it("makes every seeded shop live, through onboarding, without Shipbubble or Paystack configured", async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        for (const shop of SEED_SELLERS) {
+          const { data: [seller] } = await query.graph({ entity: "seller", fields: ["id"], filters: { email: shop.owner.email } })
+          const { data: login } = await api.post("/auth/member/emailpass", { email: shop.owner.email, password: SEED_PASSWORD })
+          const { data } = await api.get("/vendor/onboarding", {
+            headers: { authorization: `Bearer ${login.token}`, "x-seller-id": seller.id },
+          })
+
+          expect(data.onboarding).toMatchObject({ is_live: true, status: "open" })
+          expect(data.onboarding.bank_account).toMatchObject({ bank_code: shop.bank.bank_code, account_number: shop.bank.account_number })
+        }
+      })
+
       it("lets every seeded owner and staff member log in with the documented password", async () => {
         for (const seller of SEED_SELLERS) {
           for (const email of [seller.owner.email, seller.staff.email]) {

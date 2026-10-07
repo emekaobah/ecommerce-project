@@ -24,18 +24,23 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-secure-store',
-    // Staff scan item barcodes while picking; no video, so no microphone.
+    // Staff scan item barcodes while picking and photograph products they quick-add; no video, so no microphone.
     [
       'expo-camera',
       {
-        cameraPermission: 'Allow $(PRODUCT_NAME) to use the camera to scan item barcodes while picking orders.',
+        cameraPermission:
+          'Allow $(PRODUCT_NAME) to use the camera to scan barcodes while picking orders and to photograph products you add.',
         microphonePermission: false,
         recordAudioAndroid: false,
       },
     ],
     ['expo-splash-screen', { backgroundColor: '#FFFFFF', image: './assets/splash-icon.png', imageWidth: 120 }],
+    // Pushes for new orders, the accept deadline and courier pickups (#27).
+    'expo-notifications',
     withIosSceneLifecycle,
   ],
+  // Expo push tokens are issued per EAS project; without one the app runs but gets no pushes.
+  extra: { eas: { projectId: process.env.EAS_PROJECT_ID || undefined } },
   experiments: { typedRoutes: true, reactCompiler: true },
 };
 
