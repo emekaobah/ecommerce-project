@@ -13,7 +13,7 @@ const lookup = {
 
 /** True when the lookup names exactly one of a cart and a region. */
 const isForCartOrRegion = <T extends { cart_id?: string; region_id?: string }>(query: T) =>
-  !query.cart_id !== !query.region_id
+  Boolean(query.cart_id) !== Boolean(query.region_id)
 
 /** Exactly one of `cart_id` and `region_id`. */
 const CART_OR_REGION = { message: "Send a cart_id or a region_id, one of the two" }

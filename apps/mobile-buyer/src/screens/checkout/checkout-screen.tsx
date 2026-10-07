@@ -82,9 +82,7 @@ function CheckoutForm({
   const { userId } = useAuth();
   const customer = useCustomer(userId);
   const saved = useSavedAddresses(userId);
-  const { payment: returned } = useLocalSearchParams<{ payment?: PaymentLeft }>();
   const prepare = usePrepareCheckout(cartId);
-  const startPayment = useStartPayment(cartId);
   const saveToAddressBook = useSaveAddress(countryCode);
 
   /** The step the buyer moved checkout to themselves (changing the address); null follows the cart. */
@@ -157,17 +155,6 @@ function CheckoutForm({
     });
   };
   const editing = step !== 'chosen';
-  const pay = () =>
-    startPayment.mutate(PAYMENT_RETURN_URL, {
-      onSuccess: ({ authorization_url }) =>
-        router.push({ pathname: '/checkout/pay', params: { cartId, url: authorization_url } }),
-      // The last payment went through: wait for Paystack's confirmation rather than pay twice.
-      onError: (error) => {
-        if (isAlreadyPaid(error)) router.push({ pathname: '/checkout/confirmation', params: { cartId } });
-      },
-    });
-
-  const notice = paymentNotice(startPayment.error, returned);
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -219,51 +206,71 @@ function CheckoutForm({
           ) : null}
         </View>
 
-        {editing ? null : (
-          <>
-            {checkout.sellers.map((group) => (
-              <ShopSummary
-                key={group.seller?.id ?? 'gone'}
-                cartId={cartId}
-                group={group}
-                currencyCode={checkout.currency_code}
-              />
-            ))}
-            <View style={{ gap: theme.space.sm }}>
-              <Line label="Items" amount={checkout.item_subtotal} currencyCode={checkout.currency_code} />
-              <Line label="Delivery" amount={checkout.shipping_total} currencyCode={checkout.currency_code} />
-              <Line label="Total" amount={checkout.total} currencyCode={checkout.currency_code} strong />
-              <Text variant="caption" tone="secondary">
-                Prices include VAT. Each shop delivers its own items.
-              </Text>
-            </View>
-          </>
-        )}
+        {editing ? null : <CheckoutSummary cartId={cartId} checkout={checkout} />}
       </ScrollView>
-      {editing ? null : (
-        <View
-          style={{
-            padding: theme.space.md,
-            gap: theme.space.sm,
-            borderTopWidth: StyleSheet.hairlineWidth,
-            borderTopColor: theme.colors.divider,
-            backgroundColor: theme.colors.background,
-          }}>
-          {notice ? (
-            <Text tone="secondary" accessibilityLiveRegion="polite">
-              {notice}
-            </Text>
-          ) : null}
-          <Button
-            label="Pay with Paystack"
-            detail={formatMoney(checkout.total, checkout.currency_code)}
-            onPress={pay}
-            loading={startPayment.isPending || prepare.isPending}
-            disabled={!checkout.ready_to_pay}
-          />
-        </View>
-      )}
+      {editing ? null : <PayBar cartId={cartId} checkout={checkout} quoting={prepare.isPending} />}
     </KeyboardAvoidingView>
+  );
+}
+
+/** Each shop's part of the order, then the order's totals. */
+function CheckoutSummary({ cartId, checkout }: Readonly<{ cartId: string; checkout: Checkout }>) {
+  const theme = useTheme();
+  return (
+    <>
+      {checkout.sellers.map((group) => (
+        <ShopSummary key={group.seller?.id ?? 'gone'} cartId={cartId} group={group} currencyCode={checkout.currency_code} />
+      ))}
+      <View style={{ gap: theme.space.sm }}>
+        <Line label="Items" amount={checkout.item_subtotal} currencyCode={checkout.currency_code} />
+        <Line label="Delivery" amount={checkout.shipping_total} currencyCode={checkout.currency_code} />
+        <Line label="Total" amount={checkout.total} currencyCode={checkout.currency_code} strong />
+        <Text variant="caption" tone="secondary">
+          Prices include VAT. Each shop delivers its own items.
+        </Text>
+      </View>
+    </>
+  );
+}
+
+/** The Pay button, with why the last payment didn't start or how the buyer left Paystack. */
+function PayBar({ cartId, checkout, quoting }: Readonly<{ cartId: string; checkout: Checkout; quoting: boolean }>) {
+  const theme = useTheme();
+  const { payment: returned } = useLocalSearchParams<{ payment?: PaymentLeft }>();
+  const startPayment = useStartPayment(cartId);
+  const pay = () =>
+    startPayment.mutate(PAYMENT_RETURN_URL, {
+      onSuccess: ({ authorization_url }) =>
+        router.push({ pathname: '/checkout/pay', params: { cartId, url: authorization_url } }),
+      // The last payment went through: wait for Paystack's confirmation rather than pay twice.
+      onError: (error) => {
+        if (isAlreadyPaid(error)) router.push({ pathname: '/checkout/confirmation', params: { cartId } });
+      },
+    });
+  const notice = paymentNotice(startPayment.error, returned);
+
+  return (
+    <View
+      style={{
+        padding: theme.space.md,
+        gap: theme.space.sm,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: theme.colors.divider,
+        backgroundColor: theme.colors.background,
+      }}>
+      {notice ? (
+        <Text tone="secondary" accessibilityLiveRegion="polite">
+          {notice}
+        </Text>
+      ) : null}
+      <Button
+        label="Pay with Paystack"
+        detail={formatMoney(checkout.total, checkout.currency_code)}
+        onPress={pay}
+        loading={startPayment.isPending || quoting}
+        disabled={!checkout.ready_to_pay}
+      />
+    </View>
   );
 }
 

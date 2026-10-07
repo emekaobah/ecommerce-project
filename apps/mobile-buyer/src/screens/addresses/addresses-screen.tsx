@@ -74,13 +74,7 @@ function SavedAddressRow({ address }: Readonly<{ address: SavedAddressRecord }>)
       }}>
       <AddressCard
         address={address}
-        badge={
-          address.is_default_shipping ? (
-            <StatusChip label="Default" tone="info" />
-          ) : unpinned ? (
-            <StatusChip label="Needs a pin" tone="warning" />
-          ) : null
-        }
+        badge={<AddressBadge isDefault={address.is_default_shipping} unpinned={unpinned} />}
       />
       <View style={[styles.actions, { gap: theme.space.md }]}>
         <Button
@@ -105,6 +99,13 @@ function SavedAddressRow({ address }: Readonly<{ address: SavedAddressRecord }>)
       ) : null}
     </View>
   );
+}
+
+/** "Default" for the default address, else "Needs a pin" for one saved before pins were required. */
+function AddressBadge({ isDefault, unpinned }: Readonly<{ isDefault: boolean; unpinned: boolean }>) {
+  if (isDefault) return <StatusChip label="Default" tone="info" />;
+  if (unpinned) return <StatusChip label="Needs a pin" tone="warning" />;
+  return null;
 }
 
 const styles = StyleSheet.create({
