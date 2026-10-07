@@ -50,6 +50,7 @@ Checked 2026-10-04 (#40) with Places API (New) Details for 19 places (Victoria I
 - Apps never call Google directly. The backend exposes lookup routes: store routes for a signed-in customer, vendor routes for a member. No guest access.
 - A thin `AddressLookupProvider` interface (`suggest`, `details`, `reverseGeocode`) with one Google implementation, chosen per region like the shipment provider.
 - The server derives the country restriction (`includedRegionCodes`) from the Medusa region's countries: the cart's region at checkout, or the region the app shops in when a buyer adds a saved address with no cart (#18). The app never hardcodes a country.
+- For a shop's pickup address (#41, 2026-10-07) the region is the one trading in the shop's currency, the same one its address form is chosen by. The vendor lookup routes (`/vendor/address-lookup/*`) take no cart or region, and are for the members who enter the address (owners and managers), not fulfilment staff. A pickup address is never saved without a pin, and the onboarding gate (ADR 0007) needs the pin as well as the Shipbubble code.
 - The client generates the Places session token and passes it through, so billing stays per session. Details requests use the Essentials field mask only.
 
 ### Storage

@@ -143,10 +143,33 @@
       "bank_account": "Bank account for payouts"
     },
     "pickup": {
-      "description": "Where couriers collect your orders. We check it with our delivery partner when you save.",
+      "description": "Where couriers collect your orders. Find it, check the details, then place the pin where couriers should come. We check it with our delivery partner when you save.",
       "validated": "Couriers can find this address. Changing it checks it again.",
       "noCountry": "We can't tell which country your shop is in. Contact Oja.",
-      "save": "Save pickup address"
+      "save": "Save pickup address",
+      "search": "Find your shop's address",
+      "searchPlaceholder": "Street, estate or area",
+      "searching": "Searching…",
+      "finding": "Finding the address…",
+      "noMatches": "No matches. Try the street name and area, or enter it by hand.",
+      "poweredByGoogle": "Powered by Google",
+      "lookupError": "Couldn't look up the address: {{message}}",
+      "useLocation": "Use my current location",
+      "enterManually": "Can't find it? Enter it by hand",
+      "searchAgain": "Search for an address",
+      "locationOff": "Your browser didn't share your location. Search for the address, or allow location for this site.",
+      "nothingHere": "We couldn't find an address where you are. Fill it in below, then check the pin.",
+      "pinPlaced": "Pickup pin placed on the map.",
+      "pinToPlace": "You'll place a pin on the map before saving.",
+      "placePin": "Place pin",
+      "movePin": "Move pin",
+      "pin": {
+        "title": "Where do couriers collect from you?",
+        "help": "Drag the pin, or click the map, to the shop's entrance. Couriers go to the pin.",
+        "unavailable": "The map isn't available right now, so the pin can't be placed. Try again later or contact Oja.",
+        "confirm": "Confirm pin",
+        "cancel": "Cancel"
+      }
     },
     "bank": {
       "description": "Where your payouts go. We check the account with your bank when you save.",
