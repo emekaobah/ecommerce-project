@@ -4,6 +4,12 @@ import { toE164 } from "./phone"
 /** What the buyer typed, per field of the country's form. */
 export type AddressFormValues = Partial<Record<AddressFieldKey, string>>
 
+/** What each wrong field of the form needs, e.g. "Enter the LGA". */
+export type AddressFormErrors = Partial<Record<AddressFieldKey, string>>
+
+/** The buyer's name, which an empty form starts with. */
+export type BuyerName = { first_name?: string | null; last_name?: string | null }
+
 /** A delivery address as the store takes it: Medusa's columns, extra fields in `metadata` (ADR 0002). */
 export type DeliveryAddress = {
   first_name: string
@@ -18,6 +24,23 @@ export type DeliveryAddress = {
   phone: string
   /** `landmark`, and the pin the buyer confirmed (`latitude`, `longitude`). */
   metadata: { landmark?: string; latitude?: number; longitude?: number }
+}
+
+/**
+ * An address as the store returns it, saved to the buyer's account or on a cart: Medusa's
+ * columns, any of which may be empty, and `metadata` with the landmark and pin (ADR 0002).
+ */
+export type StoredAddress = {
+  first_name?: string | null
+  last_name?: string | null
+  address_1?: string | null
+  address_2?: string | null
+  city?: string | null
+  province?: string | null
+  postal_code?: string | null
+  country_code?: string | null
+  phone?: string | null
+  metadata?: Record<string, unknown> | null
 }
 
 /** A point on the map, in degrees. */
@@ -37,7 +60,7 @@ export type PinnedDeliveryAddress = DeliveryAddress & { metadata: Pin & { landma
 
 export type AddressFormResult<A extends DeliveryAddress = DeliveryAddress> =
   | { ok: true; address: A }
-  | { ok: false; errors: Partial<Record<AddressFieldKey, string>> }
+  | { ok: false; errors: AddressFormErrors }
 
 const METADATA_PREFIX = "metadata."
 
@@ -71,7 +94,7 @@ export function addressFromForm(
 ): AddressFormResult<PinnedDeliveryAddress>
 export function addressFromForm(values: AddressFormValues, countryCode: string, pin?: Pin): AddressFormResult {
   const config = getAddressConfig(countryCode)
-  const errors: Partial<Record<AddressFieldKey, string>> = {}
+  const errors: AddressFormErrors = {}
   const address: Record<string, string | null> = {}
   const metadata: DeliveryAddress["metadata"] & Record<string, string | number> = {}
 
@@ -103,14 +126,9 @@ export function addressFromForm(values: AddressFormValues, countryCode: string, 
  * national format people type; empty fields, with the buyer's name, when there is none.
  */
 export function addressFormValues(
-  address:
-    | ({ [K in keyof Omit<DeliveryAddress, "metadata">]?: DeliveryAddress[K] | null } & {
-        metadata?: Record<string, unknown> | null
-      })
-    | null
-    | undefined,
+  address: StoredAddress | null | undefined,
   countryCode: string,
-  name?: { first_name?: string | null; last_name?: string | null }
+  name?: BuyerName
 ): AddressFormValues {
   const config = getAddressConfig(countryCode)
   const source: Record<string, unknown> = address ?? { first_name: name?.first_name, last_name: name?.last_name }

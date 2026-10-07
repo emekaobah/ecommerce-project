@@ -10,9 +10,10 @@ export const GET = async (
   req: AuthenticatedMedusaRequest<unknown, StoreGetPlaceAddressType>,
   res: MedusaResponse<StorePlaceAddressResponse>
 ) => {
-  const { cart_id, session_token } = req.validatedQuery as StoreGetPlaceAddressType
+  const { cart_id, region_id, session_token } = req.validatedQuery as StoreGetPlaceAddressType
   const place = await placeAddress(req.scope, {
     cartId: cart_id,
+    regionId: region_id,
     customerId: req.auth_context.actor_id,
     placeId: req.params.place_id,
     sessionToken: session_token,

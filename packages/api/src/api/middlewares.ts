@@ -1,6 +1,8 @@
 import { defineMiddlewares } from "@medusajs/medusa";
 import { authenticate, validateAndTransformBody, validateAndTransformQuery } from "@medusajs/framework/http";
 import { clerkCustomerAuth } from "./store/clerk-customer-auth";
+import { savedAddressesNeedPins } from "./store/customers/address-pin";
+import { savedAddressesValidatedForDelivery } from "./store/customers/saved-address-delivery";
 import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
@@ -131,6 +133,18 @@ export default defineMiddlewares({
             method: ["GET"],
             matcher: "/store/address-lookup/reverse-geocode",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreReverseGeocode, {})],
+        },
+        // A saved delivery address carries the buyer's pin and Shipbubble's address code, like
+        // every address checkout takes (#18). Deleting the default leaves another: see the route.
+        {
+            method: ["POST"],
+            matcher: "/store/customers/me/addresses",
+            middlewares: [savedAddressesNeedPins, savedAddressesValidatedForDelivery],
+        },
+        {
+            method: ["POST"],
+            matcher: "/store/customers/me/addresses/:address_id",
+            middlewares: [savedAddressesNeedPins, savedAddressesValidatedForDelivery],
         },
         // A signed-in buyer's device registers for pushes, and is removed at sign-out (#27).
         {

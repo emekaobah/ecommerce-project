@@ -69,6 +69,7 @@ function SignedIn({ customer }: Readonly<{ customer: Customer }>) {
         <Text tone="secondary">{customer.email}</Text>
       </View>
       <ListRow title="Wishlist" subtitle="Products you saved" onPress={() => router.push('/wishlist')} />
+      <ListRow title="Addresses" subtitle="Where your deliveries go" onPress={() => router.push('/addresses')} />
       <Button label="Sign out" variant="secondary" loading={signingOut} onPress={() => void onSignOut()} />
     </View>
   );

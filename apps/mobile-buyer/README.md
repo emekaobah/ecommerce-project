@@ -10,7 +10,7 @@ Expo Router app for buyers. Architecture: [ADR 0001](../../docs/adr/0001-mobile-
 
 ## End-to-end flows
 
-Maestro flows live in `.maestro/`. With the backend running (with `GOOGLE_MAPS_API_KEY`) and the dev build open: `maestro test .maestro/add-address-by-search.yaml`. The flow signs in a Clerk test buyer (`sign-in.yaml`; a development instance accepts `+clerk_test` emails with code 424242), signing up on the first run. In a dev build, first turn off "Tools button" in the dev menu: the floating button sits over checkout's "Change" and takes its taps.
+Maestro flows live in `.maestro/`. With the backend running (with `GOOGLE_MAPS_API_KEY`) and the dev build open: `maestro test .maestro/add-address-by-search.yaml` (an address at checkout) or `maestro test .maestro/saved-addresses.yaml` (Account → Addresses: add, edit, checkout preselects the default, delete). Each flow signs in a Clerk test buyer (`sign-in.yaml`; a development instance accepts `+clerk_test` emails with code 424242), signing up on the first run. In a dev build, first turn off "Tools button" in the dev menu: the floating button sits over checkout's "Change" and takes its taps.
 
 ## Layout
 

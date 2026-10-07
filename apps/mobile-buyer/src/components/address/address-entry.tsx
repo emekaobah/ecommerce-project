@@ -3,13 +3,14 @@ import {
   mapCentre,
   type AddressConfig,
   type AddressFieldKey,
+  type AddressFormErrors,
   type AddressFormValues,
   type LookedUpPlace,
   type Pin,
 } from '@oja/domain';
 import { Button, ListRow, Text, useTheme } from '@oja/ui';
 import * as Location from 'expo-location';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
 import {
@@ -18,13 +19,13 @@ import {
   useAddressAt,
   useAddressSuggestions,
   usePlaceAddress,
+  type LookupFor,
 } from '@/api/address-lookup';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { AddressForm } from './address-form';
 import { PinMap, type PinRequest } from './pin-map';
 
-type Errors = Partial<Record<AddressFieldKey, string>>;
 
 /** Where the buyer is, once they allow it; null when location is off. */
 async function currentPosition(): Promise<Pin | null> {
@@ -42,7 +43,7 @@ async function currentPosition(): Promise<Pin | null> {
  * but the pin is still placed before saving. `onSave` gets the confirmed pin once the form is valid.
  */
 export function AddressEntry({
-  cartId,
+  lookup,
   config,
   values,
   errors,
@@ -54,11 +55,13 @@ export function AddressEntry({
   onSave,
   saving,
   saveError,
+  saveLabel = 'Use this address',
+  children,
 }: Readonly<{
-  cartId: string;
+  lookup: LookupFor;
   config: AddressConfig;
   values: AddressFormValues;
-  errors: Errors;
+  errors: AddressFormErrors;
   pin: Pin | null;
   onChange: (key: AddressFieldKey, value: string) => void;
   /** The form's location fields, filled from a place found by search or location. */
@@ -70,6 +73,9 @@ export function AddressEntry({
   onSave: (pin: Pin) => void;
   saving: boolean;
   saveError: Error | null;
+  saveLabel?: string;
+  /** Shown above the save button, e.g. whether to keep the address for next time. */
+  children?: ReactNode;
 }>) {
   const theme = useTheme();
   const [mode, setMode] = useState<'search' | 'form'>(values.address_1 ? 'form' : 'search');
@@ -95,7 +101,7 @@ export function AddressEntry({
     }
   };
 
-  const addressAt = useAddressAt(cartId);
+  const addressAt = useAddressAt(lookup);
   const locateMe = async () => {
     setNotice(null);
     setLocating(true);
@@ -140,7 +146,7 @@ export function AddressEntry({
     <View style={{ gap: theme.space.md }}>
       {mode === 'search' ? (
         <AddressSearch
-          cartId={cartId}
+          lookup={lookup}
           onFound={(place) => {
             setNotice(null);
             fill(place);
@@ -191,7 +197,8 @@ export function AddressEntry({
               {saveError.message}
             </Text>
           ) : null}
-          <Button label="Use this address" onPress={save} loading={saving} />
+          {children}
+          <Button label={saveLabel} onPress={save} loading={saving} />
         </>
       ) : null}
 
@@ -208,13 +215,13 @@ export function AddressEntry({
 }
 
 /** Google's suggestions as the buyer types; choosing one looks up its address. */
-function AddressSearch({ cartId, onFound }: Readonly<{ cartId: string; onFound: (place: LookedUpPlace) => void }>) {
+function AddressSearch({ lookup, onFound }: Readonly<{ lookup: LookupFor; onFound: (place: LookedUpPlace) => void }>) {
   const theme = useTheme();
   const [input, setInput] = useState('');
   const [session, setSession] = useState(newLookupSession);
   const settled = useDebouncedValue(input, 300);
-  const suggestions = useAddressSuggestions(cartId, session, settled);
-  const placeAddress = usePlaceAddress(cartId);
+  const suggestions = useAddressSuggestions(lookup, session, settled);
+  const placeAddress = usePlaceAddress(lookup);
 
   const choose = (placeId: string) =>
     placeAddress.mutate(

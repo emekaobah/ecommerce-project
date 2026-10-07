@@ -34,12 +34,18 @@ env:
 - extendedWaitUntil:
     visible: "Delivery address"
     timeout: 15000
-# A cart with an address opens on it; go back to finding one.
+# A cart with an address (or the buyer's default, #18) opens on it; go back to finding one.
 - runFlow:
     when:
       visible: "Change"
     commands:
       - tapOn: "Change"
+# With saved addresses, checkout offers them first.
+- runFlow:
+    when:
+      visible: "Add a new address"
+    commands:
+      - tapOn: "Add a new address"
 - runFlow:
     when:
       visible: "Search for an address"
