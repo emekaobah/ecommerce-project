@@ -137,8 +137,13 @@ const PickupAddressEntry = ({
         setNotice(t("shopSetup.pickup.locationOff"))
         return
       }
-      const place = await addressAt.mutateAsync(here).catch(() => null)
-      if (!place) setNotice(t("shopSetup.pickup.nothingHere"))
+      let place: LookedUpPlace | null = null
+      try {
+        place = await addressAt.mutateAsync(here)
+        if (!place) setNotice(t("shopSetup.pickup.nothingHere"))
+      } catch (error) {
+        setNotice(t("shopSetup.pickup.lookupError", { message: (error as Error).message }))
+      }
       fill(place)
       // The pin starts where the owner is, not at the address Google found nearby.
       setPinRequest({ at: here, zoom: "place" })

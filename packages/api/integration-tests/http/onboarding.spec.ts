@@ -211,6 +211,7 @@ medusaIntegrationTestRunner({
         expect((await onboardingOf(shop.owner)).pickup_address).toBeNull()
       })
 
+      // A change's metadata stands for the whole of it (`validatedPickupChange`), so it carries the pin.
       it("can't lose its pin through Mercur's own address route", async () => {
         const shop = await newShop()
         await savePickup(shop, PICKUP)

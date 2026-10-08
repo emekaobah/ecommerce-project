@@ -1,6 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { LookedUpPlace } from "@oja/domain"
+import { currencyOf } from "./onboarding"
 import { ADDRESS_LOOKUP_MODULE, type AddressLookupModuleService, type AddressSuggestion } from "../modules/address-lookup"
 
 // Address lookup (ADR 0002): Google's suggestions, a place's address, and the address at a
@@ -47,18 +48,15 @@ async function regionFor(scope: MedusaContainer, lookup: LookupScope): Promise<L
 /** The region trading in the shop's currency, as the vendor panel's address form also takes it (lib/onboarding.ts). */
 async function shopRegion(scope: MedusaContainer, sellerId: string): Promise<LookupRegion> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: sellers } = await query.graph({ entity: "seller", fields: ["currency_code"], filters: { id: sellerId } })
-  const seller = sellers[0] as { currency_code: string } | undefined
-  if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Seller ${sellerId} not found`)
+  const currency = await currencyOf(scope, sellerId)
+  // One region per currency today (NGN, Nigeria); like `countryForCurrency`, the first one wins.
   const { data: regions } = await query.graph({
     entity: "region",
     fields: ["metadata", "countries.iso_2"],
-    filters: { currency_code: seller.currency_code },
+    filters: { currency_code: currency },
   })
   const region = regions[0] as LookupRegion | undefined
-  if (!region) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, `No region trades in ${seller.currency_code.toUpperCase()} yet`)
-  }
+  if (!region) throw new MedusaError(MedusaError.Types.NOT_FOUND, `No region trades in ${currency.toUpperCase()} yet`)
   return region
 }
 
