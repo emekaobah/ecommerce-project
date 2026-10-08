@@ -28,7 +28,11 @@ const OrderFulfilment = model
     removed: model.json().nullable(),
     /** When staff were reminded that the order waits to be accepted; it is reminded once (#27). */
     accept_reminded_at: model.dateTime().nullable(),
+    /** The courier shipment booked for the order (#24): the latest, also once cancelled. */
+    shipment: model.json().nullable(),
+    /** The shipment's id with Shipbubble, which its webhooks name. */
+    shipment_id: model.text().nullable(),
   })
-  .indexes([{ on: ["state", "placed_at"] }])
+  .indexes([{ on: ["state", "placed_at"] }, { on: ["shipment_id"] }])
 
 export default OrderFulfilment

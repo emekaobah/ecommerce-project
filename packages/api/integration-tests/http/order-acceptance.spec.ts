@@ -80,6 +80,7 @@ medusaIntegrationTestRunner({
           accept_by: new Date(Date.parse(order.created_at) + 24 * HOUR).toISOString(),
           rejected_by: null,
           reject_reason: null,
+          shipment: null,
         })
       })
 
@@ -138,6 +139,7 @@ medusaIntegrationTestRunner({
           accept_by: null,
           rejected_by: "seller",
           reject_reason: "The lantern is out of stock",
+          shipment: null,
         })
         // One partial refund on the shared transaction, for the gadget hub's order alone (kobo).
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([share * 100])

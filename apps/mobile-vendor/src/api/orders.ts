@@ -128,6 +128,18 @@ export function useRecordPick(orderId: string) {
 }
 
 /**
+ * Books a courier label for a packed order, paid by the platform; or rebooks one whose
+ * shipment Shipbubble cancelled. The courier then confirms the pickup.
+ */
+export function useBookLabel(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => vendorClient.vendor.orders.$id.bookLabel.mutate({ $id: orderId }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+  });
+}
+
+/**
  * Sets how many of a line the shop doesn't have (#22); none clears it. The order is partially
  * available until they are removed. Answers the pick list, with what they would refund.
  */

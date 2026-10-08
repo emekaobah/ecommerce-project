@@ -1,0 +1,27 @@
+# Staff book a courier label for a packed order and see its waybill (#24). Needs the backend
+# with the seeded shops, Shipbubble sandbox keys, and a packed grocery order: run
+# pick-and-pack.yaml first.
+appId: com.emekaobah.oja.vendor
+env:
+  MEMBER_EMAIL: grocery.owner@oja.test
+  MEMBER_PASSWORD: supersecret
+  SHOP: Iya Bisi Foodstuff
+---
+- launchApp
+- runFlow:
+    file: sign-in.yaml
+    env:
+      MEMBER_EMAIL: ${MEMBER_EMAIL}
+      MEMBER_PASSWORD: ${MEMBER_PASSWORD}
+      SHOP: ${SHOP}
+- extendedWaitUntil:
+    visible: ${SHOP}
+    timeout: 15000
+- tapOn: ".*, Packed"
+- assertVisible: "Packed, ready for a courier label."
+- tapOn: "Book courier label"
+- extendedWaitUntil:
+    visible: "Label booked. Waiting for the courier to confirm the pickup."
+    timeout: 20000
+- assertVisible: "Waybill .*"
+- assertVisible: "Track shipment"

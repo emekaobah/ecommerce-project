@@ -166,6 +166,38 @@
           "enumItems": [],
           "mappedType": "datetime"
         },
+        "shipment": {
+          "name": "shipment",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
+        "shipment_id": {
+          "name": "shipment_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamptz",
@@ -244,6 +276,15 @@
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_order_fulfilment_state_placed_at\" ON \"order_fulfilment\" (\"state\", \"placed_at\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_order_fulfilment_shipment_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_order_fulfilment_shipment_id\" ON \"order_fulfilment\" (\"shipment_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "order_fulfilment_pkey",

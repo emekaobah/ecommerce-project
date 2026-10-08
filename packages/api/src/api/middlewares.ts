@@ -10,8 +10,10 @@ import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
 import { StoreChooseDelivery, StorePrepareCheckout, StoreStartCheckoutPayment } from "./store/carts/[id]/checkout/validators";
 import { deliveryChosenAtCheckout } from "./store/carts/[id]/checkout/delivery-by-checkout";
 import { verifyPaystackSignature } from "./hooks/paystack-signature";
+import { verifyShipbubbleSignature } from "./hooks/shipbubble-signature";
 import { refuseVendorCapture } from "./vendor/payments/no-capture";
 import { showTheShopItsOwnOrder } from "./vendor/orders/shop-view";
+import { courierFulfilmentsByLabelOnly } from "./vendor/orders/labels-only";
 import { hideBuyerPins } from "./vendor/buyer-pins";
 import { VendorMarkUnavailable, VendorRecordPick, VendorRejectOrder } from "./vendor/orders/validators";
 import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
@@ -168,6 +170,13 @@ export default defineMiddlewares({
             bodyParser: { preserveRawBody: true },
             middlewares: [verifyPaystackSignature],
         },
+        // Shipbubble signs the raw body of its shipment webhooks too (#24).
+        {
+            method: ["POST"],
+            matcher: "/hooks/shipbubble",
+            bodyParser: { preserveRawBody: true },
+            middlewares: [verifyShipbubbleSignature],
+        },
         // Shop staff never see where a buyer's pin is, whatever fields they ask for (ADR 0002).
         { matcher: "/vendor/*", middlewares: [hideBuyerPins] },
         { method: ["POST"], matcher: "/vendor/payments/:id/capture", middlewares: [refuseVendorCapture] },
@@ -180,6 +189,12 @@ export default defineMiddlewares({
             method: ["POST"],
             matcher: "/vendor/orders/:id/pick-list/:item_id",
             middlewares: [validateAndTransformBody(VendorRecordPick)],
+        },
+        { method: ["POST"], matcher: "/vendor/orders/:id/fulfillments", middlewares: [courierFulfilmentsByLabelOnly] },
+        {
+            method: ["POST"],
+            matcher: "/vendor/orders/:id/fulfillments/:fulfillment_id/cancel",
+            middlewares: [courierFulfilmentsByLabelOnly],
         },
         {
             method: ["POST"],

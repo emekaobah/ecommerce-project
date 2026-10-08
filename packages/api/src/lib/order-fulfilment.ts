@@ -20,9 +20,13 @@ export const ORDER_REJECTED = "order_fulfilment.rejected"
 export const ORDER_PACKED = "order_fulfilment.packed"
 /** Emitted once when a new order nears its accept deadline unaccepted, with `{ id }` (the order). */
 export const ORDER_ACCEPT_DEADLINE_NEAR = "order_fulfilment.accept_deadline_near"
+/** Emitted when staff book a courier label for a packed order, with `{ id }` (the order). */
+export const ORDER_LABEL_BOOKED = "order_fulfilment.label_booked"
+/** Emitted when Shipbubble cancels an order's shipment and the order is back to packed, with `{ id }` (the order). */
+export const ORDER_SHIPMENT_CANCELLED = "order_fulfilment.shipment_cancelled"
 /**
- * Emitted when the courier's pickup of a packed order is scheduled, with `{ id }` (the order).
- * Label booking (#24) emits it; the shop is pushed to have the parcel ready.
+ * Emitted when the courier's pickup of a packed order is scheduled, with `{ id }` (the order):
+ * when the courier confirms a booked label (#24). The shop is pushed to have the parcel ready.
  */
 export const ORDER_PICKUP_SCHEDULED = "order_fulfilment.pickup_scheduled"
 
@@ -30,6 +34,22 @@ export const fulfilmentService = (scope: Scope) => scope.resolve<OrderFulfilment
 
 /** How many of each line (picked, marked unavailable, removed), by line item id; a line not listed has none. */
 export type Picks = Record<string, number>
+
+/**
+ * The courier shipment booked for an order (#24): Shipbubble's id for it, which is its waybill
+ * number, and the Medusa fulfilment it was booked on. Kept once Shipbubble cancels it, so staff
+ * see why the order is back to packed.
+ */
+export type Shipment = {
+  waybill: string
+  courier_name: string | null
+  tracking_url: string
+  fulfillment_id: string
+  /** ISO 8601. */
+  booked_at: string
+  /** ISO 8601; when Shipbubble cancelled it. */
+  cancelled_at: string | null
+}
 
 export type FulfilmentRecord = {
   id: string
@@ -44,6 +64,9 @@ export type FulfilmentRecord = {
   /** Units of each line removed from the order as unavailable (#22). */
   removed: Picks | null
   accept_reminded_at: Date | null
+  shipment: Shipment | null
+  /** The shipment's waybill, for its webhooks to find the order by. */
+  shipment_id: string | null
 }
 
 export type OrderRefundRecord = InferTypeOf<typeof OrderRefund>
@@ -58,6 +81,12 @@ export async function fulfilmentsOf(scope: Scope, orderIds: string[]): Promise<M
   return new Map(rows.map((row) => [row.order_id, row]))
 }
 
+/** The fulfilment row of the order whose latest shipment this is (Shipbubble's id for it), if any. */
+export async function orderOfShipment(scope: Scope, shipmentId: string): Promise<FulfilmentRecord | undefined> {
+  const [row] = await fulfilmentService(scope).listOrderFulfilments({ shipment_id: shipmentId }, { take: 1 })
+  return row ? asFulfilmentRecord(row) : undefined
+}
+
 /** What staff see of an order's fulfilment: its state, and while it is New, when it must be accepted by. */
 export type FulfilmentView = {
   state: FulfilmentState
@@ -68,16 +97,27 @@ export type FulfilmentView = {
   accept_by: string | null
   rejected_by: "seller" | "accept_deadline" | null
   reject_reason: string | null
+  /** The courier label last booked for the order; `cancelled` once Shipbubble cancelled it, to rebook. */
+  shipment: { waybill: string; courier_name: string | null; tracking_url: string; cancelled: boolean } | null
 }
 
 /** `hours`: the shop's, which the accept deadline counts in; null for a shop without hours. */
 export function fulfilmentView(record: FulfilmentRecord | undefined, placedAt: Date | string, hours: ShopHours | null): FulfilmentView {
   const fulfilment = record?.fulfilment ?? newFulfilment()
+  const shipment = record?.shipment
   return {
     state: fulfilment.state,
     accept_by: fulfilment.state === "new" ? acceptDeadline(new Date(placedAt).toISOString(), hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
     reject_reason: record?.reject_reason ?? null,
+    shipment: shipment
+      ? {
+          waybill: shipment.waybill,
+          courier_name: shipment.courier_name,
+          tracking_url: shipment.tracking_url,
+          cancelled: !!shipment.cancelled_at,
+        }
+      : null,
   }
 }
 

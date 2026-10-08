@@ -641,13 +641,12 @@ medusaIntegrationTestRunner({
         const { order } = await shopOrders(GADGETS, cartId, PANEL_FIELDS)
         const [line] = order.items
         const items = [{ id: line.id, quantity: 1 }]
-        const location_id = line.offer.inventory_item_link[0].inventory_item.location_levels[0].location_id
-        const { data } = await api.post(
-          `/vendor/orders/${order.id}/fulfillments`,
-          { items, requires_shipping: true, location_id },
-          owner
-        )
-        const fulfillment = data.fulfillment.id
+        // A courier fulfilment comes only from booking the label (#24).
+        for (const step of ["accept", "start-picking", `pick-list/${line.id}`, "pack", "book-label"]) {
+          await api.post(`/vendor/orders/${order.id}/${step}`, step.startsWith("pick-list") ? { picked: 1 } : {}, owner)
+        }
+        const { data: booked } = await query().graph({ entity: "order", fields: ["fulfillments.id"], filters: { id: order.id } })
+        const fulfillment = booked[0].fulfillments![0]!.id
 
         const responses = [
           (await api.post(`/vendor/orders/${order.id}/fulfillments/${fulfillment}/shipments?fields=${PANEL_FIELDS}`, { items }, owner)).data,

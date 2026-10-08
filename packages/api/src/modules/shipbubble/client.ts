@@ -1,6 +1,9 @@
+import { createHmac, timingSafeEqual } from "node:crypto"
 import { MedusaError } from "@medusajs/framework/utils"
 
 export const SHIPBUBBLE_API_URL = "https://api.shipbubble.com/v1"
+/** How long a call may take; label booking holds the order's lock through two of them. */
+const REQUEST_TIMEOUT_MS = 30_000
 
 /**
  * Shipbubble's timezone: it reads `pickup_date` and states every ETA as local time without an
@@ -90,29 +93,59 @@ export const shipbubbleTime = (local: string) => `${local.trim().replace(" ", "T
 export const shipbubbleToday = (now = new Date()) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: SHIPBUBBLE_TIMEZONE }).format(now)
 
-/** The Shipbubble calls checkout needs: address validation and rates. */
+/** A courier rate to book a label with: a rate request's token and one courier it quoted. */
+export type ShipbubbleLabelRequest = { request_token: string; service_code: string; courier_id: string }
+
+/** A booked shipment as Shipbubble answers the booking (the fields we use). */
+export type ShipbubbleShipment = {
+  /** Shipbubble's id for the shipment, e.g. "SB-2CF48224272": its waybill number. */
+  order_id: string
+  status: string
+  courier: { name: string }
+  tracking_url: string
+  waybill_document?: string | null
+}
+
+/**
+ * Whether a webhook carries Shipbubble's signature: `x-ship-signature` is the HMAC-SHA512 of
+ * the raw body keyed with our API key, in hex.
+ */
+export function isShipbubbleSignatureValid(
+  apiKey: string,
+  rawBody: Buffer | string,
+  signature: string | string[] | undefined
+): boolean {
+  if (!apiKey || typeof signature !== "string") return false
+  const expected = createHmac("sha512", apiKey).update(rawBody).digest()
+  const received = Buffer.from(signature, "hex")
+  return received.length === expected.length && timingSafeEqual(received, expected)
+}
+
+/** The Shipbubble calls we make: address validation, rates, and labels. */
 export class ShipbubbleClient {
   constructor(
     private readonly apiKey: string,
     private readonly apiUrl = SHIPBUBBLE_API_URL
   ) {}
 
-  private async request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  /** Shipbubble's answer's `data`; `optional` for calls that answer with only a message. */
+  private async request<T>(method: "GET" | "POST", path: string, body?: unknown, optional = false): Promise<T> {
     let res: Response
     try {
       res = await fetch(`${this.apiUrl}${path}`, {
         method,
         headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
     } catch (error) {
       throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Couldn't reach Shipbubble: ${(error as Error).message}`)
     }
     const envelope = (await res.json().catch(() => null)) as Envelope<T> | null
-    if (!res.ok || envelope?.status !== "success" || envelope.data === undefined) {
+    if (!res.ok || envelope?.status !== "success" || (envelope.data === undefined && !optional)) {
       throw new ShipbubbleError(res.status, envelope?.message ?? "No response from Shipbubble", envelope?.errors ?? [])
     }
-    return envelope.data
+    return envelope.data as T
   }
 
   validateAddress(input: ShipbubbleAddressInput) {
@@ -125,5 +158,15 @@ export class ShipbubbleClient {
 
   categories() {
     return this.request<ShipbubbleCategory[]>("GET", "/shipping/labels/categories")
+  }
+
+  /** Books a label with a quoted courier, paid from the account's wallet. */
+  createLabel(input: ShipbubbleLabelRequest) {
+    return this.request<ShipbubbleShipment>("POST", "/shipping/labels", input)
+  }
+
+  /** Cancels a shipment no courier has collected yet. */
+  async cancelLabel(shipmentId: string): Promise<void> {
+    await this.request<unknown>("POST", `/shipping/labels/cancel/${encodeURIComponent(shipmentId)}`, undefined, true)
   }
 }

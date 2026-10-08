@@ -1,16 +1,16 @@
 import { formatMoney } from '@oja/domain';
 import { Button, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollView, View } from 'react-native';
+import { Linking, ScrollView, View } from 'react-native';
 
-import { orderValue, useAcceptOrder, useOrder, useStartPicking, type OrderFulfilment } from '@/api/orders';
+import { orderValue, useAcceptOrder, useBookLabel, useOrder, useStartPicking, type OrderFulfilment } from '@/api/orders';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { lineLabel } from '@/orders/items';
 import { useNow } from '@/orders/use-now';
 
 /**
  * One order: its state, the deadline to accept it while it is new, its items, and what staff do
- * next: Accept / Reject while new, then pick and pack.
+ * next: Accept / Reject while new, then pick and pack, then book (or rebook) the courier label.
  */
 export function OrderScreen() {
   const theme = useTheme();
@@ -32,6 +32,8 @@ export function OrderScreen() {
           <StateNote fulfilment={fulfilment} />
         </View>
 
+        <CourierLabel fulfilment={fulfilment} />
+
         <View>
           {(items ?? []).map((item) => (
             <ListRow key={item.id} title={lineLabel(item)} />
@@ -39,7 +41,7 @@ export function OrderScreen() {
           <ListRow title="Total" trailing={<Text variant="label">{formatMoney(orderValue(order.data), currency_code)}</Text>} />
         </View>
 
-        <NextStep orderId={id} state={fulfilment.state} />
+        <NextStep orderId={id} fulfilment={fulfilment} />
       </ScrollView>
     );
   };
@@ -57,7 +59,16 @@ function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
   if (fulfilment.state === 'new' && fulfilment.accept_by) {
     return <Text tone="secondary">Accept by {new Date(fulfilment.accept_by).toLocaleString()}, or it is rejected and refunded.</Text>;
   }
+  if (fulfilment.state === 'packed' && fulfilment.shipment?.cancelled) {
+    return <Text tone="secondary">Shipbubble cancelled the courier booking. Book a new label to send it.</Text>;
+  }
   if (fulfilment.state === 'packed') return <Text tone="secondary">Packed, ready for a courier label.</Text>;
+  if (fulfilment.state === 'label_booked') {
+    return <Text tone="secondary">Label booked. Waiting for the courier to confirm the pickup.</Text>;
+  }
+  if (fulfilment.state === 'courier_confirmed') {
+    return <Text tone="secondary">The courier confirmed the pickup. Keep the parcel ready at the counter.</Text>;
+  }
   if (fulfilment.state === 'rejected') {
     return (
       <Text tone="secondary">
@@ -69,12 +80,30 @@ function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
   return null;
 }
 
-/** What staff do next with the order: Accept / Reject while new, then pick it. */
-function NextStep({ orderId, state }: Readonly<{ orderId: string; state: OrderFulfilment['state'] }>) {
+/** The courier label booked for the order: the courier, its waybill and a link to track it. */
+function CourierLabel({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
+  const { shipment } = fulfilment;
+  if (!shipment || shipment.cancelled) return null;
+  return (
+    <View>
+      <ListRow title={shipment.courier_name ?? 'Courier'} subtitle={`Waybill ${shipment.waybill}`} />
+      <ListRow
+        title="Track shipment"
+        trailing={<Text tone="secondary">›</Text>}
+        onPress={() => void Linking.openURL(shipment.tracking_url)}
+      />
+    </View>
+  );
+}
+
+/** What staff do next with the order: Accept / Reject while new, pick it, then book its courier label. */
+function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilment: OrderFulfilment }>) {
   const theme = useTheme();
   const router = useRouter();
   const accept = useAcceptOrder(orderId);
   const startPicking = useStartPicking(orderId);
+  const bookLabel = useBookLabel(orderId);
+  const { state } = fulfilment;
   const openPickList = () => router.push({ pathname: '/orders/[id]/pick', params: { id: orderId } });
 
   if (state === 'new') {
@@ -106,6 +135,18 @@ function NextStep({ orderId, state }: Readonly<{ orderId: string; state: OrderFu
   // Partially available (#22) is still being picked: its unavailable items wait on the pick list.
   if (state === 'picking' || state === 'partially_available') {
     return <Button label="Continue picking" onPress={openPickList} />;
+  }
+  if (state === 'packed') {
+    return (
+      <View style={{ gap: theme.space.sm }}>
+        {bookLabel.error ? <Text tone="danger">{bookLabel.error.message}</Text> : null}
+        <Button
+          label={fulfilment.shipment?.cancelled ? 'Rebook courier label' : 'Book courier label'}
+          loading={bookLabel.isPending}
+          onPress={() => bookLabel.mutate()}
+        />
+      </View>
+    );
   }
   return null;
 }
