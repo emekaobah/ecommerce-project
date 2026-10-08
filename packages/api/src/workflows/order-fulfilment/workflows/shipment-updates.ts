@@ -3,8 +3,9 @@ import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform, when } from "@medusajs/framework/workflows-sdk"
 import { cancelOrderFulfillmentWorkflow } from "@mercurjs/core/workflows"
 import { fulfilmentsOf, ORDER_PICKUP_SCHEDULED, ORDER_SHIPMENT_CANCELLED, type Shipment } from "../../../lib/order-fulfilment"
+import { cancelledByShipbubble } from "../../../modules/shipbubble"
 import { transitionFulfilmentStep } from "../steps/transition-fulfilment"
-import { lockOrderFulfilment } from "../compose"
+import { lockOrderFulfilment, providerTrigger } from "../compose"
 
 // Shipbubble's webhooks about an order's shipment (#24), once the route has checked the signature.
 
@@ -23,13 +24,6 @@ const currentShipmentStep = createStep("current-order-shipment", async ({ order_
   return new StepResponse(shipment)
 })
 
-/** A shipment event from the provider, now. */
-const providerTrigger = (type: "label_created" | "confirmed" | "cancelled") => ({
-  source: "provider" as const,
-  type,
-  at: new Date().toISOString(),
-})
-
 export type ShipmentUpdateInput = ShipmentInput & { event: "label_created" | "confirmed" }
 
 /**
@@ -40,7 +34,7 @@ export type ShipmentUpdateInput = ShipmentInput & { event: "label_created" | "co
 export const shipmentUpdateWorkflow = createWorkflow("order-shipment-update", (input: ShipmentUpdateInput) => {
   const lock = lockOrderFulfilment(input)
   currentShipmentStep(input)
-  const trigger = transform({ input }, ({ input }) => providerTrigger(input.event))
+  const trigger = providerTrigger(input, (input) => input.event)
   const fulfilment = transitionFulfilmentStep({ order_id: input.order_id, trigger })
   when({ input }, ({ input }) => input.event === "confirmed").then(() => {
     emitEventStep({ eventName: ORDER_PICKUP_SCHEDULED, data: { id: input.order_id } }).config({ name: "emit-pickup-scheduled" })
@@ -49,19 +43,23 @@ export const shipmentUpdateWorkflow = createWorkflow("order-shipment-update", (i
   return new WorkflowResponse(fulfilment)
 })
 
+type MarkCompensation = { fulfillment_id: string; data: Record<string, unknown> | null } | null
+
 /**
  * Marks the fulfilment's shipment cancelled by Shipbubble, so cancelling the fulfilment
- * doesn't ask Shipbubble to cancel it again (`ShipbubbleFulfillmentProviderService.cancelFulfillment`).
+ * doesn't ask Shipbubble to cancel it again. Says whether the fulfilment is still to cancel:
+ * one cancelled already is left as it is.
  */
 const markCancelledByShipbubbleStep = createStep(
   "mark-shipment-cancelled-by-shipbubble",
   async ({ fulfillment_id }: { fulfillment_id: string }, { container }) => {
     const service = container.resolve(Modules.FULFILLMENT)
-    const { data } = await service.retrieveFulfillment(fulfillment_id)
-    await service.updateFulfillment(fulfillment_id, { data: { ...data, status: "cancelled" } })
-    return new StepResponse(undefined, { fulfillment_id, data })
+    const { data, canceled_at } = await service.retrieveFulfillment(fulfillment_id)
+    if (canceled_at) return new StepResponse<{ live: boolean }, MarkCompensation>({ live: false }, null)
+    await service.updateFulfillment(fulfillment_id, { data: cancelledByShipbubble(data ?? {}) })
+    return new StepResponse<{ live: boolean }, MarkCompensation>({ live: true }, { fulfillment_id, data })
   },
-  async (previous, { container }) => {
+  async (previous: MarkCompensation, { container }) => {
     if (!previous) return
     await container.resolve(Modules.FULFILLMENT).updateFulfillment(previous.fulfillment_id, { data: previous.data ?? {} })
   }
@@ -76,13 +74,15 @@ export const shipmentCancelledWorkflow = createWorkflow("order-shipment-cancelle
   const lock = lockOrderFulfilment(input)
   const current = currentShipmentStep(input)
   const shipment = transform({ current }, ({ current }): Shipment => ({ ...current, cancelled_at: new Date().toISOString() }))
-  const trigger = transform({ input }, () => providerTrigger("cancelled"))
+  const trigger = providerTrigger(input, () => "cancelled" as const)
   const fulfilment = transitionFulfilmentStep({ order_id: input.order_id, trigger, shipment })
-  markCancelledByShipbubbleStep({ fulfillment_id: current.fulfillment_id })
-  const cancel = transform({ input, current }, ({ input, current }) => ({
-    input: { order_id: input.order_id, fulfillment_id: current.fulfillment_id, no_notification: true },
-  }))
-  cancelOrderFulfillmentWorkflow.runAsStep(cancel)
+  const marked = markCancelledByShipbubbleStep({ fulfillment_id: current.fulfillment_id })
+  when({ marked }, ({ marked }) => marked.live).then(() => {
+    const cancel = transform({ input, current }, ({ input, current }) => ({
+      input: { order_id: input.order_id, fulfillment_id: current.fulfillment_id, no_notification: true },
+    }))
+    cancelOrderFulfillmentWorkflow.runAsStep(cancel)
+  })
   emitEventStep({ eventName: ORDER_SHIPMENT_CANCELLED, data: { id: input.order_id } })
   releaseLockStep({ key: lock })
   return new WorkflowResponse(fulfilment)

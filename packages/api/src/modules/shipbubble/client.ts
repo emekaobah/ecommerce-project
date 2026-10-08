@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto"
 import { MedusaError } from "@medusajs/framework/utils"
 
 export const SHIPBUBBLE_API_URL = "https://api.shipbubble.com/v1"
+/** How long a call may take; label booking holds the order's lock through two of them. */
+const REQUEST_TIMEOUT_MS = 30_000
 
 /**
  * Shipbubble's timezone: it reads `pickup_date` and states every ETA as local time without an
@@ -134,6 +136,7 @@ export class ShipbubbleClient {
         method,
         headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
     } catch (error) {
       throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Couldn't reach Shipbubble: ${(error as Error).message}`)

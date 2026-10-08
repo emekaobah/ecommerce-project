@@ -4,7 +4,7 @@ import { ShipbubbleFulfillmentProviderService } from "./service"
 
 export { isShipbubbleSignatureValid, ShipbubbleError, shipbubbleTime, shipbubbleToday, SHIPBUBBLE_TIMEZONE } from "./client"
 export type { ShipbubbleCourier, ShipbubbleLabelRequest } from "./client"
-export { SHIPBUBBLE_RATE } from "./service"
+export { cancelledByShipbubble, SHIPBUBBLE_RATE } from "./service"
 export type { ShipbubbleFulfillmentData, ShipbubbleMethodData, ShipbubbleQuote } from "./service"
 
 /** Shipbubble's API outside the provider (validation and rates at checkout), configured like it in medusa-config. */

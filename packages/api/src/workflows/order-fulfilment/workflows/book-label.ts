@@ -6,7 +6,7 @@ import { labelBooking } from "../../../lib/label-booking"
 import { ORDER_LABEL_BOOKED, type Shipment } from "../../../lib/order-fulfilment"
 import { SHIPBUBBLE_RATE, type ShipbubbleFulfillmentData } from "../../../modules/shipbubble"
 import { checkTransitionStep, transitionFulfilmentStep } from "../steps/transition-fulfilment"
-import { lockOrderFulfilment } from "../compose"
+import { lockOrderFulfilment, providerTrigger } from "../compose"
 
 export type BookLabelInput = { order_id: string; /** The member who booked it. */ actor: string }
 
@@ -42,8 +42,11 @@ const bookedShipmentStep = createStep(
  * the booking fails, the fulfilment is cancelled, which cancels the shipment with Shipbubble.
  */
 export const bookLabelWorkflow = createWorkflow("book-order-label", (input: BookLabelInput) => {
-  const lock = lockOrderFulfilment(input)
-  const trigger = transform({ input }, () => ({ source: "provider" as const, type: "label_created" as const, at: new Date().toISOString() }))
+  // Held through two Shipbubble calls (the quote and the booking), each up to the client's timeout,
+  // so a second tap can't book and pay for a second label.
+  const lock = lockOrderFulfilment(input, { ttl: 120 })
+  // Shipbubble created the label; who asked for it is the fulfilment's `created_by`.
+  const trigger = providerTrigger(input, () => "label_created" as const)
   checkTransitionStep({ order_id: input.order_id, trigger })
   const booking = quoteLabelStep({ order_id: input.order_id })
   const fulfillmentInput = transform({ input, booking }, ({ input, booking }) => ({

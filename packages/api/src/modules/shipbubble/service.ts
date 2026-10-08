@@ -1,7 +1,7 @@
 import { AbstractFulfillmentProviderService, MedusaError } from "@medusajs/framework/utils"
 import type { CalculatedShippingOptionPrice, CreateFulfillmentResult } from "@medusajs/framework/types"
 import type { DeliveryChoice } from "@oja/domain"
-import { ShipbubbleClient, type ShipbubbleLabelRequest } from "./client"
+import { ShipbubbleClient, ShipbubbleError, type ShipbubbleLabelRequest } from "./client"
 
 export type ShipbubbleOptions = {
   /** `sb_sandbox_…` or `sb_prod_…`. */
@@ -51,7 +51,10 @@ export type ShipbubbleFulfillmentData = {
   status: string
 }
 
-const isQuote =(value: unknown): value is ShipbubbleQuote =>
+/** A fulfilment's data once Shipbubble cancelled its shipment: cancelling the fulfilment then leaves Shipbubble alone. */
+export const cancelledByShipbubble = (data: Record<string, unknown>) => ({ ...data, status: "cancelled" })
+
+const isQuote = (value: unknown): value is ShipbubbleQuote =>
   !!value && typeof value === "object" && typeof (value as ShipbubbleQuote).amount === "number"
 
 /** The buyer's chosen quote on a shipping method's data, or a rejection when checkout didn't put one there. */
@@ -120,11 +123,16 @@ export class ShipbubbleFulfillmentProviderService extends AbstractFulfillmentPro
     if (!rate?.request_token) {
       throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Book the courier label from the order")
     }
-    const shipment = await this.client.createLabel({
-      request_token: rate.request_token,
-      service_code: rate.service_code,
-      courier_id: rate.courier_id,
-    })
+    const shipment = await this.client
+      .createLabel({ request_token: rate.request_token, service_code: rate.service_code, courier_id: rate.courier_id })
+      .catch((error: unknown) => {
+        if (!(error instanceof ShipbubbleError)) throw error
+        // An empty wallet or a refused key is the platform's to fix; anything else, staff can retry.
+        throw new MedusaError(
+          error.isAccountProblem ? MedusaError.Types.UNEXPECTED_STATE : MedusaError.Types.NOT_ALLOWED,
+          `Shipbubble couldn't book the label: ${error.message}`
+        )
+      })
     const data: ShipbubbleFulfillmentData = {
       shipment_id: shipment.order_id,
       courier_name: shipment.courier?.name ?? null,
@@ -145,11 +153,11 @@ export class ShipbubbleFulfillmentProviderService extends AbstractFulfillmentPro
 
   /**
    * Cancels the shipment with Shipbubble, unless Shipbubble cancelled it itself (its webhook
-   * marks the fulfilment's data `cancelled` first).
+   * marks the fulfilment's data first, `cancelledByShipbubble`).
    */
   async cancelFulfillment(data: Record<string, unknown>) {
     const { shipment_id, status } = data as Partial<ShipbubbleFulfillmentData>
-    if (shipment_id && status !== "cancelled") await this.client.cancelLabel(shipment_id)
+    if (shipment_id && status !== cancelledByShipbubble({}).status) await this.client.cancelLabel(shipment_id)
     return {}
   }
 

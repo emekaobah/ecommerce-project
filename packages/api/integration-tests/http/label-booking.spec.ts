@@ -119,7 +119,9 @@ medusaIntegrationTestRunner({
         const orderId = await packedOrder()
         shipbubble.failLabelsWith({ status: 400, message: "Insufficient wallet balance, Please fund your wallet" })
 
-        expect(await status(bookLabel(orderId))).toBeGreaterThanOrEqual(400)
+        const refused = await bookLabel(orderId).catch((e: any) => e.response)
+        expect(refused.status).toBeGreaterThanOrEqual(400)
+        expect(refused.data.message).toMatch(/Shipbubble couldn't book the label: Insufficient wallet balance/)
 
         expect((await order(orderId)).fulfilment).toMatchObject({ state: "packed", shipment: null })
         expect(await fulfilments(orderId)).toEqual([])

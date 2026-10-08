@@ -9,14 +9,16 @@ type ShipmentWebhook = { event?: string; order_id?: string; status?: string }
 /**
  * Shipbubble's webhooks (#24), signed in `x-ship-signature` (checked first, see
  * `api/middlewares.ts`). A shipment's status moves the order whose current shipment it is:
- * `pending` (label created) → Label booked, `confirmed` → Courier confirmed, `cancelled` →
+ * `shipment.label.created` or `pending` → Label booked, `confirmed` → Courier confirmed, `cancelled` →
  * back to Packed for staff to rebook. Statuses the order's state doesn't take now (repeats,
  * late retries, a shipment since rebooked, or one that isn't ours) are acknowledged and
  * ignored, so Shipbubble stops retrying them; anything else failing is answered with an error,
  * so Shipbubble retries. Later statuses (picked up, in transit, completed) belong to #25.
  */
 export const POST = async (req: MedusaRequest<ShipmentWebhook>, res: MedusaResponse) => {
-  const { order_id: shipmentId, status } = req.body ?? {}
+  const { event, order_id: shipmentId } = req.body ?? {}
+  // A label-created event means Label booked whatever status it carries.
+  const status = event === "shipment.label.created" ? "pending" : req.body?.status
   const record = shipmentId ? await orderOfShipment(req.scope, shipmentId) : undefined
   if (!shipmentId || !record || !status) {
     res.json({ received: true })

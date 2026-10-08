@@ -5,8 +5,6 @@ import { addressCodeOf, quoteRates, type DeliveryAddress } from "./delivery"
 
 // Booking a packed order's courier label (#24, docs/design.md "Order state machine").
 
-type Scope = Pick<MedusaContainer, "resolve">
-
 /** The courier rate a label is booked with, and the courier's name. */
 export type LabelRate = ShipbubbleLabelRequest & { courier_name: string }
 
@@ -42,7 +40,7 @@ export function rateToBook(rates: ShipbubbleQuote[], chosen: ShipbubbleQuote | u
  * What booking the order's label needs, quoted now from the shop's pickup address to the
  * buyer's. Refused (400) when the order has no delivery to book or no courier takes the parcel.
  */
-export async function labelBooking(scope: Scope, orderId: string): Promise<LabelBooking> {
+export async function labelBooking(scope: MedusaContainer, orderId: string): Promise<LabelBooking> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "order",
@@ -65,7 +63,7 @@ export async function labelBooking(scope: Scope, orderId: string): Promise<Label
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Order ${orderId} has no courier delivery to book`)
   }
   const items = (order.items ?? []).filter((i) => Number(i.quantity) > 0)
-  const rates = await quoteRates(scope as MedusaContainer, {
+  const rates = await quoteRates(scope, {
     sellerId: order.seller.id,
     receiverCode,
     currencyCode: order.currency_code,
