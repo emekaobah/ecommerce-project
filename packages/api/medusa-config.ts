@@ -176,6 +176,9 @@ module.exports = withMercur({
     { resolve: './src/modules/perishable' },
     // The bank account each shop is paid into, resolved with Paystack (onboarding gates, #26).
     { resolve: './src/modules/shop-bank-account' },
+    // Each shop's weekly hours, date exceptions and pauses: the only source of truth for when it
+    // is open (ADR 0004, #68). Mercur's seller closure fields are unused.
+    { resolve: './src/modules/shop-hours' },
     // Each device's Expo push token, and the buyer or shop member signed in on it (#27).
     { resolve: './src/modules/push-token' },
     {

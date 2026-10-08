@@ -125,12 +125,12 @@
   },
   "shopSetup": {
     "title": "Shop setup",
-    "description": "Buyers see your offers once couriers can collect from you and Oja can pay you.",
+    "description": "Buyers see your offers once couriers can collect from you, Oja can pay you, and you have set your opening hours.",
     "live": "Live",
     "notLive": "Not live yet",
     "loadError": "Could not load your shop setup.",
     "missing": "Still to do",
-    "askAnOwner": "Ask a shop owner or manager to enter the pickup address and bank account.",
+    "askAnOwner": "Ask a shop owner or manager to enter the pickup address, bank account and opening hours.",
     "optional": "optional",
     "choose": "Choose",
     "status": {
@@ -140,13 +140,37 @@
     },
     "steps": {
       "pickup_address": "Pickup address",
-      "bank_account": "Bank account for payouts"
+      "bank_account": "Bank account for payouts",
+      "weekly_hours": "Opening hours"
     },
     "pickup": {
-      "description": "Where couriers collect your orders. We check it with our delivery partner when you save.",
+      "description": "Where couriers collect your orders. Find it, check the details, then place the pin where couriers should come. We check it with our delivery partner when you save.",
       "validated": "Couriers can find this address. Changing it checks it again.",
       "noCountry": "We can't tell which country your shop is in. Contact Oja.",
-      "save": "Save pickup address"
+      "save": "Save pickup address",
+      "search": "Find your shop's address",
+      "searchPlaceholder": "Street, estate or area",
+      "searching": "Searching…",
+      "finding": "Finding the address…",
+      "noMatches": "No matches. Try the street name and area, or enter it by hand.",
+      "poweredByGoogle": "Powered by Google",
+      "lookupError": "Couldn't look up the address: {{message}}",
+      "useLocation": "Use my current location",
+      "enterManually": "Can't find it? Enter it by hand",
+      "searchAgain": "Search for an address",
+      "locationOff": "Your browser didn't share your location. Search for the address, or allow location for this site.",
+      "nothingHere": "We couldn't find an address where you are. Fill it in below, then check the pin.",
+      "pinPlaced": "Pickup pin placed on the map.",
+      "pinToPlace": "You'll place a pin on the map before saving.",
+      "placePin": "Place pin",
+      "movePin": "Move pin",
+      "pin": {
+        "title": "Where do couriers collect from you?",
+        "help": "Drag the pin, or click the map, to the shop's entrance. Couriers go to the pin.",
+        "unavailable": "The map isn't available right now, so the pin can't be placed. Try again later or contact Oja.",
+        "confirm": "Confirm pin",
+        "cancel": "Cancel"
+      }
     },
     "bank": {
       "description": "Where your payouts go. We check the account with your bank when you save.",
@@ -159,6 +183,38 @@
       "missing": "Buyers can't see your offers yet. Still to do: {{items}}.",
       "waiting": "Buyers can't see your offers until Oja approves your shop.",
       "link": "Finish shop setup"
+    }
+  },
+  "shopHours": {
+    "title": "Opening hours",
+    "description": "When your shop is open. Buyers can order any time; outside your hours they are told the order is prepared when you open, and the 24 hours you have to accept an order count only while you are open.",
+    "loadError": "Could not load your opening hours.",
+    "notSet": "Set your weekly hours: buyers can't see your offers until you do.",
+    "paused": "Orders are paused until you resume them in the vendor app.",
+    "pausedUntil": "Orders are paused until {{until}}. Resume them in the vendor app.",
+    "askAnOwner": "Ask a shop owner or manager to change the opening hours.",
+    "opens": "Opens",
+    "closes": "Closes",
+    "remove": "Remove",
+    "weekly": {
+      "title": "Weekly hours",
+      "description": "In your region's time ({{timeZone}}). A closing time of 00:00 means open until midnight.",
+      "closed": "Closed",
+      "open": "Open this day",
+      "addPeriod": "Add hours",
+      "save": "Save weekly hours"
+    },
+    "exceptions": {
+      "title": "Closures and special hours",
+      "description": "Holidays, stocktakes, or opening on a day you are normally closed. While closed, buyers see when you reopen and your note, and can't order.",
+      "none": "No closures or special hours planned.",
+      "closed": "Closed",
+      "from": "First day",
+      "to": "Last day (optional)",
+      "closedAllDay": "Closed all day",
+      "note": "Note for buyers",
+      "notePlaceholder": "e.g. Closed for Eid",
+      "add": "Add"
     }
   }
 }

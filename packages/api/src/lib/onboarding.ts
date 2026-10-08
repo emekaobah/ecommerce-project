@@ -1,19 +1,20 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { resolveVisibleSellerIds } from "@mercurjs/core/api/utils/sellers"
+import { SellerStatus } from "@mercurjs/types"
 import { addressFormValues, addressFromForm, getAddressConfig } from "@oja/domain"
 import { paystackClient } from "../modules/paystack"
 import { PaystackRequestError } from "../modules/paystack/client"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account"
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account"
-import { addressCodeOf, type DeliveryAddress } from "./delivery"
+import { sellersWithHours } from "./shop-hours"
+import { addressCodeOf, hasPin, PICKUP_PIN_NEEDED, type DeliveryAddress } from "./delivery"
 
 // Onboarding gates (#26, docs/design.md): a shop is live, and buyers see its offers, only once
-// couriers can collect from it and Oja can pay it. Weekly opening hours join as a third gate
-// with the shop-hours module (ADR 0004, #68).
+// couriers can collect from it, Oja can pay it, and it has said when it is open (weekly hours,
+// ADR 0004, #68).
 
 /** What a shop must finish before it goes live, in the order the vendor panel lists them. */
-export const ONBOARDING_STEPS = ["pickup_address", "bank_account"] as const
+export const ONBOARDING_STEPS = ["pickup_address", "bank_account", "weekly_hours"] as const
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number]
 
 type Gates = Record<OnboardingStep, boolean>
@@ -33,14 +34,17 @@ async function gatesOf(scope: MedusaContainer, sellerIds: string[]): Promise<Map
     .resolve<ShopBankAccountModuleService>(SHOP_BANK_ACCOUNT_MODULE)
     .listShopBankAccounts({ seller_id: sellerIds }, { select: ["seller_id"] })
   const paid = new Set(accounts.map((a) => a.seller_id))
+  const withHours = await sellersWithHours(scope, sellerIds)
   return new Map(
     (data as SellerRow[]).map((seller) => [
       seller.id,
       {
         // A Shipbubble code is only stored on a pickup address Shipbubble validated: every route
-        // that saves one validates it first (`validatedPickupChange` in lib/delivery.ts).
-        pickup_address: addressCodeOf(seller.address) != null,
+        // that saves one validates it first (`validatedPickupChange` in lib/delivery.ts). Its pin,
+        // which the owner confirmed on the map, is where couriers go (#41).
+        pickup_address: addressCodeOf(seller.address) != null && hasPin(seller.address),
         bank_account: paid.has(seller.id),
+        weekly_hours: withHours.has(seller.id),
       },
     ])
   )
@@ -49,18 +53,29 @@ async function gatesOf(scope: MedusaContainer, sellerIds: string[]): Promise<Map
 const allPassed = (gates: Gates | undefined) => !!gates && ONBOARDING_STEPS.every((step) => gates[step])
 
 /**
- * Shops buyers may see: open (approved, not suspended or in a Mercur closure) and through
- * every onboarding gate. Every store route that shows a shop or its offers reads this.
+ * Shops Oja lets trade: approved and not suspended. Not Mercur's `resolveVisibleSellerIds`, which
+ * also drops shops in a Mercur closure: our shop-hours module decides closures, and a closed shop
+ * stays visible, marked closed (ADR 0004).
+ */
+async function openSellerIds(scope: MedusaContainer): Promise<string[]> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "seller", fields: ["id"], filters: { status: SellerStatus.OPEN } })
+  return (data as { id: string }[]).map((s) => s.id)
+}
+
+/**
+ * Shops buyers may see: open (approved, not suspended) and through every onboarding gate.
+ * Closed shops are among them, marked closed (ADR 0004). Every store route that shows a shop or its offers reads this.
  */
 export async function liveSellerIds(scope: MedusaContainer): Promise<string[]> {
-  const visible = await resolveVisibleSellerIds(scope)
+  const visible = await openSellerIds(scope)
   const gates = await gatesOf(scope, visible)
   return visible.filter((id) => allPassed(gates.get(id)))
 }
 
 /** Whether the shop is live: buyers can see it and add its offers to a cart. */
 export async function isLive(scope: MedusaContainer, sellerId: string): Promise<boolean> {
-  const [visible, gates] = await Promise.all([resolveVisibleSellerIds(scope), gatesOf(scope, [sellerId])])
+  const [visible, gates] = await Promise.all([openSellerIds(scope), gatesOf(scope, [sellerId])])
   return visible.includes(sellerId) && allPassed(gates.get(sellerId))
 }
 
@@ -99,7 +114,7 @@ export async function onboardingOf(scope: MedusaContainer, sellerId: string): Pr
   if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Seller ${sellerId} not found`)
   const [gates, visible, [account]] = await Promise.all([
     gatesOf(scope, [sellerId]),
-    resolveVisibleSellerIds(scope),
+    openSellerIds(scope),
     scope.resolve<ShopBankAccountModuleService>(SHOP_BANK_ACCOUNT_MODULE).listShopBankAccounts({ seller_id: sellerId }),
   ])
   const passed = gates.get(sellerId)
@@ -207,8 +222,8 @@ export type PickupAddressInput = {
 /**
  * Checks a pickup address against its country's form (`@oja/domain`, ADR 0002) and returns it
  * as the seller's address takes it, phone in E.164; refused (400) naming what each wrong field
- * needs. The pin goes into its metadata when the owner placed one (#41); without one, any pin
- * the shop had is cleared, since it belonged to the address being replaced.
+ * needs. The pin the owner confirmed on the map goes into its metadata; an address without one
+ * is refused too, even one entered by hand (#41).
  */
 export function pickupAddressFromForm(form: PickupAddressInput) {
   const country = form.country_code.toUpperCase()
@@ -221,9 +236,9 @@ export function pickupAddressFromForm(form: PickupAddressInput) {
   const { latitude, longitude } = form.metadata ?? {}
   const pin = latitude != null && longitude != null ? { latitude, longitude } : null
   const result = pin ? addressFromForm(values, country, pin) : addressFromForm(values, country)
-  if (!result.ok) {
-    throw new MedusaError(MedusaError.Types.INVALID_DATA, `${Object.values(result.errors).join(". ")}.`)
+  if (!result.ok || !pin) {
+    const problems = [...(result.ok ? [] : Object.values(result.errors)), ...(pin ? [] : [PICKUP_PIN_NEEDED])]
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, `${problems.join(". ")}.`)
   }
-  const { metadata, ...address } = result.address
-  return { ...address, metadata: { ...metadata, latitude: pin?.latitude ?? null, longitude: pin?.longitude ?? null } }
+  return result.address
 }

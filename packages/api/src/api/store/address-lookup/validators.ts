@@ -22,10 +22,19 @@ const CART_OR_REGION = { message: "Send a cart_id or a region_id, one of the two
  * The client's lookup session: a UUID it makes when the buyer starts searching and keeps until
  * they choose a place, so Google bills the search and the details as one session.
  */
-const sessionToken = z.string().trim().min(1).max(36)
+export const sessionToken = z.string().trim().min(1).max(36)
+
+/** What was typed into the search. */
+export const searchInput = required.max(200)
+
+/** A point to reverse geocode. */
+export const point = {
+  latitude: z.coerce.number().min(-90).max(90),
+  longitude: z.coerce.number().min(-180).max(180),
+}
 
 export const StoreSuggestAddresses = z
-  .object({ ...lookup, session_token: sessionToken, input: required.max(200) })
+  .object({ ...lookup, session_token: sessionToken, input: searchInput })
   .refine(isForCartOrRegion, CART_OR_REGION)
 export type StoreSuggestAddressesType = z.infer<typeof StoreSuggestAddresses>
 
@@ -37,8 +46,7 @@ export type StoreGetPlaceAddressType = z.infer<typeof StoreGetPlaceAddress>
 export const StoreReverseGeocode = z
   .object({
     ...lookup,
-    latitude: z.coerce.number().min(-90).max(90),
-    longitude: z.coerce.number().min(-180).max(180),
+    ...point,
   })
   .refine(isForCartOrRegion, CART_OR_REGION)
 export type StoreReverseGeocodeType = z.infer<typeof StoreReverseGeocode>

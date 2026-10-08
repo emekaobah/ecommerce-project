@@ -1,10 +1,11 @@
-import { acceptDeadline, newFulfilment, type Fulfilment, type FulfilmentState } from "@oja/domain"
+import { acceptDeadline, newFulfilment, type Fulfilment, type FulfilmentState, type ShopHours } from "@oja/domain"
 import type { InferTypeOf, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../modules/order-fulfilment"
 import type OrderFulfilment from "../modules/order-fulfilment/models/order-fulfilment"
 import type OrderRefund from "../modules/order-fulfilment/models/order-refund"
 import type { OrderMoney } from "./order-refund"
+import { shopHoursOf } from "./shop-hours"
 import type { OrderTransaction } from "./shop-order"
 
 // A seller order's fulfilment (docs/design.md, "Order state machine"), and what staff see of it.
@@ -60,17 +61,21 @@ export async function fulfilmentsOf(scope: Scope, orderIds: string[]): Promise<M
 /** What staff see of an order's fulfilment: its state, and while it is New, when it must be accepted by. */
 export type FulfilmentView = {
   state: FulfilmentState
-  /** ISO 8601; only while the order waits to be accepted. */
+  /**
+   * ISO 8601; only while the order waits to be accepted. 24 of the shop's open hours after it
+   * was placed (ADR 0004); also null while the shop is paused with no time set to reopen.
+   */
   accept_by: string | null
   rejected_by: "seller" | "accept_deadline" | null
   reject_reason: string | null
 }
 
-export function fulfilmentView(record: FulfilmentRecord | undefined, placedAt: Date | string): FulfilmentView {
+/** `hours`: the shop's, which the accept deadline counts in; null for a shop without hours. */
+export function fulfilmentView(record: FulfilmentRecord | undefined, placedAt: Date | string, hours: ShopHours | null): FulfilmentView {
   const fulfilment = record?.fulfilment ?? newFulfilment()
   return {
     state: fulfilment.state,
-    accept_by: fulfilment.state === "new" ? acceptDeadline(new Date(placedAt).toISOString()) : null,
+    accept_by: fulfilment.state === "new" ? acceptDeadline(new Date(placedAt).toISOString(), hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
     reject_reason: record?.reject_reason ?? null,
   }
@@ -134,13 +139,25 @@ export async function orderMoney(scope: Scope, orderId: string, payments: Paymen
   }
 }
 
-/** What staff see of each order's fulfilment. */
+/** What staff see of each order's fulfilment, its accept deadline counted in its shop's open hours. */
 export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentView>> {
   if (!orderIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: orders } = await query.graph({ entity: "order", fields: ["id", "created_at"], filters: { id: orderIds } })
-  const records = await fulfilmentsOf(scope, orderIds)
+  const { data } = await query.graph({ entity: "order", fields: ["id", "created_at", "seller.id"], filters: { id: orderIds } })
+  const orders = data as { id: string; created_at: Date | string; seller?: { id: string } | null }[]
+  const [records, hours] = await Promise.all([
+    fulfilmentsOf(scope, orderIds),
+    shopHoursOf(scope, orders.flatMap((o) => (o.seller ? [o.seller.id] : []))),
+  ])
   return new Map(
-    (orders as { id: string; created_at: Date | string }[]).map((o) => [o.id, fulfilmentView(records.get(o.id), o.created_at)])
+    orders.map((o) => [o.id, fulfilmentView(records.get(o.id), o.created_at, (o.seller && hours.get(o.seller.id)) || null)])
   )
+}
+
+/** The shop each order was placed with. */
+export async function sellersOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, string>> {
+  if (!orderIds.length) return new Map()
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "order_seller", fields: ["order_id", "seller_id"], filters: { order_id: orderIds } })
+  return new Map((data as { order_id: string; seller_id: string }[]).map((l) => [l.order_id, l.seller_id]))
 }

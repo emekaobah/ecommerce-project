@@ -72,6 +72,20 @@ export type {
   StatusView,
 } from "./order-history"
 export type { AcceptTimeLeft } from "./accept-deadline"
+export {
+  afterOpenTime,
+  hoursExceptionErrors,
+  isOpenAt,
+  isOrderable,
+  nextOpening,
+  openTimeBetween,
+  shopStatus,
+  shopStatusLabel,
+  WEEKDAY_NAMES,
+  WEEKDAYS,
+  weeklyHoursErrors,
+} from "./shop-hours"
+export type { HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
 export { deliveryChoices, deliveryEstimate } from "./delivery"
 export type { DeliveryChoice, DeliveryRate, DeliveryTag } from "./delivery"
 export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from "./perishable"

@@ -2,6 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
 import { fulfilmentService, fulfilmentsOf, fulfilmentView, type FulfilmentView, type Picks } from "./order-fulfilment"
+import { shopHoursOf } from "./shop-hours"
 
 // The buyer's order history (#17): each checkout is an order group, split into one order per
 // shop. Mercur's `/store/order-groups` has neither each order's fulfilment and refund nor what
@@ -154,13 +155,14 @@ async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, Buy
     fulfilmentsOf(scope, ids),
     fulfilmentService(scope).listOrderRefunds({ order_id: ids }),
   ])
+  const hours = await shopHoursOf(scope, (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : [])))
   const refundsOf = (orderId: string) => refunds.filter((r) => r.order_id === orderId)
   return new Map(
     (data as any[]).map((o) => [
       o.id,
       {
         ...buyerOrder(o, fulfilments.get(o.id)?.removed ?? {}),
-        fulfilment: fulfilmentView(fulfilments.get(o.id), o.created_at),
+        fulfilment: fulfilmentView(fulfilments.get(o.id), o.created_at, hours.get(o.seller?.id) ?? null),
         refund: buyerRefund(refundsOf(o.id)),
       },
     ])

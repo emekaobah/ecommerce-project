@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { MercurModules } from "@mercurjs/types"
 import { approveSellerWorkflow } from "@mercurjs/core/workflows"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
@@ -20,7 +21,9 @@ process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
 
 const RICE = SEED_PRODUCTS.find((p) => p.title === "Ofada Rice 5kg")!
 
-/** Mama Put's pickup address, as the shop's owner fills in the plain Nigerian form. */
+/** Where Mama Put's owner placed the pin on the map (ADR 0002, #41). */
+const PIN = { latitude: 6.4969, longitude: 3.3537 }
+/** Mama Put's pickup address, as the shop's owner fills in the Nigerian form and pins it on the map. */
 const PICKUP = {
   first_name: "Funke",
   last_name: "Ade",
@@ -30,9 +33,11 @@ const PICKUP = {
   province: "Lagos",
   country_code: "ng",
   phone: "08031234599",
-  metadata: { landmark: "Opposite the bakery" },
+  metadata: { landmark: "Opposite the bakery", ...PIN },
 }
 const BANK = { bank_code: "058", account_number: "0123456789" }
+const daily = [{ opens: "08:00", closes: "18:00" }]
+const HOURS = { mon: daily, tue: daily, wed: daily, thu: daily, fri: daily, sat: daily, sun: [] }
 
 medusaIntegrationTestRunner({
   inApp: true,
@@ -138,6 +143,7 @@ medusaIntegrationTestRunner({
             steps: [
               { key: "pickup_address", is_complete: true },
               { key: "bank_account", is_complete: true },
+              { key: "weekly_hours", is_complete: true },
             ],
           })
           expect(onboarding.bank_account.recipient_code).toBeUndefined()
@@ -166,7 +172,7 @@ medusaIntegrationTestRunner({
       const savePickup = (shop: { owner: unknown }, address: unknown) =>
         api.post("/vendor/onboarding/pickup-address", address, shop.owner as any)
 
-      it("is validated with Shipbubble from the plain form and completes its step", async () => {
+      it("is validated with Shipbubble by its pin and its address, and completes its step", async () => {
         const shop = await newShop()
 
         const { data } = await savePickup(shop, PICKUP)
@@ -177,37 +183,79 @@ medusaIntegrationTestRunner({
           email: "mama.put@oja.test",
           phone: "+2348031234599",
           address: "7 Bode Thomas Street, Surulere, Lagos, Nigeria",
+          ...PIN,
         })
         expect(data.onboarding.steps).toEqual([
           { key: "pickup_address", is_complete: true },
           { key: "bank_account", is_complete: false },
+          { key: "weekly_hours", is_complete: false },
         ])
         expect(data.onboarding.pickup_address).toMatchObject({
           address_1: PICKUP.address_1,
           city: "Surulere",
           province: "Lagos",
           phone: "+2348031234599",
-          metadata: { landmark: "Opposite the bakery", shipbubble_address_code: shipbubble.codeOf(validation.address) },
+          metadata: {
+            landmark: "Opposite the bakery",
+            ...PIN,
+            shipbubble_address_code: shipbubble.codeOf(`${PIN.latitude},${PIN.longitude}`),
+          },
         })
         expect(data.onboarding.is_live).toBe(false)
+      })
+
+      it("can't be saved without a pin, even entered by hand", async () => {
+        const shop = await newShop()
+
+        const res = await savePickup(shop, { ...PICKUP, metadata: { landmark: "Opposite the bakery" } }).catch((e) => e.response)
+
+        expect(res.status).toBe(400)
+        expect(res.data.message).toMatch(/pin/i)
+        expect(shipbubble.validations()).toEqual([])
+        expect((await onboardingOf(shop.owner)).pickup_address).toBeNull()
+      })
+
+      // A change's metadata stands for the whole of it (`validatedPickupChange`), so it carries the pin.
+      it("can't lose its pin through Mercur's own address route", async () => {
+        const shop = await newShop()
+        await savePickup(shop, PICKUP)
+        shipbubble.reset()
+
+        const res = await api
+          .post(`/vendor/sellers/${shop.sellerId}/address`, { metadata: { landmark: "Behind the bakery" } }, shop.owner)
+          .catch((e) => e.response)
+
+        expect(res.status).toBe(400)
+        expect(res.data.message).toMatch(/pin/i)
+        expect(shipbubble.validations()).toEqual([])
+        expect((await onboardingOf(shop.owner)).pickup_address.metadata).toMatchObject({ landmark: "Opposite the bakery", ...PIN })
+      })
+
+      it("doesn't pass its gate with a Shipbubble code but no pin", async () => {
+        const shop = await newShop()
+        await savePickup(shop, PICKUP)
+        await api.post("/vendor/onboarding/bank-account", BANK, shop.owner)
+        // An address validated before pins were required (#41) has its code and no pin.
+        const { pickup_address } = await onboardingOf(shop.owner)
+        // Medusa merges metadata, and an empty value removes its key.
+        const sellers = getContainer().resolve(MercurModules.SELLER) as any
+        await sellers.updateSellerAddresses({ id: pickup_address.id, metadata: { latitude: "", longitude: "" } })
+        expect((await onboardingOf(shop.owner)).pickup_address.metadata).toEqual({
+          landmark: "Opposite the bakery",
+          shipbubble_address_code: expect.any(Number),
+        })
+
+        const onboarding = await onboardingOf(shop.owner)
+
+        expect(onboarding.steps[0]).toEqual({ key: "pickup_address", is_complete: false })
+        expect(onboarding.is_live).toBe(false)
+        expect(await seenByBuyers(shop)).toEqual(HIDDEN)
       })
 
       it("is entered on the form of the shop's country, its region's before it has an address", async () => {
         const shop = await newShop()
 
         expect((await onboardingOf(shop.owner)).country_code).toBe("ng")
-      })
-
-      it("is validated by its pin when it has one (ADR 0002)", async () => {
-        const shop = await newShop()
-        const pin = { latitude: 6.4969, longitude: 3.3537 }
-
-        const { data } = await savePickup(shop, { ...PICKUP, metadata: { ...PICKUP.metadata, ...pin } })
-
-        expect(shipbubble.validations()[0]).toMatchObject(pin)
-        expect(data.onboarding.pickup_address.metadata.shipbubble_address_code).toBe(
-          shipbubble.codeOf(`${pin.latitude},${pin.longitude}`)
-        )
       })
 
       it("is refused with a clear error when Shipbubble can't place it, and isn't kept", async () => {
@@ -256,7 +304,7 @@ medusaIntegrationTestRunner({
         const res = await api
           .post(
             `/vendor/sellers/${shop.sellerId}/address`,
-            { ...PICKUP, metadata: { shipbubble_address_code: 12345 } },
+            { ...PICKUP, metadata: { ...PIN, shipbubble_address_code: 12345 } },
             shop.owner
           )
           .catch((e) => e.response)
@@ -324,13 +372,25 @@ medusaIntegrationTestRunner({
     })
 
     describe("going live", () => {
-      it("shows the shop's offers on every store route once both gates are complete, and not before", async () => {
+      it("shows the shop's offers on every store route once every gate is complete, and not before", async () => {
         const shop = await newShop()
 
         await api.post("/vendor/onboarding/pickup-address", PICKUP, shop.owner)
         expect(await seenByBuyers(shop)).toEqual(HIDDEN)
 
         await api.post("/vendor/onboarding/bank-account", BANK, shop.owner)
+        // Without weekly opening hours a shop isn't live (ADR 0004).
+        expect(await seenByBuyers(shop)).toEqual(HIDDEN)
+        expect(await onboardingOf(shop.owner)).toMatchObject({
+          is_live: false,
+          steps: [
+            { key: "pickup_address", is_complete: true },
+            { key: "bank_account", is_complete: true },
+            { key: "weekly_hours", is_complete: false },
+          ],
+        })
+
+        await api.post("/vendor/shop-hours/weekly", { weekly: HOURS }, shop.owner)
         expect(await seenByBuyers(shop)).toEqual(SHOWN)
         expect((await onboardingOf(shop.owner)).is_live).toBe(true)
       })

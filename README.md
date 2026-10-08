@@ -75,6 +75,8 @@ The tunnel's host changes each time it starts, so update the URL when it does. P
 
 Buyers find their delivery address with Google (#40, ADR 0002): the API's store routes suggest places, describe a place and reverse geocode the buyer's location, with the server key in `GOOGLE_MAPS_API_KEY` (Places API (New) and Geocoding API enabled); the API refuses to start without it. The buyer app's pin map needs Maps SDK keys of its own (see `apps/mobile-buyer/README.md`). Vendor responses never carry a buyer's pin.
 
+Shop owners find their pickup address the same way under Shop setup in the vendor panel (#41), through the vendor routes (`/vendor/address-lookup/*`, in the countries of the region the shop trades in), and confirm it with a pin on a Google Maps JavaScript map. The panel's map needs a browser key with the Maps JavaScript API enabled, restricted to the panel's origin: set `VITE_GOOGLE_MAPS_BROWSER_KEY` in `apps/vendor/.env` (or the build environment; it is baked in at build time). Without it the pin can't be placed, and a pickup address without a pin can't be saved.
+
 ### Delivery (Shipbubble)
 
 Each shop's delivery is quoted live by Shipbubble (#23). Put the sandbox API key from Shipbubble's dashboard in the API's `SHIPBUBBLE_API_KEY`; the API refuses to start without it. Then re-run `bun run seed`: it gives every shop a Shipbubble delivery option (replacing the old flat rate).
