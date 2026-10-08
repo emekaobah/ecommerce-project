@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { pickProgress, scanBarcode, type PickLine } from "./picking"
 
-const rice: PickLine = { id: "item_rice", quantity: 2, picked: 0, codes: ["5901234123457"] }
-const lantern: PickLine = { id: "item_lantern", quantity: 1, picked: 0, codes: ["036000291452"] }
-const cap: PickLine = { id: "item_cap", quantity: 1, picked: 0, codes: [] }
+const rice: PickLine = { id: "item_rice", quantity: 2, picked: 0, unavailable: 0, codes: ["5901234123457"] }
+const lantern: PickLine = { id: "item_lantern", quantity: 1, picked: 0, unavailable: 0, codes: ["036000291452"] }
+const cap: PickLine = { id: "item_cap", quantity: 1, picked: 0, unavailable: 0, codes: [] }
 
 describe("scanBarcode", () => {
   test("picks one more of the line the barcode is on", () => {
@@ -43,6 +43,13 @@ describe("scanBarcode", () => {
     const second = { ...rice, id: "item_rice_2", quantity: 1 }
     expect(scanBarcode([first, second], "5901234123457")).toEqual({ kind: "picked", lineId: "item_rice_2", picked: 1 })
   })
+
+  test("leaves the units marked unavailable unpicked", () => {
+    expect(scanBarcode([{ ...rice, picked: 1, unavailable: 1 }], "5901234123457")).toEqual({
+      kind: "already_picked",
+      lineId: "item_rice",
+    })
+  })
 })
 
 describe("pickProgress", () => {
@@ -50,6 +57,7 @@ describe("pickProgress", () => {
     expect(pickProgress([{ ...rice, picked: 1 }, lantern, { ...cap, picked: 1 }])).toEqual({
       picked: 2,
       total: 4,
+      unavailable: 0,
       unpicked: ["item_rice", "item_lantern"],
       done: false,
     })
@@ -59,8 +67,19 @@ describe("pickProgress", () => {
     expect(pickProgress([{ ...rice, picked: 2 }, { ...lantern, picked: 1 }])).toEqual({
       picked: 3,
       total: 3,
+      unavailable: 0,
       unpicked: [],
       done: true,
+    })
+  })
+
+  test("counts units marked unavailable as no longer to pick, but not done until they are removed from the order", () => {
+    expect(pickProgress([{ ...rice, picked: 1, unavailable: 1 }, { ...lantern, unavailable: 1 }])).toEqual({
+      picked: 1,
+      total: 3,
+      unavailable: 2,
+      unpicked: [],
+      done: false,
     })
   })
 

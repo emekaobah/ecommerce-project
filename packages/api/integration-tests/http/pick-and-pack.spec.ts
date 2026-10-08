@@ -75,10 +75,13 @@ medusaIntegrationTestRunner({
               thumbnail: expect.any(String),
               quantity: 2,
               picked: 0,
+              unavailable: 0,
               codes: [RICE.barcode],
             },
           ],
-          progress: { picked: 0, total: 2, unpicked: [pick_list.lines[0].id], done: false },
+          progress: { picked: 0, total: 2, unavailable: 0, unpicked: [pick_list.lines[0].id], done: false },
+          currency_code: "ngn",
+          unavailable_amount: 0,
         })
       })
 

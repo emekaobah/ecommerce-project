@@ -1,7 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
-import { fulfilmentService, fulfilmentsOf, fulfilmentView, type FulfilmentView } from "./order-fulfilment"
+import { fulfilmentService, fulfilmentsOf, fulfilmentView, type FulfilmentView, type Picks } from "./order-fulfilment"
 
 // The buyer's order history (#17): each checkout is an order group, split into one order per
 // shop. Mercur's `/store/order-groups` has neither each order's fulfilment and refund nor what
@@ -17,7 +17,10 @@ export type BuyerOrderItem = {
   product_title: string | null
   variant_title: string | null
   thumbnail: string | null
+  /** How many are on the order now. */
   quantity: number
+  /** How many the shop removed as unavailable while picking, and refunded (#22). */
+  unavailable_quantity: number
   unit_price: number
   total: number
 }
@@ -94,6 +97,8 @@ const ORDER_FIELDS = [
   "items.total",
   "total",
   "credit_line_total",
+  "transactions.amount",
+  "transactions.reference",
 ]
 
 type GroupRow = { id: string; display_id: number; created_at: Date | string; orders?: ({ id: string } | null)[] | null }
@@ -154,7 +159,7 @@ async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, Buy
     (data as any[]).map((o) => [
       o.id,
       {
-        ...buyerOrder(o),
+        ...buyerOrder(o, fulfilments.get(o.id)?.removed ?? {}),
         fulfilment: fulfilmentView(fulfilments.get(o.id), o.created_at),
         refund: buyerRefund(refundsOf(o.id)),
       },
@@ -162,15 +167,26 @@ async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, Buy
   )
 }
 
-function buyerOrder(o: any): Omit<BuyerOrder, "fulfilment" | "refund"> {
+/**
+ * What the buyer paid for the order: what was captured for it. Neither a refund (whose credit
+ * line takes it off `total`, #20) nor items removed as unavailable (an order edit lowers
+ * `total`, #22) change it. An order nothing was captured for (a demo order) is its total.
+ */
+function paidTotal(o: any): number {
+  const captures = ((o.transactions ?? []) as ({ amount: unknown; reference: string | null } | null)[]).filter(
+    (t) => t?.reference === "capture"
+  )
+  if (!captures.length) return Number(o.total) + Number(o.credit_line_total ?? 0)
+  return captures.reduce((sum, t) => sum + Number(t!.amount), 0)
+}
+
+function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund"> {
   return {
     id: o.id,
     display_id: o.display_id,
     created_at: new Date(o.created_at).toISOString(),
     currency_code: o.currency_code,
-    // A refund adds a credit line, which takes it off what the order still asks of the buyer
-    // (`total`); with it added back the total is what was paid (#20).
-    paid_total: Number(o.total) + Number(o.credit_line_total ?? 0),
+    paid_total: paidTotal(o),
     seller: {
       id: o.seller?.id,
       name: o.seller?.name,
@@ -184,6 +200,7 @@ function buyerOrder(o: any): Omit<BuyerOrder, "fulfilment" | "refund"> {
       variant_title: i.variant_title ?? null,
       thumbnail: i.thumbnail ?? null,
       quantity: Number(i.detail?.quantity ?? i.quantity),
+      unavailable_quantity: removed[i.id] ?? 0,
       unit_price: Number(i.unit_price),
       total: Number(i.total),
     })),
