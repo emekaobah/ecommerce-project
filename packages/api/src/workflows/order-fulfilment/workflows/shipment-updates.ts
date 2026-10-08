@@ -62,7 +62,7 @@ const markCancelledByShipbubbleStep = createStep(
     return new StepResponse({ live }, compensation)
   },
   async (previous, { container }) => {
-    if (!previous || previous.data === undefined) return
+    if (previous?.data === undefined) return
     await container.resolve(Modules.FULFILLMENT).updateFulfillment(previous.fulfillment_id, { data: previous.data ?? {} })
   }
 )

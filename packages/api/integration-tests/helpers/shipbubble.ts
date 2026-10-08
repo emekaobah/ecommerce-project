@@ -196,7 +196,7 @@ export function fakeShipbubble(port: number) {
   }
 
   // Cancels a shipment no courier has collected yet.
-  const cancelLabel = async (req: IncomingMessage): Promise<Reply> => {
+  const cancelLabel = (req: IncomingMessage): Reply => {
     const id = decodeURIComponent(req.url!.slice("/shipping/labels/cancel/".length))
     const shipment = shipments.get(id)
     if (!shipment) return failed(404, "Shipment not found")
@@ -206,7 +206,7 @@ export function fakeShipbubble(port: number) {
     return { status: 200, body: { status: "success", message: "Shipment successfully cancelled" } }
   }
 
-  const routes: [string, string, (req: IncomingMessage) => Promise<Reply>][] = [
+  const routes: [string, string, (req: IncomingMessage) => Reply | Promise<Reply>][] = [
     ["POST", "/shipping/address/validate", validate],
     ["POST", "/shipping/fetch_rates", fetchRates],
     ["GET", "/shipping/labels/categories", () => Promise.resolve(ok(CATEGORIES))],
