@@ -71,7 +71,7 @@ export function PauseOrders({ sellerId }: Readonly<{ sellerId: string }>) {
       {status ? (
         <StatusChip label={status.label} tone={tone(status)} />
       ) : (
-        <Text tone="danger">Set your weekly hours in the web vendor panel: buyers can't see your shop until you do.</Text>
+        <Text tone="danger">{"Set your weekly hours in the web vendor panel: buyers can't see your shop until you do."}</Text>
       )}
       {current ? (
         <Text tone="secondary">
@@ -102,7 +102,7 @@ export function PauseOrders({ sellerId }: Readonly<{ sellerId: string }>) {
         </View>
       ) : null}
       {mayChange.data === false ? (
-        <Text tone="secondary">Only the shop's owner or a manager can pause orders.</Text>
+        <Text tone="secondary">{"Only the shop's owner or a manager can pause orders."}</Text>
       ) : null}
       {error ? <Text tone="danger">{error.message}</Text> : null}
     </View>

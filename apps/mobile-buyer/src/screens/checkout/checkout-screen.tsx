@@ -481,7 +481,7 @@ function ShopSummary({
       {/* Closed now: prepared when it opens, or (closed for a while) can't be paid for (ADR 0004). */}
       {group.shop_status ? <ShopStatusBadge status={group.shop_status} withNote /> : null}
       {group.shop_status && !group.shop_status.orderable ? (
-        <Text tone="secondary">Remove {group.seller?.name}'s items from your cart to pay for the rest.</Text>
+        <Text tone="secondary">{`Remove ${group.seller?.name}'s items from your cart to pay for the rest.`}</Text>
       ) : null}
       {group.items.map((item) => (
         <View key={item.id} style={styles.spread}>
