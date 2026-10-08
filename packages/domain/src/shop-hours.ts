@@ -106,7 +106,7 @@ function without(intervals: Interval[], closures: Interval[]): Interval[] {
 function merge(intervals: Interval[]): Interval[] {
   const merged: Interval[] = []
   for (const interval of intervals) {
-    const last = merged[merged.length - 1]
+    const last = merged.at(-1)
     if (last && interval.start <= last.end) last.end = Math.max(last.end, interval.end)
     else merged.push({ ...interval })
   }
@@ -145,8 +145,8 @@ function* openIntervalsFrom(hours: ShopHours, from: number): Generator<Interval>
 
 /** When the shop next opens: the instant itself while open; null when it doesn't reopen (an unresumed pause, no hours). */
 export function nextOpening(hours: ShopHours, at: Date): Date | null {
-  for (const interval of openIntervalsFrom(hours, at.getTime())) return new Date(interval.start)
-  return null
+  const first = openIntervalsFrom(hours, at.getTime()).next()
+  return first.done ? null : new Date(first.value.start)
 }
 
 /** How much open time (ms) passes between two instants: closed hours, closed exceptions and pauses don't count. */
@@ -194,11 +194,9 @@ export function shopStatus(hours: ShopHours, at: Date): ShopStatus {
   const t = at.getTime()
   const pause = hours.pauses.find((p) => Date.parse(p.starts_at) <= t && (!p.ends_at || t < Date.parse(p.ends_at)))
   const exception = exceptionOn(hours, dateIn(t, hours.time_zone))
-  const closure = pause
-    ? { reason: "pause" as const, note: pause.note ?? null }
-    : exception?.closed
-      ? { reason: "exception" as const, note: exception.note }
-      : null
+  let closure: { reason: "pause" | "exception"; note: string | null } | null = null
+  if (pause) closure = { reason: "pause", note: pause.note ?? null }
+  else if (exception?.closed) closure = { reason: "exception", note: exception.note }
   const opens = nextOpening(hours, at)?.toISOString() ?? null
   if (closure) return { state: "closed_until", ...closure, until: opens }
   return opens === at.toISOString() ? { state: "open" } : { state: "closed", opens_at: opens }
@@ -262,7 +260,8 @@ function timeLabel(instant: number, timeZone: string): string {
   const hour = Number(parts.find((p) => p.type === "hour")!.value)
   const minute = parts.find((p) => p.type === "minute")!.value
   const twelve = hour % 12 === 0 ? 12 : hour % 12
-  return `${twelve}${minute === "00" ? "" : `:${minute}`}${hour < 12 ? "am" : "pm"}`
+  const minutes = minute === "00" ? "" : `:${minute}`
+  return `${twelve}${minutes}${hour < 12 ? "am" : "pm"}`
 }
 
 const dayLabel = (instant: number, timeZone: string, options: Intl.DateTimeFormatOptions) => {

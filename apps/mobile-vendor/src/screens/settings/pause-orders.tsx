@@ -14,8 +14,10 @@ const DURATIONS = [
   { label: '3 hours', hours: 3 },
 ] as const;
 
-const tone = (status: NonNullable<ShopHours['status']>): StatusTone =>
-  status.state === 'open' ? 'success' : status.orderable ? 'warning' : 'danger';
+const tone = (status: NonNullable<ShopHours['status']>): StatusTone => {
+  if (status.state === 'open') return 'success';
+  return status.orderable ? 'warning' : 'danger';
+};
 
 /**
  * Before pausing, staff are told about orders still waiting to be accepted: a pause stops new
