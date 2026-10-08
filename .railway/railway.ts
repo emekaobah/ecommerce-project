@@ -24,6 +24,9 @@ const sharedVariables = [
   // Public origin of the API, e.g. https://api.<domain>; baked into the panels at build time.
   "MERCUR_BACKEND_URL",
   "VITE_MERCUR_BACKEND_URL",
+  // Google Maps JavaScript browser key (HTTP-referrer restricted) for the vendor panel's pickup
+  // pin map (#41); baked into the panel at build time.
+  "VITE_GOOGLE_MAPS_BROWSER_KEY",
   "FILE_BACKEND_URL",
   "STORE_CORS",
   "ADMIN_CORS",

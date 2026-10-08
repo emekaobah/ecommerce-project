@@ -165,12 +165,19 @@ async function loadSellerRow(scope: MedusaContainer, sellerId: string): Promise<
 const validateShopAddress = (seller: SellerRow, address: DeliveryAddress) =>
   validateAddress({ ...address, phone: address.phone ?? seller.phone ?? null }, { name: seller.name, email: seller.email ?? "" })
 
+/** Why a pickup address without a pin is refused (ADR 0002, #41). */
+export const PICKUP_PIN_NEEDED = "Place the pin on the map where couriers collect from the shop"
+
+/** Whether an address has a whole pin in its metadata. */
+export const hasPin = (address: DeliveryAddress | null | undefined) => !!address && pinOf(address) != null
+
 /**
  * A change to the shop's pickup address, validated with Shipbubble before it is saved (by its
- * pin when it has one) and carrying the address code in its metadata: the onboarding gate's
- * mark that couriers can collect from it (#26). The address it leaves is what Shipbubble
- * validated, so its code can be trusted later. An address Shipbubble can't place is refused
- * (400) and nothing is saved. Any code the change itself carries is ignored.
+ * pin) and carrying the address code in its metadata: the onboarding gate's mark that couriers
+ * can collect from it (#26). The address it leaves must have the pin its owner confirmed (#41),
+ * and is what Shipbubble validated, so its code can be trusted later. An address without a pin,
+ * or one Shipbubble can't place, is refused (400) and nothing is saved. Any code the change
+ * itself carries is ignored.
  */
 export async function validatedPickupChange<C extends DeliveryAddress>(
   scope: MedusaContainer,
@@ -182,7 +189,9 @@ export async function validatedPickupChange<C extends DeliveryAddress>(
   // Fields the change leaves out keep their saved values; metadata it sends replaces the saved metadata.
   const defined = Object.fromEntries(Object.entries(change).filter(([, value]) => value !== undefined)) as DeliveryAddress
   const { [ADDRESS_CODE]: _ignored, ...metadata } = (change.metadata !== undefined ? change.metadata : current.metadata) ?? {}
-  const code = await validateShopAddress(seller, { ...current, ...defined, metadata })
+  const address = { ...current, ...defined, metadata }
+  if (!hasPin(address)) throw new MedusaError(MedusaError.Types.INVALID_DATA, PICKUP_PIN_NEEDED)
+  const code = await validateShopAddress(seller, address)
   return { ...change, metadata: { ...metadata, [ADDRESS_CODE]: code } }
 }
 
