@@ -23,6 +23,7 @@ import { useCartSession } from '@/cart/cart-provider';
 import { ListingTile, LISTING_TILE_SIZE } from '@/components/listing-tile';
 import { PerishableNotice } from '@/components/perishable';
 import { Price } from '@/components/price';
+import { ShopStatusBadge } from '@/components/shop-status';
 import { openShop } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
@@ -134,6 +135,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
         <Button label={seller.name} variant="link" onPress={() => openShop(seller)} style={styles.inlineLink} />
         <DeliveryTime listing={listing} currencyCode={currencyCode} />
       </View>
+      <ShopStatusBadge status={seller.shop_status} withNote />
       {product.perishable ? <PerishableNotice /> : null}
       {offers.length > 1 ? (
         <View style={[styles.chips, { gap: theme.space.sm, marginTop: theme.space.sm }]} accessibilityRole="radiogroup">
@@ -162,7 +164,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
           })}
         </View>
       ) : null}
-      {selected ? <AddToCart offer={selected} currencyCode={currencyCode} /> : null}
+      {selected ? <AddToCart offer={selected} currencyCode={currencyCode} orderable={seller.shop_status.orderable} /> : null}
       <SaveToWishlist sellerId={seller.id} productId={product.id} />
       {product.description ? <Text style={{ marginTop: theme.space.sm }}>{product.description}</Text> : null}
     </View>
@@ -189,8 +191,15 @@ function DeliveryTime({ listing, currencyCode }: Readonly<{ listing: ListingDeta
   return listing.leadtime_to_ship == null ? null : <Text tone="secondary">· {shipsIn(listing.leadtime_to_ship)}</Text>;
 }
 
-/** Adds the selected variant at this shop's price; the button carries the price (docs/design.md). */
-function AddToCart({ offer, currencyCode }: Readonly<{ offer: ListingDetail['offers'][number]; currencyCode: string }>) {
+/**
+ * Adds the selected variant at this shop's price; the button carries the price (docs/design.md).
+ * Disabled while the shop isn't taking orders.
+ */
+function AddToCart({
+  offer,
+  currencyCode,
+  orderable,
+}: Readonly<{ offer: ListingDetail['offers'][number]; currencyCode: string; orderable: boolean }>) {
   const theme = useTheme();
   const { cartId, cartIdForAdding } = useCartSession();
   const add = useAddToCart(cartIdForAdding);
@@ -202,7 +211,8 @@ function AddToCart({ offer, currencyCode }: Readonly<{ offer: ListingDetail['off
         label="Add to cart"
         detail={formatMoney(offerPrice(offer).amount, currencyCode)}
         loading={add.isPending}
-        disabled={cartId === undefined}
+        // A shop closed for a holiday or paused takes no orders until it reopens (ADR 0004).
+        disabled={cartId === undefined || !orderable}
         onPress={() => add.mutate({ offerId: offer.id })}
       />
       {added ? (
