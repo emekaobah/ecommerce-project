@@ -43,7 +43,8 @@ export const shipmentUpdateWorkflow = createWorkflow("order-shipment-update", (i
   return new WorkflowResponse(fulfilment)
 })
 
-type MarkCompensation = { fulfillment_id: string; data: Record<string, unknown> | null } | null
+/** The fulfilment's data before it was marked; `data` is undefined when nothing was marked. */
+type MarkCompensation = { fulfillment_id: string; data?: Record<string, unknown> | null }
 
 /**
  * Marks the fulfilment's shipment cancelled by Shipbubble, so cancelling the fulfilment
@@ -55,12 +56,13 @@ const markCancelledByShipbubbleStep = createStep(
   async ({ fulfillment_id }: { fulfillment_id: string }, { container }) => {
     const service = container.resolve(Modules.FULFILLMENT)
     const { data, canceled_at } = await service.retrieveFulfillment(fulfillment_id)
-    if (canceled_at) return new StepResponse<{ live: boolean }, MarkCompensation>({ live: false }, null)
-    await service.updateFulfillment(fulfillment_id, { data: cancelledByShipbubble(data ?? {}) })
-    return new StepResponse<{ live: boolean }, MarkCompensation>({ live: true }, { fulfillment_id, data })
+    const live = !canceled_at
+    if (live) await service.updateFulfillment(fulfillment_id, { data: cancelledByShipbubble(data ?? {}) })
+    const compensation: MarkCompensation = live ? { fulfillment_id, data } : { fulfillment_id }
+    return new StepResponse({ live }, compensation)
   },
-  async (previous: MarkCompensation, { container }) => {
-    if (!previous) return
+  async (previous, { container }) => {
+    if (!previous || previous.data === undefined) return
     await container.resolve(Modules.FULFILLMENT).updateFulfillment(previous.fulfillment_id, { data: previous.data ?? {} })
   }
 )
