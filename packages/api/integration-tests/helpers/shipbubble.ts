@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { createHmac, randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage, type Server } from "node:http"
 
 /**
@@ -56,6 +56,13 @@ type RateRequest = {
   package_items: { name: string; description: string; unit_weight: string; unit_amount: string; quantity: string }[]
   package_dimension: { length: number; width: number; height: number }
 }
+type LabelRequest = { request_token: string; service_code: string; courier_id: string }
+
+/** Shipbubble's shipment statuses, as its webhooks report them. */
+export type ShipmentStatus = "pending" | "confirmed" | "picked_up" | "in_transit" | "completed" | "cancelled"
+
+/** A shipment the fake booked: Shipbubble's id for it (`SB-…`), the courier, and where it is. */
+export type FakeShipment = { order_id: string; courier: FakeCourier; status: ShipmentStatus; tracking_url: string }
 
 /** "yyyy-mm-dd HH:mm:ss" in Lagos time, as Shipbubble writes ETAs. */
 const lagosTime = (at: Date) => new Date(at.getTime() + 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ")
@@ -77,6 +84,12 @@ export function fakeShipbubble(port: number) {
   const validations: Validation[] = []
   const rateRequests: RateRequest[] = []
   const codes = new Map<string, number>()
+  /** The couriers each rate request quoted, by its request token. */
+  const quotedBy = new Map<string, FakeCourier[]>()
+  const labelRequests: LabelRequest[] = []
+  const shipments = new Map<string, FakeShipment>()
+  const cancellations: string[] = []
+  let labelsFailWith: { status: number; message: string } | undefined
   let couriers: FakeCourier[] = Object.values(COURIERS)
   let rejected: ((v: Validation) => boolean) | undefined
   let ratesFailWith: number | undefined
@@ -149,19 +162,94 @@ export function fakeShipbubble(port: number) {
         ? lagosDayAt(now, c.arrives.day, c.arrives.at)
         : lagosTime(new Date(now.getTime() + c.hours * 60 * 60 * 1000)),
     }))
-    return ok({ request_token: `token_${randomUUID()}`, couriers: quoted })
+    const request_token = `token_${randomUUID()}`
+    quotedBy.set(request_token, couriers)
+    return ok({ request_token, couriers: quoted })
+  }
+
+  // Books a label with a courier one of its rate requests quoted, paid from the wallet.
+  const createLabel = async (req: IncomingMessage): Promise<Reply> => {
+    const body = (await readBody(req)) as LabelRequest
+    labelRequests.push(body)
+    if (labelsFailWith) return failed(labelsFailWith.status, labelsFailWith.message)
+    if (walletEmpty) return failed(400, WALLET_EMPTY)
+    const courier = quotedBy
+      .get(body.request_token)
+      ?.find((c) => c.courier_id === body.courier_id && c.service_code === body.service_code)
+    if (!courier) return failed(422, "Invalid request token or courier")
+    const order_id = `SB-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`
+    const shipment: FakeShipment = {
+      order_id,
+      courier,
+      status: "pending",
+      tracking_url: `https://shipbubble.test/orders/tracking/${order_id}`,
+    }
+    shipments.set(order_id, shipment)
+    return ok({
+      order_id,
+      courier: { name: courier.courier_name, email: "courier@shipbubble.test", phone: "08000000000" },
+      status: "pending",
+      payment: { shipping_fee: courier.amount, type: "wallet", status: "completed", currency: "NGN" },
+      tracking_url: shipment.tracking_url,
+      date: lagosTime(new Date()),
+    })
+  }
+
+  // Cancels a shipment no courier has collected yet.
+  const cancelLabel = async (req: IncomingMessage): Promise<Reply> => {
+    const id = decodeURIComponent(req.url!.slice("/shipping/labels/cancel/".length))
+    const shipment = shipments.get(id)
+    if (!shipment) return failed(404, "Shipment not found")
+    if (shipment.status !== "pending" && shipment.status !== "confirmed") return failed(400, "Shipment label already processed")
+    cancellations.push(id)
+    shipment.status = "cancelled"
+    return { status: 200, body: { status: "success", message: "Shipment successfully cancelled" } }
   }
 
   const routes: [string, string, (req: IncomingMessage) => Promise<Reply>][] = [
     ["POST", "/shipping/address/validate", validate],
     ["POST", "/shipping/fetch_rates", fetchRates],
     ["GET", "/shipping/labels/categories", () => Promise.resolve(ok(CATEGORIES))],
+    ["POST", "/shipping/labels", createLabel],
+    // A trailing slash takes the rest of the path as the parameter.
+    ["POST", "/shipping/labels/cancel/", cancelLabel],
   ]
 
   const handle = async (req: IncomingMessage): Promise<Reply> => {
     if (req.headers.authorization !== `Bearer ${apiKey}`) return failed(401, "Invalid API key")
-    const route = routes.find(([method, path]) => req.method === method && req.url === path)
+    const route = routes.find(
+      ([method, path]) => req.method === method && (path.endsWith("/") ? req.url!.startsWith(path) : req.url === path)
+    )
     return route ? route[2](req) : failed(404, "Not found")
+  }
+
+  /** Signs a body as Shipbubble does: HMAC-SHA512 with the API key, hex. Another key forges it. */
+  const sign = (body: string, key = apiKey) => createHmac("sha512", key).update(body).digest("hex")
+
+  /**
+   * A webhook as Shipbubble sends it about a shipment, signed in `x-ship-signature`. The
+   * shipment takes the status.
+   */
+  const webhook = (orderId: string, status: ShipmentStatus, { event }: { event?: string } = {}) => {
+    const shipment = shipments.get(orderId)
+    if (shipment) shipment.status = status
+    const body = JSON.stringify({
+      event: event ?? (status === "cancelled" ? "shipment.cancelled" : "shipment.status.changed"),
+      order_id: orderId,
+      status,
+      courier: {
+        name: shipment?.courier.courier_name ?? "Courier",
+        email: "courier@shipbubble.test",
+        phone: "08000000000",
+        tracking_code: "2232",
+        tracking_message: "Tracking code: 2232",
+        rider_info: null,
+      },
+      tracking_url: shipment?.tracking_url ?? `https://shipbubble.test/orders/tracking/${orderId}`,
+      waybill_document: null,
+      date: new Date().toISOString(),
+    })
+    return { body, headers: { "content-type": "application/json", "x-ship-signature": sign(body) } }
   }
 
   return {
@@ -200,7 +288,22 @@ export function fakeShipbubble(port: number) {
     emptyWallet: (empty: boolean) => {
       walletEmpty = empty
     },
+    /** Every label booking asked for, oldest first. */
+    labelRequests: () => [...labelRequests],
+    /** The shipment the fake booked under this id. */
+    shipment: (orderId: string) => shipments.get(orderId),
+    /** The ids of the shipments cancelled through the API, oldest first. */
+    cancellations: () => [...cancellations],
+    /** Label bookings are refused like this from now on; undefined clears it. */
+    failLabelsWith: (failure: { status: number; message: string } | undefined) => {
+      labelsFailWith = failure
+    },
+    webhook,
+    sign,
     reset: () => {
+      labelsFailWith = undefined
+      labelRequests.length = 0
+      cancellations.length = 0
       walletEmpty = false
       ratesFailWith = undefined
       validations.length = 0
