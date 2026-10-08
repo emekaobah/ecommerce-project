@@ -17,7 +17,7 @@ export type RemovalPlan = { items: { id: string; quantity: number }[]; total_bef
 export const planRemovalStep = createStep("plan-unavailable-removal", async ({ order_id }: { order_id: string }, { container }) => {
   const record = (await fulfilmentsOf(container, [order_id])).get(order_id)
   const marked = Object.entries(record?.unavailable ?? {}).filter(([, count]) => count > 0)
-  if (!record || record.state !== "partially_available" || !marked.length) {
+  if (record?.state !== "partially_available" || !marked.length) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Order ${order_id} has no items marked unavailable to remove`)
   }
   const lines = await itemsOf(container, order_id)
