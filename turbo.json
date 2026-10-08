@@ -14,7 +14,8 @@
       "env": [
         "NODE_ENV",
         "MERCUR_BACKEND_URL",
-        "VITE_MERCUR_BACKEND_URL"
+        "VITE_MERCUR_BACKEND_URL",
+        "VITE_GOOGLE_MAPS_BROWSER_KEY"
       ],
       "outputs": [
         ".next/**",

@@ -6,8 +6,8 @@ import { paystackClient } from "../modules/paystack"
 import { PaystackRequestError } from "../modules/paystack/client"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account"
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account"
-import { addressCodeOf, type DeliveryAddress } from "./delivery"
 import { sellersWithHours } from "./shop-hours"
+import { addressCodeOf, hasPin, PICKUP_PIN_NEEDED, type DeliveryAddress } from "./delivery"
 
 // Onboarding gates (#26, docs/design.md): a shop is live, and buyers see its offers, only once
 // couriers can collect from it, Oja can pay it, and it has said when it is open (weekly hours,
@@ -40,8 +40,9 @@ async function gatesOf(scope: MedusaContainer, sellerIds: string[]): Promise<Map
       seller.id,
       {
         // A Shipbubble code is only stored on a pickup address Shipbubble validated: every route
-        // that saves one validates it first (`validatedPickupChange` in lib/delivery.ts).
-        pickup_address: addressCodeOf(seller.address) != null,
+        // that saves one validates it first (`validatedPickupChange` in lib/delivery.ts). Its pin,
+        // which the owner confirmed on the map, is where couriers go (#41).
+        pickup_address: addressCodeOf(seller.address) != null && hasPin(seller.address),
         bank_account: paid.has(seller.id),
         weekly_hours: withHours.has(seller.id),
       },
@@ -221,8 +222,8 @@ export type PickupAddressInput = {
 /**
  * Checks a pickup address against its country's form (`@oja/domain`, ADR 0002) and returns it
  * as the seller's address takes it, phone in E.164; refused (400) naming what each wrong field
- * needs. The pin goes into its metadata when the owner placed one (#41); without one, any pin
- * the shop had is cleared, since it belonged to the address being replaced.
+ * needs. The pin the owner confirmed on the map goes into its metadata; an address without one
+ * is refused too, even one entered by hand (#41).
  */
 export function pickupAddressFromForm(form: PickupAddressInput) {
   const country = form.country_code.toUpperCase()
@@ -235,9 +236,9 @@ export function pickupAddressFromForm(form: PickupAddressInput) {
   const { latitude, longitude } = form.metadata ?? {}
   const pin = latitude != null && longitude != null ? { latitude, longitude } : null
   const result = pin ? addressFromForm(values, country, pin) : addressFromForm(values, country)
-  if (!result.ok) {
-    throw new MedusaError(MedusaError.Types.INVALID_DATA, `${Object.values(result.errors).join(". ")}.`)
+  if (!result.ok || !pin) {
+    const problems = [...(result.ok ? [] : Object.values(result.errors)), ...(pin ? [] : [PICKUP_PIN_NEEDED])]
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, `${problems.join(". ")}.`)
   }
-  const { metadata, ...address } = result.address
-  return { ...address, metadata: { ...metadata, latitude: pin?.latitude ?? null, longitude: pin?.longitude ?? null } }
+  return result.address
 }

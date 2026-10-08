@@ -23,6 +23,7 @@ import { validatePickupAddressFirst } from "./pickup-address-check";
 import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
 import { vendorShopHoursMiddlewares } from "./vendor/shop-hours/middlewares";
 import { refuseMercurClosures } from "./no-mercur-closures";
+import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
@@ -212,6 +213,8 @@ export default defineMiddlewares({
         },
         // A shop's onboarding checklist, pickup address and bank account (#26).
         ...vendorOnboardingMiddlewares,
+        // Pickup address lookup through the backend's Google key, in the shop's region (ADR 0002, #41).
+        ...vendorAddressLookupMiddlewares,
         { method: ["POST"], matcher: "/vendor/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
         { method: ["POST"], matcher: "/admin/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
         // A shop's hours, exceptions and pause (ADR 0004, #68): the only source of truth for
