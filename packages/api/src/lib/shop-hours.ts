@@ -14,9 +14,11 @@ import {
 } from "@oja/domain"
 import { SHIPBUBBLE_TIMEZONE } from "../modules/shipbubble"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../modules/shop-hours"
+import { pauseInForce } from "../modules/shop-hours/filters"
 import {
   createShopHoursExceptionWorkflow,
   deleteShopHoursExceptionWorkflow,
+  endShopHoursExceptionWorkflow,
   pauseShopWorkflow,
   resumeShopWorkflow,
   setShopWeeklyHoursWorkflow,
@@ -43,6 +45,9 @@ type ExceptionRow = { id: string; seller_id: string; starts_on: string; ends_on:
 type PauseRow = { id: string; seller_id: string; starts_at: Date | string; ends_at: Date | string | null; note: string | null }
 
 const iso = (date: Date | string) => new Date(date).toISOString()
+
+/** Today's date in the timezone, YYYY-MM-DD, as exceptions are kept. */
+const todayIn = (timeZone: string, now: Date) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(now)
 
 /** Each shop's region's timezone, from its pickup address's country; Lagos when it has none. */
 async function timeZonesOf(scope: Scope, sellerIds: string[]): Promise<Map<string, string>> {
@@ -134,7 +139,7 @@ export async function shopStatusesOf(scope: Scope, sellerIds: string[], now = ne
         id,
         shop
           ? statusView(shop, now)
-          : { state: "closed_until", reason: "exception", until: null, note: null, label: "Closed", orderable: false },
+          : { state: "closed_until", reason: "exception", until: null, note: null, label: "Closed until further notice", orderable: false },
       ]
     })
   )
@@ -183,15 +188,11 @@ export async function vendorShopHours(scope: Scope, sellerId: string, now = new 
     shopHoursOf(scope, [sellerId], now),
     timeZonesOf(scope, [sellerId]),
     service.listShopHoursExceptions({ seller_id: sellerId }, { order: { starts_on: "ASC" } }) as unknown as Promise<ExceptionRow[]>,
-    service.listShopPauses({
-      seller_id: sellerId,
-      starts_at: { $lte: now },
-      $or: [{ ends_at: null }, { ends_at: { $gt: now } }],
-    }) as Promise<PauseRow[]>,
+    service.listShopPauses(pauseInForce(sellerId, now)) as Promise<PauseRow[]>,
     newOrderCount(scope, sellerId),
   ])
   const time_zone = zones.get(sellerId) ?? SHIPBUBBLE_TIMEZONE
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: time_zone }).format(now)
+  const today = todayIn(time_zone, now)
   const shop = hours.get(sellerId)
   const pause = pauses[0]
   return {
@@ -240,9 +241,20 @@ export async function addHoursException(
   now = new Date()
 ) {
   invalid(hoursExceptionErrors(input))
-  const { time_zone } = await vendorShopHours(scope, sellerId, now)
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: time_zone }).format(now)
-  if (input.ends_on < today) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Those days are already over.")
+  const zone = (await timeZonesOf(scope, [sellerId])).get(sellerId) ?? SHIPBUBBLE_TIMEZONE
+  if (input.ends_on < todayIn(zone, now)) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Those days are already over.")
+  // One exception a day, so it is clear which one holds (YYYY-MM-DD dates compare as strings).
+  const overlapping = await shopHoursService(scope).listShopHoursExceptions({
+    seller_id: sellerId,
+    starts_on: { $lte: input.ends_on },
+    ends_on: { $gte: input.starts_on },
+  })
+  if (overlapping.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Those days overlap a closure or special hours you already have. Remove that one first."
+    )
+  }
   await createShopHoursExceptionWorkflow(scope).run({
     input: {
       seller_id: sellerId,
@@ -255,11 +267,25 @@ export async function addHoursException(
   })
 }
 
-/** Removes one of the shop's exceptions; another shop's is not found. */
-export async function removeHoursException(scope: MedusaContainer, sellerId: string, exceptionId: string) {
-  const [exception] = await shopHoursService(scope).listShopHoursExceptions({ id: exceptionId, seller_id: sellerId })
+/**
+ * Removes one of the shop's exceptions; another shop's is not found. One that started before
+ * today is ended yesterday instead: the days already past stay as they were, so orders that
+ * waited through them keep their accept clocks (ADR 0004).
+ */
+export async function removeHoursException(scope: MedusaContainer, sellerId: string, exceptionId: string, now = new Date()) {
+  const [exception] = (await shopHoursService(scope).listShopHoursExceptions({
+    id: exceptionId,
+    seller_id: sellerId,
+  })) as unknown as ExceptionRow[]
   if (!exception) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Exception ${exceptionId} not found`)
-  await deleteShopHoursExceptionWorkflow(scope).run({ input: { id: exceptionId } })
+  const zone = (await timeZonesOf(scope, [sellerId])).get(sellerId) ?? SHIPBUBBLE_TIMEZONE
+  const today = todayIn(zone, now)
+  if (exception.starts_on < today) {
+    const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    await endShopHoursExceptionWorkflow(scope).run({ input: { id: exceptionId, ends_on: yesterday } })
+  } else {
+    await deleteShopHoursExceptionWorkflow(scope).run({ input: { id: exceptionId } })
+  }
 }
 
 /** Pauses orders now, until resumed or `until`, which must be to come. */

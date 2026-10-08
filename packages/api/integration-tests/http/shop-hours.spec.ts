@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import seedDemoData from "../../src/scripts/seed"
+import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { adminHeaders, vendorHeaders } from "../helpers/auth"
 import { buyerCheckout, GADGETS, LANTERN } from "../helpers/checkout"
@@ -161,6 +162,41 @@ medusaIntegrationTestRunner({
         expect((await checkout(cartId)).ready_to_pay).toBe(false)
         expect(paid.status).toBe(400)
         expect(paid.data.message).toMatch(/Closed for stocktaking/)
+      })
+
+      it("can't overlap another closure or special hours", async () => {
+        await closeTodayAndTomorrow()
+
+        const res = await api
+          .post(
+            "/vendor/shop-hours/exceptions",
+            { starts_on: lagosDate(1), ends_on: lagosDate(1), closed: false, periods: [{ opens: "10:00", closes: "12:00" }] },
+            gadgets
+          )
+          .catch((e) => e.response)
+
+        expect(res.status).toBe(400)
+        expect(res.data.message).toMatch(/overlap/)
+      })
+
+      it("once removed after it started, still counts the days already past as closed", async () => {
+        const shopHours = getContainer().resolve<ShopHoursModuleService>(SHOP_HOURS_MODULE)
+        const started = await shopHours.createShopHoursExceptions({
+          seller_id: gadgetsId,
+          starts_on: lagosDate(-2),
+          ends_on: lagosDate(1),
+          closed: true,
+          periods: [] as never,
+          note: null,
+        })
+
+        await api.delete(`/vendor/shop-hours/exceptions/${started.id}`, gadgets)
+
+        // Ended yesterday rather than deleted: the accept clock still knows the shop was closed.
+        const [kept] = await shopHours.listShopHoursExceptions({ id: started.id })
+        expect(kept).toMatchObject({ starts_on: lagosDate(-2), ends_on: lagosDate(-1) })
+        expect((await api.get("/vendor/shop-hours", gadgets)).data.shop_hours.exceptions).toEqual([])
+        expect(await status(addLantern(await newCart()))).toBe(200)
       })
 
       it("takes orders again once removed", async () => {

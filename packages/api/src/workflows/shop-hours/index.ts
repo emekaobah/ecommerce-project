@@ -1,5 +1,6 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import type { OpenPeriod, WeeklyHours } from "@oja/domain"
+import { pauseInForce } from "../../modules/shop-hours/filters"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../modules/shop-hours"
 
 // Writes to a shop's hours (ADR 0004, #68). Each is one step, undone if a workflow it runs in fails.
@@ -73,15 +74,29 @@ export const deleteShopHoursExceptionWorkflow = createWorkflow(
   (input: { id: string }) => new WorkflowResponse(deleteExceptionStep(input))
 )
 
+/** Ends an exception that has started on an earlier day, keeping the days already past. */
+const endExceptionStep = createStep(
+  "end-shop-hours-exception-step",
+  async (input: { id: string; ends_on: string }, { container }) => {
+    const [previous] = await service(container).listShopHoursExceptions({ id: input.id })
+    await service(container).updateShopHoursExceptions({ id: input.id, ends_on: input.ends_on })
+    return new StepResponse(undefined, { id: input.id, ends_on: previous!.ends_on })
+  },
+  async (undo, { container }) => {
+    if (undo) await service(container).updateShopHoursExceptions(undo)
+  }
+)
+
+export const endShopHoursExceptionWorkflow = createWorkflow(
+  "end-shop-hours-exception",
+  (input: { id: string; ends_on: string }) => new WorkflowResponse(endExceptionStep(input))
+)
+
 type PauseRow = { id: string; seller_id: string; starts_at: Date; ends_at: Date | null; note: string | null }
 
 /** The shop's pause in force at `at`, if any. */
 async function currentPause(shopHours: ShopHoursModuleService, sellerId: string, at: Date): Promise<PauseRow | undefined> {
-  const pauses = (await shopHours.listShopPauses({
-    seller_id: sellerId,
-    starts_at: { $lte: at },
-    $or: [{ ends_at: null }, { ends_at: { $gt: at } }],
-  })) as PauseRow[]
+  const pauses = (await shopHours.listShopPauses(pauseInForce(sellerId, at))) as PauseRow[]
   return pauses[0]
 }
 
