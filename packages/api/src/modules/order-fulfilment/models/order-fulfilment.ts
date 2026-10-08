@@ -19,6 +19,13 @@ const OrderFulfilment = model
     reject_reason: model.text().nullable(),
     /** How many of each line staff have picked so far, by line item id; a line not listed has none. */
     picks: model.json().nullable(),
+    /**
+     * How many of each line staff marked unavailable while picking, by line item id, waiting to
+     * be removed from the order (#22). Cleared once they are.
+     */
+    unavailable: model.json().nullable(),
+    /** How many of each line were removed from the order as unavailable, by line item id (#22). */
+    removed: model.json().nullable(),
     /** When staff were reminded that the order waits to be accepted; it is reminded once (#27). */
     accept_reminded_at: model.dateTime().nullable(),
     /** The courier shipment booked for the order (#24): the latest, also once cancelled. */

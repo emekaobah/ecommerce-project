@@ -12,6 +12,7 @@ import { isNotFound } from '@/api/errors';
 import { useCartSession } from '@/cart/cart-provider';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { Price } from '@/components/price';
+import { ShopStatusBadge } from '@/components/shop-status';
 
 /** The cart, one section per shop: each shop ships, and becomes an order, on its own. */
 export function CartScreen() {
@@ -79,6 +80,7 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
             {group.seller ? null : (
               <Text tone="secondary">These shops stopped selling these items. Remove them to check out.</Text>
             )}
+            {group.shop_status ? <ShopStatusBadge status={group.shop_status} withNote /> : null}
             {group.seller && group.perishable ? <PerishableRule /> : null}
           </View>
         )}

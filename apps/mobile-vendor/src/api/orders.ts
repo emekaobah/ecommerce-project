@@ -120,7 +120,7 @@ export function useRecordPick(orderId: string) {
       const lines = current.lines.map((line) =>
         line.id === pick.itemId ? { ...line, picked: 'add' in pick ? line.picked + pick.add : pick.picked } : line,
       );
-      queryClient.setQueryData<PickList>(key, { lines, progress: pickProgress(lines) });
+      queryClient.setQueryData<PickList>(key, { ...current, lines, progress: pickProgress(lines) });
     },
     onError: () => queryClient.invalidateQueries({ queryKey: key }),
     onSuccess: ({ pick_list }) => queryClient.setQueryData(key, pick_list),
@@ -135,6 +135,33 @@ export function useBookLabel(orderId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => vendorClient.vendor.orders.$id.bookLabel.mutate({ $id: orderId }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+  });
+}
+
+/**
+ * Sets how many of a line the shop doesn't have (#22); none clears it. The order is partially
+ * available until they are removed. Answers the pick list, with what they would refund.
+ */
+export function useMarkUnavailable(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
+      vendorClient.vendor.orders.$id.pickList.$itemId.unavailable.mutate({ $id: orderId, $itemId: itemId, quantity }),
+    onSuccess: ({ pick_list }) => queryClient.setQueryData(orderKeys.pickList(orderId), pick_list),
+    // The order's state moves between picking and partially available.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) }),
+  });
+}
+
+/**
+ * Removes the items marked unavailable from the order and refunds the buyer what they cost;
+ * the order goes back to picking.
+ */
+export function useRemoveUnavailable(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => vendorClient.vendor.orders.$id.removeUnavailable.mutate({ $id: orderId }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
   });
 }

@@ -44,7 +44,7 @@ const bookedShipmentStep = createStep(
 export const bookLabelWorkflow = createWorkflow("book-order-label", (input: BookLabelInput) => {
   // Held through two Shipbubble calls (the quote and the booking), each up to the client's timeout,
   // so a second tap can't book and pay for a second label.
-  const lock = lockOrderFulfilment(input, { ttl: 120 })
+  const lock = lockOrderFulfilment(input, 120)
   // Shipbubble created the label; who asked for it is the fulfilment's `created_by`.
   const trigger = providerTrigger(input, () => "label_created" as const)
   checkTransitionStep({ order_id: input.order_id, trigger })

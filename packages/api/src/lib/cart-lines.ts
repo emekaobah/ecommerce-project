@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { addToCartWorkflow } from "@medusajs/medusa/core-flows"
 import { priceOffers } from "./listings"
 import { isLive } from "./onboarding"
+import { refuseClosedShops } from "./shop-hours"
 
 // Cart lines are priced from their own offer and pinned there.
 //
@@ -16,6 +17,7 @@ import { isLive } from "./onboarding"
 /** What a line is charged: its offer's price in the cart's region. */
 export type OfferLinePrice = {
   offer_id: string
+  seller_id: string
   variant_id: string
   unit_price: number
   compare_at_unit_price: number | null
@@ -72,6 +74,7 @@ async function priceLine(scope: MedusaContainer, cart: CartPricing, offerId: str
   const originalPrice = Number(original_amount ?? calculated_amount)
   return {
     offer_id: offer.id,
+    seller_id: offer.seller_id,
     variant_id: offer.variant_id,
     unit_price: unitPrice,
     // A sale shows the shop's normal price struck through, as on the product page.
@@ -126,7 +129,10 @@ async function addPricedLines(
   })
 }
 
-/** Adds offers to a cart, each at its own shop's price. An unknown offer is not found. */
+/**
+ * Adds offers to a cart, each at its own shop's price. An unknown offer is not found; a shop
+ * in a closed exception or paused refuses (ADR 0004).
+ */
 export async function addOffersToCart(
   scope: MedusaContainer,
   cartId: string,
@@ -135,6 +141,7 @@ export async function addOffersToCart(
 ) {
   const cart = await loadCart(scope, cartId)
   const priced = await Promise.all(lines.map(async (line) => ({ line, price: await priceLine(scope, cart, line.offer_id) })))
+  await refuseClosedShops(scope, priced.map((p) => p.price.seller_id))
   await addPricedLines(scope, cartId, priced, additionalData)
 }
 

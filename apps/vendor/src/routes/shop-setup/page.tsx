@@ -4,6 +4,7 @@ import type { RouteConfig } from "@mercurjs/dashboard-sdk"
 import { PermissionGuard } from "@mercurjs/dashboard-shared"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 import { BankAccountForm } from "./bank-account-form"
 import { PickupAddressForm } from "./pickup-address-form"
 import { ONBOARDING_QUERY_KEY, useOnboarding, type Onboarding } from "./types"
@@ -66,7 +67,14 @@ const ShopSetupPage = () => {
               ) : (
                 <ExclamationCircle className="text-ui-fg-error" />
               )}
-              <Text size="small">{t(`shopSetup.steps.${step.key}`)}</Text>
+              {/* Hours have their own page (#68). */}
+              {step.key === "weekly_hours" ? (
+                <Link to="/shop-hours" className="text-ui-fg-interactive txt-small">
+                  {t(`shopSetup.steps.${step.key}`)}
+                </Link>
+              ) : (
+                <Text size="small">{t(`shopSetup.steps.${step.key}`)}</Text>
+              )}
               {!step.is_complete && (
                 <Text size="small" className="text-ui-fg-subtle">
                   {t("shopSetup.missing")}

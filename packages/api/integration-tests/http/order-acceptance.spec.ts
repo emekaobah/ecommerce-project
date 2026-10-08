@@ -3,8 +3,10 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { refundUnclaimedPayments, rejectOverdueOrders } from "../../src/lib/order-acceptance"
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
+import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
+import { keepShopsOpen } from "../helpers/shop-hours"
 import { fakePaystack } from "../helpers/paystack"
 import { fakeShipbubble } from "../helpers/shipbubble"
 
@@ -38,6 +40,8 @@ medusaIntegrationTestRunner({
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start()])
       await seedDemoData({ container: getContainer(), args: [] } as any)
+      // The accept deadline counts the shops' open hours (ADR 0004); open round the clock, it is 24 hours.
+      await keepShopsOpen(getContainer(), [GADGETS, GROCERY])
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
     beforeEach(() => buyer.load())
@@ -229,6 +233,29 @@ medusaIntegrationTestRunner({
         const accepted = await shopOrder(GROCERY, grocery)
         expect(accepted.fulfilment.state).toBe("accepted")
         expect(paidOnOrder(accepted)).toEqual({ captured: ORDER_TOTALS.get(GROCERY), refunded: 0 })
+      })
+
+      it("counts only the shop's open time: a pause stops the clock (ADR 0004)", async () => {
+        const { gadgets } = await paidOrders()
+        const placedAt = Date.parse((await shopOrder(GADGETS, gadgets)).created_at)
+        // The gadget hub was paused for ten hours, an hour after the order came in.
+        const shopHours = getContainer().resolve<ShopHoursModuleService>(SHOP_HOURS_MODULE)
+        const pause = await shopHours.createShopPauses({
+          seller_id: await buyer.sellerId(GADGETS),
+          starts_at: new Date(placedAt + HOUR),
+          ends_at: new Date(placedAt + 11 * HOUR),
+        })
+
+        try {
+          expect((await shopOrder(GADGETS, gadgets)).fulfilment.accept_by).toBe(new Date(placedAt + 34 * HOUR).toISOString())
+          await rejectOverdueOrders(getContainer(), new Date(placedAt + 24 * HOUR + 1000))
+          expect((await shopOrder(GADGETS, gadgets)).fulfilment.state).toBe("new")
+
+          await rejectOverdueOrders(getContainer(), new Date(placedAt + 34 * HOUR + 1000))
+          expect((await shopOrder(GADGETS, gadgets)).fulfilment).toMatchObject({ state: "rejected", rejected_by: "accept_deadline" })
+        } finally {
+          await shopHours.deleteShopPauses(pause.id)
+        }
       })
     })
 

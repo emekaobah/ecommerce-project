@@ -7,6 +7,7 @@ import { useListings } from '@/api/listings';
 import { useShop, type Shop } from '@/api/shops';
 import { ListingRow } from '@/components/listing-row';
 import { ShopFacts } from '@/components/shop-facts';
+import { ShopStatusBadge } from '@/components/shop-status';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useRegion } from '@/region/region-provider';
 
@@ -56,6 +57,7 @@ function ShopHeader({ shop }: Readonly<{ shop: Shop }>) {
     <View style={{ gap: theme.space.xs, paddingVertical: theme.space.md }}>
       <Text variant="title">{shop.name}</Text>
       <ShopFacts seller={shop} />
+      <ShopStatusBadge status={shop.shop_status} withNote />
       {shop.description ? <Text style={{ marginTop: theme.space.xs }}>{shop.description}</Text> : null}
     </View>
   );

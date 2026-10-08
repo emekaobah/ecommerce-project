@@ -80,7 +80,7 @@ function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
           <View style={styles.fill}>
             <Text numberOfLines={2}>{item.product_title ?? 'Item'}</Text>
             <Text variant="caption" tone="secondary">
-              {[item.variant_title, `Qty ${item.quantity}`].filter(Boolean).join(' · ')}
+              {[item.variant_title, quantityLabel(item)].filter(Boolean).join(' · ')}
             </Text>
           </View>
           <Text>{formatMoney(item.total, order.currency_code)}</Text>
@@ -92,6 +92,13 @@ function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
       </View>
     </View>
   );
+}
+
+/** How many are coming, and how many the shop didn't have (#22); the order's refund chip says where that money is. */
+function quantityLabel(item: SellerOrder['items'][number]) {
+  if (!item.unavailable_quantity) return `Qty ${item.quantity}`;
+  if (!item.quantity) return 'Unavailable';
+  return `Qty ${item.quantity} · ${item.unavailable_quantity} unavailable`;
 }
 
 const styles = StyleSheet.create({

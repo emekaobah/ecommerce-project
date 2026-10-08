@@ -29,6 +29,12 @@ export default function AppLayout() {
       <Stack.Screen name="orders/[id]/pick" />
       {/* The scanner fills the screen; Done returns to the pick list. */}
       <Stack.Screen name="orders/[id]/scan" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+      {/* Partial availability (#22): how many of a line are unavailable, then the refund summary. */}
+      <Stack.Screen
+        name="orders/[id]/unavailable"
+        options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: 'fitToContents' }}
+      />
+      <Stack.Screen name="orders/[id]/remove-unavailable" options={{ title: 'Remove unavailable items' }} />
       <Stack.Screen name="orders/[id]/packed" options={{ headerBackVisible: false }} />
       {/* Quick-add (#38): the scanner fills the screen, then the product's form and its confirmation. */}
       <Stack.Screen name="quick-add/index" options={{ presentation: 'fullScreenModal', headerShown: false }} />

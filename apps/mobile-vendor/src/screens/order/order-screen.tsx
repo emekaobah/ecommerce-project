@@ -132,7 +132,10 @@ function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilmen
       </View>
     );
   }
-  if (state === 'picking') return <Button label="Continue picking" onPress={openPickList} />;
+  // Partially available (#22) is still being picked: its unavailable items wait on the pick list.
+  if (state === 'picking' || state === 'partially_available') {
+    return <Button label="Continue picking" onPress={openPickList} />;
+  }
   if (state === 'packed') {
     return (
       <View style={{ gap: theme.space.sm }}>

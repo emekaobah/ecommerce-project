@@ -74,6 +74,7 @@ import { setCategoryPerishable } from "../lib/perishable";
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account";
 import { ADDRESS_CODE, addressCodeOf, validatedPickupChange } from "../lib/delivery";
 import { saveBankAccount } from "../lib/onboarding";
+import { sellersWithHours, setWeeklyHours } from "../lib/shop-hours";
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account";
 import { errorMessage } from "../lib/errors";
 
@@ -665,10 +666,15 @@ async function seedShipbubbleDelivery(
 const UNVALIDATED_ADDRESS_CODE = 0;
 const UNVERIFIED_RECIPIENT = "RCP_seed_unverified";
 
-// Each shop goes live the way a shop owner makes it (#26): its pickup address validated with
-// Shipbubble (by the seeded pin) and its bank account resolved with Paystack. A shop Paystack
-// can't resolve is left for its owner to finish in the vendor panel.
+// Each shop goes live the way a shop owner makes it (#26): its weekly hours set (ADR 0004), its
+// pickup address validated with Shipbubble (by the seeded pin) and its bank account resolved
+// with Paystack. A shop Paystack can't resolve is left for its owner to finish in the vendor panel.
 async function seedOnboarding(container: MedusaContainer, seller: SeededSeller) {
+  // Hours a shop has changed since are its own.
+  if (!(await sellersWithHours(container, [seller.id])).has(seller.id)) {
+    await setWeeklyHours(container, seller.id, seller.config.hours);
+  }
+
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
   const query = container.resolve(ContainerRegistrationKeys.QUERY);
   const {

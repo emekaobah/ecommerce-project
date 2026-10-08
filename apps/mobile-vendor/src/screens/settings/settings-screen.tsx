@@ -6,6 +6,8 @@ import { useMemberships } from '@/api/sellers';
 import { useSession } from '@/session/session-store';
 import { signOut } from '@/session/sign-out';
 
+import { PauseOrders } from './pause-orders';
+
 export function SettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -48,6 +50,14 @@ export function SettingsScreen() {
         Current shop
       </Text>
       {currentShop()}
+      {sellerId ? (
+        <>
+          <Text variant="caption" tone="secondary">
+            Orders
+          </Text>
+          <PauseOrders sellerId={sellerId} />
+        </>
+      ) : null}
       <Button label="Sign out" variant="secondary" onPress={() => void signOut()} />
     </ScrollView>
   );
