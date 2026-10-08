@@ -6,8 +6,9 @@ import { refundUnclaimedPaymentWorkflow } from "../workflows/order-fulfilment/wo
 import { rejectOrderWorkflow } from "../workflows/order-fulfilment/workflows/reject-order"
 import { remindAcceptDeadlineWorkflow } from "../workflows/order-fulfilment/workflows/remind-accept-deadline"
 import { errorMessage } from "./errors"
-import { asFulfilmentRecord, fulfilmentService, orderMoney, paymentsOfOrder } from "./order-fulfilment"
+import { asFulfilmentRecord, fulfilmentService, orderMoney, paymentsOfOrder, sellersOfOrders, type FulfilmentRecord } from "./order-fulfilment"
 import { refundPlan } from "./order-refund"
+import { shopHoursOf } from "./shop-hours"
 
 // Staff accept or reject a new order; one not accepted by its deadline is rejected for them.
 // A rejected order is refunded its share of the checkout's payment (#20).
@@ -43,14 +44,27 @@ async function refundRejected(scope: Scope, orderId: string, actor: string | und
   }
 }
 
+/** Each waiting order's shop's hours, which its accept deadline counts in (ADR 0004); null for a shop without them. */
+async function hoursOfOrders(scope: Scope, rows: FulfilmentRecord[], now: Date) {
+  const sellers = await sellersOfOrders(scope, rows.map((r) => r.order_id))
+  const hours = await shopHoursOf(scope, [...sellers.values()], now)
+  return (row: FulfilmentRecord) => hours.get(sellers.get(row.order_id) ?? "") ?? null
+}
+
 /**
- * The accept-deadline job: rejects and refunds every new order past its deadline, and tries
+ * The accept-deadline job: rejects and refunds every new order past its deadline (24 of its
+ * shop's open hours), and tries
  * again to refund recently rejected orders whose refund didn't go through.
  */
 export async function rejectOverdueOrders(scope: Scope, now = new Date()) {
   const service = fulfilmentService(scope)
   const waiting = (await service.listOrderFulfilments({ state: "new" })).map(asFulfilmentRecord)
-  const overdue = waiting.filter((row) => Date.parse(acceptDeadline(new Date(row.placed_at).toISOString())) <= now.getTime())
+  const hoursOf = await hoursOfOrders(scope, waiting, now)
+  const overdue = waiting.filter((row) => {
+    // No deadline while the shop is paused with no time set to reopen: its clock is stopped.
+    const deadline = acceptDeadline(new Date(row.placed_at).toISOString(), hoursOf(row))
+    return deadline != null && Date.parse(deadline) <= now.getTime()
+  })
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
   // One order at a time: each locks its order and payments, and calls Paystack.
   for (const row of overdue) {
@@ -82,7 +96,8 @@ export async function remindAcceptDeadlines(scope: Scope, now = new Date()) {
   const waiting = (await fulfilmentService(scope).listOrderFulfilments({ state: "new", accept_reminded_at: null })).map(
     asFulfilmentRecord
   )
-  const due = waiting.filter((row) => acceptReminderDue(new Date(row.placed_at).toISOString(), now))
+  const hoursOf = await hoursOfOrders(scope, waiting, now)
+  const due = waiting.filter((row) => acceptReminderDue(new Date(row.placed_at).toISOString(), now, hoursOf(row)))
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
   // Each order's reminder is its own, so they go out together.
   await Promise.all(

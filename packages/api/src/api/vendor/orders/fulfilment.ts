@@ -12,7 +12,10 @@ export async function shopsOwnOrder(req: VendorRequest<unknown>) {
   return req.params.id
 }
 
-/** The response to a transition: what staff now see of the order's fulfilment. */
+/**
+ * The response to a transition: what staff now see of the order's fulfilment. A transition
+ * never leaves an order New, so it has no accept deadline to count in the shop's hours.
+ */
 export const fulfilmentResponse = (record: FulfilmentRecord): VendorOrderFulfilmentResponse => ({
-  fulfilment: fulfilmentView(record, record.placed_at),
+  fulfilment: fulfilmentView(record, record.placed_at, null),
 })

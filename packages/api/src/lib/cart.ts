@@ -2,6 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { offerIdOf } from "./cart-lines"
 import { perishableProductIds } from "./perishable"
+import { shopStatusesOf, type ShopStatusView } from "./shop-hours"
 
 // The buyer's cart shown shop by shop: a cart can hold several shops' offers, and each shop
 // ships (and later becomes an order) on its own (docs/design.md). This reads the cart back
@@ -37,6 +38,11 @@ export type CartSellerGroup = {
   item_subtotal: number
   /** Some of the shop's items are perishable: it delivers only by rates arriving by the end of the next day (#69). */
   perishable: boolean
+  /**
+   * Whether the shop is open (ADR 0004): outside its hours the order is prepared when it opens;
+   * in a closed exception or paused (`orderable` false) its items can't be paid for. Null with `seller`.
+   */
+  shop_status: ShopStatusView | null
 }
 
 export type CartBySeller = {
@@ -157,12 +163,14 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
     const offerId = offerIds[i]
     const seller = (offerId && sellers.get(offerId)) || null
     const key = seller?.id ?? ""
-    const group = groups.get(key) ?? { seller, items: [], item_subtotal: 0, perishable: false }
+    const group = groups.get(key) ?? { seller, items: [], item_subtotal: 0, perishable: false, shop_status: null }
     group.items.push(toItem(row, offerId, !!row.product_id && perishable.has(row.product_id)))
     groups.set(key, group)
   })
+  const statuses = await shopStatusesOf(scope, [...groups.values()].flatMap((g) => (g.seller ? [g.seller.id] : [])))
   const sellerGroups = [...groups.values()].map((g) => ({
     ...g,
+    shop_status: g.seller ? statuses.get(g.seller.id)! : null,
     item_subtotal: sum(g.items.map((i) => i.subtotal)),
     perishable: g.items.some((i) => i.perishable),
   }))
