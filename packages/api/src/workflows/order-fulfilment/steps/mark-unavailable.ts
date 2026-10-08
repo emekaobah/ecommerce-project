@@ -2,7 +2,7 @@ import { transition, type StaffAction } from "@oja/domain"
 import { MedusaError } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { asFulfilmentRecord, fulfilmentService, type FulfilmentRecord } from "../../../lib/order-fulfilment"
-import { lineBeingPicked } from "./record-pick"
+import { lineBeingPicked } from "../../../lib/order-picking"
 
 export type MarkUnavailableInput = {
   order_id: string

@@ -5,6 +5,7 @@ import { removeUnavailableWorkflow } from "../workflows/order-fulfilment/workflo
 import { buyerRefund, type BuyerRefund } from "./buyer-orders"
 import { errorMessage } from "./errors"
 import type { FulfilmentRecord } from "./order-fulfilment"
+import { UNAVAILABLE_NOTE } from "./order-picking"
 
 // Items staff find unavailable while picking are removed from the order and the buyer is
 // refunded exactly what they cost (#22).
@@ -33,7 +34,7 @@ export async function removeUnavailableAndRefund(scope: Scope, input: { order_id
         order_id: input.order_id,
         amount: result.removed_amount,
         created_by: input.actor,
-        note: "Items unavailable at picking",
+        note: UNAVAILABLE_NOTE,
       },
     })
     return { ...result, refund: buyerRefund(refunds) }

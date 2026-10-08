@@ -78,8 +78,27 @@ export async function pickListOf(scope: Scope, orderId: string): Promise<PickLis
   }
 }
 
+/** The note on the order edit and refund that remove units marked unavailable. */
+export const UNAVAILABLE_NOTE = "Items unavailable at picking"
+
+/** The states an order is picked in: picking, and partially available while units wait to be removed (#22). */
+export const PICKING_STATES = new Set(["picking", "partially_available"])
+
+/** The order's fulfilment row and one of its lines, while the order is being picked; refuses any other. */
+export async function lineBeingPicked(scope: Scope, orderId: string, itemId: string) {
+  const record = (await fulfilmentsOf(scope, [orderId])).get(orderId)
+  const state = record?.state ?? "new"
+  if (!record || !PICKING_STATES.has(state)) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Order ${orderId} is ${state.replaceAll("_", " ")}: it isn't being picked`)
+  }
+  // A line removed in full is no longer on the order.
+  const item = (await itemsOf(scope, orderId)).find((i) => i.id === itemId && i.quantity > 0)
+  if (!item) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order ${orderId} has no line ${itemId}`)
+  return { record, item }
+}
+
 /** What removing these units takes off the lines' totals: each unit at its share of its line's total. */
-export function removalAmount(items: Pick<ItemRow, "id" | "quantity" | "total">[], units: Record<string, number>): number {
+function removalAmount(items: Pick<ItemRow, "id" | "quantity" | "total">[], units: Record<string, number>): number {
   const amount = items.reduce((sum, item) => {
     const count = units[item.id] ?? 0
     if (!count || !item.quantity) return sum

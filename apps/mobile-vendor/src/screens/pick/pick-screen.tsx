@@ -23,6 +23,7 @@ export function PickScreen() {
   // A tap picks the whole line (all of it still available), or puts a fully picked line back to none.
   const toggle = (line: PickListLine) => {
     const available = line.quantity - line.unavailable;
+    if (available <= 0) return;
     recordPick.mutate({ itemId: line.id, picked: line.picked >= available ? 0 : available });
   };
 

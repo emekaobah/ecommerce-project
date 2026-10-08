@@ -94,11 +94,11 @@ function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
   );
 }
 
-/** How many are coming, and how many the shop didn't have and refunded (#22). */
+/** How many are coming, and how many the shop didn't have (#22); the order's refund chip says where that money is. */
 function quantityLabel(item: SellerOrder['items'][number]) {
   if (!item.unavailable_quantity) return `Qty ${item.quantity}`;
-  if (!item.quantity) return 'Unavailable, refunded';
-  return `Qty ${item.quantity} · ${item.unavailable_quantity} unavailable, refunded`;
+  if (!item.quantity) return 'Unavailable';
+  return `Qty ${item.quantity} · ${item.unavailable_quantity} unavailable`;
 }
 
 const styles = StyleSheet.create({

@@ -6,11 +6,12 @@ import { transform } from "@medusajs/framework/workflows-sdk"
 
 /**
  * Takes the order's fulfilment lock, so one change to an order's fulfilment runs at a time.
- * Returns its key, for `releaseLockStep` at the end of the workflow.
+ * Returns its key, for `releaseLockStep` at the end of the workflow. `ttl` (seconds) is how
+ * long the lock outlives a workflow that never releases it; a longer workflow needs more.
  */
-export function lockOrderFulfilment(input: { order_id: string }) {
+export function lockOrderFulfilment(input: { order_id: string }, ttl = 30) {
   const key = transform({ input }, ({ input }) => `order-fulfilment:${input.order_id}`)
-  acquireLockStep({ key, timeout: 5, ttl: 30 })
+  acquireLockStep({ key, timeout: 5, ttl })
   return key
 }
 

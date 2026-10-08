@@ -6,6 +6,7 @@ import {
   requestOrderEditRequestWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { WorkflowResponse, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
+import { UNAVAILABLE_NOTE } from "../../../lib/order-picking"
 import { planRemovalStep, recordRemovalStep } from "../steps/remove-unavailable"
 import { lockOrderFulfilment } from "../compose"
 
@@ -22,14 +23,15 @@ export type RemoveUnavailableInput = { order_id: string; /** The member who remo
  * the edit. The response carries what the edit took off the order's total, which is the refund.
  */
 export const removeUnavailableWorkflow = createWorkflow("remove-unavailable-order-items", (input: RemoveUnavailableInput) => {
-  const lock = lockOrderFulfilment(input)
+  // Four order-edit workflows run under the lock, so it is held longer than a plain transition's.
+  const lock = lockOrderFulfilment(input, 120)
   const plan = planRemovalStep({ order_id: input.order_id })
 
   beginOrderEditOrderWorkflow.runAsStep({
     input: transform({ input }, ({ input }) => ({
       order_id: input.order_id,
       created_by: input.actor,
-      description: "Items unavailable at picking",
+      description: UNAVAILABLE_NOTE,
     })),
   })
   orderEditUpdateItemQuantityWorkflow.runAsStep({
