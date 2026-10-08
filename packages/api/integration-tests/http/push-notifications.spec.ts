@@ -9,6 +9,7 @@ import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../../src/module
 import { vendorHeaders } from "../helpers/auth"
 import { buyerCheckout, eventually, GADGETS, GROCERY, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
+import { keepShopsOpen } from "../helpers/shop-hours"
 import { fakeExpoPush, pushToken, type PushMessage } from "../helpers/expo-push"
 import { fakePaystack } from "../helpers/paystack"
 import { fakeShipbubble } from "../helpers/shipbubble"
@@ -46,6 +47,8 @@ medusaIntegrationTestRunner({
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start(), expo.start()])
       await seedDemoData({ container: getContainer(), args: [] } as any)
+      // The accept deadline counts the shops' open hours (ADR 0004); open round the clock, it is 24 hours.
+      await keepShopsOpen(getContainer(), [GADGETS, GROCERY])
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop()]))
     beforeEach(async () => {

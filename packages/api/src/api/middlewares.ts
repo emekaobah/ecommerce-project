@@ -21,6 +21,8 @@ import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares"
 import { onlyLiveShops } from "./store/live-shops";
 import { validatePickupAddressFirst } from "./pickup-address-check";
 import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
+import { vendorShopHoursMiddlewares } from "./vendor/shop-hours/middlewares";
+import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
@@ -215,6 +217,13 @@ export default defineMiddlewares({
         ...vendorAddressLookupMiddlewares,
         { method: ["POST"], matcher: "/vendor/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
         { method: ["POST"], matcher: "/admin/sellers/:id/address", middlewares: [validatePickupAddressFirst] },
+        // A shop's hours, exceptions and pause (ADR 0004, #68): the only source of truth for
+        // closures, so Mercur's seller closure fields can't be written.
+        ...vendorShopHoursMiddlewares,
+        { method: ["POST"], matcher: "/vendor/sellers/me", middlewares: [refuseMercurClosures] },
+        { method: ["POST"], matcher: "/vendor/sellers/:id", middlewares: [refuseMercurClosures] },
+        { method: ["POST"], matcher: "/admin/sellers", middlewares: [refuseMercurClosures] },
+        { method: ["POST"], matcher: "/admin/sellers/:id", middlewares: [refuseMercurClosures] },
         // Staff scan a product the shop doesn't sell yet and add it (#38, ADR 0006).
         ...vendorQuickAddMiddlewares,
         {

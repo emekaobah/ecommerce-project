@@ -9,12 +9,14 @@ const TONES: Partial<Record<OrderFulfilment['state'], StatusTone>> = {
   delivered: 'success',
 };
 
-/** A new order shows the time left to accept it; any other its state. */
+/** A new order shows the time left to accept it (counted in open hours); any other its state. */
 export function FulfilmentChip({ fulfilment, now }: Readonly<{ fulfilment: OrderFulfilment; now: Date }>) {
   if (fulfilment.state === 'new' && fulfilment.accept_by) {
     const left = acceptTimeLeft(fulfilment.accept_by, now);
     return <StatusChip label={`New · ${left.label}`} tone={left.urgent ? 'danger' : 'warning'} symbol="◷" />;
   }
+  // The shop is paused with no time set to reopen: the time to accept stands still (ADR 0004).
+  if (fulfilment.state === 'new') return <StatusChip label="New · clock paused" tone="warning" symbol="◷" />;
   return <StatusChip label={stateLabel(fulfilment.state)} tone={TONES[fulfilment.state] ?? 'neutral'} />;
 }
 

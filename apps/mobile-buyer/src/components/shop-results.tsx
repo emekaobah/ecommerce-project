@@ -8,6 +8,7 @@ import { openShop } from '@/navigation';
 
 import { ListingTile } from './listing-tile';
 import { ShopFacts } from './shop-facts';
+import { ShopStatusBadge } from './shop-status';
 
 /**
  * Search and category results grouped by shop: a shop header, then a shelf of that shop's
@@ -57,6 +58,7 @@ function ShopShelf({ group, currencyCode }: Readonly<{ group: ShopGroup<Listing>
             {group.seller.name}
           </Text>
           <ShopFacts seller={group.seller} variant="caption" />
+          <ShopStatusBadge status={group.seller.shop_status} />
         </View>
         <Button label="See all" variant="link" onPress={() => openShop(group.seller)} />
       </View>

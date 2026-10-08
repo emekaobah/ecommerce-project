@@ -5,6 +5,7 @@ import { ProductStatus } from "@mercurjs/types"
 import { attributionOf, type Attribution } from "./enrichment"
 import { perishableProductIds } from "./perishable"
 import { liveSellerIds } from "./onboarding"
+import { shopStatusesOf, type ShopStatusView } from "./shop-hours"
 
 // A listing is one shop's offer of one product: the product page and the feed are always
 // in a shop's context, and prices are never compared across shops (docs/design.md).
@@ -28,6 +29,11 @@ export type ListingSeller = {
   area: string | null
   /** The shop's usual days to ship; null when it hasn't set one. */
   default_leadtime_to_ship: number | null
+  /**
+   * Open, closed outside its hours (still orderable, with when it opens), or closed until it
+   * reopens (an exception or pause: not orderable, with its note). ADR 0004.
+   */
+  shop_status: ShopStatusView
 }
 
 /** A shop's page header. */
@@ -73,7 +79,10 @@ export type ListingFilters = {
 }
 
 type Region = { id: string; currency_code: string; countries: string[] }
-type SellerRow = Omit<Shop, "area"> & { address?: { country_code: string | null; city: string | null } | null }
+type SellerRow = Omit<Shop, "area" | "shop_status"> & {
+  address?: { country_code: string | null; city: string | null } | null
+  shop_status: ShopStatusView
+}
 /** Mercur's calculated price; the pricing module's fields beyond `ListingPrice` pass through untyped. */
 type CalculatedOfferPrice = ListingPrice & { is_calculated_price_tax_inclusive?: boolean } & Record<string, unknown>
 type OfferPricingRow = {
@@ -103,7 +112,7 @@ async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Reg
   return { id: region.id, currency_code: region.currency_code, countries: (region.countries ?? []).map((c) => c.iso_2) }
 }
 
-/** Live shops (open and through onboarding) based in one of the region's countries. */
+/** Live shops (open and through onboarding) based in one of the region's countries, with whether they are open now. */
 async function sellersServing(scope: MedusaContainer, region: Region, sellerId?: string) {
   const visible = await liveSellerIds(scope)
   const ids = sellerId ? visible.filter((id) => id === sellerId) : visible
@@ -122,11 +131,13 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
     ],
     filters: { id: ids },
   })
-  const serving = (data as SellerRow[]).filter((s) => {
+  const serving = (data as Omit<SellerRow, "shop_status">[]).filter((s) => {
     const country = s.address?.country_code?.toLowerCase()
     return !!country && region.countries.includes(country)
   })
-  return new Map(serving.map((s) => [s.id, s]))
+  // Closed shops stay listed, marked closed (ADR 0004).
+  const statuses = await shopStatusesOf(scope, serving.map((s) => s.id))
+  return new Map(serving.map((s) => [s.id, { ...s, shop_status: statuses.get(s.id)! }]))
 }
 
 /** Published products in the publishable key's sales channels, with their titles for ranking. */
@@ -312,6 +323,7 @@ function toListingSeller(seller: SellerRow): ListingSeller {
     handle: seller.handle,
     area: seller.address?.city ?? null,
     default_leadtime_to_ship: seller.default_leadtime_to_ship,
+    shop_status: seller.shop_status,
   }
 }
 

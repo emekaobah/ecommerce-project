@@ -2,6 +2,7 @@
 // people are invented. Amounts are NGN in major units (₦14,500 = 14500), weights
 // in grams. Every seeded account uses SEED_PASSWORD (documented in the README).
 
+import type { WeeklyHours } from "@oja/domain"
 import type { ShippingDefaults } from "../lib/shipping-defaults"
 
 export const SEED_PASSWORD = "supersecret"
@@ -39,9 +40,13 @@ export type SeedSeller = {
    * GTBank, which Paystack's test mode resolves to a dummy holder; live keys need real accounts.
    */
   bank: { bank_code: string; bank_name: string; account_number: string }
+  /** Weekly opening hours in the region's timezone (ADR 0004): a gate to going live. */
+  hours: WeeklyHours
   owner: SeedPerson
   staff: SeedPerson
 }
+
+const daily = (opens: string, closes: string) => [{ opens, closes }]
 
 export const SEED_SELLERS: SeedSeller[] = [
   {
@@ -58,6 +63,16 @@ export const SEED_SELLERS: SeedSeller[] = [
       longitude: 3.3548,
     },
     bank: { bank_code: "058", bank_name: "Guaranty Trust Bank", account_number: "0123456781" },
+    // A neighbourhood foodstuff shop: early till late, Sunday afternoons after church.
+    hours: {
+      mon: daily("07:00", "20:00"),
+      tue: daily("07:00", "20:00"),
+      wed: daily("07:00", "20:00"),
+      thu: daily("07:00", "20:00"),
+      fri: daily("07:00", "20:00"),
+      sat: daily("07:00", "20:00"),
+      sun: daily("13:00", "18:00"),
+    },
     owner: { email: "grocery.owner@oja.test", first_name: "Bisi", last_name: "Adeyemi" },
     staff: { email: "grocery.staff@oja.test", first_name: "Kunle", last_name: "Adeyemi" },
   },
@@ -75,6 +90,16 @@ export const SEED_SELLERS: SeedSeller[] = [
       longitude: 3.4723,
     },
     bank: { bank_code: "058", bank_name: "Guaranty Trust Bank", account_number: "0123456782" },
+    // A boutique: late mornings, closed Sundays.
+    hours: {
+      mon: daily("10:00", "19:00"),
+      tue: daily("10:00", "19:00"),
+      wed: daily("10:00", "19:00"),
+      thu: daily("10:00", "19:00"),
+      fri: daily("10:00", "19:00"),
+      sat: daily("10:00", "17:00"),
+      sun: [],
+    },
     owner: { email: "fashion.owner@oja.test", first_name: "Ngozi", last_name: "Okafor" },
     staff: { email: "fashion.staff@oja.test", first_name: "Chidi", last_name: "Eze" },
   },
@@ -92,6 +117,19 @@ export const SEED_SELLERS: SeedSeller[] = [
       longitude: 3.3421,
     },
     bank: { bank_code: "058", bank_name: "Guaranty Trust Bank", account_number: "0123456783" },
+    // Computer Village hours, with a break for Friday prayers.
+    hours: {
+      mon: daily("09:00", "18:00"),
+      tue: daily("09:00", "18:00"),
+      wed: daily("09:00", "18:00"),
+      thu: daily("09:00", "18:00"),
+      fri: [
+        { opens: "09:00", closes: "12:30" },
+        { opens: "14:30", closes: "18:00" },
+      ],
+      sat: daily("10:00", "16:00"),
+      sun: [],
+    },
     owner: { email: "electronics.owner@oja.test", first_name: "Emeka", last_name: "Nwosu" },
     staff: { email: "electronics.staff@oja.test", first_name: "Musa", last_name: "Bello" },
   },

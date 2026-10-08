@@ -4,6 +4,7 @@ import { rejectOverdueOrders } from "../../src/lib/order-acceptance"
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
 import { buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, ORDER_TOTALS, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
+import { keepShopsOpen } from "../helpers/shop-hours"
 import { fakePaystack } from "../helpers/paystack"
 import { fakeShipbubble } from "../helpers/shipbubble"
 
@@ -33,6 +34,8 @@ medusaIntegrationTestRunner({
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start()])
       await seedDemoData({ container: getContainer(), args: [] } as any)
+      // The accept deadline counts the shops' open hours (ADR 0004); open round the clock, it is 24 hours.
+      await keepShopsOpen(getContainer(), [GADGETS, GROCERY])
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
     beforeEach(() => buyer.load())

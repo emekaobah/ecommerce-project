@@ -36,6 +36,8 @@ const PICKUP = {
   metadata: { landmark: "Opposite the bakery", ...PIN },
 }
 const BANK = { bank_code: "058", account_number: "0123456789" }
+const daily = [{ opens: "08:00", closes: "18:00" }]
+const HOURS = { mon: daily, tue: daily, wed: daily, thu: daily, fri: daily, sat: daily, sun: [] }
 
 medusaIntegrationTestRunner({
   inApp: true,
@@ -141,6 +143,7 @@ medusaIntegrationTestRunner({
             steps: [
               { key: "pickup_address", is_complete: true },
               { key: "bank_account", is_complete: true },
+              { key: "weekly_hours", is_complete: true },
             ],
           })
           expect(onboarding.bank_account.recipient_code).toBeUndefined()
@@ -185,6 +188,7 @@ medusaIntegrationTestRunner({
         expect(data.onboarding.steps).toEqual([
           { key: "pickup_address", is_complete: true },
           { key: "bank_account", is_complete: false },
+          { key: "weekly_hours", is_complete: false },
         ])
         expect(data.onboarding.pickup_address).toMatchObject({
           address_1: PICKUP.address_1,
@@ -368,13 +372,25 @@ medusaIntegrationTestRunner({
     })
 
     describe("going live", () => {
-      it("shows the shop's offers on every store route once both gates are complete, and not before", async () => {
+      it("shows the shop's offers on every store route once every gate is complete, and not before", async () => {
         const shop = await newShop()
 
         await api.post("/vendor/onboarding/pickup-address", PICKUP, shop.owner)
         expect(await seenByBuyers(shop)).toEqual(HIDDEN)
 
         await api.post("/vendor/onboarding/bank-account", BANK, shop.owner)
+        // Without weekly opening hours a shop isn't live (ADR 0004).
+        expect(await seenByBuyers(shop)).toEqual(HIDDEN)
+        expect(await onboardingOf(shop.owner)).toMatchObject({
+          is_live: false,
+          steps: [
+            { key: "pickup_address", is_complete: true },
+            { key: "bank_account", is_complete: true },
+            { key: "weekly_hours", is_complete: false },
+          ],
+        })
+
+        await api.post("/vendor/shop-hours/weekly", { weekly: HOURS }, shop.owner)
         expect(await seenByBuyers(shop)).toEqual(SHOWN)
         expect((await onboardingOf(shop.owner)).is_live).toBe(true)
       })

@@ -15,6 +15,7 @@ import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
 import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
+import { closedShopError } from "./shop-hours"
 
 // Checkout of a multi-shop cart (#16): the buyer's address, each shop's delivery, then a
 // Paystack payment for the lot. Paystack's webhook completes the cart into an order group
@@ -86,7 +87,7 @@ export type Checkout = {
   shipping_total: number
   /** What the buyer pays: prices are VAT-inclusive, so items plus delivery. */
   total: number
-  /** The address is set and every item's shop delivers there, so payment can start. */
+  /** The address is set, every item's shop delivers there and is taking orders, so payment can start. */
   ready_to_pay: boolean
   /** Set once payment is confirmed and the cart has become orders. */
   order_group_id: string | null
@@ -343,7 +344,10 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
     shipping_total: Number(cart.shipping_total),
     total: Number(cart.total),
     ready_to_pay:
-      !!address && !!cart.email && sellers.length > 0 && sellers.every((g) => g.seller && g.shipping),
+      !!address &&
+      !!cart.email &&
+      sellers.length > 0 &&
+      sellers.every((g) => g.seller && g.shipping && g.shop_status?.orderable),
     order_group_id: (groups[0] as { id: string } | undefined)?.id ?? null,
   }
 }
@@ -573,6 +577,9 @@ export async function startCheckoutPayment(
   const priceChanges = await repriceLines(scope, cartId)
   await dropEmptyShopDeliveries(scope, cart)
   const checkout = await retrieveCheckout(scope, cartId, customerId)
+  // A shop in a closed exception or paused takes no orders until it reopens (ADR 0004).
+  const closed = checkout.sellers.find((g) => g.seller && g.shop_status && !g.shop_status.orderable)
+  if (closed) throw closedShopError(closed.seller!.name, closed.shop_status!)
   const undeliverable = checkout.sellers.find((g) => g.delivery_unavailable)
   if (undeliverable) throw new MedusaError(MedusaError.Types.NOT_ALLOWED, undeliverable.delivery_unavailable!.reason)
   if (!checkout.ready_to_pay) {

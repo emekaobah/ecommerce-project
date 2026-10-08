@@ -1,4 +1,4 @@
-import { acceptDeadline, acceptTimeLeft } from "@oja/domain"
+import { acceptDeadline, acceptTimeLeft, type ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PUSH_CHANNEL } from "../modules/expo-push"
@@ -6,6 +6,7 @@ import { DEVICE_NOT_REGISTERED } from "../modules/expo-push/expo-api"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { errorMessage } from "./errors"
 import { forgetPushDevices } from "./push-receipts"
+import { shopHoursOf } from "./shop-hours"
 
 // Pushes to a shop's members about one of its orders (#27): a new order, its accept deadline
 // approaching, and a courier pickup scheduled. Each goes to every device of every member of the
@@ -20,13 +21,17 @@ type PushOrder = { id: string; display_id: number; created_at: string | Date; se
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`
 
-const MESSAGES: Record<ShopPushKind, (order: PushOrder, now: Date) => { title: string; body: string }> = {
+type Message = (order: PushOrder, now: Date, hours: ShopHours | null) => { title: string; body: string }
+
+const MESSAGES: Record<ShopPushKind, Message> = {
   order_placed: (order) => ({
     title: `New order #${order.display_id}`,
     body: `${plural(order.items, "item")}. Accept or reject it in the app.`,
   }),
-  accept_deadline_near: (order, now) => {
-    const { label } = acceptTimeLeft(acceptDeadline(new Date(order.created_at).toISOString()), now)
+  accept_deadline_near: (order, now, hours) => {
+    // The reminder comes only while the deadline is set (the shop isn't paused for good).
+    const deadline = acceptDeadline(new Date(order.created_at).toISOString(), hours) ?? now.toISOString()
+    const { label } = acceptTimeLeft(deadline, now)
     return {
       title: `Order #${order.display_id} is waiting`,
       body: `${label} to accept it, or it is rejected and refunded.`,
@@ -75,7 +80,8 @@ export async function pushToShop(scope: Scope, kind: ShopPushKind, orderId: stri
   if (!order) return
   const devices = await shopDevices(scope, order.seller_id)
   if (!devices.length) return
-  const { title, body } = MESSAGES[kind](order, now)
+  const hours = (await shopHoursOf(scope, [order.seller_id], now)).get(order.seller_id) ?? null
+  const { title, body } = MESSAGES[kind](order, now, hours)
   const notifications = scope.resolve(Modules.NOTIFICATION)
   // One device a call, so a refusal is known to be that device's.
   const sent = await Promise.allSettled(
