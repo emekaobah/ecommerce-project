@@ -13,3 +13,7 @@ export const VendorRecordPick = z.union([
   z.object({ add: z.number().int().min(1) }).strict(),
 ])
 export type VendorRecordPickType = z.infer<typeof VendorRecordPick>
+
+/** How many of a line are unavailable (#22); none clears the mark. Never past the units not yet picked. */
+export const VendorMarkUnavailable = z.object({ quantity: z.number().int().min(0) }).strict()
+export type VendorMarkUnavailableType = z.infer<typeof VendorMarkUnavailable>

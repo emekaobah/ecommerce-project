@@ -1,0 +1,83 @@
+import { formatMoney } from '@oja/domain';
+import { Button, ErrorState, ListRow, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ScrollView, StyleSheet, View } from 'react-native';
+
+import { usePickList, useRemoveUnavailable } from '@/api/orders';
+
+/**
+ * The refund summary (#22): the items marked unavailable and what the buyer gets back, then,
+ * once staff confirm, the order edited and the refund made. The order goes back to picking.
+ */
+export function RemoveUnavailableScreen() {
+  const theme = useTheme();
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const pickList = usePickList(id);
+  const remove = useRemoveUnavailable(id);
+  const done = remove.data;
+
+  if (done) {
+    const currency = done.pick_list.currency_code;
+    return (
+      <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
+        <Text variant="title">Items removed</Text>
+        {done.refund ? (
+          <View style={{ gap: theme.space.xs }}>
+            <StatusChip label="Refund on its way" tone="success" />
+            <Text>{`${formatMoney(done.refund.amount, currency)} is being refunded to the buyer.`}</Text>
+          </View>
+        ) : (
+          <View style={{ gap: theme.space.xs }}>
+            <StatusChip label="Refund not made" tone="warning" />
+            <Text>
+              {`The order was changed, but the refund of ${formatMoney(done.removed_amount, currency)} didn't go through. Contact Oja support to finish it.`}
+            </Text>
+          </View>
+        )}
+        <Button label="Back to picking" onPress={() => router.back()} />
+      </ScrollView>
+    );
+  }
+
+  if (pickList.error && !pickList.data) {
+    return <ErrorState title="Couldn't load the pick list" message={pickList.error.message} onRetry={() => void pickList.refetch()} />;
+  }
+  if (!pickList.data) return <LoadingState />;
+  const { lines, unavailable_amount, currency_code } = pickList.data;
+  const marked = lines.filter((line) => line.unavailable > 0);
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
+      <Text tone="secondary">
+        These come off the order, and the buyer is refunded what they paid for them. You then pick and pack the rest.
+      </Text>
+      <View>
+        {marked.map((line) => (
+          <ListRow
+            key={line.id}
+            title={line.product_title ?? 'Item'}
+            subtitle={`${line.unavailable} of ${line.quantity} unavailable`}
+          />
+        ))}
+      </View>
+      <View style={styles.spread}>
+        <Text variant="label">Refund to the buyer</Text>
+        <Text variant="label">{formatMoney(unavailable_amount, currency_code)}</Text>
+      </View>
+      {remove.error ? <Text tone="danger">{remove.error.message}</Text> : null}
+      <Button
+        label="Remove and refund"
+        detail={formatMoney(unavailable_amount, currency_code)}
+        disabled={!marked.length}
+        loading={remove.isPending}
+        onPress={() => remove.mutate()}
+      />
+      <Button label="Keep picking" variant="secondary" disabled={remove.isPending} onPress={() => router.back()} />
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+});

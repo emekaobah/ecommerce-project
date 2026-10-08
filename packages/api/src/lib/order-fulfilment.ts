@@ -28,7 +28,7 @@ export const ORDER_PICKUP_SCHEDULED = "order_fulfilment.pickup_scheduled"
 
 export const fulfilmentService = (scope: Scope) => scope.resolve<OrderFulfilmentModuleService>(ORDER_FULFILMENT_MODULE)
 
-/** How many of each line staff have picked, by line item id; a line not listed has none. */
+/** How many of each line (picked, marked unavailable, removed), by line item id; a line not listed has none. */
 export type Picks = Record<string, number>
 
 export type FulfilmentRecord = {
@@ -39,6 +39,10 @@ export type FulfilmentRecord = {
   placed_at: Date
   reject_reason: string | null
   picks: Picks | null
+  /** Units of each line marked unavailable, waiting to be removed from the order (#22). */
+  unavailable: Picks | null
+  /** Units of each line removed from the order as unavailable (#22). */
+  removed: Picks | null
   accept_reminded_at: Date | null
 }
 
