@@ -1,10 +1,11 @@
 import { PRODUCT_NAME } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { processPayoutForWebhookWorkflow } from "@mercurjs/core/workflows"
 import { PayoutStatus, type PayoutWebhookAction } from "@mercurjs/types"
 import { paystackClient } from "../modules/paystack"
-import { UNSETTLED_REFUND_STATUSES } from "../modules/paystack/client"
+// Every amount is worked out in kobo (the currency's subunit) to stay exact.
+import { fromSubunit, toSubunit, UNSETTLED_REFUND_STATUSES } from "../modules/paystack/client"
 import { payoutStatusOf } from "../modules/paystack-payout/service"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account"
 import { fulfilmentService, fulfilmentsOf } from "./order-fulfilment"
@@ -15,10 +16,6 @@ import type { OrderTransaction } from "./shop-order"
 
 /** Oja's commission, as a percentage of the goods the buyer kept. Also the global commission rate (seed). */
 export const COMMISSION_PERCENT = 10
-
-/** Kobo (or the currency's subunit), where every amount here is worked out to stay exact. */
-const toSubunit = (amount: number) => Math.round(amount * 100)
-const fromSubunit = (subunits: number) => subunits / 100
 
 export type OrderPayout = {
   /** What was captured for the order: its share of its checkout's payment. */
@@ -78,6 +75,37 @@ export function recover(amount: number, owed: number): { recovered: number; tran
 
 export type Scope = Pick<MedusaContainer, "resolve">
 
+/** An attempt at paying an order out, and its payout's status: null when none was recorded. */
+export type PayoutAttempt = { row: ShopPayoutRow; status: PayoutStatus | null }
+
+/** Each order's attempts at a payout, first to last; an order not listed has none. */
+export async function payoutAttemptsOf(scope: Scope, orderIds: string[]): Promise<Map<string, PayoutAttempt[]>> {
+  if (!orderIds.length) return new Map()
+  const rows = (await fulfilmentService(scope).listShopPayouts({ order_id: orderIds }, { order: { attempt: "ASC" } })).map(
+    asPayoutRow
+  )
+  const statuses = await payoutStatuses(scope, rows.flatMap((r) => (r.payout_id ? [r.payout_id] : [])))
+  const attempts = new Map<string, PayoutAttempt[]>()
+  for (const row of rows) {
+    const status = (row.payout_id && statuses.get(row.payout_id)) || null
+    attempts.set(row.order_id, [...(attempts.get(row.order_id) ?? []), { row, status }])
+  }
+  return attempts
+}
+
+/** How many times an order is tried before its payout is left to an operator. */
+export const MAX_PAYOUT_ATTEMPTS = 3
+
+/**
+ * The next attempt at paying an order out, given its earlier attempts' payout statuses (null for
+ * a transfer Paystack took whose payout wasn't recorded). None while one is on its way or paid,
+ * or once every attempt has failed.
+ */
+export function nextPayoutAttempt(attempts: (PayoutStatus | null)[]): number | null {
+  if (attempts.some((status) => !status || !UNPAID.has(status))) return null
+  return attempts.length < MAX_PAYOUT_ATTEMPTS ? attempts.length + 1 : null
+}
+
 /** An order's payout as `payOutOrderWorkflow` makes it. */
 export type PayoutToMake = {
   order_id: string
@@ -90,7 +118,9 @@ export type PayoutToMake = {
   /** What is sent: the order's payout less what was recovered. */
   transfer: number
   recipient_code: string
-  /** Paystack's reference for the transfer, one per order. */
+  /** The order's first attempt at a payout, or a later one after transfers failed. */
+  attempt: number
+  /** Paystack's reference for the transfer, one per attempt. */
   reference: string
   reason: string
 }
@@ -105,8 +135,9 @@ type PaidOrder = {
   seller?: { id: string; payout_account?: { id: string } | null } | null
 }
 
-/** Paystack's reference for an order's transfer: lowercase letters, digits, `-` and `_`. */
-const transferReference = (orderId: string) => `payout_${orderId}`.toLowerCase()
+/** Paystack's reference for an attempt at an order's transfer: lowercase letters, digits, `-` and `_`. */
+const transferReference = (orderId: string, attempt: number) =>
+  `payout_${orderId}${attempt > 1 ? `_${attempt}` : ""}`.toLowerCase()
 
 async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]> {
   if (!orderIds.length) return []
@@ -150,8 +181,11 @@ export async function payoutToMake(scope: Scope, orderId: string, owed: number):
   if (!order) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order ${orderId} was not found`)
   if (order.status === "canceled") throw refuse("it was cancelled")
   if (!(await fulfilmentsOf(scope, [orderId])).get(orderId)?.payout_eligible_at) throw refuse("it isn't delivered")
-  const [paidOut] = await fulfilmentService(scope).listShopPayouts({ order_id: orderId }, { take: 1 })
-  if (paidOut) throw refuse("it was paid out already")
+  const attempts = (await payoutAttemptsOf(scope, [orderId])).get(orderId) ?? []
+  const attempt = nextPayoutAttempt(attempts.map((a) => a.status))
+  if (!attempt) {
+    throw refuse(attempts.length >= MAX_PAYOUT_ATTEMPTS ? "every attempt failed" : "it was paid out already")
+  }
   if ((await withUnsettledRefunds(scope, [orderId])).size) throw refuse("a refund of it hasn't settled")
   const sellerId = order.seller?.id
   const accountId = order.seller?.payout_account?.id
@@ -171,7 +205,8 @@ export async function payoutToMake(scope: Scope, orderId: string, owed: number):
     recovered,
     transfer,
     recipient_code: bank.recipient_code,
-    reference: transferReference(order.id),
+    attempt,
+    reference: transferReference(order.id, attempt),
     reason: `${PRODUCT_NAME} order #${order.display_id}`,
   }
 }
@@ -188,6 +223,7 @@ type ShopPayoutRow = {
   commission: number
   amount: number
   recovered: number
+  attempt: number
   transfer_reference: string
   created_at: Date
 }
@@ -255,6 +291,20 @@ export async function syncPayoutTransfer(scope: MedusaContainer, reference: stri
   const action = SETTLED[payoutStatusOf((await paystack.verifyTransfer(reference)).status)]
   if (!action) return
   await processPayoutForWebhookWorkflow(scope).run({ input: { action, data: { id: row.payout_id } } })
+  if (action === "payout.failed" && Number(row.attempt) >= MAX_PAYOUT_ATTEMPTS) await alertPayoutGaveUp(scope, row.order_id)
+}
+
+/** Tells the admin an order's payout failed every attempt: an operator has to pay the shop. */
+async function alertPayoutGaveUp(scope: MedusaContainer, orderId: string) {
+  const description = `Order ${orderId}'s payout failed ${MAX_PAYOUT_ATTEMPTS} times and won't be tried again. Check the shop's bank account and pay it by hand.`
+  scope.resolve(ContainerRegistrationKeys.LOGGER).warn(description)
+  await scope.resolve(Modules.NOTIFICATION).createNotifications({
+    to: "",
+    channel: "feed",
+    template: "admin-ui",
+    data: { title: "Payout failed", description },
+    idempotency_key: `payout-gave-up:${orderId}`,
+  })
 }
 
 /** Where an order's payout is, as staff see it. */
@@ -265,6 +315,8 @@ export type PayoutState =
   | "waiting_for_refund"
   /** Delivered; paid out on the next daily run. */
   | "due"
+  /** Its transfer failed; tried again on the next daily run. */
+  | "retrying"
   | `${PayoutStatus}`
 
 export type OrderPayoutView = OrderPayout & {
@@ -283,13 +335,14 @@ export type OrderPayoutView = OrderPayout & {
  * the amounts are those it was paid out with.
  */
 export async function orderPayoutView(scope: Scope, orderId: string): Promise<OrderPayoutView> {
-  const [rowRecord] = await fulfilmentService(scope).listShopPayouts({ order_id: orderId }, { take: 1 })
   const [order] = await paidOrders(scope, [orderId])
   if (!order) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order ${orderId} was not found`)
+  const attempts = (await payoutAttemptsOf(scope, [orderId])).get(orderId) ?? []
   const base = { currency_code: order.currency_code, commission_percent: COMMISSION_PERCENT }
-  if (rowRecord) {
-    const row = asPayoutRow(rowRecord)
-    const status = row.payout_id ? (await payoutStatuses(scope, [row.payout_id])).get(row.payout_id) : undefined
+  const latest = attempts.at(-1)
+  if (latest) {
+    const { row, status } = latest
+    const retrying = order.status !== "canceled" && nextPayoutAttempt(attempts.map((a) => a.status)) !== null
     return {
       ...base,
       paid: row.paid,
@@ -297,7 +350,7 @@ export async function orderPayoutView(scope: Scope, orderId: string): Promise<Or
       delivery: row.delivery,
       commission: row.commission,
       amount: row.amount,
-      state: status ?? PayoutStatus.PENDING,
+      state: retrying ? "retrying" : (status ?? PayoutStatus.PENDING),
       recovered: row.recovered,
       transferred: recover(row.amount, row.recovered).transfer,
       paid_out_at: new Date(row.created_at).toISOString(),

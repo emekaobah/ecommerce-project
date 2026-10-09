@@ -1,4 +1,5 @@
-import { owedBack, payoutOf, recover } from "../lib/payouts"
+import { PayoutStatus } from "@mercurjs/types"
+import { MAX_PAYOUT_ATTEMPTS, nextPayoutAttempt, owedBack, payoutOf, recover } from "../lib/payouts"
 
 // A shop is paid what the buyer kept of its order, less the delivery fee (Oja pays the courier
 // from its own wallet) and a flat 10% commission on the rest (#29).
@@ -73,5 +74,28 @@ describe("recover", () => {
 
   it("gives back what was taken back too much", () => {
     expect(recover(4500, -1800)).toEqual({ recovered: -1800, transfer: 6300 })
+  })
+})
+
+// A payout whose transfer fails is tried again on the next run, up to MAX_PAYOUT_ATTEMPTS times (#29).
+describe("nextPayoutAttempt", () => {
+  it("is the first for an order never paid out", () => {
+    expect(nextPayoutAttempt([])).toBe(1)
+  })
+
+  it("is the next after transfers that failed", () => {
+    expect(nextPayoutAttempt([PayoutStatus.FAILED])).toBe(2)
+    expect(nextPayoutAttempt([PayoutStatus.FAILED, PayoutStatus.CANCELED])).toBe(3)
+  })
+
+  it("is none while a transfer is on its way or once one is paid", () => {
+    expect(nextPayoutAttempt([PayoutStatus.PENDING])).toBeNull()
+    expect(nextPayoutAttempt([PayoutStatus.FAILED, PayoutStatus.PAID])).toBeNull()
+    // A transfer Paystack took whose payout wasn't recorded counts as on its way.
+    expect(nextPayoutAttempt([null])).toBeNull()
+  })
+
+  it("is none once every attempt has failed", () => {
+    expect(nextPayoutAttempt(Array(MAX_PAYOUT_ATTEMPTS).fill(PayoutStatus.FAILED))).toBeNull()
   })
 })

@@ -230,10 +230,11 @@
       "not_due": "After delivery",
       "waiting_for_refund": "Waiting for a refund",
       "due": "Paid out overnight",
+      "retrying": "Failed, trying again overnight",
       "pending": "On its way",
       "processing": "On its way",
       "paid": "Paid",
-      "failed": "Failed",
+      "failed": "Failed: Oja will contact you",
       "canceled": "Cancelled"
     }
   }

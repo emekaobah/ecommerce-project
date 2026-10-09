@@ -9,10 +9,11 @@ type Payout = InferClientOutput<typeof client.vendor.orders.$id.payout.query>["p
 
 const money = (amount: number, currency: string) => `${currency.toUpperCase()} ${amount.toLocaleString()}`
 
-const STATE_COLORS: Record<string, "grey" | "orange" | "blue" | "green" | "red"> = {
+const STATE_COLORS: Record<Payout["state"], "grey" | "orange" | "blue" | "green" | "red"> = {
   not_due: "grey",
   waiting_for_refund: "orange",
   due: "blue",
+  retrying: "orange",
   pending: "blue",
   processing: "blue",
   paid: "green",
@@ -50,7 +51,7 @@ const OrderPayoutWidget = ({ data }: { data?: { id: string; updated_at?: string 
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <Heading level="h2">{t("orderPayout.title")}</Heading>
-        <Badge size="2xsmall" color={STATE_COLORS[payout.state] ?? "grey"}>
+        <Badge size="2xsmall" color={STATE_COLORS[payout.state]}>
           {t(`orderPayout.states.${payout.state}`)}
         </Badge>
       </div>

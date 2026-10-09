@@ -4,7 +4,7 @@ import { createPayoutAccountWorkflow } from "@mercurjs/core/workflows"
 import { payOutOrderWorkflow } from "../workflows/payouts/pay-out-order"
 import { errorMessage } from "./errors"
 import { fulfilmentService, sellersOfOrders } from "./order-fulfilment"
-import { owedBackBy, withUnsettledRefunds, type Scope } from "./payouts"
+import { nextPayoutAttempt, owedBackBy, payoutAttemptsOf, withUnsettledRefunds, type Scope } from "./payouts"
 
 // The daily payout run (#29): every delivered order not yet paid out, to its shop.
 
@@ -16,12 +16,18 @@ async function ordersDueForPayout(scope: Scope): Promise<Map<string, string[]>> 
   )
   const ids = eligible.map((r) => r.order_id)
   if (!ids.length) return new Map()
-  const [paidOut, waiting, sellers] = await Promise.all([
-    fulfilmentService(scope).listShopPayouts({ order_id: ids }, { select: ["order_id"] }),
+  const [attempts, waiting, sellers] = await Promise.all([
+    payoutAttemptsOf(scope, ids),
     withUnsettledRefunds(scope, ids),
     sellersOfOrders(scope, ids),
   ])
-  const done = new Set(paidOut.map((p) => p.order_id))
+  // Paid out, on its way, or failed every attempt.
+  const done = new Set(ids.filter((id) => nextPayoutAttempt((attempts.get(id) ?? []).map((a) => a.status)) === null))
+  // An order cancelled after delivery is never paid out.
+  const { data: cancelled } = await scope
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({ entity: "order", fields: ["id"], filters: { id: ids, status: "canceled" } })
+  for (const { id } of cancelled) done.add(id)
   const due = new Map<string, string[]>()
   for (const id of ids.filter((id) => !done.has(id) && !waiting.has(id) && sellers.has(id))) {
     const seller = sellers.get(id)!

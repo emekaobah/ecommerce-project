@@ -82,6 +82,9 @@ medusaIntegrationTestRunner({
 
     /** The transfer paying out an order, if any. */
     const transferFor = (orderId: string) => paystack.transfers().find((t) => t.reference === `payout_${orderId}`.toLowerCase())
+    /** Every attempt at transferring an order's payout, first to last. */
+    const transfersFor = (orderId: string) =>
+      paystack.transfers().filter((t) => t.reference.startsWith(`payout_${orderId}`.toLowerCase()))
     const shopPayouts = async (shop: Shop) => (await api.get("/vendor/payouts", await buyer.owner(shop))).data.payouts as any[]
     const orderPayout = async (orderId: string) =>
       (await api.get(`/vendor/orders/${orderId}/payout`, await buyer.owner(GROCERY))).data.payout
@@ -145,65 +148,6 @@ medusaIntegrationTestRunner({
         await payOutDeliveredOrders(getContainer())
 
         expect(transferFor(orderId)).toMatchObject({ amount: lessCommission(GROCERY_GOODS) })
-      })
-    })
-
-    describe("transfer webhooks", () => {
-      const statusOf = async (orderId: string) => (await shopPayouts(GROCERY)).find((p) => p.data?.order_id === orderId)?.status
-
-      it("mark the payout paid when Paystack says the transfer succeeded", async () => {
-        const { orderId } = await deliveredOrder()
-        await payOutDeliveredOrders(getContainer())
-        const { reference } = transferFor(orderId)!
-
-        paystack.settleTransfer(reference, "success")
-        expect((await paystackSays(paystack.transferEvent(reference))).status).toBe(200)
-
-        expect(await eventually(() => statusOf(orderId), (s) => s === "paid")).toBe("paid")
-        expect((await orderPayout(orderId)).state).toBe("paid")
-      })
-
-      it("mark the payout failed when the transfer failed or was reversed", async () => {
-        const failed = await deliveredOrder()
-        const reversed = await deliveredOrder()
-        await payOutDeliveredOrders(getContainer())
-
-        paystack.settleTransfer(transferFor(failed.orderId)!.reference, "failed")
-        paystack.settleTransfer(transferFor(reversed.orderId)!.reference, "reversed")
-        await paystackSays(paystack.transferEvent(transferFor(failed.orderId)!.reference))
-        await paystackSays(paystack.transferEvent(transferFor(reversed.orderId)!.reference))
-
-        expect(await eventually(() => statusOf(failed.orderId), (s) => s === "failed")).toBe("failed")
-        expect(await eventually(() => statusOf(reversed.orderId), (s) => s === "failed")).toBe("failed")
-      })
-
-      it("are taken on Paystack's word only: a webhook claiming success for a pending transfer changes nothing", async () => {
-        const { orderId } = await deliveredOrder()
-        await payOutDeliveredOrders(getContainer())
-        const { reference } = transferFor(orderId)!
-        paystack.settleTransfer(reference, "success")
-        const claim = paystack.transferEvent(reference)
-        paystack.settleTransfer(reference, "pending")
-
-        await paystackSays(claim)
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-
-        expect(await statusOf(orderId)).toBe("pending")
-      })
-
-      it("are refused with a bad signature", async () => {
-        const { orderId } = await deliveredOrder()
-        await payOutDeliveredOrders(getContainer())
-        const { reference } = transferFor(orderId)!
-        paystack.settleTransfer(reference, "success")
-
-        const forged = paystack.transferEvent(reference, { signedWith: "sk_test_forged" })
-        const status = await paystackSays(forged).then(
-          () => 200,
-          (e: any) => e.response?.status
-        )
-
-        expect(status).toBe(401)
       })
     })
 
@@ -327,6 +271,111 @@ medusaIntegrationTestRunner({
         )
 
         expect(status).toBe(404)
+      })
+    })
+
+    describe("transfer webhooks", () => {
+      const statusOf = async (orderId: string) => (await shopPayouts(GROCERY)).find((p) => p.data?.order_id === orderId)?.status
+      /** Paystack says the transfer failed, and the payout of that attempt (1st by default) is marked failed. */
+      const failTransfer = async (reference: string, orderId: string, attempt = 1) => {
+        paystack.settleTransfer(reference, "failed")
+        await paystackSays(paystack.transferEvent(reference))
+        await eventually(
+          async () => (await shopPayouts(GROCERY)).filter((p) => p.data?.order_id === orderId && p.status === "failed").length,
+          (n) => n >= attempt
+        )
+      }
+
+      it("mark the payout paid when Paystack says the transfer succeeded", async () => {
+        const { orderId } = await deliveredOrder()
+        await payOutDeliveredOrders(getContainer())
+        const { reference } = transferFor(orderId)!
+
+        paystack.settleTransfer(reference, "success")
+        expect((await paystackSays(paystack.transferEvent(reference))).status).toBe(200)
+
+        expect(await eventually(() => statusOf(orderId), (s) => s === "paid")).toBe("paid")
+        expect((await orderPayout(orderId)).state).toBe("paid")
+      })
+
+      it("mark the payout failed when the transfer failed or was reversed", async () => {
+        const failed = await deliveredOrder()
+        const reversed = await deliveredOrder()
+        await payOutDeliveredOrders(getContainer())
+
+        paystack.settleTransfer(transferFor(failed.orderId)!.reference, "failed")
+        paystack.settleTransfer(transferFor(reversed.orderId)!.reference, "reversed")
+        await paystackSays(paystack.transferEvent(transferFor(failed.orderId)!.reference))
+        await paystackSays(paystack.transferEvent(transferFor(reversed.orderId)!.reference))
+
+        expect(await eventually(() => statusOf(failed.orderId), (s) => s === "failed")).toBe("failed")
+        expect(await eventually(() => statusOf(reversed.orderId), (s) => s === "failed")).toBe("failed")
+      })
+
+      it("are taken on Paystack's word only: a webhook claiming success for a pending transfer changes nothing", async () => {
+        const { orderId } = await deliveredOrder()
+        await payOutDeliveredOrders(getContainer())
+        const { reference } = transferFor(orderId)!
+        paystack.settleTransfer(reference, "success")
+        const claim = paystack.transferEvent(reference)
+        paystack.settleTransfer(reference, "pending")
+
+        await paystackSays(claim)
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+
+        expect(await statusOf(orderId)).toBe("pending")
+      })
+
+      it("are refused with a bad signature", async () => {
+        const { orderId } = await deliveredOrder()
+        await payOutDeliveredOrders(getContainer())
+        const { reference } = transferFor(orderId)!
+        paystack.settleTransfer(reference, "success")
+
+        const forged = paystack.transferEvent(reference, { signedWith: "sk_test_forged" })
+        const status = await paystackSays(forged).then(
+          () => 200,
+          (e: any) => e.response?.status
+        )
+
+        expect(status).toBe(401)
+      })
+
+      it("try a failed payout again on the next run, under a new reference", async () => {
+        const { orderId } = await deliveredOrder()
+        await payOutDeliveredOrders(getContainer())
+        await failTransfer(transferFor(orderId)!.reference, orderId)
+        expect((await orderPayout(orderId)).state).toBe("retrying")
+
+        await payOutDeliveredOrders(getContainer())
+
+        expect(transfersFor(orderId).map((t) => t.reference)).toEqual([
+          `payout_${orderId}`.toLowerCase(),
+          `payout_${orderId}_2`.toLowerCase(),
+        ])
+        expect(transfersFor(orderId)[1]).toMatchObject({ amount: lessCommission(GROCERY_GOODS) })
+        expect((await orderPayout(orderId)).state).toBe("pending")
+      })
+
+      it("give up after the third failed attempt, and tell the admin", async () => {
+        const { orderId } = await deliveredOrder()
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          await payOutDeliveredOrders(getContainer())
+          await failTransfer(transfersFor(orderId).at(-1)!.reference, orderId, attempt)
+        }
+
+        await payOutDeliveredOrders(getContainer())
+
+        expect(transfersFor(orderId)).toHaveLength(3)
+        expect((await orderPayout(orderId)).state).toBe("failed")
+        const notices = await eventually(
+          async () =>
+            (await buyer.query().graph({ entity: "notification", fields: ["data"], filters: { channel: "feed" } })).data.filter(
+              (n: any) => String(n.data?.description ?? "").includes(orderId)
+            ),
+          (n) => n.length > 0
+        )
+        expect(notices).toHaveLength(1)
       })
     })
   },

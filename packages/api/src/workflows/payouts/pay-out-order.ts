@@ -38,6 +38,7 @@ const recordOrderPayoutStep = createStep(
       currency_code: payout.currency_code,
       ...breakdown,
       recovered: payout.recovered,
+      attempt: payout.attempt,
       transfer_reference: payout.reference,
     })
     return new StepResponse(row, row.id)
