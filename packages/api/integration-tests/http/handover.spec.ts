@@ -1,4 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { Modules } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { alertHandoverDisagreements } from "../../src/lib/handover"
@@ -187,6 +188,26 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("an order cancelled meanwhile", () => {
+      it("takes no more courier updates and is never payout-eligible", async () => {
+        const { orderId, waybill } = await handedOverOrder()
+        await shipbubbleSays(waybill, "in_transit")
+        await getContainer().resolve(Modules.ORDER).cancel(orderId)
+
+        expect((await shipbubbleSays(waybill, "completed")).status).toBe(200)
+
+        expect((await order(orderId)).fulfilment.state).toBe("in_transit")
+        expect(await payoutEligibleAt(orderId)).toBeNull()
+      })
+
+      it("refuses the staff handover", async () => {
+        const { orderId } = await confirmedOrder()
+        await getContainer().resolve(Modules.ORDER).cancel(orderId)
+
+        expect(await status(handOver(orderId))).toBe(400)
+      })
+    })
+
     describe("staff and the courier disagreeing about the handover", () => {
       /** The owner's and the staff member's phones, registered for the shop's pushes. */
       const devices = async (shop: Shop) => {
@@ -200,7 +221,7 @@ medusaIntegrationTestRunner({
       /** The handover alerts a device has had. */
       const handoverAlertsTo = (token: string) => expo.sentTo(token).filter((m) => /handover/i.test(m.title ?? ""))
 
-      it("alerts the owner, once, when staff handed over and the courier hasn't reported the pickup two hours later", async () => {
+      it("alerts the owner, once that day, when staff handed over and the courier hasn't reported the pickup two hours later", async () => {
         const phones = await devices(GROCERY)
         const { orderId } = await confirmedOrder()
         await handOver(orderId)
@@ -221,6 +242,23 @@ medusaIntegrationTestRunner({
         await new Promise((resolve) => setTimeout(resolve, 500))
         expect(handoverAlertsTo(phones.staffPhone)).toEqual([])
         expect(handoverAlertsTo(phones.owner)).toHaveLength(1)
+      })
+
+      it("alerts the owner again each day while staff and the courier still disagree", async () => {
+        const phones = await devices(GROCERY)
+        const { orderId } = await confirmedOrder()
+        await handOver(orderId)
+        const first = Date.now() + 3 * HOUR
+
+        await alertHandoverDisagreements(getContainer(), new Date(first))
+        await eventually(async () => handoverAlertsTo(phones.owner), (s) => s.length === 1)
+        await alertHandoverDisagreements(getContainer(), new Date(first + 23 * HOUR))
+        await alertHandoverDisagreements(getContainer(), new Date(first + 24 * HOUR))
+
+        const alerts = await eventually(async () => handoverAlertsTo(phones.owner), (s) => s.length >= 2)
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        expect(handoverAlertsTo(phones.owner)).toHaveLength(2)
+        expect(alerts.every((m) => m.data?.url === `/orders/${orderId}`)).toBe(true)
       })
 
       it("alerts the owner when the courier picked it up and no one confirmed the handover", async () => {

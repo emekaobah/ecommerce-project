@@ -21,40 +21,52 @@ export type ShopPushKind = "order_placed" | "accept_deadline_near" | "pickup_sch
 /** What the event said beyond the order: whose half of a disputed handover is missing. */
 export type ShopPushDetail = { waiting_for?: HandoverDisagreement["waiting_for"] }
 
-/** Kinds only the shop's owners are told of. */
-const OWNERS_ONLY = new Set<ShopPushKind>(["handover_disagreement"])
-
 type PushOrder = { id: string; display_id: number; created_at: string | Date; seller_id: string; items: number }
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`
 
 type Message = (order: PushOrder, now: Date, hours: ShopHours | null, detail: ShopPushDetail) => { title: string; body: string }
 
-const MESSAGES: Record<ShopPushKind, Message> = {
-  order_placed: (order) => ({
-    title: `New order #${order.display_id}`,
-    body: `${plural(order.items, "item")}. Accept or reject it in the app.`,
-  }),
-  accept_deadline_near: (order, now, hours) => {
-    // The reminder comes only while the deadline is set (the shop isn't paused for good).
-    const deadline = acceptDeadline(new Date(order.created_at).toISOString(), hours) ?? now.toISOString()
-    const { label } = acceptTimeLeft(deadline, now)
-    return {
-      title: `Order #${order.display_id} is waiting`,
-      body: `${label} to accept it, or it is rejected and refunded.`,
-    }
+/**
+ * Each kind's message, and who gets it: every member, or the shop's owners only. A device gets
+ * each event once, however often it is raised; a kind that `repeats` is told again each time it
+ * is raised at a new time (the handover alert, daily while it lasts).
+ */
+const KINDS: Record<ShopPushKind, { message: Message; ownersOnly?: true; repeats?: true }> = {
+  order_placed: {
+    message: (order) => ({
+      title: `New order #${order.display_id}`,
+      body: `${plural(order.items, "item")}. Accept or reject it in the app.`,
+    }),
   },
-  pickup_scheduled: (order) => ({
-    title: `Courier pickup booked for order #${order.display_id}`,
-    body: "Have the parcel packed and ready at the counter.",
-  }),
-  handover_disagreement: (order, _now, _hours, { waiting_for }) => ({
-    title: `Check the handover of order #${order.display_id}`,
-    body:
-      waiting_for === "staff"
-        ? "The courier says they collected it, but no one confirmed handing it over in the app."
-        : "Your staff handed it over, but the courier hasn't reported picking it up.",
-  }),
+  accept_deadline_near: {
+    message: (order, now, hours) => {
+      // The reminder comes only while the deadline is set (the shop isn't paused for good).
+      const deadline = acceptDeadline(new Date(order.created_at).toISOString(), hours) ?? now.toISOString()
+      const { label } = acceptTimeLeft(deadline, now)
+      return {
+        title: `Order #${order.display_id} is waiting`,
+        body: `${label} to accept it, or it is rejected and refunded.`,
+      }
+    },
+  },
+  pickup_scheduled: {
+    message: (order) => ({
+      title: `Courier pickup booked for order #${order.display_id}`,
+      body: "Have the parcel packed and ready at the counter.",
+    }),
+  },
+  handover_disagreement: {
+    message: (order, _now, _hours, { waiting_for }) => ({
+      title: `Check the handover of order #${order.display_id}`,
+      body:
+        waiting_for === "staff"
+          ? "The courier says they collected it, but no one confirmed handing it over in the app."
+          : "Your staff handed it over, but the courier hasn't reported picking it up.",
+    }),
+    ownersOnly: true,
+    repeats: true,
+  },
 }
 
 async function pushOrder(scope: Scope, orderId: string): Promise<PushOrder | null> {
@@ -102,10 +114,11 @@ export async function pushToShop(
 ): Promise<void> {
   const order = await pushOrder(scope, orderId)
   if (!order) return
-  const devices = await shopDevices(scope, order.seller_id, OWNERS_ONLY.has(kind))
+  const { message, ownersOnly = false, repeats = false } = KINDS[kind]
+  const devices = await shopDevices(scope, order.seller_id, ownersOnly)
   if (!devices.length) return
   const hours = (await shopHoursOf(scope, [order.seller_id], now)).get(order.seller_id) ?? null
-  const { title, body } = MESSAGES[kind](order, now, hours, detail)
+  const { title, body } = message(order, now, hours, detail)
   const notifications = scope.resolve(Modules.NOTIFICATION)
   // One device a call, so a refusal is known to be that device's.
   const sent = await Promise.allSettled(
@@ -116,7 +129,7 @@ export async function pushToShop(
         template: `shop-${kind.replaceAll("_", "-")}`,
         content: { subject: title, text: body },
         data: { url: `/orders/${order.id}`, order_id: order.id, seller_id: order.seller_id },
-        idempotency_key: `${kind}:${order.id}:${to}`,
+        idempotency_key: [kind, order.id, to, ...(repeats ? [now.toISOString()] : [])].join(":"),
       })
     )
   )

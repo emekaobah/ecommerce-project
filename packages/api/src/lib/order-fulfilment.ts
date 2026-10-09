@@ -41,8 +41,9 @@ export const ORDER_PICKUP_SCHEDULED = "order_fulfilment.pickup_scheduled"
 /** Emitted when an order is delivered, and so may be paid out to the shop (#25), with `{ id }` (the order). */
 export const ORDER_DELIVERED = "order_fulfilment.delivered"
 /**
- * Emitted once when staff and the courier have disagreed about an order's handover for too long
- * (#25), with `{ id, waiting_for }` (the order, and whose half is missing: `staff` or `courier`).
+ * Emitted when staff and the courier have disagreed about an order's handover for too long
+ * (#25), and daily while they do, with `{ id, waiting_for, at }` (the order, whose half is missing:
+ * `staff` or `courier`, and when the alert was raised).
  * The shop's owner is pushed to check it.
  */
 export const ORDER_HANDOVER_DISAGREEMENT = "order_fulfilment.handover_disagreement"
@@ -88,7 +89,7 @@ export type FulfilmentRecord = {
   reached: Reached | null
   /** When the order was delivered, and so may be paid out (#25). */
   payout_eligible_at: Date | null
-  /** When the owner was alerted that the handover's halves disagree (#25). */
+  /** When the owner was last alerted that the handover's halves disagree (#25). */
   handover_alerted_at: Date | null
 }
 
@@ -96,6 +97,10 @@ export type OrderRefundRecord = InferTypeOf<typeof OrderRefund>
 
 /** A stored row, typed: the model keeps the fulfilment as untyped JSON. */
 export const asFulfilmentRecord = (row: InferTypeOf<typeof OrderFulfilment>) => row as unknown as FulfilmentRecord
+
+/** When the owner was last alerted about the order's handover (ISO 8601), if ever. */
+export const alertedAt = (row: Pick<FulfilmentRecord, "handover_alerted_at">) =>
+  row.handover_alerted_at ? new Date(row.handover_alerted_at).toISOString() : null
 
 /** Each order's fulfilment row; an order without one is New. */
 export async function fulfilmentsOf(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentRecord>> {

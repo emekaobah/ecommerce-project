@@ -4,6 +4,7 @@ import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform, 
 import { cancelOrderFulfillmentWorkflow } from "@mercurjs/core/workflows"
 import { fulfilmentsOf, ORDER_PICKUP_SCHEDULED, ORDER_SHIPMENT_CANCELLED, type Shipment } from "../../../lib/order-fulfilment"
 import { cancelledByShipbubble } from "../../../modules/shipbubble"
+import { checkOrderLiveStep } from "../steps/check-order-live"
 import { transitionFulfilmentStep } from "../steps/transition-fulfilment"
 import { lockOrderFulfilment, providerTrigger, whenDelivered } from "../compose"
 
@@ -33,11 +34,12 @@ export type ShipmentUpdateInput = ShipmentInput & {
  * already), the courier confirmed (Label booked → Courier confirmed, and the shop is pushed
  * that the pickup is scheduled), the parcel picked up (its half of the handover, #25), in
  * transit, or delivered (payout-eligible). Transit or delivery reported before the handover is
- * complete is kept for when it is.
+ * complete is kept for when it is. Nothing moves an order cancelled meanwhile.
  */
 export const shipmentUpdateWorkflow = createWorkflow("order-shipment-update", (input: ShipmentUpdateInput) => {
   const lock = lockOrderFulfilment(input)
   currentShipmentStep(input)
+  checkOrderLiveStep({ order_id: input.order_id })
   const trigger = providerTrigger(input, (input) => input.event)
   const fulfilment = transitionFulfilmentStep({ order_id: input.order_id, trigger })
   when({ input }, ({ input }) => input.event === "confirmed").then(() => {

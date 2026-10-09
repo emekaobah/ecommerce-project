@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Fulfilment } from "./fulfilment"
-import { handoverDisagreement } from "./handover"
+import { handoverAlertDue, handoverDisagreement } from "./handover"
 
 const actor = "mem_staff_1"
 const at = "2026-10-09T10:00:00.000Z"
@@ -26,5 +26,24 @@ describe("handoverDisagreement", () => {
     expect(handoverDisagreement({ state: "courier_confirmed", handover: {} }, hoursLater(10))).toBeNull()
     const handedOver: Fulfilment = { state: "handed_to_courier", handover: { staff: { actor, at }, pickup: { at } } }
     expect(handoverDisagreement(handedOver, hoursLater(10))).toBeNull()
+  })
+})
+
+describe("handoverAlertDue", () => {
+  const tapped: Fulfilment = { state: "courier_confirmed", handover: { staff: { actor, at } } }
+
+  test("is due once the halves disagree and the owner hasn't been alerted", () => {
+    expect(handoverAlertDue(tapped, null, hoursLater(2))).toEqual({ waiting_for: "courier", since: at })
+  })
+
+  test("is due again a day after the last alert while they still disagree", () => {
+    const alertedAt = hoursLater(2).toISOString()
+    expect(handoverAlertDue(tapped, alertedAt, hoursLater(25.99))).toBeNull()
+    expect(handoverAlertDue(tapped, alertedAt, hoursLater(26))).toEqual({ waiting_for: "courier", since: at })
+  })
+
+  test("isn't due once they agree, however long ago the last alert was", () => {
+    const handedOver: Fulfilment = { state: "handed_to_courier", handover: { staff: { actor, at }, pickup: { at } } }
+    expect(handoverAlertDue(handedOver, hoursLater(2).toISOString(), hoursLater(100))).toBeNull()
   })
 })

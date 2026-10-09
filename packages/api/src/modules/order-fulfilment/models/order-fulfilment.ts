@@ -36,7 +36,7 @@ const OrderFulfilment = model
     reached: model.json().nullable(),
     /** When the order was delivered, and so may be paid out to the shop (#25, #29). */
     payout_eligible_at: model.dateTime().nullable(),
-    /** When the owner was alerted that staff and the courier disagree about the handover; once per shipment (#25). */
+    /** When the owner was last alerted that staff and the courier disagree about the handover; daily while they do (#25). */
     handover_alerted_at: model.dateTime().nullable(),
   })
   .indexes([{ on: ["state", "placed_at"] }, { on: ["shipment_id"] }])

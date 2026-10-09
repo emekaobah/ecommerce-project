@@ -23,3 +23,18 @@ export function handoverDisagreement(fulfilment: Fulfilment, now: Date): Handove
   if (!disagreement) return null
   return now.getTime() - new Date(disagreement.since).getTime() >= HANDOVER_DISAGREEMENT_MS ? disagreement : null
 }
+
+/** How long after alerting the owner about a handover still in dispute they are alerted again. */
+export const HANDOVER_REALERT_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Whether to alert the shop's owner about the handover at `now`: the halves disagree
+ * (`handoverDisagreement`) and the owner hasn't been alerted, or was last alerted
+ * (`alertedAt`, ISO 8601) at least `HANDOVER_REALERT_MS` ago. Repeated daily so a delivered
+ * order can't wait unpaid on a missed push.
+ */
+export function handoverAlertDue(fulfilment: Fulfilment, alertedAt: string | null, now: Date): HandoverDisagreement | null {
+  const disagreement = handoverDisagreement(fulfilment, now)
+  if (!disagreement || !alertedAt) return disagreement
+  return now.getTime() - new Date(alertedAt).getTime() >= HANDOVER_REALERT_MS ? disagreement : null
+}
