@@ -85,7 +85,7 @@ function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
     return (
       <Text tone="secondary">
         {fulfilment.rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${fulfilment.reject_reason}.`} The
-        buyer's payment for this order is being refunded.
+        buyer&apos;s payment for this order is being refunded.
       </Text>
     );
   }
@@ -158,14 +158,11 @@ function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilmen
   }
   if (state === 'accepted') {
     return (
-      <View style={{ gap: theme.space.sm }}>
-        {startPicking.error ? <Text tone="danger">{startPicking.error.message}</Text> : null}
-        <Button
-          label="Start picking"
-          loading={startPicking.isPending}
-          onPress={() => startPicking.mutate(undefined, { onSuccess: openPickList })}
-        />
-      </View>
+      <Action
+        label="Start picking"
+        mutation={startPicking}
+        onPress={() => startPicking.mutate(undefined, { onSuccess: openPickList })}
+      />
     );
   }
   // Partially available (#22) is still being picked: its unavailable items wait on the pick list.
@@ -174,23 +171,30 @@ function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilmen
   }
   if (state === 'packed') {
     return (
-      <View style={{ gap: theme.space.sm }}>
-        {bookLabel.error ? <Text tone="danger">{bookLabel.error.message}</Text> : null}
-        <Button
-          label={fulfilment.shipment?.cancelled ? 'Rebook courier label' : 'Book courier label'}
-          loading={bookLabel.isPending}
-          onPress={() => bookLabel.mutate()}
-        />
-      </View>
+      <Action
+        label={fulfilment.shipment?.cancelled ? 'Rebook courier label' : 'Book courier label'}
+        mutation={bookLabel}
+        onPress={() => bookLabel.mutate()}
+      />
     );
   }
   if (state === 'courier_confirmed' && !fulfilment.handover?.staff) {
-    return (
-      <View style={{ gap: theme.space.sm }}>
-        {handOver.error ? <Text tone="danger">{handOver.error.message}</Text> : null}
-        <Button label="Handed to courier" loading={handOver.isPending} onPress={() => handOver.mutate()} />
-      </View>
-    );
+    return <Action label="Handed to courier" mutation={handOver} onPress={() => handOver.mutate()} />;
   }
   return null;
+}
+
+/** A step's one action, with why it last failed above it. */
+function Action({
+  label,
+  mutation,
+  onPress,
+}: Readonly<{ label: string; mutation: { error: Error | null; isPending: boolean }; onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: theme.space.sm }}>
+      {mutation.error ? <Text tone="danger">{mutation.error.message}</Text> : null}
+      <Button label={label} loading={mutation.isPending} onPress={onPress} />
+    </View>
+  );
 }

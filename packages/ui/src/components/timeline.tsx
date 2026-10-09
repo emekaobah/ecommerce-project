@@ -21,7 +21,7 @@ const defaultTime = (at: string) => new Date(at).toLocaleString(undefined, { dat
  * Steps in order, each with a symbol and its label (never colour alone): ticked when done, a
  * dot in the progress colour where things are now, an open circle for what is to come.
  */
-export function Timeline({ steps, formatTime = defaultTime }: TimelineProps) {
+export function Timeline({ steps, formatTime = defaultTime }: Readonly<TimelineProps>) {
   const theme = useTheme()
   return (
     <View style={{ gap: theme.space.sm }}>
