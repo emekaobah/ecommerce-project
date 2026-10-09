@@ -145,6 +145,11 @@ const STEPS: { [S in FulfilmentState]: Step<S> } = {
   label_booked: (_, trigger) => {
     if (isProvider(trigger, "confirmed")) return { state: "courier_confirmed", handover: {} }
     if (isProvider(trigger, "cancelled")) return { state: "packed" }
+    // The courier moving the parcel means it confirmed, though that webhook came late or not at
+    // all: the order is confirmed and the event counts as it would there.
+    if (isProvider(trigger, "picked_up") || isProvider(trigger, "in_transit") || isProvider(trigger, "delivered")) {
+      return STEPS.courier_confirmed({ state: "courier_confirmed", handover: {} }, trigger)
+    }
     return undefined
   },
   courier_confirmed: ({ handover }, trigger) => {

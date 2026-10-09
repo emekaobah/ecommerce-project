@@ -227,6 +227,18 @@ describe("transition", () => {
       })
     })
 
+    test("a pickup reported before the courier's confirmation (a late or lost webhook) confirms it and counts", () => {
+      expect(transition({ state: "label_booked" }, { source: "provider", type: "picked_up", at: pickedUpAt })).toEqual({
+        ok: true,
+        fulfilment: { state: "courier_confirmed", handover: { pickup: { at: pickedUpAt } } },
+      })
+      const ahead = transition({ state: "label_booked" }, inTransit)
+      expect(ahead.ok && ahead.fulfilment).toEqual({
+        state: "courier_confirmed",
+        handover: { pickup: { at: transitAt }, reported: [{ state: "in_transit", at: transitAt }] },
+      })
+    })
+
     test("the same status reported twice, or transit after delivery, is refused", () => {
       const reported: Fulfilment = {
         state: "courier_confirmed",
@@ -313,6 +325,10 @@ describe("transition table", () => {
     packed: { "provider:label_created": "label_booked" },
     label_booked: {
       "provider:confirmed": "courier_confirmed",
+      // The courier moving the parcel means it confirmed, whether or not that webhook came.
+      "provider:picked_up": "courier_confirmed",
+      "provider:in_transit": "courier_confirmed",
+      "provider:delivered": "courier_confirmed",
       "provider:cancelled": "packed",
     },
     courier_confirmed: {

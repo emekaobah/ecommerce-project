@@ -41,9 +41,13 @@ export function staffTrigger<T extends StaffActionType>(input: { actor: string }
  * transition itself made it payout-eligible.
  */
 export function whenDelivered(fulfilment: WorkflowData<FulfilmentRecord>) {
-  when("order-delivered", { fulfilment }, ({ fulfilment }) => fulfilment.state === "delivered").then(() => {
-    const delivery = transform({ fulfilment }, ({ fulfilment }) => ({
-      input: { orderId: fulfilment.order_id, fulfillmentId: fulfilment.shipment!.fulfillment_id },
+  // Only a booked shipment is delivered, so a delivered order always has one.
+  const shipment = transform({ fulfilment }, ({ fulfilment }) =>
+    fulfilment.state === "delivered" ? fulfilment.shipment : null
+  )
+  when("order-delivered", { shipment }, ({ shipment }) => !!shipment).then(() => {
+    const delivery = transform({ fulfilment, shipment }, ({ fulfilment, shipment }) => ({
+      input: { orderId: fulfilment.order_id, fulfillmentId: shipment?.fulfillment_id ?? "" },
     }))
     markOrderFulfillmentAsDeliveredWorkflow.runAsStep(delivery)
     const data = transform({ fulfilment }, ({ fulfilment }) => ({ id: fulfilment.order_id }))

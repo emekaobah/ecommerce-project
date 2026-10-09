@@ -127,7 +127,7 @@ export type FulfilmentView = {
    * member who confirmed it and when, and when the courier reported picking it up (ISO 8601).
    */
   handover: { staff: { name: string | null; at: string } | null; picked_up_at: string | null } | null
-  /** The order's steps as staff see them, done up to where it is. */
+  /** The order's steps as staff (or its buyer) see them, done up to where it is. */
   timeline: TimelineStep[]
 }
 
@@ -136,15 +136,15 @@ function handoverOf(fulfilment: Fulfilment) {
   return "handover" in fulfilment ? fulfilment.handover : null
 }
 
-/**
- * `hours`: the shop's, which the accept deadline counts in; null for a shop without hours.
- * `names`: members' names by id, for who handed the order over.
- */
+/** `names`: members' names by id, for who handed the order over; `audience`: whose steps the timeline shows. */
+export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
+
+/** `hours`: the shop's, which the accept deadline counts in; null for a shop without hours. */
 export function fulfilmentView(
   record: FulfilmentRecord | undefined,
   placedAt: Date | string,
   hours: ShopHours | null,
-  names = new Map<string, string>()
+  { names = new Map<string, string>(), audience = "staff" }: FulfilmentViewOptions = {}
 ): FulfilmentView {
   const fulfilment = record?.fulfilment ?? newFulfilment()
   const shipment = record?.shipment
@@ -152,7 +152,7 @@ export function fulfilmentView(
   const placed_at = new Date(placedAt).toISOString()
   return {
     state: fulfilment.state,
-    accept_by: fulfilment.state === "new" ? acceptDeadline(new Date(placedAt).toISOString(), hours) : null,
+    accept_by: fulfilment.state === "new" ? acceptDeadline(placed_at, hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
     reject_reason: record?.reject_reason ?? null,
     shipment: shipment
@@ -167,7 +167,7 @@ export function fulfilmentView(
       staff: handover.staff ? { name: names.get(handover.staff.actor) ?? null, at: handover.staff.at } : null,
       picked_up_at: handover.pickup?.at ?? null,
     },
-    timeline: fulfilmentTimeline({ state: fulfilment.state, placed_at, reached: record?.reached ?? {} }, "staff"),
+    timeline: fulfilmentTimeline({ state: fulfilment.state, placed_at, reached: record?.reached ?? {} }, audience),
   }
 }
 
@@ -258,7 +258,7 @@ export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise
   return new Map(
     orders.map((o) => [
       o.id,
-      fulfilmentView(records.get(o.id), o.created_at, (o.seller && hours.get(o.seller.id)) || null, names),
+      fulfilmentView(records.get(o.id), o.created_at, (o.seller && hours.get(o.seller.id)) || null, { names }),
     ])
   )
 }

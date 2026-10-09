@@ -1,4 +1,4 @@
-import { fulfilmentTimeline, type ShopHours } from "@oja/domain"
+import type { ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
@@ -57,9 +57,8 @@ export type BuyerOrder = {
 export type BuyerFulfilmentView = Omit<FulfilmentView, "handover">
 
 function buyerFulfilment(record: FulfilmentRecord | undefined, placedAt: Date | string, hours: ShopHours | null): BuyerFulfilmentView {
-  const { handover: _staffOnly, ...view } = fulfilmentView(record, placedAt, hours)
-  const placed_at = new Date(placedAt).toISOString()
-  return { ...view, timeline: fulfilmentTimeline({ state: view.state, placed_at, reached: record?.reached ?? {} }, "buyer") }
+  const { handover: _staffOnly, ...view } = fulfilmentView(record, placedAt, hours, { audience: "buyer" })
+  return view
 }
 
 /** An order's refunds as its buyer sees them: what comes back, and how far it has got. */

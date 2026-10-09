@@ -9,15 +9,20 @@ import type { Fulfilment, FulfilmentState } from "./fulfilment"
 export type Reached = Partial<Record<FulfilmentState, string>>
 
 /**
- * The record after a transition from `previous` to `next` by a trigger at `at`. A handover
- * completed after the courier had moved on records each state the courier reported at the time
- * it reported it; a transition that leaves the state as it was (half a handover) records nothing.
+ * The record after a transition from `previous` to `next` by a trigger at `at`. A completed
+ * handover is reached when the courier picked the parcel up; one completed after the courier had
+ * moved on also records each state the courier reported, at the time it reported it; a transition that leaves the state as it was (half a handover) records nothing.
  */
 export function recordReached(reached: Reached, previous: Fulfilment, next: Fulfilment, at: string): Reached {
   if (next.state === previous.state) return reached
   if (previous.state !== "courier_confirmed" || next.state === "packed") return { ...reached, [next.state]: at }
-  const reported = Object.fromEntries((previous.handover.reported ?? []).map((r) => [r.state, r.at]))
-  return { ...reached, handed_to_courier: at, ...reported, [next.state]: reported[next.state] ?? at }
+  // Handed over when the courier picked it up, so the steps' times never run backwards.
+  const handedOverAt = "handover" in next && next.handover.pickup ? next.handover.pickup.at : at
+  const known: Reached = {
+    handed_to_courier: handedOverAt,
+    ...Object.fromEntries((previous.handover.reported ?? []).map((r) => [r.state, r.at])),
+  }
+  return { ...reached, ...known, [next.state]: known[next.state] ?? at }
 }
 
 export type TimelineStep = { label: string; status: "done" | "current" | "upcoming"; at: string | null }

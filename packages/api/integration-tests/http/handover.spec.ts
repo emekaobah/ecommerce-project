@@ -121,6 +121,18 @@ medusaIntegrationTestRunner({
         expect(data.fulfilment.state).toBe("handed_to_courier")
       })
 
+      it("counts a pickup Shipbubble reports before its confirmation arrives", async () => {
+        const { orderId, waybill } = await bookedOrder()
+
+        await shipbubbleSays(waybill, "picked_up")
+        // The late confirmation changes nothing more.
+        expect((await shipbubbleSays(waybill, "confirmed")).status).toBe(200)
+        expect((await order(orderId)).fulfilment).toMatchObject({ state: "courier_confirmed", handover: { staff: null } })
+
+        const { data } = await handOver(orderId)
+        expect(data.fulfilment.state).toBe("handed_to_courier")
+      })
+
       it("is refused before the courier confirms, a second time, and for another shop's order", async () => {
         const { orderId, waybill } = await bookedOrder()
 
@@ -185,6 +197,9 @@ medusaIntegrationTestRunner({
         return { owner, staffPhone }
       }
 
+      /** The handover alerts a device has had. */
+      const handoverAlertsTo = (token: string) => expo.sentTo(token).filter((m) => /handover/i.test(m.title ?? ""))
+
       it("alerts the owner, once, when staff handed over and the courier hasn't reported the pickup two hours later", async () => {
         const phones = await devices(GROCERY)
         const { orderId } = await confirmedOrder()
@@ -195,7 +210,7 @@ medusaIntegrationTestRunner({
         await alertHandoverDisagreements(getContainer(), new Date(now + 2 * HOUR + 60_000))
         await alertHandoverDisagreements(getContainer(), new Date(now + 3 * HOUR))
 
-        const [alert, ...more] = await eventually(async () => expo.sentTo(phones.owner).filter((m) => /handover/i.test(m.title ?? "")), (s) => s.length > 0)
+        const [alert, ...more] = await eventually(async () => handoverAlertsTo(phones.owner), (s) => s.length > 0)
         expect(more).toEqual([])
         expect(alert).toMatchObject({
           title: expect.stringMatching(/^Check the handover of order #\d+$/),
@@ -204,8 +219,8 @@ medusaIntegrationTestRunner({
         })
         // Owners only: fulfilment staff aren't told.
         await new Promise((resolve) => setTimeout(resolve, 500))
-        expect(expo.sentTo(phones.staffPhone).filter((m) => /handover/i.test(m.title ?? ""))).toEqual([])
-        expect(expo.sentTo(phones.owner).filter((m) => /handover/i.test(m.title ?? ""))).toHaveLength(1)
+        expect(handoverAlertsTo(phones.staffPhone)).toEqual([])
+        expect(handoverAlertsTo(phones.owner)).toHaveLength(1)
       })
 
       it("alerts the owner when the courier picked it up and no one confirmed the handover", async () => {
@@ -215,7 +230,7 @@ medusaIntegrationTestRunner({
 
         await alertHandoverDisagreements(getContainer(), new Date(Date.now() + 3 * HOUR))
 
-        const [alert] = await eventually(async () => expo.sentTo(phones.owner).filter((m) => /handover/i.test(m.title ?? "")), (s) => s.length > 0)
+        const [alert] = await eventually(async () => handoverAlertsTo(phones.owner), (s) => s.length > 0)
         expect(alert).toMatchObject({ body: expect.stringMatching(/no one confirmed handing it over/), data: { url: `/orders/${orderId}` } })
       })
 
@@ -226,7 +241,7 @@ medusaIntegrationTestRunner({
         await alertHandoverDisagreements(getContainer(), new Date(Date.now() + 3 * HOUR))
 
         await new Promise((resolve) => setTimeout(resolve, 500))
-        expect(expo.sentTo(phones.owner).filter((m) => /handover/i.test(m.title ?? ""))).toEqual([])
+        expect(handoverAlertsTo(phones.owner)).toEqual([])
       })
     })
 

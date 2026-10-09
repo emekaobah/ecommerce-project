@@ -26,6 +26,14 @@ describe("recordReached", () => {
     })
   })
 
+  test("a handover is reached when the courier picked the parcel up, whichever half came last", () => {
+    const tapped: Fulfilment = { state: "courier_confirmed", handover: { staff: handover.staff } }
+    const handedOver: Fulfilment = { state: "handed_to_courier", handover }
+    expect(recordReached({}, tapped, handedOver, handover.pickup.at)).toEqual({ handed_to_courier: handover.pickup.at })
+    const pickedUp: Fulfilment = { state: "courier_confirmed", handover: { pickup: handover.pickup } }
+    expect(recordReached({}, pickedUp, handedOver, "2026-10-09T16:00:00.000Z")).toEqual({ handed_to_courier: handover.pickup.at })
+  })
+
   test("a handover completed after the courier moved on records each state the courier reported, when it reported it", () => {
     const waiting: Fulfilment = {
       state: "courier_confirmed",
@@ -41,7 +49,7 @@ describe("recordReached", () => {
     const delivered: Fulfilment = { state: "delivered", handover: { staff: { actor, at: tappedAt }, pickup: handover.pickup } }
     expect(recordReached({ courier_confirmed: "t1" }, waiting, delivered, tappedAt)).toEqual({
       courier_confirmed: "t1",
-      handed_to_courier: tappedAt,
+      handed_to_courier: handover.pickup.at,
       in_transit: "2026-10-09T12:00:00.000Z",
       delivered: "2026-10-09T14:00:00.000Z",
     })
@@ -49,7 +57,7 @@ describe("recordReached", () => {
 
   test("transit completing a handover staff had tapped records the handover and the transit at once", () => {
     const tapped: Fulfilment = { state: "courier_confirmed", handover: { staff: handover.staff } }
-    const inTransit: Fulfilment = { state: "in_transit", handover }
+    const inTransit: Fulfilment = { state: "in_transit", handover: { staff: handover.staff, pickup: { at: "t5" } } }
     expect(recordReached({}, tapped, inTransit, "t5")).toEqual({ handed_to_courier: "t5", in_transit: "t5" })
   })
 })

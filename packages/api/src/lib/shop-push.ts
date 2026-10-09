@@ -1,4 +1,4 @@
-import { acceptDeadline, acceptTimeLeft, type ShopHours } from "@oja/domain"
+import { acceptDeadline, acceptTimeLeft, type HandoverDisagreement, type ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PUSH_CHANNEL } from "../modules/expo-push"
@@ -19,7 +19,7 @@ type Scope = Pick<MedusaContainer, "resolve">
 export type ShopPushKind = "order_placed" | "accept_deadline_near" | "pickup_scheduled" | "handover_disagreement"
 
 /** What the event said beyond the order: whose half of a disputed handover is missing. */
-export type ShopPushDetail = { waiting_for?: "staff" | "courier" }
+export type ShopPushDetail = { waiting_for?: HandoverDisagreement["waiting_for"] }
 
 /** Kinds only the shop's owners are told of. */
 const OWNERS_ONLY = new Set<ShopPushKind>(["handover_disagreement"])

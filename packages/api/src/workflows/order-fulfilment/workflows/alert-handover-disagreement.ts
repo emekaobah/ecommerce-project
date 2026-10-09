@@ -1,13 +1,13 @@
 import { emitEventStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform, when } from "@medusajs/framework/workflows-sdk"
-import { handoverDisagreement } from "@oja/domain"
+import { handoverDisagreement, type HandoverDisagreement } from "@oja/domain"
 import { ORDER_HANDOVER_DISAGREEMENT, asFulfilmentRecord, fulfilmentService } from "../../../lib/order-fulfilment"
 import { lockOrderFulfilment } from "../compose"
 
 export type AlertHandoverDisagreementInput = {
   order_id: string
   /** Whose half of the handover is missing. */
-  waiting_for: "staff" | "courier"
+  waiting_for: HandoverDisagreement["waiting_for"]
   /** ISO 8601: when the job found the halves disagreeing. */
   at: string
 }
