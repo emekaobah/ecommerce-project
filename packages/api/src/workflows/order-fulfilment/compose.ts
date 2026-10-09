@@ -1,6 +1,7 @@
 import type { ProviderEventType, StaffActionType } from "@oja/domain"
-import { acquireLockStep } from "@medusajs/medusa/core-flows"
-import { transform } from "@medusajs/framework/workflows-sdk"
+import { acquireLockStep, emitEventStep, markOrderFulfillmentAsDeliveredWorkflow } from "@medusajs/medusa/core-flows"
+import { transform, when, type WorkflowData } from "@medusajs/framework/workflows-sdk"
+import { ORDER_DELIVERED, type FulfilmentRecord } from "../../lib/order-fulfilment"
 
 // Pieces the order-fulfilment workflows are composed from.
 
@@ -32,4 +33,20 @@ export function staffTrigger<T extends StaffActionType>(input: { actor: string }
     actor: input.actor,
     at: new Date().toISOString(),
   }))
+}
+
+/**
+ * Once a transition has delivered the order (#25): its courier fulfilment is marked delivered,
+ * as Medusa and the web panels show it, and `order_fulfilment.delivered` is emitted. The
+ * transition itself made it payout-eligible.
+ */
+export function whenDelivered(fulfilment: WorkflowData<FulfilmentRecord>) {
+  when("order-delivered", { fulfilment }, ({ fulfilment }) => fulfilment.state === "delivered").then(() => {
+    const delivery = transform({ fulfilment }, ({ fulfilment }) => ({
+      input: { orderId: fulfilment.order_id, fulfillmentId: fulfilment.shipment!.fulfillment_id },
+    }))
+    markOrderFulfillmentAsDeliveredWorkflow.runAsStep(delivery)
+    const data = transform({ fulfilment }, ({ fulfilment }) => ({ id: fulfilment.order_id }))
+    emitEventStep({ eventName: ORDER_DELIVERED, data }).config({ name: "emit-order-delivered" })
+  })
 }

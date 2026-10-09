@@ -1,15 +1,15 @@
 import { useAuth } from '@clerk/expo';
 import { formatMoney, historyEntries } from '@oja/domain';
-import { ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
+import { ErrorState, ListRow, LoadingState, Text, Timeline, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useOrderGroup, type OrderGroup, type SellerOrder } from '@/api/orders';
 import { OrderStatusDetails, orderedAt } from '@/components/order-status';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
-/** A checkout: each shop's order of it, with its items and where it is. */
+/** A checkout: each shop's order of it, with its items, where it is, and the courier's tracking. */
 export function OrderGroupScreen() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -68,6 +68,7 @@ function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
         <Text tone="secondary">#{order.display_id}</Text>
       </View>
       <OrderStatusDetails order={order} />
+      <Tracking order={order} />
       {order.items.map((item) => (
         <View key={item.id} style={[styles.item, { gap: theme.space.md }]}>
           {item.thumbnail ? (
@@ -91,6 +92,27 @@ function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
         <Text variant="label">{formatMoney(order.paid_total, order.currency_code)}</Text>
       </View>
     </View>
+  );
+}
+
+/**
+ * Where the shop's order has got, step by step, and once a courier is booked a link to follow
+ * the parcel on the courier's tracking page (#25).
+ */
+function Tracking({ order }: Readonly<{ order: SellerOrder }>) {
+  const { timeline, shipment } = order.fulfilment;
+  return (
+    <>
+      {shipment && !shipment.cancelled ? (
+        <ListRow
+          title="Track your parcel"
+          subtitle={[shipment.courier_name, `Waybill ${shipment.waybill}`].filter(Boolean).join(' · ')}
+          trailing={<Text tone="secondary">›</Text>}
+          onPress={() => void Linking.openURL(shipment.tracking_url)}
+        />
+      ) : null}
+      {timeline.length ? <Timeline steps={timeline} /> : null}
+    </>
   );
 }
 

@@ -1,16 +1,25 @@
 import { formatMoney } from '@oja/domain';
-import { Button, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
+import { Button, ErrorState, ListRow, LoadingState, Text, Timeline, useTheme } from '@oja/ui';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Linking, ScrollView, View } from 'react-native';
 
-import { orderValue, useAcceptOrder, useBookLabel, useOrder, useStartPicking, type OrderFulfilment } from '@/api/orders';
+import {
+  orderValue,
+  useAcceptOrder,
+  useBookLabel,
+  useConfirmHandover,
+  useOrder,
+  useStartPicking,
+  type OrderFulfilment,
+} from '@/api/orders';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { lineLabel } from '@/orders/items';
 import { useNow } from '@/orders/use-now';
 
 /**
  * One order: its state, the deadline to accept it while it is new, its items, and what staff do
- * next: Accept / Reject while new, then pick and pack, then book (or rebook) the courier label.
+ * next: Accept / Reject while new, then pick and pack, book (or rebook) the courier label, and
+ * confirm the handover to the courier. Its timeline shows how far it has got.
  */
 export function OrderScreen() {
   const theme = useTheme();
@@ -42,6 +51,8 @@ export function OrderScreen() {
         </View>
 
         <NextStep orderId={id} fulfilment={fulfilment} />
+
+        {fulfilment.timeline.length ? <Timeline steps={fulfilment.timeline} /> : null}
       </ScrollView>
     );
   };
@@ -66,9 +77,10 @@ function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
   if (fulfilment.state === 'label_booked') {
     return <Text tone="secondary">Label booked. Waiting for the courier to confirm the pickup.</Text>;
   }
-  if (fulfilment.state === 'courier_confirmed') {
-    return <Text tone="secondary">The courier confirmed the pickup. Keep the parcel ready at the counter.</Text>;
-  }
+  if (fulfilment.state === 'courier_confirmed') return <HandoverNote fulfilment={fulfilment} />;
+  if (fulfilment.state === 'handed_to_courier') return <Text tone="secondary">With the courier, on its way to the buyer.</Text>;
+  if (fulfilment.state === 'in_transit') return <Text tone="secondary">In transit to the buyer.</Text>;
+  if (fulfilment.state === 'delivered') return <Text tone="secondary">Delivered to the buyer.</Text>;
   if (fulfilment.state === 'rejected') {
     return (
       <Text tone="secondary">
@@ -78,6 +90,29 @@ function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
     );
   }
   return null;
+}
+
+const timeOf = (at: string) => new Date(at).toLocaleTimeString(undefined, { timeStyle: 'short' });
+
+/** Where the handover stands while the courier is booked: it needs both staff's tap and the courier's pickup. */
+function HandoverNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
+  const staff = fulfilment.handover?.staff;
+  const pickedUpAt = fulfilment.handover?.picked_up_at;
+  if (staff) {
+    return (
+      <Text tone="secondary">
+        {`Handed over by ${staff.name ?? 'a staff member'} at ${timeOf(staff.at)}. Waiting for the courier to confirm the pickup.`}
+      </Text>
+    );
+  }
+  if (pickedUpAt) {
+    return (
+      <Text tone="secondary">
+        {`The courier says they collected it at ${timeOf(pickedUpAt)}. Confirm you handed it over.`}
+      </Text>
+    );
+  }
+  return <Text tone="secondary">The courier confirmed the pickup. Keep the parcel ready at the counter.</Text>;
 }
 
 /** The courier label booked for the order: the courier, its waybill and a link to track it. */
@@ -103,6 +138,7 @@ function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilmen
   const accept = useAcceptOrder(orderId);
   const startPicking = useStartPicking(orderId);
   const bookLabel = useBookLabel(orderId);
+  const handOver = useConfirmHandover(orderId);
   const { state } = fulfilment;
   const openPickList = () => router.push({ pathname: '/orders/[id]/pick', params: { id: orderId } });
 
@@ -145,6 +181,14 @@ function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilmen
           loading={bookLabel.isPending}
           onPress={() => bookLabel.mutate()}
         />
+      </View>
+    );
+  }
+  if (state === 'courier_confirmed' && !fulfilment.handover?.staff) {
+    return (
+      <View style={{ gap: theme.space.sm }}>
+        {handOver.error ? <Text tone="danger">{handOver.error.message}</Text> : null}
+        <Button label="Handed to courier" loading={handOver.isPending} onPress={() => handOver.mutate()} />
       </View>
     );
   }

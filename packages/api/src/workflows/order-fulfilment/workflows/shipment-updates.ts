@@ -5,7 +5,7 @@ import { cancelOrderFulfillmentWorkflow } from "@mercurjs/core/workflows"
 import { fulfilmentsOf, ORDER_PICKUP_SCHEDULED, ORDER_SHIPMENT_CANCELLED, type Shipment } from "../../../lib/order-fulfilment"
 import { cancelledByShipbubble } from "../../../modules/shipbubble"
 import { transitionFulfilmentStep } from "../steps/transition-fulfilment"
-import { lockOrderFulfilment, providerTrigger } from "../compose"
+import { lockOrderFulfilment, providerTrigger, whenDelivered } from "../compose"
 
 // Shipbubble's webhooks about an order's shipment (#24), once the route has checked the signature.
 
@@ -24,12 +24,16 @@ const currentShipmentStep = createStep("current-order-shipment", async ({ order_
   return new StepResponse(shipment)
 })
 
-export type ShipmentUpdateInput = ShipmentInput & { event: "label_created" | "confirmed" }
+export type ShipmentUpdateInput = ShipmentInput & {
+  event: "label_created" | "confirmed" | "picked_up" | "in_transit" | "delivered"
+}
 
 /**
  * Shipbubble reports the label created (Label booked, which booking has normally done
- * already) or the courier confirmed (Label booked → Courier confirmed, and the shop is pushed
- * that the pickup is scheduled).
+ * already), the courier confirmed (Label booked → Courier confirmed, and the shop is pushed
+ * that the pickup is scheduled), the parcel picked up (its half of the handover, #25), in
+ * transit, or delivered (payout-eligible). Transit or delivery reported before the handover is
+ * complete is kept for when it is.
  */
 export const shipmentUpdateWorkflow = createWorkflow("order-shipment-update", (input: ShipmentUpdateInput) => {
   const lock = lockOrderFulfilment(input)
@@ -39,6 +43,7 @@ export const shipmentUpdateWorkflow = createWorkflow("order-shipment-update", (i
   when({ input }, ({ input }) => input.event === "confirmed").then(() => {
     emitEventStep({ eventName: ORDER_PICKUP_SCHEDULED, data: { id: input.order_id } }).config({ name: "emit-pickup-scheduled" })
   })
+  whenDelivered(fulfilment)
   releaseLockStep({ key: lock })
   return new WorkflowResponse(fulfilment)
 })

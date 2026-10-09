@@ -10,18 +10,25 @@ import { shopHoursOf } from "./shop-hours"
 
 // Pushes to a shop's members about one of its orders (#27): a new order, its accept deadline
 // approaching, and a courier pickup scheduled. Each goes to every device of every member of the
-// shop; tapping it opens the order (`url`), acting for the shop (`seller_id`).
+// shop; tapping it opens the order (`url`), acting for the shop (`seller_id`). A handover staff
+// and the courier disagree about (#25) goes to the shop's owners only.
 
 type Scope = Pick<MedusaContainer, "resolve">
 
 /** What happened to the order that the shop is told about. */
-export type ShopPushKind = "order_placed" | "accept_deadline_near" | "pickup_scheduled"
+export type ShopPushKind = "order_placed" | "accept_deadline_near" | "pickup_scheduled" | "handover_disagreement"
+
+/** What the event said beyond the order: whose half of a disputed handover is missing. */
+export type ShopPushDetail = { waiting_for?: "staff" | "courier" }
+
+/** Kinds only the shop's owners are told of. */
+const OWNERS_ONLY = new Set<ShopPushKind>(["handover_disagreement"])
 
 type PushOrder = { id: string; display_id: number; created_at: string | Date; seller_id: string; items: number }
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`
 
-type Message = (order: PushOrder, now: Date, hours: ShopHours | null) => { title: string; body: string }
+type Message = (order: PushOrder, now: Date, hours: ShopHours | null, detail: ShopPushDetail) => { title: string; body: string }
 
 const MESSAGES: Record<ShopPushKind, Message> = {
   order_placed: (order) => ({
@@ -41,6 +48,13 @@ const MESSAGES: Record<ShopPushKind, Message> = {
     title: `Courier pickup booked for order #${order.display_id}`,
     body: "Have the parcel packed and ready at the counter.",
   }),
+  handover_disagreement: (order, _now, _hours, { waiting_for }) => ({
+    title: `Check the handover of order #${order.display_id}`,
+    body:
+      waiting_for === "staff"
+        ? "The courier says they collected it, but no one confirmed handing it over in the app."
+        : "Your staff handed it over, but the courier hasn't reported picking it up.",
+  }),
 }
 
 async function pushOrder(scope: Scope, orderId: string): Promise<PushOrder | null> {
@@ -58,10 +72,14 @@ async function pushOrder(scope: Scope, orderId: string): Promise<PushOrder | nul
   return { id: order.id, display_id: order.display_id, created_at: order.created_at, seller_id: order.seller.id, items }
 }
 
-/** Every device of every member of the shop. */
-async function shopDevices(scope: Scope, sellerId: string): Promise<string[]> {
+/** Every device of every member of the shop, or of its owners only. */
+async function shopDevices(scope: Scope, sellerId: string, ownersOnly: boolean): Promise<string[]> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: members } = await query.graph({ entity: "seller_member", fields: ["member_id"], filters: { seller_id: sellerId } })
+  const { data: members } = await query.graph({
+    entity: "seller_member",
+    fields: ["member_id"],
+    filters: { seller_id: sellerId, ...(ownersOnly && { is_owner: true }) },
+  })
   const memberIds = (members as { member_id: string }[]).map((m) => m.member_id)
   if (!memberIds.length) return []
   const tokens = await scope
@@ -75,13 +93,19 @@ async function shopDevices(scope: Scope, sellerId: string): Promise<string[]> {
  * each event once, however often it is raised. A device Expo says is no longer installed is
  * forgotten; any other push Expo refuses is logged. Either way the other devices get theirs.
  */
-export async function pushToShop(scope: Scope, kind: ShopPushKind, orderId: string, now = new Date()): Promise<void> {
+export async function pushToShop(
+  scope: Scope,
+  kind: ShopPushKind,
+  orderId: string,
+  now = new Date(),
+  detail: ShopPushDetail = {}
+): Promise<void> {
   const order = await pushOrder(scope, orderId)
   if (!order) return
-  const devices = await shopDevices(scope, order.seller_id)
+  const devices = await shopDevices(scope, order.seller_id, OWNERS_ONLY.has(kind))
   if (!devices.length) return
   const hours = (await shopHoursOf(scope, [order.seller_id], now)).get(order.seller_id) ?? null
-  const { title, body } = MESSAGES[kind](order, now, hours)
+  const { title, body } = MESSAGES[kind](order, now, hours, detail)
   const notifications = scope.resolve(Modules.NOTIFICATION)
   // One device a call, so a refusal is known to be that device's.
   const sent = await Promise.allSettled(

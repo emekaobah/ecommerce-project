@@ -7,7 +7,8 @@
  *
  * Branches: new → rejected (seller declines, or the 24h accept deadline
  * passes); picking ⇄ partially_available → packed; label_booked or
- * courier_confirmed → packed when the shipment provider cancels (rebook).
+ * courier_confirmed → packed when the shipment provider cancels (rebook);
+ * handed_to_courier → delivered when the provider never reported transit.
  *
  * Every trigger names its source: a `staff` action (who and when), a
  * shipment-`provider` event, or a `system` event. Provider events are generic
@@ -29,8 +30,15 @@ export type ProviderPickup = { at: string }
  * order is `courier_confirmed` each half is recorded as it arrives. The order
  * moves to `handed_to_courier` only on the trigger that supplies the second
  * half; each half can be recorded once. A cancellation drops both.
+ *
+ * The courier may move on before staff tap (#25): a transit or delivery the
+ * provider reports first counts as its pickup and is remembered in
+ * `reported`, so the tap that completes the handover takes the order straight
+ * to where the courier says it is, rather than leaving it stuck.
  */
-export type HandoverProgress = { staff?: StaffHandover; pickup?: ProviderPickup }
+export type HandoverProgress = { staff?: StaffHandover; pickup?: ProviderPickup; reported?: ProviderProgress[] }
+/** A state past handover the provider reported, and when (ISO 8601). */
+export type ProviderProgress = { state: "in_transit" | "delivered"; at: string }
 /** A completed handover, carried forward so later states keep who handed over and when. */
 export type Handover = { staff: StaffHandover; pickup: ProviderPickup }
 
@@ -147,10 +155,24 @@ const STEPS: { [S in FulfilmentState]: Step<S> } = {
     if (isProvider(trigger, "picked_up") && !handover.pickup) {
       return recordHandover({ ...handover, pickup: { at: trigger.at } })
     }
+    if (isProvider(trigger, "in_transit") || isProvider(trigger, "delivered")) {
+      const reached = handover.reported ?? []
+      // Each once, and never back from delivered to in transit.
+      if (reached.some((r) => r.state === trigger.type || r.state === "delivered")) return undefined
+      return recordHandover({
+        ...handover,
+        pickup: handover.pickup ?? { at: trigger.at },
+        reported: [...reached, { state: trigger.type, at: trigger.at }],
+      })
+    }
     return undefined
   },
-  handed_to_courier: ({ handover }, trigger) =>
-    isProvider(trigger, "in_transit") ? { state: "in_transit", handover } : undefined,
+  handed_to_courier: ({ handover }, trigger) => {
+    if (isProvider(trigger, "in_transit")) return { state: "in_transit", handover }
+    // A missed transit webhook doesn't hold up delivery.
+    if (isProvider(trigger, "delivered")) return { state: "delivered", handover }
+    return undefined
+  },
   in_transit: ({ handover }, trigger) =>
     isProvider(trigger, "delivered") ? { state: "delivered", handover } : undefined,
   rejected: done,
@@ -163,10 +185,12 @@ function nextFulfilment(fulfilment: Fulfilment, trigger: FulfilmentTrigger): Ful
   return step(fulfilment, trigger)
 }
 
+/** Completes the handover once both halves are in, at the furthest state the provider reported. */
 function recordHandover(handover: HandoverProgress): Fulfilment {
-  const { staff, pickup } = handover
-  if (staff && pickup) return { state: "handed_to_courier", handover: { staff, pickup } }
-  return { state: "courier_confirmed", handover }
+  const { staff, pickup, reported } = handover
+  if (!staff || !pickup) return { state: "courier_confirmed", handover }
+  const furthest = reported?.at(-1)?.state ?? "handed_to_courier"
+  return { state: furthest, handover: { staff, pickup } }
 }
 
 function isStaff<T extends StaffActionType>(
