@@ -1,4 +1,13 @@
-import { acceptDeadline, newFulfilment, type Fulfilment, type FulfilmentState, type ShopHours } from "@oja/domain"
+import {
+  acceptDeadline,
+  fulfilmentTimeline,
+  newFulfilment,
+  type Fulfilment,
+  type FulfilmentState,
+  type Reached,
+  type ShopHours,
+  type TimelineStep,
+} from "@oja/domain"
 import type { InferTypeOf, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../modules/order-fulfilment"
@@ -29,6 +38,15 @@ export const ORDER_SHIPMENT_CANCELLED = "order_fulfilment.shipment_cancelled"
  * when the courier confirms a booked label (#24). The shop is pushed to have the parcel ready.
  */
 export const ORDER_PICKUP_SCHEDULED = "order_fulfilment.pickup_scheduled"
+/** Emitted when an order is delivered, and so may be paid out to the shop (#25), with `{ id }` (the order). */
+export const ORDER_DELIVERED = "order_fulfilment.delivered"
+/**
+ * Emitted when staff and the courier have disagreed about an order's handover for too long
+ * (#25), and daily while they do, with `{ id, waiting_for, at }` (the order, whose half is missing:
+ * `staff` or `courier`, and when the alert was raised).
+ * The shop's owner is pushed to check it.
+ */
+export const ORDER_HANDOVER_DISAGREEMENT = "order_fulfilment.handover_disagreement"
 
 export const fulfilmentService = (scope: Scope) => scope.resolve<OrderFulfilmentModuleService>(ORDER_FULFILMENT_MODULE)
 
@@ -67,12 +85,22 @@ export type FulfilmentRecord = {
   shipment: Shipment | null
   /** The shipment's waybill, for its webhooks to find the order by. */
   shipment_id: string | null
+  /** When the order last reached each state; null for an order not moved since this was kept (#25). */
+  reached: Reached | null
+  /** When the order was delivered, and so may be paid out (#25). */
+  payout_eligible_at: Date | null
+  /** When the owner was last alerted that the handover's halves disagree (#25). */
+  handover_alerted_at: Date | null
 }
 
 export type OrderRefundRecord = InferTypeOf<typeof OrderRefund>
 
 /** A stored row, typed: the model keeps the fulfilment as untyped JSON. */
 export const asFulfilmentRecord = (row: InferTypeOf<typeof OrderFulfilment>) => row as unknown as FulfilmentRecord
+
+/** When the owner was last alerted about the order's handover (ISO 8601), if ever. */
+export const alertedAt = (row: Pick<FulfilmentRecord, "handover_alerted_at">) =>
+  row.handover_alerted_at ? new Date(row.handover_alerted_at).toISOString() : null
 
 /** Each order's fulfilment row; an order without one is New. */
 export async function fulfilmentsOf(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentRecord>> {
@@ -99,15 +127,37 @@ export type FulfilmentView = {
   reject_reason: string | null
   /** The courier label last booked for the order; `cancelled` once Shipbubble cancelled it, to rebook. */
   shipment: { waybill: string; courier_name: string | null; tracking_url: string; cancelled: boolean } | null
+  /**
+   * The handover to the courier, from the courier's confirmation on (null before): the staff
+   * member who confirmed it and when, and when the courier reported picking it up (ISO 8601).
+   */
+  handover: { staff: { name: string | null; at: string } | null; picked_up_at: string | null } | null
+  /** The order's steps as staff (or its buyer) see them, done up to where it is. */
+  timeline: TimelineStep[]
 }
 
+/** The handover's halves as the order records them, in whichever state it is. */
+function handoverOf(fulfilment: Fulfilment) {
+  return "handover" in fulfilment ? fulfilment.handover : null
+}
+
+/** `names`: members' names by id, for who handed the order over; `audience`: whose steps the timeline shows. */
+export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
+
 /** `hours`: the shop's, which the accept deadline counts in; null for a shop without hours. */
-export function fulfilmentView(record: FulfilmentRecord | undefined, placedAt: Date | string, hours: ShopHours | null): FulfilmentView {
+export function fulfilmentView(
+  record: FulfilmentRecord | undefined,
+  placedAt: Date | string,
+  hours: ShopHours | null,
+  { names = new Map<string, string>(), audience = "staff" }: FulfilmentViewOptions = {}
+): FulfilmentView {
   const fulfilment = record?.fulfilment ?? newFulfilment()
   const shipment = record?.shipment
+  const handover = handoverOf(fulfilment)
+  const placed_at = new Date(placedAt).toISOString()
   return {
     state: fulfilment.state,
-    accept_by: fulfilment.state === "new" ? acceptDeadline(new Date(placedAt).toISOString(), hours) : null,
+    accept_by: fulfilment.state === "new" ? acceptDeadline(placed_at, hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
     reject_reason: record?.reject_reason ?? null,
     shipment: shipment
@@ -118,7 +168,27 @@ export function fulfilmentView(record: FulfilmentRecord | undefined, placedAt: D
           cancelled: !!shipment.cancelled_at,
         }
       : null,
+    handover: handover && {
+      staff: handover.staff ? { name: names.get(handover.staff.actor) ?? null, at: handover.staff.at } : null,
+      picked_up_at: handover.pickup?.at ?? null,
+    },
+    timeline: fulfilmentTimeline({ state: fulfilment.state, placed_at, reached: record?.reached ?? {} }, audience),
   }
+}
+
+/** The names of the members who handed these orders over, by member id. */
+export async function handoverNames(scope: Scope, records: Iterable<FulfilmentRecord>): Promise<Map<string, string>> {
+  const ids = [...records].flatMap((r) => {
+    const actor = handoverOf(r.fulfilment)?.staff?.actor
+    return actor ? [actor] : []
+  })
+  if (!ids.length) return new Map()
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "member", fields: ["id", "first_name", "last_name", "email"], filters: { id: ids } })
+  type Member = { id: string; first_name?: string | null; last_name?: string | null; email?: string | null }
+  return new Map(
+    (data as Member[]).map((m) => [m.id, [m.first_name, m.last_name].filter(Boolean).join(" ") || (m.email ?? m.id)])
+  )
 }
 
 type PaymentRow = {
@@ -189,8 +259,12 @@ export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise
     fulfilmentsOf(scope, orderIds),
     shopHoursOf(scope, orders.flatMap((o) => (o.seller ? [o.seller.id] : []))),
   ])
+  const names = await handoverNames(scope, records.values())
   return new Map(
-    orders.map((o) => [o.id, fulfilmentView(records.get(o.id), o.created_at, (o.seller && hours.get(o.seller.id)) || null)])
+    orders.map((o) => [
+      o.id,
+      fulfilmentView(records.get(o.id), o.created_at, (o.seller && hours.get(o.seller.id)) || null, { names }),
+    ])
   )
 }
 

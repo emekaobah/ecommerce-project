@@ -140,6 +140,18 @@ export function useBookLabel(orderId: string) {
 }
 
 /**
+ * Confirms the parcel was handed to the courier (#25), recorded as this member's. The order is
+ * handed over once Shipbubble reports the pickup too.
+ */
+export function useConfirmHandover(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => vendorClient.vendor.orders.$id.handOver.mutate({ $id: orderId }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+  });
+}
+
+/**
  * Sets how many of a line the shop doesn't have (#22); none clears it. The order is partially
  * available until they are removed. Answers the pick list, with what they would refund.
  */

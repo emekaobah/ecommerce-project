@@ -43,6 +43,7 @@ export type {
   ProviderEvent,
   ProviderEventType,
   ProviderPickup,
+  ProviderProgress,
   StaffAction,
   StaffActionType,
   StaffHandover,
@@ -62,6 +63,10 @@ export type { BrowseCategory, Department } from "./category"
 export { isSaved, wishlistMove } from "./wishlist"
 export type { WishlistMove } from "./wishlist"
 export { acceptDeadline, acceptReminderDue, acceptTimeLeft } from "./accept-deadline"
+export { fulfilmentTimeline, recordReached } from "./timeline"
+export type { Reached, TimelineStep } from "./timeline"
+export { HANDOVER_DISAGREEMENT_MS, HANDOVER_REALERT_MS, handoverAlertDue, handoverDisagreement } from "./handover"
+export type { HandoverDisagreement } from "./handover"
 export { historyEntries, orderStatus, refundStatus } from "./order-history"
 export type {
   HistoryEntry,

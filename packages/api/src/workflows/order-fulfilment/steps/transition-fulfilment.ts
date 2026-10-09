@@ -1,4 +1,4 @@
-import { transition, type FulfilmentTrigger } from "@oja/domain"
+import { newFulfilment, recordReached, transition, type FulfilmentTrigger } from "@oja/domain"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import {
@@ -44,7 +44,11 @@ export const checkTransitionStep = createStep(
   }
 )
 
-/** Moves the order's fulfilment on by the trigger, or refuses a trigger its state doesn't allow. */
+/**
+ * Moves the order's fulfilment on by the trigger, or refuses a trigger its state doesn't allow.
+ * Records when the order reached its new state (#25). An order reaching Delivered, by whichever
+ * trigger, may now be paid out; a shipment cancelled back to Packed may be alerted about again.
+ */
 export const transitionFulfilmentStep = createStep(
   "transition-order-fulfilment",
   async ({ order_id, trigger, reject_reason, shipment }: TransitionFulfilmentInput, { container }) => {
@@ -52,11 +56,17 @@ export const transitionFulfilmentStep = createStep(
     const previous = (await fulfilmentsOf(container, [order_id])).get(order_id)
     const placedAt = previous?.placed_at ?? (await placedAtOf(container, order_id))
     const fulfilment = nextFulfilment(order_id, previous, trigger)
+    const from = previous?.fulfilment ?? newFulfilment()
+    const reached = recordReached(previous?.reached ?? {}, from, fulfilment, trigger.at)
     const next = {
       state: fulfilment.state,
       fulfilment,
+      reached,
       ...(fulfilment.state === "rejected" && { reject_reason: reject_reason ?? null }),
       ...(shipment && { shipment, shipment_id: shipment.waybill }),
+      // Nothing leaves Delivered, so this is the transition that reached it.
+      ...(fulfilment.state === "delivered" && { payout_eligible_at: new Date(reached.delivered ?? trigger.at) }),
+      ...(fulfilment.state === "packed" && { handover_alerted_at: null }),
     }
     const saved = previous
       ? await service.updateOrderFulfilments({ id: previous.id, ...next })
@@ -76,6 +86,9 @@ export const transitionFulfilmentStep = createStep(
         reject_reason: previous.reject_reason,
         shipment: previous.shipment,
         shipment_id: previous.shipment_id,
+        reached: previous.reached,
+        payout_eligible_at: previous.payout_eligible_at,
+        handover_alerted_at: previous.handover_alerted_at,
       })
     }
   }

@@ -1,7 +1,15 @@
+import type { ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
-import { fulfilmentService, fulfilmentsOf, fulfilmentView, type FulfilmentView, type Picks } from "./order-fulfilment"
+import {
+  fulfilmentService,
+  fulfilmentsOf,
+  fulfilmentView,
+  type FulfilmentRecord,
+  type FulfilmentView,
+  type Picks,
+} from "./order-fulfilment"
 import { shopHoursOf } from "./shop-hours"
 
 // The buyer's order history (#17): each checkout is an order group, split into one order per
@@ -35,11 +43,22 @@ export type BuyerOrder = {
   seller: { id: string; name: string; handle: string | null; logo: string | null }
   items: BuyerOrderItem[]
   /** Where the shop is with it: the same state its staff see. */
-  fulfilment: FulfilmentView
+  fulfilment: BuyerFulfilmentView
   /** What the buyer paid for it, refunded or not. */
   paid_total: number
   /** What has been refunded of it, and where that is; null while nothing has been. */
   refund: BuyerRefund | null
+}
+
+/**
+ * An order's fulfilment as its buyer sees it (#25): its state, the courier's tracking link once
+ * a label is booked, and its timeline in the buyer's steps. Not who at the shop handed it over.
+ */
+export type BuyerFulfilmentView = Omit<FulfilmentView, "handover">
+
+function buyerFulfilment(record: FulfilmentRecord | undefined, placedAt: Date | string, hours: ShopHours | null): BuyerFulfilmentView {
+  const { handover: _staffOnly, ...view } = fulfilmentView(record, placedAt, hours, { audience: "buyer" })
+  return view
 }
 
 /** An order's refunds as its buyer sees them: what comes back, and how far it has got. */
@@ -162,7 +181,7 @@ async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, Buy
       o.id,
       {
         ...buyerOrder(o, fulfilments.get(o.id)?.removed ?? {}),
-        fulfilment: fulfilmentView(fulfilments.get(o.id), o.created_at, hours.get(o.seller?.id) ?? null),
+        fulfilment: buyerFulfilment(fulfilments.get(o.id), o.created_at, hours.get(o.seller?.id) ?? null),
         refund: buyerRefund(refundsOf(o.id)),
       },
     ])

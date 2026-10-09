@@ -32,6 +32,12 @@ const OrderFulfilment = model
     shipment: model.json().nullable(),
     /** The shipment's id with Shipbubble, which its webhooks name. */
     shipment_id: model.text().nullable(),
+    /** When the order last reached each state (`@oja/domain`'s `Reached`), for its timeline (#25). */
+    reached: model.json().nullable(),
+    /** When the order was delivered, and so may be paid out to the shop (#25, #29). */
+    payout_eligible_at: model.dateTime().nullable(),
+    /** When the owner was last alerted that staff and the courier disagree about the handover; daily while they do (#25). */
+    handover_alerted_at: model.dateTime().nullable(),
   })
   .indexes([{ on: ["state", "placed_at"] }, { on: ["shipment_id"] }])
 

@@ -163,6 +163,90 @@ describe("transition", () => {
         transition({ state: "in_transit", handover }, { source: "provider", type: "delivered", at }),
       ).toEqual({ ok: true, fulfilment: { state: "delivered", handover } })
     })
+
+    test("the provider reporting delivery completes a handed-over order whose transit it never reported", () => {
+      expect(
+        transition({ state: "handed_to_courier", handover }, { source: "provider", type: "delivered", at }),
+      ).toEqual({ ok: true, fulfilment: { state: "delivered", handover } })
+    })
+  })
+
+  describe("the courier moving on before staff confirm the handover", () => {
+    const pickedUpAt = "2026-09-26T11:00:00.000Z"
+    const transitAt = "2026-09-26T11:30:00.000Z"
+    const deliveredAt = "2026-09-26T13:00:00.000Z"
+    const tappedAt = "2026-09-26T14:00:00.000Z"
+    const staffTap = { source: "staff", type: "confirm_handover", actor, at: tappedAt } as const
+    const inTransit = { source: "provider", type: "in_transit", at: transitAt } as const
+    const delivered = { source: "provider", type: "delivered", at: deliveredAt } as const
+
+    test("transit reported before any pickup counts as the pickup, and is remembered, but doesn't move the order", () => {
+      expect(transition({ state: "courier_confirmed", handover: {} }, inTransit)).toEqual({
+        ok: true,
+        fulfilment: {
+          state: "courier_confirmed",
+          handover: { pickup: { at: transitAt }, reported: [{ state: "in_transit", at: transitAt }] },
+        },
+      })
+    })
+
+    test("the staff tap then completes the handover and the order catches up with the courier", () => {
+      const waiting: Fulfilment = {
+        state: "courier_confirmed",
+        handover: { pickup: { at: pickedUpAt }, reported: [{ state: "in_transit", at: transitAt }] },
+      }
+      expect(transition(waiting, staffTap)).toEqual({
+        ok: true,
+        fulfilment: { state: "in_transit", handover: { staff: { actor, at: tappedAt }, pickup: { at: pickedUpAt } } },
+      })
+    })
+
+    test("an order the courier already delivered is delivered once staff confirm the handover", () => {
+      const reported = transition({ state: "courier_confirmed", handover: { pickup: { at: pickedUpAt } } }, inTransit)
+      const deliveredFirst = reported.ok && transition(reported.fulfilment, delivered)
+      expect(deliveredFirst && deliveredFirst.ok && deliveredFirst.fulfilment).toEqual({
+        state: "courier_confirmed",
+        handover: {
+          pickup: { at: pickedUpAt },
+          reported: [
+            { state: "in_transit", at: transitAt },
+            { state: "delivered", at: deliveredAt },
+          ],
+        },
+      })
+      const handedOver = deliveredFirst && deliveredFirst.ok && transition(deliveredFirst.fulfilment, staffTap)
+      expect(handedOver && handedOver.ok && handedOver.fulfilment.state).toBe("delivered")
+    })
+
+    test("transit after staff tapped completes the handover and moves the order in transit", () => {
+      expect(
+        transition({ state: "courier_confirmed", handover: { staff: { actor, at: tappedAt } } }, inTransit),
+      ).toEqual({
+        ok: true,
+        fulfilment: { state: "in_transit", handover: { staff: { actor, at: tappedAt }, pickup: { at: transitAt } } },
+      })
+    })
+
+    test("a pickup reported before the courier's confirmation (a late or lost webhook) confirms it and counts", () => {
+      expect(transition({ state: "label_booked" }, { source: "provider", type: "picked_up", at: pickedUpAt })).toEqual({
+        ok: true,
+        fulfilment: { state: "courier_confirmed", handover: { pickup: { at: pickedUpAt } } },
+      })
+      const ahead = transition({ state: "label_booked" }, inTransit)
+      expect(ahead.ok && ahead.fulfilment).toEqual({
+        state: "courier_confirmed",
+        handover: { pickup: { at: transitAt }, reported: [{ state: "in_transit", at: transitAt }] },
+      })
+    })
+
+    test("the same status reported twice, or transit after delivery, is refused", () => {
+      const reported: Fulfilment = {
+        state: "courier_confirmed",
+        handover: { pickup: { at: pickedUpAt }, reported: [{ state: "delivered", at: deliveredAt }] },
+      }
+      expect(transition(reported, delivered).ok).toBe(false)
+      expect(transition(reported, inTransit).ok).toBe(false)
+    })
   })
 
   test("a trigger only counts from its own source", () => {
@@ -241,14 +325,21 @@ describe("transition table", () => {
     packed: { "provider:label_created": "label_booked" },
     label_booked: {
       "provider:confirmed": "courier_confirmed",
+      // The courier moving the parcel means it confirmed, whether or not that webhook came.
+      "provider:picked_up": "courier_confirmed",
+      "provider:in_transit": "courier_confirmed",
+      "provider:delivered": "courier_confirmed",
       "provider:cancelled": "packed",
     },
     courier_confirmed: {
       "staff:confirm_handover": "courier_confirmed",
       "provider:picked_up": "courier_confirmed",
+      // Reported ahead of the staff tap: remembered until it comes (see above).
+      "provider:in_transit": "courier_confirmed",
+      "provider:delivered": "courier_confirmed",
       "provider:cancelled": "packed",
     },
-    handed_to_courier: { "provider:in_transit": "in_transit" },
+    handed_to_courier: { "provider:in_transit": "in_transit", "provider:delivered": "delivered" },
     in_transit: { "provider:delivered": "delivered" },
     delivered: {},
   }
