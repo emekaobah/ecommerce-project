@@ -136,8 +136,10 @@ type PaidOrder = {
 }
 
 /** Paystack's reference for an attempt at an order's transfer: lowercase letters, digits, `-` and `_`. */
-const transferReference = (orderId: string, attempt: number) =>
-  `payout_${orderId}${attempt > 1 ? `_${attempt}` : ""}`.toLowerCase()
+function transferReference(orderId: string, attempt: number) {
+  const retry = attempt > 1 ? `_${attempt}` : ""
+  return `payout_${orderId}${retry}`.toLowerCase()
+}
 
 async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]> {
   if (!orderIds.length) return []
@@ -358,6 +360,7 @@ export async function orderPayoutView(scope: Scope, orderId: string): Promise<Or
   }
   const eligible = !!(await fulfilmentsOf(scope, [orderId])).get(orderId)?.payout_eligible_at
   const waiting = eligible && (await withUnsettledRefunds(scope, [orderId])).size > 0
-  const state: PayoutState = !eligible || order.status === "canceled" ? "not_due" : waiting ? "waiting_for_refund" : "due"
+  let state: PayoutState = waiting ? "waiting_for_refund" : "due"
+  if (!eligible || order.status === "canceled") state = "not_due"
   return { ...base, ...breakdownOf(order), state, recovered: null, transferred: null, paid_out_at: null }
 }

@@ -44,17 +44,20 @@ export async function flagUnmatchedRefunds(scope: MedusaContainer, { from, to }:
   if (!unmatched.length) return unmatched
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
   const notifications = scope.resolve(Modules.NOTIFICATION)
-  for (const refund of unmatched) {
-    const description = `Paystack refund ${refund.id} (${refund.currency} ${refund.amount}, transaction ${refund.transaction ?? "unknown"}) matches no order refund. A shop may be paid out money the buyer got back.`
-    logger.warn(description)
-    await notifications.createNotifications({
-      to: "",
-      channel: "feed",
-      template: "admin-ui",
-      data: { title: `Paystack refund not made by ${PRODUCT_NAME}`, description },
-      idempotency_key: `unmatched-paystack-refund:${refund.id}`,
+  // Each refund's notice is its own, so they go out together.
+  await Promise.all(
+    unmatched.map((refund) => {
+      const description = `Paystack refund ${refund.id} (${refund.currency} ${refund.amount}, transaction ${refund.transaction ?? "unknown"}) matches no order refund. A shop may be paid out money the buyer got back.`
+      logger.warn(description)
+      return notifications.createNotifications({
+        to: "",
+        channel: "feed",
+        template: "admin-ui",
+        data: { title: `Paystack refund not made by ${PRODUCT_NAME}`, description },
+        idempotency_key: `unmatched-paystack-refund:${refund.id}`,
+      })
     })
-  }
+  )
   return unmatched
 }
 

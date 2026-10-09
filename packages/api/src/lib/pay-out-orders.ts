@@ -45,33 +45,39 @@ async function ensurePayoutAccount(scope: Scope, sellerId: string) {
   await createPayoutAccountWorkflow(scope as MedusaContainer).run({ input: { seller_id: sellerId, data: {} } })
 }
 
-/**
- * Pays out every delivered order not yet paid out (#29), one Paystack transfer per order. A
- * shop's orders go one at a time, each taking out what the shop still owes back for refunds
- * after its earlier payouts. An order that can't be paid out now (Paystack refused the transfer,
- * the shop has no bank account) is tried again on the next run.
- */
-export async function payOutDeliveredOrders(scope: MedusaContainer) {
-  const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
+/** Pays out a shop's due orders, oldest first; none when it can't be given a payout account. */
+async function payOutShop(scope: MedusaContainer, sellerId: string, orderIds: string[]): Promise<string[]> {
+  try {
+    await ensurePayoutAccount(scope, sellerId)
+  } catch (error) {
+    scope
+      .resolve(ContainerRegistrationKeys.LOGGER)
+      .warn(`Shop ${sellerId} has no payout account and couldn't be given one: ${errorMessage(error)}`)
+    return []
+  }
+  let owed = await owedBackBy(scope, sellerId)
   const paid: string[] = []
-  // Shops are paid one after another: few are due each day, and Paystack is asked once per order.
-  for (const [sellerId, orderIds] of await ordersDueForPayout(scope)) {
+  // One order at a time: each takes out what the shop still owes back, less what the orders before it took.
+  for (const orderId of orderIds) {
     try {
-      await ensurePayoutAccount(scope, sellerId)
+      const { result } = await payOutOrderWorkflow(scope).run({ input: { order_id: orderId, owed_back: owed } })
+      owed -= Number(result.recovered)
+      paid.push(orderId)
     } catch (error) {
-      logger.warn(`Shop ${sellerId} has no payout account and couldn't be given one: ${errorMessage(error)}`)
-      continue
-    }
-    let owed = await owedBackBy(scope, sellerId)
-    for (const orderId of orderIds) {
-      try {
-        const { result } = await payOutOrderWorkflow(scope).run({ input: { order_id: orderId, owed_back: owed } })
-        owed -= Number(result.recovered)
-        paid.push(orderId)
-      } catch (error) {
-        logger.warn(`Paying out order ${orderId} failed: ${errorMessage(error)}`)
-      }
+      scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Paying out order ${orderId} failed: ${errorMessage(error)}`)
     }
   }
   return paid
+}
+
+/**
+ * Pays out every delivered order not yet paid out (#29), one Paystack transfer per order. Shops
+ * are paid at once, each shop's orders one at a time. An order that can't be paid out now
+ * (Paystack refused the transfer, the shop has no bank account) is tried again on the next run.
+ * Returns the orders paid out.
+ */
+export async function payOutDeliveredOrders(scope: MedusaContainer) {
+  const due = [...(await ordersDueForPayout(scope))]
+  const paid = await Promise.all(due.map(([sellerId, orderIds]) => payOutShop(scope, sellerId, orderIds)))
+  return paid.flat()
 }
