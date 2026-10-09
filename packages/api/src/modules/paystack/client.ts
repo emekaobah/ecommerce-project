@@ -27,6 +27,8 @@ export type PaystackTransaction = {
 /** Where a refund is: Paystack refunds asynchronously, and a refund can fail after it was started. */
 export const PAYSTACK_REFUND_STATUSES = ["pending", "processing", "processed", "failed", "needs-attention"] as const
 export type PaystackRefundStatus = (typeof PAYSTACK_REFUND_STATUSES)[number]
+/** A refund Paystack hasn't settled yet, either way. */
+export const UNSETTLED_REFUND_STATUSES: PaystackRefundStatus[] = ["pending", "processing", "needs-attention"]
 
 /** A refund as Paystack's Refunds API describes it. */
 export type PaystackRefund = {
@@ -39,6 +41,37 @@ export type PaystackRefund = {
 }
 
 type Envelope<T> = { status: boolean; message: string; data: T }
+
+/** A refund as Paystack lists them (GET /refund): `transaction` is the transaction's id, or the transaction. */
+export type PaystackListedRefund = PaystackRefund & { transaction?: number | { id: number; reference?: string } | null; createdAt?: string }
+
+/**
+ * Where a transfer is. Paystack queues a transfer (`pending`, or `otp` when the account asks
+ * for an OTP on each transfer), then it ends `success`, `failed` or `reversed` (the bank
+ * returned it).
+ */
+export type PaystackTransferStatus =
+  | "pending"
+  | "otp"
+  | "received"
+  | "success"
+  | "failed"
+  | "reversed"
+  | "abandoned"
+  | "blocked"
+  | "rejected"
+
+/** A transfer from our Paystack balance to a recipient (POST /transfer). */
+export type PaystackTransfer = {
+  id: number
+  transfer_code: string
+  /** Ours: one per payout, so Paystack never makes the same transfer twice. */
+  reference: string
+  /** In the currency's subunit. */
+  amount: number
+  currency: string
+  status: PaystackTransferStatus
+}
 
 /** A bank Paystack can resolve accounts at and pay out to (GET /bank). */
 export type PaystackBank = { name: string; code: string; currency: string; type: string; active: boolean }
@@ -82,7 +115,7 @@ export function isPaystackSignatureValid(
   return received.length === expected.length && timingSafeEqual(received, expected)
 }
 
-/** The few Paystack Transactions, Refunds, Miscellaneous and Transfer Recipients API calls we need. */
+/** The few Paystack Transactions, Refunds, Miscellaneous, Transfer Recipients and Transfers API calls we need. */
 export class PaystackClient {
   constructor(
     private readonly secretKey: string,
@@ -130,6 +163,30 @@ export class PaystackClient {
 
   fetchRefund(id: number | string) {
     return this.request<PaystackRefund>("GET", `/refund/${encodeURIComponent(String(id))}`)
+  }
+
+  /**
+   * Every refund made in the period, by anyone: through the API, or by hand in Paystack's
+   * dashboard. `from` and `to` are ISO 8601.
+   */
+  async listRefunds(input: { from: string; to: string }): Promise<PaystackListedRefund[]> {
+    const perPage = 100
+    const refunds: PaystackListedRefund[] = []
+    for (let page = 1; ; page++) {
+      const params = new URLSearchParams({ ...input, perPage: String(perPage), page: String(page) })
+      const batch = await this.request<PaystackListedRefund[]>("GET", `/refund?${params}`)
+      refunds.push(...batch)
+      if (batch.length < perPage) return refunds
+    }
+  }
+
+  /** Sends money from our Paystack balance to a recipient; queued, then settled by `transfer.*` webhooks. */
+  transfer(input: { amount: number; currency: string; recipient: string; reference: string; reason: string }) {
+    return this.request<PaystackTransfer>("POST", "/transfer", { source: "balance", ...input })
+  }
+
+  verifyTransfer(reference: string) {
+    return this.request<PaystackTransfer>("GET", `/transfer/verify/${encodeURIComponent(reference)}`)
   }
 
   /** Banks in a currency that accounts can be resolved at (NUBAN banks for NGN). */

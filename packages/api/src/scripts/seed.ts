@@ -25,6 +25,7 @@ import {
   updateSellerAddressWorkflow,
   createSellerStockLocationsWorkflow,
   upsertMembersStep,
+  updateCommissionRatesWorkflow,
 } from "@mercurjs/core/workflows";
 import {
   createWorkflow,
@@ -73,6 +74,7 @@ import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble";
 import { setCategoryPerishable } from "../lib/perishable";
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account";
 import { ADDRESS_CODE, addressCodeOf, validatedPickupChange } from "../lib/delivery";
+import { COMMISSION_PERCENT } from "../lib/payouts";
 import { saveBankAccount } from "../lib/onboarding";
 import { sellersWithHours, setWeeklyHours } from "../lib/shop-hours";
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account";
@@ -137,6 +139,9 @@ export default async function seedDemoData({ container }: ExecArgs) {
   logger.info("Seeding the Nigeria region and VAT...");
   await seedRegion(container);
 
+  logger.info("Setting the commission...");
+  await seedCommission(container);
+
   logger.info("Seeding categories and attributes...");
   const categoryIds = await seedCategories(container);
   await Promise.all(SEED_PERISHABLE_CATEGORIES.map((name) => setCategoryPerishable(container, categoryIds.get(name)!, true)));
@@ -177,6 +182,21 @@ export default async function seedDemoData({ container }: ExecArgs) {
   logger.info(
     `Finished seeding: ${regions.length} region, ${sellers.length} sellers, ${productsByHandle.size} products, ${offerCount} offers.`
   );
+}
+
+/**
+ * Oja's flat commission (#29) as Mercur's global rate, so the vendor panel shows it on each
+ * order: of each line as the buyer paid it, tax included, and never of delivery, as payouts
+ * work it out (`payoutOf`). Mercur seeds the rate at 0%.
+ */
+async function seedCommission(container: MedusaContainer) {
+  const { data } = await container
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({ entity: "commission_rate", fields: ["id"], filters: { is_default: true } });
+  if (!data[0]) throw new Error("Mercur has no global commission rate to set");
+  await updateCommissionRatesWorkflow(container).run({
+    input: [{ id: data[0].id, value: COMMISSION_PERCENT, include_tax: true, include_shipping: false }],
+  });
 }
 
 // Medusa creates a default sales channel and publishable key when it first boots.

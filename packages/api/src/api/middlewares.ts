@@ -23,6 +23,7 @@ import { vendorOfferImportMiddlewares } from "./vendor/offer-import/middlewares"
 import { onlyLiveShops } from "./store/live-shops";
 import { validatePickupAddressFirst } from "./pickup-address-check";
 import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
+import { vendorOrderPayoutMiddlewares } from "./vendor/orders/[id]/payout/middlewares";
 import { vendorShopHoursMiddlewares } from "./vendor/shop-hours/middlewares";
 import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
@@ -233,6 +234,7 @@ export default defineMiddlewares({
         },
         // A shop's onboarding checklist, pickup address and bank account (#26).
         ...vendorOnboardingMiddlewares,
+        ...vendorOrderPayoutMiddlewares,
         // Pickup address lookup through the backend's Google key, in the shop's region (ADR 0002, #41).
         ...vendorAddressLookupMiddlewares,
         { method: ["POST"], matcher: "/vendor/sellers/:id/address", middlewares: [validatePickupAddressFirst] },

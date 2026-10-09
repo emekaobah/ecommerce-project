@@ -216,5 +216,25 @@
       "notePlaceholder": "e.g. Closed for Eid",
       "add": "Add"
     }
+  },
+  "orderPayout": {
+    "title": "Payout",
+    "paid": "Paid by the buyer",
+    "delivery": "Delivery (Oja pays the courier)",
+    "refunded": "Refunded to the buyer",
+    "commission": "Oja commission ({{percent}}%)",
+    "amount": "Your payout",
+    "recovered": "Taken back for refunds after earlier payouts",
+    "transferred": "Sent to your bank",
+    "states": {
+      "not_due": "After delivery",
+      "waiting_for_refund": "Waiting for a refund",
+      "due": "Paid out overnight",
+      "pending": "On its way",
+      "processing": "On its way",
+      "paid": "Paid",
+      "failed": "Failed",
+      "canceled": "Cancelled"
+    }
   }
 }

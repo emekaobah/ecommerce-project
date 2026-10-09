@@ -3,14 +3,12 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { fulfilmentService, type OrderRefundRecord } from "../../../lib/order-fulfilment"
 import { paystackClient } from "../../../modules/paystack"
-import type { PaystackRefundStatus } from "../../../modules/paystack/client"
+import { UNSETTLED_REFUND_STATUSES, type PaystackRefundStatus } from "../../../modules/paystack/client"
 
 type CreditLines = {
   listOrderCreditLines(filters: { reference: string; reference_id: string[] }): Promise<{ id: string }[]>
   deleteOrderCreditLines(ids: string[]): Promise<void>
 }
-
-const UNSETTLED: PaystackRefundStatus[] = ["pending", "processing", "needs-attention"]
 
 type Change = { id: string; from: PaystackRefundStatus; to: PaystackRefundStatus; row: OrderRefundRecord }
 
@@ -20,7 +18,7 @@ const fetchRefundChangesStep = createStep("fetch-order-refund-changes", async ({
   if (!paystack) return new StepResponse([] as Change[])
   const rows = (await fulfilmentService(container).listOrderRefunds({
     transaction_reference: reference,
-    status: UNSETTLED,
+    status: UNSETTLED_REFUND_STATUSES,
   })) as OrderRefundRecord[]
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   for (const row of rows.filter((r) => !r.paystack_refund_id)) {
