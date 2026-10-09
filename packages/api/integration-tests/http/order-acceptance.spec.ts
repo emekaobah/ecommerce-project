@@ -81,6 +81,8 @@ medusaIntegrationTestRunner({
           rejected_by: null,
           reject_reason: null,
           shipment: null,
+          handover: null,
+          timeline: expect.arrayContaining([{ label: "Placed", status: "current", at: new Date(order.created_at).toISOString() }]),
         })
       })
 
@@ -140,6 +142,9 @@ medusaIntegrationTestRunner({
           rejected_by: "seller",
           reject_reason: "The lantern is out of stock",
           shipment: null,
+          handover: null,
+          // A rejected order's status says why; it has no steps to show.
+          timeline: [],
         })
         // One partial refund on the shared transaction, for the gadget hub's order alone (kobo).
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([share * 100])
