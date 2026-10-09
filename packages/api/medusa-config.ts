@@ -59,6 +59,30 @@ const paymentProviders = process.env.PAYSTACK_SECRET_KEY
     ]
   : []
 
+// Shops are paid out with Paystack Transfers (#29), from the Paystack account of their currency.
+// Mercur takes exactly one payout provider; without Paystack its system provider stays, and the
+// payout job doesn't run.
+const payoutModules = process.env.PAYSTACK_SECRET_KEY
+  ? [
+      {
+        resolve: '@mercurjs/core/modules/payout',
+        options: {
+          providers: [
+            {
+              resolve: './src/modules/paystack-payout',
+              id: 'paystack',
+              options: {
+                accounts: {
+                  ngn: { secretKey: process.env.PAYSTACK_SECRET_KEY, apiUrl: process.env.PAYSTACK_API_URL || undefined },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]
+  : []
+
 const dashboardAppDir = (name: string) => {
   const bundled = path.join(__dirname, 'dashboards', name)
   return fs.existsSync(bundled) ? bundled : path.join(__dirname, `../../apps/${name}`)
@@ -98,6 +122,7 @@ module.exports = withMercur({
       },
     },
     { resolve: '@medusajs/medusa/payment', options: { providers: paymentProviders } },
+    ...payoutModules,
     // Shops deliver with Shipbubble (#23): live rates per shop at checkout. The provider refuses
     // to start without SHIPBUBBLE_API_KEY outside tests. Manual stays for Medusa's defaults.
     {

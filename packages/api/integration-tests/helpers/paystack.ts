@@ -1,6 +1,6 @@
 import { createHmac, randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage, type Server } from "node:http"
-import type { PaystackRefundStatus } from "../../src/modules/paystack/client"
+import type { PaystackRefundStatus, PaystackTransferStatus } from "../../src/modules/paystack/client"
 
 type Transaction = {
   id: number
@@ -21,6 +21,18 @@ type Refund = {
   currency: string
   merchant_note?: string
   transaction: { id: number; reference: string }
+  createdAt: string
+}
+
+type Transfer = {
+  id: number
+  transfer_code: string
+  reference: string
+  amount: number
+  currency: string
+  recipient: string
+  reason: string
+  status: PaystackTransferStatus
 }
 
 /** Nigerian banks as Paystack lists them (GET /bank?currency=NGN), a few of them. */
@@ -51,7 +63,9 @@ type Recipient = {
  * `fail`, `settleRefund`) and signs `charge.success` and `refund.*` webhooks with the same
  * secret key. It lists `BANKS`, resolves any 10-digit account at one of them (as
  * `accountName`) unless a test says it doesn't exist (`unknownAccount`), and creates transfer
- * recipients for accounts it resolves.
+ * recipients for accounts it resolves. It queues transfers to those recipients, which a test
+ * settles (`settleTransfer`) and signs `transfer.*` webhooks for, and lists refunds by date,
+ * including any a test made by hand (`refundByHand`).
  */
 export function fakePaystack(port: number) {
   const secretKey = `sk_test_${randomUUID().replaceAll("-", "")}`
@@ -60,6 +74,8 @@ export function fakePaystack(port: number) {
   let refundError: string | undefined
   const unknownAccounts = new Set<string>()
   const recipients: Recipient[] = []
+  const transfers = new Map<string, Transfer>()
+  let transferError: string | undefined
   let server: Server | undefined
 
   const readBody = async (req: IncomingMessage) => {
@@ -96,9 +112,14 @@ export function fakePaystack(port: number) {
 
   const createRefund = async (req: IncomingMessage) => {
     const body = await readBody(req)
+    if (refundError && transactions.has(body.transaction)) return refused(400, refundError)
+    return refundTransaction(body)
+  }
+
+  /** Paystack's refund of a transaction, however it was asked for. */
+  const refundTransaction = (body: { transaction: string; amount?: number; merchant_note?: string }) => {
     const refunded = transactions.get(body.transaction)
     if (!refunded) return refused(400, "Transaction reference not found")
-    if (refundError) return refused(400, refundError)
     if (body.amount != null && body.amount < 5000) return refused(400, "Cannot refund less than NGN50")
     const taken = [...refunds.values()]
       .filter((r) => r.transaction.reference === refunded.reference && r.status !== "failed")
@@ -112,6 +133,7 @@ export function fakePaystack(port: number) {
       currency: refunded.currency,
       merchant_note: body.merchant_note,
       transaction: { id: refunded.id, reference: refunded.reference },
+      createdAt: new Date().toISOString(),
     }
     refunds.set(queued.id, queued)
     // As Paystack test mode does, even for a partial refund.
@@ -122,6 +144,47 @@ export function fakePaystack(port: number) {
   const fetchRefund = (id: string) => {
     const found = refunds.get(Number(id))
     return found ? ok("Refund retrieved", found) : refused(404, "Refund not found")
+  }
+
+  /** Refunds made between `from` and `to`, a page at a time, as Paystack lists them: the transaction by its id. */
+  const listRefunds = (req: IncomingMessage) => {
+    const params = new URL(req.url ?? "", "https://paystack.test").searchParams
+    const from = new Date(params.get("from") ?? 0).getTime()
+    const to = new Date(params.get("to") ?? Date.now()).getTime()
+    const perPage = Number(params.get("perPage") ?? 50)
+    const page = Number(params.get("page") ?? 1)
+    const inPeriod = [...refunds.values()].filter((r) => {
+      const at = new Date(r.createdAt).getTime()
+      return at >= from && at <= to
+    })
+    const listed = inPeriod.slice((page - 1) * perPage, page * perPage).map((r) => ({ ...r, transaction: r.transaction.id }))
+    return ok("Refunds retrieved", listed)
+  }
+
+  const createTransfer = async (req: IncomingMessage) => {
+    const body = await readBody(req)
+    if (transferError) return refused(400, transferError)
+    if (body.source !== "balance") return refused(400, "Invalid source")
+    if (!recipients.some((r) => r.recipient_code === body.recipient)) return refused(400, "Recipient specified is invalid")
+    if (!Number.isInteger(body.amount) || body.amount <= 0) return refused(400, "Invalid amount")
+    if (transfers.has(body.reference)) return refused(400, "Duplicate Transfer Reference")
+    const queued: Transfer = {
+      id: transfers.size + 1,
+      transfer_code: `TRF_${randomUUID().replaceAll("-", "").slice(0, 12)}`,
+      reference: body.reference,
+      amount: body.amount,
+      currency: body.currency,
+      recipient: body.recipient,
+      reason: body.reason,
+      status: "pending",
+    }
+    transfers.set(queued.reference, queued)
+    return ok("Transfer has been queued", queued)
+  }
+
+  const verifyTransfer = (reference: string) => {
+    const found = transfers.get(decodeURIComponent(reference))
+    return found ? ok("Transfer retrieved", found) : refused(404, "Transfer not found")
   }
 
   /** The account's holder, as Paystack resolves it, or null when no such account exists. */
@@ -166,6 +229,9 @@ export function fakePaystack(port: number) {
     ["GET", /^\/transaction\/verify\/(.+)$/, (_, reference) => verify(reference)],
     ["POST", /^\/refund$/, createRefund],
     ["GET", /^\/refund\/(\d+)$/, (_, id) => fetchRefund(id)],
+    ["GET", /^\/refund\?/, listRefunds],
+    ["POST", /^\/transfer$/, createTransfer],
+    ["GET", /^\/transfer\/verify\/(.+)$/, (_, reference) => verifyTransfer(reference)],
     ["GET", /^\/bank\?/, () => ok("Banks retrieved", BANKS)],
     ["GET", /^\/bank\/resolve\?/, resolveAccount],
     ["POST", /^\/transferrecipient$/, createRecipient],
@@ -247,6 +313,31 @@ export function fakePaystack(port: number) {
     },
     /** Every transfer recipient created, oldest first. */
     recipients: () => [...recipients],
+    /** Someone refunded a transaction by hand in Paystack's dashboard: no order refund records it. */
+    refundByHand: (reference: string, amount?: number) => {
+      const { status, body } = refundTransaction({ transaction: reference, amount })
+      if (status !== 200) throw new Error(body.message)
+      return body.data as Refund
+    },
+    /** Every transfer made, oldest first. */
+    transfers: () => [...transfers.values()],
+    /** Paystack settled a transfer: `success`, or `failed` or `reversed`, the money back in our balance. */
+    settleTransfer: (reference: string, status: PaystackTransferStatus) => {
+      const found = transfers.get(reference)
+      if (!found) throw new Error(`No Paystack transfer ${reference}`)
+      found.status = status
+    },
+    /** Every transfer from now on is turned down with this message (e.g. "Your balance is not enough"), until cleared. */
+    refuseTransfers: (message: string | undefined) => {
+      transferError = message
+    },
+    /** A signed `transfer.*` webhook for a transfer, as Paystack would post it. */
+    transferEvent: (reference: string, { signedWith = secretKey }: { signedWith?: string } = {}) => {
+      const found = transfers.get(reference)
+      if (!found) throw new Error(`No Paystack transfer ${reference}`)
+      const { amount, currency, status, transfer_code } = found
+      return signed({ event: `transfer.${status}`, data: { reference, transfer_code, amount, currency, status } }, signedWith)
+    },
     /** A signed `refund.*` webhook for a refund, as Paystack would post it: it names the transaction, not the refund. */
     refundEvent: (id: number) => {
       const { status, amount, currency, transaction } = refund(id)

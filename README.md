@@ -71,6 +71,10 @@ https://<tunnel-host>/hooks/payment/paystack_paystack
 
 The tunnel's host changes each time it starts, so update the URL when it does. Pay a checkout in the buyer app with a test card: the API logs `Processing mercur.payment.webhook_received`, and the confirmation screen shows the orders. A webhook with a bad signature gets a `401`. Without a working tunnel the payment succeeds on Paystack's side, but no order is placed and the app keeps waiting for confirmation.
 
+#### Payouts
+
+Shops are paid by Paystack Transfer once an order is delivered (#29, `docs/adr/0009-paystack-payouts.md`): the daily `pay-out-delivered-orders` job transfers what the buyer paid for the goods, less refunds and 10% commission, from the Paystack balance to the shop's bank account. Paystack's `transfer.*` webhooks arrive at the same webhook URL and mark each payout paid or failed. Turn off the OTP for transfers in Paystack's dashboard (Settings → Preferences), or every transfer waits for one. Without `PAYSTACK_SECRET_KEY` the job doesn't run.
+
 ### Address lookup (Google)
 
 Buyers find their delivery address with Google (#40, ADR 0002): the API's store routes suggest places, describe a place and reverse geocode the buyer's location, with the server key in `GOOGLE_MAPS_API_KEY` (Places API (New) and Geocoding API enabled); the API refuses to start without it. The buyer app's pin map needs Maps SDK keys of its own (see `apps/mobile-buyer/README.md`). Vendor responses never carry a buyer's pin.
