@@ -85,7 +85,11 @@ const payoutModules = process.env.PAYSTACK_SECRET_KEY
 
 // Uploads go to Cloudflare R2 through Medusa's S3 provider (#19) when a bucket is set, and to
 // ./static otherwise. R2 has no object ACLs, so none are sent; the bucket's public URL
-// (r2.dev or a custom domain) serves the files.
+// (r2.dev or a custom domain) serves the files. Production refuses to start without a bucket:
+// local files there would sit on an ephemeral disk behind localhost URLs.
+if (process.env.NODE_ENV === 'production' && !process.env.S3_BUCKET) {
+  throw new Error('S3_BUCKET is not set: production stores files in R2. See .env.template.')
+}
 const fileProvider = process.env.S3_BUCKET
   ? {
       resolve: '@medusajs/medusa/file-s3',
@@ -94,7 +98,7 @@ const fileProvider = process.env.S3_BUCKET
         file_url: process.env.S3_FILE_URL,
         access_key_id: process.env.S3_ACCESS_KEY_ID,
         secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
-        region: process.env.S3_REGION || 'auto',
+        region: 'auto',
         bucket: process.env.S3_BUCKET,
         endpoint: process.env.S3_ENDPOINT,
         acl: false,

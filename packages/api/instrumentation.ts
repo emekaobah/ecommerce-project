@@ -12,6 +12,7 @@ export function register() {
     // Railway sets both on every deploy.
     environment: process.env.RAILWAY_ENVIRONMENT_NAME || process.env.NODE_ENV,
     release: process.env.RAILWAY_GIT_COMMIT_SHA,
-    serverName: process.env.MEDUSA_WORKER_MODE,
+    // Tells the API's events from the worker's: both run the same build.
+    initialScope: { tags: { worker_mode: process.env.MEDUSA_WORKER_MODE || "shared" } },
   })
 }

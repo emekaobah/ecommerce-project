@@ -1,7 +1,7 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import { reportServerErrors } from "../api/report-server-errors"
 
-const respond = () => {
+const setup = () => {
   const handler = jest.fn()
   const report = jest.fn()
   return { handler, report, onError: reportServerErrors(report, handler) }
@@ -14,7 +14,7 @@ const next = jest.fn()
 // #19: Sentry hears about the API's own failures, not about buyers' bad requests.
 describe("reportServerErrors", () => {
   it("reports an error that answers 500, then lets Medusa answer it", () => {
-    const { handler, report, onError } = respond()
+    const { handler, report, onError } = setup()
     const error = new Error("boom")
 
     onError(error, req, res, next)
@@ -24,7 +24,7 @@ describe("reportServerErrors", () => {
   })
 
   it("reports a database error", () => {
-    const { report, onError } = respond()
+    const { report, onError } = setup()
     const error = new MedusaError(MedusaError.Types.DB_ERROR, "connection lost")
 
     onError(error, req, res, next)
@@ -39,7 +39,7 @@ describe("reportServerErrors", () => {
     MedusaError.Types.UNAUTHORIZED,
     MedusaError.Types.CONFLICT,
   ])("doesn't report a %s error, but still answers it", (type) => {
-    const { handler, report, onError } = respond()
+    const { handler, report, onError } = setup()
     const error = new MedusaError(type, "no")
 
     onError(error, req, res, next)
