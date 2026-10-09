@@ -6,13 +6,16 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { queryClient } from '@/api/query-client';
+import { withSentry } from '@/monitoring/sentry';
 import { hydrateSession, useSessionState } from '@/session/session-store';
 
 // Keep the splash up until the stored session is read, so the first frame is already the right group.
 void SplashScreen.preventAutoHideAsync();
 void hydrateSession();
 
-export default function RootLayout() {
+export default withSentry(RootLayout);
+
+function RootLayout() {
   const session = useSessionState();
   const hydrated = session.status !== 'hydrating';
   const signedIn = session.status === 'signedIn';

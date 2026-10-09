@@ -83,6 +83,32 @@ const payoutModules = process.env.PAYSTACK_SECRET_KEY
     ]
   : []
 
+// Uploads go to Cloudflare R2 through Medusa's S3 provider (#19) when a bucket is set, and to
+// ./static otherwise. R2 has no object ACLs, so none are sent; the bucket's public URL
+// (r2.dev or a custom domain) serves the files.
+const fileProvider = process.env.S3_BUCKET
+  ? {
+      resolve: '@medusajs/medusa/file-s3',
+      id: 's3',
+      options: {
+        file_url: process.env.S3_FILE_URL,
+        access_key_id: process.env.S3_ACCESS_KEY_ID,
+        secret_access_key: process.env.S3_SECRET_ACCESS_KEY,
+        region: process.env.S3_REGION || 'auto',
+        bucket: process.env.S3_BUCKET,
+        endpoint: process.env.S3_ENDPOINT,
+        acl: false,
+      },
+    }
+  : {
+      resolve: '@medusajs/medusa/file-local',
+      id: 'local',
+      options: {
+        // The local provider bakes this into every uploaded file URL.
+        backend_url: process.env.FILE_BACKEND_URL || 'http://localhost:9000/static',
+      },
+    }
+
 const dashboardAppDir = (name: string) => {
   const bundled = path.join(__dirname, 'dashboards', name)
   return fs.existsSync(bundled) ? bundled : path.join(__dirname, `../../apps/${name}`)
@@ -206,22 +232,6 @@ module.exports = withMercur({
     { resolve: './src/modules/shop-hours' },
     // Each device's Expo push token, and the buyer or shop member signed in on it (#27).
     { resolve: './src/modules/push-token' },
-    {
-      resolve: '@medusajs/medusa/file',
-      options: {
-        providers: [
-          {
-            resolve: '@medusajs/medusa/file-local',
-            id: 'local',
-            options: {
-              // The local provider bakes this into every uploaded file URL.
-              // It must be the publicly reachable origin in production, or
-              // images resolve to localhost and render broken.
-              backend_url: process.env.FILE_BACKEND_URL || 'http://localhost:9000/static',
-            },
-          },
-        ],
-      },
-    },
+    { resolve: '@medusajs/medusa/file', options: { providers: [fileProvider] } },
   ],
 })

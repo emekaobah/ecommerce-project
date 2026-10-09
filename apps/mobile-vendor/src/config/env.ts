@@ -8,4 +8,6 @@ function required(name: string, value: string | undefined): string {
 
 export const env = {
   apiUrl: required('EXPO_PUBLIC_API_URL', process.env.EXPO_PUBLIC_API_URL),
+  // Optional: Sentry reports nothing without it (#19).
+  sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN || undefined,
 } as const;

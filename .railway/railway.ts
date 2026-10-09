@@ -27,7 +27,6 @@ const sharedVariables = [
   // Google Maps JavaScript browser key (HTTP-referrer restricted) for the vendor panel's pickup
   // pin map (#41); baked into the panel at build time.
   "VITE_GOOGLE_MAPS_BROWSER_KEY",
-  "FILE_BACKEND_URL",
   "STORE_CORS",
   "ADMIN_CORS",
   "VENDOR_CORS",
@@ -42,6 +41,18 @@ const sharedVariables = [
   "SHIPBUBBLE_API_KEY",
   // Anthropic API key; Claude drafts catalogue fields no product database had (#36).
   "ANTHROPIC_API_KEY",
+  // Google Cloud key for Places API (New) and Geocoding API; address lookup (ADR 0002). Required.
+  "GOOGLE_MAPS_API_KEY",
+  // Cloudflare R2 bucket for uploaded files (#19): the bucket's S3 API endpoint
+  // (https://<account id>.r2.cloudflarestorage.com), an R2 API token's key pair scoped to the
+  // bucket, and the bucket's public URL, which every file URL starts with.
+  "S3_BUCKET",
+  "S3_ENDPOINT",
+  "S3_ACCESS_KEY_ID",
+  "S3_SECRET_ACCESS_KEY",
+  "S3_FILE_URL",
+  // Sentry project DSN for the backend (#19); errors from the server and the worker.
+  "SENTRY_DSN",
 ] as const
 
 export default defineRailway((ctx) => {

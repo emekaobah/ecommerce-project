@@ -33,8 +33,11 @@ import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
+import { reportServerErrors } from "./report-server-errors";
 
 export default defineMiddlewares({
+    // The API's own failures go to Sentry before Medusa answers them (#19).
+    errorHandler: reportServerErrors(),
     routes: [
         // Before any store route's own auth check, so a Clerk session token reads as the customer.
         { matcher: "/store/*", middlewares: [clerkCustomerAuth] },
