@@ -37,8 +37,16 @@ const config: ExpoConfig = {
     ['expo-splash-screen', { backgroundColor: '#FFFFFF', image: './assets/splash-icon.png', imageWidth: 120 }],
     // Pushes for new orders, the accept deadline and courier pickups (#27).
     'expo-notifications',
-    // Crash reporting (#19). Release builds upload source maps with SENTRY_AUTH_TOKEN.
-    ['@sentry/react-native/expo', { organization: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT }],
+    // Crash reporting (#19). Release builds upload source maps and debug symbols when
+    // SENTRY_AUTH_TOKEN is set, and skip the upload otherwise.
+    [
+      '@sentry/react-native/expo',
+      {
+        organization: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        disableAutoUpload: !process.env.SENTRY_AUTH_TOKEN,
+      },
+    ],
     withIosSceneLifecycle,
   ],
   // Expo push tokens are issued per EAS project; without one the app runs but gets no pushes.
