@@ -10,9 +10,9 @@
  *     or /seller/… — a base of "/" would 404 once the backend strips the route prefix),
  *  3. copies each dist into .medusa/server/dashboards/<name>/dist, where medusa-config.ts
  *     resolves it via dashboardAppDir(),
- *  4. removes the workspace-protocol dependencies from the artifact's package.json copy —
- *     `workspace:*` is not installable outside the monorepo and the artifact only needs
- *     the copied dist.
+ *  4. removes devDependencies and workspace-protocol dependencies from the artifact's
+ *     package.json copy — they are not installable outside the monorepo and the artifact
+ *     only needs the copied dist.
  *
  * In production builds (NODE_ENV=production — Medusa Cloud builds this way) the script fails
  * fast on a missing panel build, a wrong base path, or a missing MERCUR_BACKEND_URL instead
@@ -94,13 +94,19 @@ for (const panel of PANELS) {
 // `medusa build` copies this package.json verbatim into the artifact. Strip workspace-protocol
 // dependencies — they exist only so the panel sources travel with this package (Turborepo
 // pruning follows the workspace dependency graph), and they cannot be installed from a registry.
+// Drop devDependencies too: the artifact is installed with `npm install --omit=dev`, which still
+// resolves them, and the panels (`@acme/admin`, `@acme/vendor`: "*") exist only in this monorepo.
 const artifactPkgPath = path.join(artifactDir, 'package.json')
 const artifactPkg = JSON.parse(fs.readFileSync(artifactPkgPath, 'utf8'))
-for (const field of ['dependencies', 'devDependencies']) {
-  for (const [dep, version] of Object.entries(artifactPkg[field] ?? {})) {
-    if (typeof version === 'string' && version.startsWith('workspace:')) {
-      delete artifactPkg[field][dep]
-    }
+delete artifactPkg.devDependencies
+// The monorepo pins @medusajs/* (and zod) with root-level overrides that the artifact never sees.
+// Without them npm resolves @mercurjs/core's peer @medusajs/test-utils to the newest release,
+// whose @medusajs/framework peer conflicts with ours (ERESOLVE). Carry the pins over.
+const rootPkg = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
+if (rootPkg.overrides) artifactPkg.overrides = rootPkg.overrides
+for (const [dep, version] of Object.entries(artifactPkg.dependencies ?? {})) {
+  if (typeof version === 'string' && version.startsWith('workspace:')) {
+    delete artifactPkg.dependencies[dep]
   }
 }
 fs.writeFileSync(artifactPkgPath, JSON.stringify(artifactPkg, null, 2) + '\n')
