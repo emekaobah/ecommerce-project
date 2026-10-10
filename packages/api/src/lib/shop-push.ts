@@ -76,7 +76,7 @@ async function pushOrder(scope: Scope, orderId: string): Promise<PushOrder | nul
     fields: ["id", "display_id", "created_at", "seller.id", "items.quantity"],
     filters: { id: orderId },
   })
-  const order = data[0] as
+  const order = data[0] as unknown as
     | { id: string; display_id: number; created_at: string | Date; seller?: { id: string } | null; items?: ({ quantity: unknown } | null)[] | null }
     | undefined
   if (!order?.seller) return null
