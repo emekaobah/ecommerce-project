@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import { queryClient } from '@/api/query-client';
 import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
+import { withSentry } from '@/monitoring/sentry';
 import { usePushRegistration } from '@/push/push-registration';
 import { useOpenTappedPush } from '@/push/use-open-tapped-push';
 import { RegionProvider } from '@/region/region-provider';
@@ -18,7 +19,9 @@ import { useClearCacheOnUserChange } from '@/session/use-clear-cache-on-user-cha
 // Keep the splash up until Clerk has restored the session, so guards never see a false "signed out".
 void SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+export default withSentry(RootLayout);
+
+function RootLayout() {
   return (
     // The token cache keeps the session in the keychain, so it survives app restarts.
     <ClerkProvider publishableKey={env.clerkPublishableKey} tokenCache={tokenCache}>

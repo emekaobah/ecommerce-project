@@ -10,4 +10,6 @@ export const env = {
   apiUrl: required('EXPO_PUBLIC_API_URL', process.env.EXPO_PUBLIC_API_URL),
   publishableKey: required('EXPO_PUBLIC_PUBLISHABLE_KEY', process.env.EXPO_PUBLIC_PUBLISHABLE_KEY),
   clerkPublishableKey: required('EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY', process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY),
+  // Optional: Sentry reports nothing without it (#19).
+  sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN || undefined,
 } as const;

@@ -45,6 +45,7 @@
     "@medusajs/draft-order": "2.20.1",
     "@mercurjs/core": "2.3.5",
     "@mercurjs/types": "2.3.5",
+    "@sentry/node": "11.6.0",
     "http-proxy-middleware": "3.0.7",
     "zod": "3.25.76",
     "@mercurjs/cli": "2.3.5"
