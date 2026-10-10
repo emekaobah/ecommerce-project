@@ -168,7 +168,7 @@ Target: independent per-country markets. Cross-border purchasing is out of scope
 
 ## Infrastructure
 
-- **Railway** via `.railway/railway.ts` (Infrastructure as Code, ADR 0005): API service (`MEDUSA_WORKER_MODE=server`), worker service (`worker`), Railway Postgres 16, Railway Redis (default `noeviction` policy, which BullMQ needs), pre-deploy migrations, auto-deploy from `main`, EU West region. At least 2 GB RAM available per instance, per Mercur's self-host guide.
+- **Railway** via `.railway/railway.ts` (Infrastructure as Code, ADR 0005): API service (`MEDUSA_WORKER_MODE=server`), worker service (`worker`), Railway Postgres 18, Railway Redis (default `noeviction` policy, which BullMQ needs), pre-deploy migrations, auto-deploy from `main`, EU West region. At least 2 GB RAM available per instance, per Mercur's self-host guide.
 - **Cloudflare R2** for files (Medusa S3 file provider).
 - **Domain**: `.com` via Cloudflare Registrar; subdomains `api.`, `vendor.`, `admin.`, `mail.`, Clerk's. Dev proceeds without it.
 - **Sentry** (both apps + backend); **PostHog** (checkout funnel, vendor fulfilment timings).
