@@ -19,7 +19,7 @@ Facts that shaped the decision (checked 2026-10-02):
 Host the backend on Railway, described by `.railway/railway.ts`:
 
 - `oja-api` (server mode, `/health` check, pre-deploy migrations) and `oja-worker` (worker mode), both built from `main` with the same build.
-- `oja-db`: Postgres 16, pinned to match `docker-compose.yml`. The SDK's default is 18.
+- `oja-db`: Railway's Postgres, through the SDK's `postgres()` helper (18). Local `docker-compose.yml` and CI run 18 too. (Pinning 16 was tried: the CLI created the database from Railway's template, 18, regardless, and then planned to swap the image under the 18 data directory, 2026-10-10.)
 - `oja-redis`: Railway's Redis. Its `maxmemory-policy` is Redis's default, `noeviction`, which BullMQ needs.
 - Everything in `europe-west4-drams3a`.
 - Secrets and public URLs are environment shared variables, set by hand and referenced from the file, so none are committed.

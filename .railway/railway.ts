@@ -5,7 +5,7 @@
 // One codebase runs as two services (Medusa server + worker), sharing Postgres and Redis.
 // BullMQ (event bus / workflow engine) requires Redis's maxmemory-policy to be noeviction,
 // which is Redis's default and isn't overridden by Railway's image.
-import { database, defineRailway, github, group, project, redis, service } from "railway/iac"
+import { defineRailway, github, group, postgres, project, redis, service } from "railway/iac"
 
 // EU West (Amsterdam), Railway's closest region to Lagos.
 const region = "europe-west4-drams3a"
@@ -56,13 +56,8 @@ const sharedVariables = [
 ] as const
 
 export default defineRailway((ctx) => {
-  // Postgres 16, matching docker-compose.yml. Railway's postgres() helper defaults to 18.
-  const db = database("oja-db", "postgres", {
-    image: "ghcr.io/railwayapp-templates/postgres-ssl:16",
-    output: "DATABASE_URL",
-    defaultMountPath: "/var/lib/postgresql/data",
-    region,
-  })
+  // Railway's Postgres (18), matching docker-compose.yml and CI.
+  const db = postgres("oja-db", { region })
   const cache = redis("oja-redis", { region })
 
   const env = (workerMode: "server" | "worker") => ({
