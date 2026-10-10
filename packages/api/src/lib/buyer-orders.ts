@@ -136,7 +136,7 @@ export async function listBuyerOrderGroups(
     filters: { customer_id: customerId },
     pagination: { skip: page.offset, take: page.limit, order: { created_at: "DESC" } },
   })
-  return { order_groups: await withOrders(scope, data as GroupRow[]), count: metadata?.count ?? 0 }
+  return { order_groups: await withOrders(scope, data as unknown as GroupRow[]), count: metadata?.count ?? 0 }
 }
 
 /** One of the buyer's order groups; another buyer's is not found. */
@@ -147,7 +147,7 @@ export async function retrieveBuyerOrderGroup(scope: Scope, customerId: string, 
     fields: ["id", "display_id", "created_at", "orders.id"],
     filters: { id, customer_id: customerId },
   })
-  const [group] = await withOrders(scope, data as GroupRow[])
+  const [group] = await withOrders(scope, data as unknown as GroupRow[])
   if (!group) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order group with id ${id} was not found`)
   return group
 }

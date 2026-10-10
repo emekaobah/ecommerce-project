@@ -17,6 +17,9 @@
         "VITE_MERCUR_BACKEND_URL",
         "VITE_GOOGLE_MAPS_BROWSER_KEY"
       ],
+      "passThroughEnv": [
+        "S3_BUCKET"
+      ],
       "outputs": [
         ".next/**",
         "!.next/cache/**",

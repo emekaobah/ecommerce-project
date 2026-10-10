@@ -409,7 +409,7 @@ export async function retrieveListing(
     ],
     filters: { id: filters.productId },
   })
-  const p = product as ProductDetailRow
+  const p = product as unknown as ProductDetailRow
   const attributeValues = (withAttributes as { product_attribute_values?: AttributeValueRow[] } | undefined)
     ?.product_attribute_values
   const [attribution, perishable] = await Promise.all([
