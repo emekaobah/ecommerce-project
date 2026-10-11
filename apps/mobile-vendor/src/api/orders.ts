@@ -10,8 +10,10 @@ export const orderKeys = {
   pickList: (orderId: string) => [...orderKeys.all, 'pick-list', orderId] as const,
 };
 
-// The default fields leave out the order total; `+` adds it to them.
-const ORDER_FIELDS = '+total,+credit_line_total,+created_at,+items.product_title,+items.quantity';
+// The default fields leave out the order total; `+` adds it to them. The buyer's name is who a
+// pickup order is for (#12).
+const ORDER_FIELDS =
+  '+total,+credit_line_total,+created_at,+items.product_title,+items.quantity,+billing_address.first_name,+billing_address.last_name';
 
 /**
  * What the buyer paid for the order. A refund adds a credit line that takes the refunded
@@ -178,7 +180,20 @@ export function useRemoveUnavailable(orderId: string) {
   });
 }
 
-/** Marks a fully picked order packed, ready for a courier label. */
+/**
+ * Hands a pickup order over at the counter (#12) against the code its collector shows, naming
+ * who collected it. A wrong code is refused; after five within 15 minutes every code is, for a while.
+ */
+export function useCollectOrder(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, collectedBy }: { code: string; collectedBy: string }) =>
+      vendorClient.vendor.orders.$id.collect.mutate({ $id: orderId, code, collected_by: collectedBy }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+  });
+}
+
+/** Marks a fully picked order packed: a delivery order is then ready for a courier label, a pickup order ready for its buyer. */
 export function usePackOrder(orderId: string) {
   const queryClient = useQueryClient();
   return useMutation({

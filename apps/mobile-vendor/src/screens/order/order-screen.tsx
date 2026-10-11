@@ -81,6 +81,20 @@ function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
   if (fulfilment.state === 'handed_to_courier') return <Text tone="secondary">With the courier, on its way to the buyer.</Text>;
   if (fulfilment.state === 'in_transit') return <Text tone="secondary">In transit to the buyer.</Text>;
   if (fulfilment.state === 'delivered') return <Text tone="secondary">Delivered to the buyer.</Text>;
+  if (fulfilment.state === 'ready_for_pickup') {
+    return <Text tone="secondary">Ready at the counter. The buyer collects it with the code in their app.</Text>;
+  }
+  if (fulfilment.state === 'collected' && fulfilment.collection) {
+    const { staff, collected_by } = fulfilment.collection;
+    return (
+      <Text tone="secondary">
+        {`Handed over by ${staff.name ?? 'a staff member'} to ${collected_by} at ${timeOf(staff.at)}.`}
+      </Text>
+    );
+  }
+  if (fulfilment.method === 'pickup' && ['new', 'accepted', 'picking', 'partially_available'].includes(fulfilment.state)) {
+    return <Text tone="secondary">The buyer collects this order in store.</Text>;
+  }
   if (fulfilment.state === 'rejected') {
     return (
       <Text tone="secondary">
@@ -177,6 +191,9 @@ function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilmen
         onPress={() => bookLabel.mutate()}
       />
     );
+  }
+  if (state === 'ready_for_pickup') {
+    return <Button label="Hand over to buyer" onPress={() => router.push({ pathname: '/orders/[id]/collect', params: { id: orderId } })} />;
   }
   if (state === 'courier_confirmed' && !fulfilment.handover?.staff) {
     return <Action label="Handed to courier" mutation={handOver} onPress={() => handOver.mutate()} />;

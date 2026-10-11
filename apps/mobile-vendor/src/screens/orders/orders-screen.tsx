@@ -2,7 +2,7 @@ import { formatMoney } from '@oja/domain';
 import { Button, EmptyState, ErrorState, ListRow, LoadingState, useTheme } from '@oja/ui';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, StyleSheet } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 
 import { orderValue, useOrders } from '@/api/orders';
 import { useCurrentSeller } from '@/api/sellers';
@@ -20,6 +20,7 @@ export function OrdersScreen() {
   const now = useNow();
   // Only a pull shows the spinner; background refetches stay silent.
   const [pulling, setPulling] = useState(false);
+  const [readyOnly, setReadyOnly] = useState(false);
   const refresh = () => {
     setPulling(true);
     void orders.refetch().finally(() => setPulling(false));
@@ -31,13 +32,34 @@ export function OrdersScreen() {
       return <ErrorState title="Couldn't load orders" message={orders.error.message} onRetry={refresh} />;
     }
     if (!orders.data) return <LoadingState />;
+    // Orders waiting at the counter for their buyers (#12).
+    const ready = orders.data.filter((o) => o.fulfilment.state === 'ready_for_pickup');
+    const shown = readyOnly ? ready : orders.data;
 
     return (
       <FlatList
-        data={orders.data}
+        data={shown}
         keyExtractor={(o) => o.id}
-        contentContainerStyle={orders.data.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space.md }}
-        ListEmptyComponent={<EmptyState title="No orders yet" message="New orders show up here." />}
+        contentContainerStyle={shown.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space.md }}
+        ListHeaderComponent={
+          ready.length || readyOnly ? (
+            <View style={[styles.filters, { gap: theme.space.sm, paddingVertical: theme.space.sm }]}>
+              <Button label="All orders" variant={readyOnly ? 'secondary' : 'primary'} onPress={() => setReadyOnly(false)} />
+              <Button
+                label={`Ready for pickup (${ready.length})`}
+                variant={readyOnly ? 'primary' : 'secondary'}
+                onPress={() => setReadyOnly(true)}
+              />
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          readyOnly ? (
+            <EmptyState title="Nothing waiting" message="Orders ready for their buyers to collect show up here." />
+          ) : (
+            <EmptyState title="No orders yet" message="New orders show up here." />
+          )
+        }
         refreshing={pulling}
         onRefresh={refresh}
         renderItem={({ item }) => (
@@ -74,4 +96,5 @@ function AddProductButton() {
 
 const styles = StyleSheet.create({
   emptyList: { flexGrow: 1 },
+  filters: { flexDirection: 'row', flexWrap: 'wrap' },
 });
