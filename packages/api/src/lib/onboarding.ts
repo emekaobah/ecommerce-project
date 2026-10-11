@@ -150,9 +150,15 @@ function requirePaystack() {
   return paystack
 }
 
-/** Paystack refused the account, not our request: anything but our key being wrong. */
+/** Paystack refused the account, not our request: anything but our key being wrong or a rate limit. */
 const accountRefused = (error: unknown) =>
-  error instanceof PaystackRequestError && error.status >= 400 && error.status < 500 && ![401, 403].includes(error.status)
+  error instanceof PaystackRequestError &&
+  error.status >= 400 &&
+  error.status < 500 &&
+  ![401, 403, 429].includes(error.status)
+
+/** Paystack is limiting bank lookups (test mode allows 3 a day): nothing is wrong with the account. */
+const lookupsLimited = (error: unknown) => error instanceof PaystackRequestError && error.status === 429
 
 /** The one currency the shop trades and is paid in. */
 export async function currencyOf(scope: MedusaContainer, sellerId: string): Promise<string> {
@@ -163,54 +169,63 @@ export async function currencyOf(scope: MedusaContainer, sellerId: string): Prom
   return seller.currency_code
 }
 
+/** A bank account Paystack resolved to its holder and registered as a transfer recipient. */
+export type RegisteredBankAccount = BankAccountView & { currency_code: string; recipient_code: string }
+
 /**
- * Sets the bank account a shop is paid into: Paystack resolves the account to its holder's
- * name and registers it as a transfer recipient, which payouts pay (#29). An account Paystack
- * can't find at the bank is refused (400) and the shop keeps the account it had.
+ * Resolves a bank account with Paystack to its holder's name and registers it as a transfer
+ * recipient, which payouts pay (#29). An account Paystack can't find at the bank is refused (400),
+ * as is any lookup while Paystack is limiting them.
  */
-export async function saveBankAccount(
-  scope: MedusaContainer,
-  sellerId: string,
+export async function registerBankAccount(
+  currency: string,
   input: { bank_code: string; account_number: string }
-): Promise<BankAccountView> {
+): Promise<RegisteredBankAccount> {
   const paystack = requirePaystack()
-  const currency = await currencyOf(scope, sellerId)
   const bank = (await banksFor(currency)).find((b) => b.code === input.bank_code)
   if (!bank) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Choose your bank from the list")
 
-  let accountName: string
-  let recipientCode: string
   try {
-    const resolved = await paystack.resolveAccount({ account_number: input.account_number, bank_code: input.bank_code })
-    accountName = resolved.account_name
-    const recipient = await paystack.createTransferRecipient({
+    const { account_name } = await paystack.resolveAccount({ account_number: input.account_number, bank_code: input.bank_code })
+    const { recipient_code } = await paystack.createTransferRecipient({
       type: "nuban",
-      name: accountName,
+      name: account_name,
       account_number: input.account_number,
       bank_code: input.bank_code,
       currency: currency.toUpperCase(),
     })
-    recipientCode = recipient.recipient_code
+    return {
+      currency_code: currency,
+      bank_code: bank.code,
+      bank_name: bank.name,
+      account_number: input.account_number,
+      account_name,
+      recipient_code,
+    }
   } catch (error) {
+    if (lookupsLimited(error)) {
+      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Paystack can't check bank accounts right now. Try again later.")
+    }
     if (!accountRefused(error)) throw error
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
       `We couldn't find account ${input.account_number} at ${bank.name}. Check the account number and the bank.`
     )
   }
+}
 
-  await saveShopBankAccountWorkflow(scope).run({
-    input: {
-      seller_id: sellerId,
-      currency_code: currency,
-      bank_code: bank.code,
-      bank_name: bank.name,
-      account_number: input.account_number,
-      account_name: accountName,
-      recipient_code: recipientCode,
-    },
-  })
-  return { bank_code: bank.code, bank_name: bank.name, account_number: input.account_number, account_name: accountName }
+/**
+ * Sets the bank account a shop is paid into, once Paystack has registered it
+ * (`registerBankAccount`). A refused account leaves the shop with the account it had.
+ */
+export async function saveBankAccount(
+  scope: MedusaContainer,
+  sellerId: string,
+  input: { bank_code: string; account_number: string }
+): Promise<BankAccountView> {
+  const { currency_code, recipient_code, ...view } = await registerBankAccount(await currencyOf(scope, sellerId), input)
+  await saveShopBankAccountWorkflow(scope).run({ input: { seller_id: sellerId, currency_code, recipient_code, ...view } })
+  return view
 }
 
 /** A pickup address as the vendor panel's form sends it: Medusa's columns, the rest in `metadata`. */

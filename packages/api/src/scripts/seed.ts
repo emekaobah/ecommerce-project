@@ -76,7 +76,7 @@ import { setCategoryPerishable } from "../lib/perishable";
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account";
 import { ADDRESS_CODE, addressCodeOf, validatedPickupChange } from "../lib/delivery";
 import { COMMISSION_PERCENT } from "../lib/payouts";
-import { saveBankAccount } from "../lib/onboarding";
+import { registerBankAccount, type RegisteredBankAccount } from "../lib/onboarding";
 import { sellersWithHours, setWeeklyHours } from "../lib/shop-hours";
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account";
 import { errorMessage } from "../lib/errors";
@@ -162,7 +162,9 @@ export default async function seedDemoData({ container }: ExecArgs) {
   logger.info("Completing the sellers' onboarding...");
   // One shop at a time, like the sellers above: run together, Mercur's seller-address and
   // bank-account workflows race and a shop can be left not live.
-  for (const seller of sellers) await seedOnboarding(container, seller);
+  const seedAccount = seedBankAccount();
+  const payTo = seedAccount && registeredOnce(seedAccount);
+  for (const seller of sellers) await seedOnboarding(container, seller, payTo);
 
   logger.info("Seeding products...");
   const productsByHandle = await seedProducts(container, {
@@ -691,7 +693,11 @@ const UNVERIFIED_RECIPIENT = "RCP_seed_unverified";
 // pickup address validated with Shipbubble (by the seeded pin) and the seed's bank account
 // (`seedBankAccount()`) resolved with Paystack. A shop without one is left for its owner to finish
 // in the vendor panel.
-async function seedOnboarding(container: MedusaContainer, seller: SeededSeller) {
+async function seedOnboarding(
+  container: MedusaContainer,
+  seller: SeededSeller,
+  payTo: ((currency: string) => Promise<RegisteredBankAccount>) | undefined
+) {
   // Hours a shop has changed since are its own.
   if (!(await sellersWithHours(container, [seller.id])).has(seller.id)) {
     await setWeeklyHours(container, seller.id, seller.config.hours);
@@ -734,7 +740,6 @@ async function seedOnboarding(container: MedusaContainer, seller: SeededSeller) 
   }
   // As above: a placeholder recipient is replaced once Paystack is configured.
   if (account && account.recipient_code !== UNVERIFIED_RECIPIENT) return;
-  const payTo = seedBankAccount();
   if (!payTo) {
     logger.warn(
       `"${seller.config.name}" isn't live: set SEED_BANK_CODE and SEED_BANK_ACCOUNT_NUMBER to a real account for Paystack to resolve, or its owner can add one in the vendor panel.`
@@ -742,12 +747,19 @@ async function seedOnboarding(container: MedusaContainer, seller: SeededSeller) 
     return;
   }
   try {
-    await saveBankAccount(container, seller.id, payTo);
+    await saveShopBankAccountWorkflow(container).run({ input: { seller_id: seller.id, ...(await payTo(row.currency_code)) } });
   } catch (error) {
     logger.warn(
       `"${seller.config.name}" isn't live: Paystack didn't take its bank account (${errorMessage(error)}). Its owner can add one in the vendor panel.`
     );
   }
+}
+
+// The seed's one account, registered with Paystack the first time a shop needs it and shared by
+// every shop after: test mode allows only 3 bank lookups a day.
+function registeredOnce(account: { bank_code: string; account_number: string }) {
+  let registered: Promise<RegisteredBankAccount> | undefined;
+  return (currency: string) => (registered ??= registerBankAccount(currency, account));
 }
 
 type SeededProduct = { id: string; handle: string; variants: { id: string; sku: string }[] };
