@@ -20,33 +20,48 @@ export function canReview(state: FulfilmentState): boolean {
   return RECEIVED.has(state)
 }
 
-/** Something on a received order the buyer can rate: its shop, or a product on it. */
-export type ReviewTarget = { reference: "seller" | "product"; reference_id: string; title: string }
+/** What a review is of: a shop, or a catalogue product (whichever shop sold it). */
+export type ReviewKind = "seller" | "product"
+
+/** What one review is of: its kind and that shop's or product's id. */
+export type ReviewSubject = { reference: ReviewKind; reference_id: string }
+
+/** Something on a received order the buyer can rate, named as the order names it. */
+export type ReviewTarget = ReviewSubject & { title: string }
 
 type ReviewableOrder = {
   seller: { id: string; name: string }
   items: readonly { product_id: string | null; product_title: string | null; quantity: number }[]
-  reviews: readonly { reference: "seller" | "product"; reference_id: string }[]
+  reviews: readonly ReviewSubject[]
 }
 
-/**
- * What the buyer can still review on a received order: the shop, then each product they got
- * (once, however many lines it's on; not one removed as unavailable), less what they reviewed.
- */
-export function reviewTargets(order: ReviewableOrder): ReviewTarget[] {
+/** The shop and each product the buyer received on the order (once, however many lines it's on). */
+function receivedTargets(order: ReviewableOrder): ReviewTarget[] {
   const products = new Map<string, string>()
   for (const item of order.items) {
     if (item.product_id && item.quantity > 0 && !products.has(item.product_id)) {
       products.set(item.product_id, item.product_title ?? "Product")
     }
   }
-  const targets: ReviewTarget[] = [
+  return [
     { reference: "seller", reference_id: order.seller.id, title: order.seller.name },
     ...[...products].map(([reference_id, title]) => ({ reference: "product" as const, reference_id, title })),
   ]
-  return targets.filter(
-    (t) => !order.reviews.some((r) => r.reference === t.reference && r.reference_id === t.reference_id)
-  )
+}
+
+const sameSubject = (a: ReviewSubject, b: ReviewSubject) => a.reference === b.reference && a.reference_id === b.reference_id
+
+/**
+ * What the buyer can still review on a received order: the shop, then each product they got
+ * (not one removed as unavailable), less what they reviewed.
+ */
+export function reviewTargets(order: ReviewableOrder): ReviewTarget[] {
+  return receivedTargets(order).filter((t) => !order.reviews.some((r) => sameSubject(r, t)))
+}
+
+/** What a review on the order is of, as the order names it. */
+export function reviewTitle(order: ReviewableOrder, review: ReviewSubject): string {
+  return receivedTargets(order).find((t) => sameSubject(t, review))?.title ?? "Product"
 }
 
 type ReviewerNames ={ first_name?: string | null; last_name?: string | null }

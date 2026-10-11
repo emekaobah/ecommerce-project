@@ -1,8 +1,8 @@
-import { ratingSummary, type Rating } from '@oja/domain';
+import { ratingSummary, type Rating, type ReviewKind } from '@oja/domain';
 import { Button, Text, useTheme } from '@oja/ui';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
-import { REVIEW_PREVIEW_COUNT, useReviewPreview, type PublishedReview, type ReviewKind } from '@/api/reviews';
+import { REVIEW_PREVIEW_COUNT, useReviewPreview, type PublishedReview } from '@/api/reviews';
 import { openReviews } from '@/navigation';
 
 const MAX_STARS = 5;

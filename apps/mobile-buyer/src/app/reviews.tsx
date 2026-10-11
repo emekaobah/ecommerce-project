@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import type { ReviewKind } from '@/api/reviews';
+import type { ReviewKind } from '@oja/domain';
 import { ReviewsScreen } from '@/screens/reviews/reviews-screen';
 
 export default function ReviewsRoute() {

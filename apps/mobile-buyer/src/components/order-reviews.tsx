@@ -1,18 +1,10 @@
-import { reviewStatus, reviewTargets } from '@oja/domain';
+import { reviewStatus, reviewTargets, reviewTitle } from '@oja/domain';
 import { Button, StatusChip, Text, useTheme } from '@oja/ui';
 import { View } from 'react-native';
 
 import type { SellerOrder } from '@/api/orders';
 import { ShopReply, Stars } from '@/components/reviews';
 import { openWriteReview } from '@/navigation';
-
-type OrderReview = SellerOrder['reviews'][number];
-
-/** What a review on the order is of, as the order names it. */
-function titleOf(order: SellerOrder, review: OrderReview) {
-  if (review.reference === 'seller') return order.seller.name;
-  return order.items.find((i) => i.product_id === review.reference_id)?.product_title ?? 'Product';
-}
 
 /**
  * The buyer's reviews of a shop's order (#7), each with where it is in moderation (a pending
@@ -30,7 +22,7 @@ export function OrderReviews({ groupId, order }: Readonly<{ groupId: string; ord
         const status = reviewStatus(review.status);
         return (
           <View key={review.id} style={{ gap: theme.space.xs }}>
-            <Text>{titleOf(order, review)}</Text>
+            <Text>{reviewTitle(order, review)}</Text>
             <Stars rating={review.rating} />
             {review.customer_note ? <Text tone="secondary">{review.customer_note}</Text> : null}
             <StatusChip label={status.label} tone={status.tone} />

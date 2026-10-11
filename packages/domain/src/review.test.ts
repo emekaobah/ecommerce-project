@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { FulfilmentState } from "./fulfilment"
-import { canReview, ratingSummary, reviewerName, reviewStatus, reviewTargets } from "./review"
+import { canReview, ratingSummary, reviewerName, reviewStatus, reviewTargets, reviewTitle } from "./review"
 
 describe("canReview", () => {
   test("lets the buyer review a shop's order once it is delivered", () => {
@@ -46,6 +46,19 @@ describe("reviewTargets", () => {
   test("leaves out what the buyer already reviewed on the order", () => {
     const reviewed = { ...order, reviews: [{ reference: "seller" as const, reference_id: "sel_grocer" }] }
     expect(reviewTargets(reviewed).map((t) => t.reference_id)).toEqual(["prod_rice"])
+  })
+})
+
+describe("reviewTitle", () => {
+  const order = {
+    seller: { id: "sel_grocer", name: "Mama Put Groceries" },
+    items: [{ product_id: "prod_rice", product_title: "Ofada Rice 5kg", quantity: 2 }],
+    reviews: [],
+  }
+
+  test("names a review of the shop by the shop, and of a product by the product", () => {
+    expect(reviewTitle(order, { reference: "seller", reference_id: "sel_grocer" })).toBe("Mama Put Groceries")
+    expect(reviewTitle(order, { reference: "product", reference_id: "prod_rice" })).toBe("Ofada Rice 5kg")
   })
 })
 

@@ -1,10 +1,8 @@
+import type { ReviewKind, ReviewSubject } from '@oja/domain';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { storeClient } from './client';
 import { orderKeys } from './orders';
-
-/** What a review is of: a shop, or a catalogue product (whichever shop sold it). */
-export type ReviewKind = 'seller' | 'product';
 
 export const reviewKeys = {
   all: ['reviews'] as const,
@@ -48,17 +46,26 @@ export function useReviewPages(kind: ReviewKind, id: string) {
 }
 
 /** One review the buyer writes of a shop or product on their order. */
-export type ReviewDraft = { reference: ReviewKind; reference_id: string; rating: number; customer_note: string | null };
+export type ReviewDraft = ReviewSubject & { rating: number; customer_note: string | null };
 
 /**
  * Submits the buyer's reviews of a received order, one per shop or product they rated. Each
- * waits for moderation, which the order then shows.
+ * waits for moderation, which the order then shows. Each is sent on its own, so when some fail
+ * the error says the others were saved; the order shows which.
  */
 export function useSubmitReviews() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ orderId, drafts }: { orderId: string; drafts: ReviewDraft[] }) => {
-      for (const draft of drafts) await storeClient.store.reviews.mutate({ order_id: orderId, ...draft });
+      const sent = await Promise.allSettled(
+        drafts.map((draft) => storeClient.store.reviews.mutate({ order_id: orderId, ...draft })),
+      );
+      const failed = sent.flatMap((result) => (result.status === 'rejected' ? [result.reason as Error] : []));
+      if (!failed.length) return;
+      const saved = drafts.length - failed.length;
+      throw new Error(
+        saved ? `${saved} of ${drafts.length} reviews were sent; the rest weren't: ${failed[0]!.message}` : failed[0]!.message,
+      );
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
   });

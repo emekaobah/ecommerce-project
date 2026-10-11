@@ -1,3 +1,4 @@
+import type { ReviewKind } from '@oja/domain';
 import { router } from 'expo-router';
 
 import type { Listing } from '@/api/listings';
@@ -18,7 +19,7 @@ export function openOrderGroup(group: { id: string }) {
 }
 
 /** Opens every published review of a shop or product; the title names what they're of. */
-export function openReviews(kind: 'seller' | 'product', id: string, title: string) {
+export function openReviews(kind: ReviewKind, id: string, title: string) {
   router.push({ pathname: '/reviews', params: { kind, id, title } });
 }
 

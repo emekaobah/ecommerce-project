@@ -1,4 +1,4 @@
-import { canReview, reviewerName, type ReviewStatus } from "@oja/domain"
+import { canReview, reviewerName, type ReviewKind, type ReviewStatus, type ReviewSubject } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import OrderReviewLink from "@mercurjs/core/links/order-review"
@@ -11,8 +11,6 @@ import { fulfilmentsOf } from "./order-fulfilment"
 // moderated by an operator (pending → published or rejected) before other buyers see it.
 
 type Scope = Pick<MedusaContainer, "resolve">
-
-export type ReviewTarget = { reference: "product" | "seller"; reference_id: string }
 
 type ReviewableOrderRow = {
   id: string
@@ -28,7 +26,7 @@ type ReviewableOrderRow = {
  */
 export async function assertReviewable(
   scope: Scope,
-  { customer_id, order_id, reference, reference_id }: ReviewTarget & { customer_id: string; order_id: string }
+  { customer_id, order_id, reference, reference_id }: ReviewSubject & { customer_id: string; order_id: string }
 ): Promise<void> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
@@ -57,7 +55,7 @@ export async function assertReviewable(
  * A review as its author sees it on their order: what it's of and where it is in moderation.
  * The shop's reply shows only once the review is published, as it does to other buyers.
  */
-export type BuyerReview = ReviewTarget & {
+export type BuyerReview = ReviewSubject & {
   id: string
   rating: number
   customer_note: string | null
@@ -69,7 +67,7 @@ type OrderReviewRow = {
   order_id: string
   review?: {
     id: string
-    reference: ReviewTarget["reference"]
+    reference: ReviewKind
     rating: number
     customer_note: string | null
     seller_note: string | null
@@ -104,18 +102,17 @@ export async function reviewsOfOrders(scope: Scope, orderIds: string[]): Promise
     if (!review) continue
     const reference_id = (review.reference === "product" ? review.product : review.seller)?.id
     if (!reference_id) continue
-    byOrder.set(order_id, [
-      ...(byOrder.get(order_id) ?? []),
-      {
-        id: review.id,
-        reference: review.reference,
-        reference_id,
-        rating: Number(review.rating),
-        customer_note: review.customer_note,
-        seller_note: review.status === "published" ? review.seller_note : null,
-        status: review.status,
-      },
-    ])
+    const reviews = byOrder.get(order_id) ?? []
+    reviews.push({
+      id: review.id,
+      reference: review.reference,
+      reference_id,
+      rating: Number(review.rating),
+      customer_note: review.customer_note,
+      seller_note: review.status === "published" ? review.seller_note : null,
+      status: review.status,
+    })
+    byOrder.set(order_id, reviews)
   }
   return byOrder
 }
@@ -149,7 +146,7 @@ const LINKS = {
 } as const
 
 /** Ids of every review of the target, whatever its status; a review has no target column, only a link. */
-async function reviewIdsOf(scope: Scope, { reference, reference_id }: ReviewTarget): Promise<string[]> {
+async function reviewIdsOf(scope: Scope, { reference, reference_id }: ReviewSubject): Promise<string[]> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { entryPoint, column } = LINKS[reference]
   const { data } = await query.graph({ entity: entryPoint, fields: ["review_id"], filters: { [column]: reference_id } })
@@ -162,7 +159,7 @@ async function reviewIdsOf(scope: Scope, { reference, reference_id }: ReviewTarg
  */
 export async function publishedReviews(
   scope: Scope,
-  target: ReviewTarget,
+  target: ReviewSubject,
   page: { limit: number; offset: number }
 ): Promise<PublishedReviews> {
   const ids = await reviewIdsOf(scope, target)

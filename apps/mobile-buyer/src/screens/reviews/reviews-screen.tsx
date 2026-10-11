@@ -1,8 +1,9 @@
+import type { ReviewKind } from '@oja/domain';
 import { EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { Stack } from 'expo-router';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 
-import { useReviewPages, type ReviewKind } from '@/api/reviews';
+import { useReviewPages } from '@/api/reviews';
 import { RatingLine, ReviewItem } from '@/components/reviews';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
