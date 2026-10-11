@@ -1,0 +1,67 @@
+import { describe, expect, test } from "bun:test"
+import type { FulfilmentState } from "./fulfilment"
+import { canReview, ratingSummary, reviewerName, reviewStatus } from "./review"
+
+describe("canReview", () => {
+  test("lets the buyer review a shop's order once it is delivered", () => {
+    expect(canReview("delivered")).toBe(true)
+  })
+
+  test("refuses every state before the buyer has the order, and a rejected order", () => {
+    const before: FulfilmentState[] = [
+      "new",
+      "accepted",
+      "rejected",
+      "picking",
+      "partially_available",
+      "packed",
+      "label_booked",
+      "courier_confirmed",
+      "handed_to_courier",
+      "in_transit",
+    ]
+    for (const state of before) expect(canReview(state)).toBe(false)
+  })
+})
+
+describe("reviewerName", () => {
+  test("shows a reviewer by first name and last initial", () => {
+    expect(reviewerName({ first_name: "Ada", last_name: "Obi" })).toBe("Ada O.")
+  })
+
+  test("shows the first name alone without a last name", () => {
+    expect(reviewerName({ first_name: "Ada", last_name: null })).toBe("Ada")
+    expect(reviewerName({ first_name: " Ada ", last_name: " " })).toBe("Ada")
+  })
+
+  test("calls a reviewer with no name a buyer", () => {
+    expect(reviewerName({ first_name: null, last_name: "Obi" })).toBe("A buyer")
+    expect(reviewerName(null)).toBe("A buyer")
+  })
+})
+
+describe("ratingSummary", () => {
+  test("shows the average to one decimal place with how many reviews it is of", () => {
+    expect(ratingSummary({ average: 4.25, count: 12 })).toBe("4.3 · 12 reviews")
+    expect(ratingSummary({ average: 5, count: 1 })).toBe("5.0 · 1 review")
+  })
+
+  test("says when there are no reviews yet", () => {
+    expect(ratingSummary({ average: null, count: 0 })).toBe("No reviews yet")
+  })
+})
+
+describe("reviewStatus", () => {
+  test("tells the author a pending review waits for moderation", () => {
+    expect(reviewStatus("pending")).toEqual({
+      label: "Waiting for moderation",
+      tone: "warning",
+      note: "We check every review before it's published. Other buyers will see it once it is.",
+    })
+  })
+
+  test("tells the author a review is published, or that it wasn't", () => {
+    expect(reviewStatus("published")).toMatchObject({ label: "Published", tone: "success" })
+    expect(reviewStatus("rejected")).toMatchObject({ label: "Not published", tone: "danger" })
+  })
+})
