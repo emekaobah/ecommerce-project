@@ -29,6 +29,9 @@ const STATES: Record<Exclude<FulfilmentState, "rejected">, Omit<StatusView, "not
   handed_to_courier: { label: "On its way", tone: "info" },
   in_transit: { label: "On its way", tone: "info" },
   delivered: { label: "Delivered", tone: "success" },
+  // Ready is the buyer's cue to come for it.
+  ready_for_pickup: { label: "Ready for pickup", tone: "success" },
+  collected: { label: "Collected", tone: "success" },
 }
 
 /** Paystack's refund statuses (`order_refund.status`). */
