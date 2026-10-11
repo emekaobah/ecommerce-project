@@ -1,4 +1,6 @@
+import { Modules } from "@medusajs/framework/utils"
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../../src/modules/shop-bank-account"
 import seedDemoData from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
 import { buyerCheckout, GADGETS, GROCERY, LANTERN, RICE, type Shop } from "../helpers/checkout"
@@ -7,6 +9,8 @@ import { fakePaystack } from "../helpers/paystack"
 import { fakeShipbubble } from "../helpers/shipbubble"
 
 jest.setTimeout(5 * 60 * 1000)
+
+type RequestConfig = { headers: Record<string, string> }
 
 const clerk = fakeClerk()
 // A port per test process, so each fake can be named in the config before it is listening.
@@ -26,7 +30,7 @@ medusaIntegrationTestRunner({
   env: {},
   testSuite: ({ api, getContainer }) => {
     const buyer = buyerCheckout({ api, getContainer, clerk, paystack })
-    let admin: { headers: Record<string, string> }
+    let admin: RequestConfig
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start()])
@@ -80,8 +84,8 @@ medusaIntegrationTestRunner({
       return orders
     }
 
-    const review = (body: Record<string, unknown>, as = buyer.ada()) => api.post("/store/reviews", body, as)
-    const reviewShop = async (orderId: string, shop: Shop, rating = 5, note: string | null = null, as = buyer.ada()) =>
+    const review = (body: Record<string, unknown>, as: RequestConfig = buyer.ada()) => api.post("/store/reviews", body, as)
+    const reviewShop = async (orderId: string, shop: Shop, rating = 5, note: string | null = null, as: RequestConfig = buyer.ada()) =>
       (await review({ order_id: orderId, reference: "seller", reference_id: await buyer.sellerId(shop), rating, customer_note: note }, as))
         .data.review
     const reviewProduct = async (orderId: string, title: string, rating = 5, note: string | null = null) =>
@@ -130,6 +134,92 @@ medusaIntegrationTestRunner({
 
         expect(await status(reviewShop(grocery, GROCERY))).toBe(400)
         expect(await status(reviewProduct(grocery, RICE.title))).toBe(400)
+      })
+    })
+
+    const moderate = (reviewId: string, status: "published" | "rejected") =>
+      api.post(`/admin/reviews/${reviewId}`, { status }, admin)
+    const shopReviews = async (shop: Shop, query = "") =>
+      (await api.get(`/store/sellers/${await buyer.sellerId(shop)}/reviews${query}`, { headers: buyer.headers() })).data
+    const productReviews = async (title: string, query = "") =>
+      (await api.get(`/store/products/${await productId(title)}/reviews${query}`, { headers: buyer.headers() })).data
+
+    /** Two published reviews of the grocery, rated 5 then 2. */
+    const twoPublishedShopReviews = async () => {
+      const first = await deliveredGrocery()
+      const second = await deliveredGrocery()
+      const great = await reviewShop(first.grocery, GROCERY, 5, "Great")
+      const poor = await reviewShop(second.grocery, GROCERY, 2, "Late")
+      await moderate(great.id, "published")
+      await moderate(poor.id, "published")
+      return { first, second, great, poor }
+    }
+
+    // The database is back to the seeded shops before each test, so each sees only its own reviews.
+    describe("the public reviews", () => {
+      it("show a shop's and a product's published reviews only, newest first, with their average and count", async () => {
+        const { first, second, great, poor } = await twoPublishedShopReviews()
+        const third = await deliveredGrocery()
+        const fourth = await deliveredGrocery()
+        await reviewShop(third.grocery, GROCERY, 1, "Still waiting for moderation")
+        const rejected = await reviewShop(fourth.grocery, GROCERY, 1, "Rude words")
+        const rice = await reviewProduct(first.grocery, RICE.title, 4, "Good rice")
+        await reviewProduct(second.grocery, RICE.title, 1)
+        await moderate(rejected.id, "rejected")
+        await moderate(rice.id, "published")
+
+        const shop = await shopReviews(GROCERY)
+        const product = await productReviews(RICE.title)
+
+        expect(shop).toMatchObject({ count: 2, average_rating: 3.5 })
+        expect(shop.reviews.map((r: any) => [r.id, r.rating, r.customer_note])).toEqual([
+          [poor.id, 2, "Late"],
+          [great.id, 5, "Great"],
+        ])
+        expect(product).toMatchObject({ count: 1, average_rating: 4 })
+        expect(product.reviews).toEqual([
+          { id: rice.id, rating: 4, customer_note: "Good rice", seller_note: null, author: "A buyer", created_at: expect.any(String) },
+        ])
+      })
+
+      it("name a reviewer by first name and last initial only", async () => {
+        const { great } = await twoPublishedShopReviews()
+        const customers = getContainer().resolve(Modules.CUSTOMER)
+        const [ada] = await customers.listCustomers({ email: "ada@oja.test" })
+        await customers.updateCustomers(ada.id, { first_name: "Ada", last_name: "Lovelace" })
+
+        const { reviews } = await shopReviews(GROCERY)
+
+        expect(reviews.find((r: any) => r.id === great.id).author).toBe("Ada L.")
+      })
+
+      it("show no rating for a shop or product without published reviews", async () => {
+        expect(await shopReviews(GADGETS)).toEqual({ reviews: [], average_rating: null, count: 0, offset: 0, limit: 10 })
+        expect(await productReviews(LANTERN.title)).toMatchObject({ reviews: [], average_rating: null, count: 0 })
+      })
+
+      it("page through the reviews, the average and count of them all", async () => {
+        await twoPublishedShopReviews()
+
+        const page = await shopReviews(GROCERY, "?limit=1&offset=1")
+
+        expect(page).toMatchObject({ count: 2, average_rating: 3.5, limit: 1, offset: 1 })
+        expect(page.reviews.map((r: any) => r.rating)).toEqual([5])
+      })
+
+      it("are not found for a shop or product that doesn't exist", async () => {
+        const guest = { headers: buyer.headers() }
+        expect(await status(api.get("/store/sellers/sel_missing/reviews", guest))).toBe(404)
+        expect(await status(api.get("/store/products/prod_missing/reviews", guest))).toBe(404)
+      })
+
+      it("are not found for a shop that isn't live (ADR 0007)", async () => {
+        await twoPublishedShopReviews()
+        const accounts = getContainer().resolve<ShopBankAccountModuleService>(SHOP_BANK_ACCOUNT_MODULE)
+        const owned = await accounts.listShopBankAccounts({ seller_id: await buyer.sellerId(GROCERY) })
+        await accounts.deleteShopBankAccounts(owned.map((a) => a.id))
+
+        expect(await status(shopReviews(GROCERY))).toBe(404)
       })
     })
   },

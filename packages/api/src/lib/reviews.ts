@@ -1,6 +1,8 @@
-import { canReview } from "@oja/domain"
+import { canReview, reviewerName } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import ProductReviewLink from "@mercurjs/core/links/product-review"
+import SellerReviewLink from "@mercurjs/core/links/seller-review"
 import { fulfilmentsOf } from "./order-fulfilment"
 
 // Reviews and ratings (#7) on Mercur's review module: one `review` per target (a shop, or a
@@ -47,5 +49,79 @@ export async function assertReviewable(
   const ofOrder = reference === "seller" ? order.seller?.id === reference_id : received
   if (!ofOrder) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, `This order has no ${reference} ${reference_id} to review`)
+  }
+}
+
+/** A published review as any buyer sees it: the reviewer by first name and initial only. */
+export type PublicReview = {
+  id: string
+  rating: number
+  customer_note: string | null
+  /** The shop's reply, if it gave one. */
+  seller_note: string | null
+  author: string
+  created_at: string
+}
+
+/** A page of a shop's or product's published reviews, newest first, and the average and count of them all. */
+export type PublishedReviews = { reviews: PublicReview[]; average_rating: number | null; count: number }
+
+type ReviewRow = {
+  id: string
+  rating: number
+  customer_note: string | null
+  seller_note: string | null
+  created_at: Date | string
+  customer?: { first_name: string | null; last_name: string | null } | null
+}
+
+const LINKS = {
+  product: { entryPoint: ProductReviewLink.entryPoint, column: "product_id" },
+  seller: { entryPoint: SellerReviewLink.entryPoint, column: "seller_id" },
+} as const
+
+/** Ids of every review of the target, whatever its status; a review has no target column, only a link. */
+async function reviewIdsOf(scope: Scope, { reference, reference_id }: ReviewTarget): Promise<string[]> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { entryPoint, column } = LINKS[reference]
+  const { data } = await query.graph({ entity: entryPoint, fields: ["review_id"], filters: { [column]: reference_id } })
+  return (data as unknown as { review_id: string }[]).map((link) => link.review_id)
+}
+
+/**
+ * A shop's or a product's published reviews, newest first: what other buyers see (#7). Pending
+ * and rejected reviews never count, toward the list or the rating.
+ */
+export async function publishedReviews(
+  scope: Scope,
+  target: ReviewTarget,
+  page: { limit: number; offset: number }
+): Promise<PublishedReviews> {
+  const ids = await reviewIdsOf(scope, target)
+  if (!ids.length) return { reviews: [], average_rating: null, count: 0 }
+
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const filters = { id: ids, status: "published" as const }
+  const [{ data: rows }, { data: ratings }] = await Promise.all([
+    query.graph({
+      entity: "review",
+      fields: ["id", "rating", "customer_note", "seller_note", "created_at", "customer.first_name", "customer.last_name"],
+      filters,
+      pagination: { skip: page.offset, take: page.limit, order: { created_at: "DESC" } },
+    }),
+    query.graph({ entity: "review", fields: ["rating"], filters }),
+  ])
+  const all = (ratings as unknown as { rating: number }[]).map((r) => Number(r.rating))
+  return {
+    reviews: (rows as unknown as ReviewRow[]).map((r) => ({
+      id: r.id,
+      rating: Number(r.rating),
+      customer_note: r.customer_note,
+      seller_note: r.seller_note,
+      author: reviewerName(r.customer),
+      created_at: new Date(r.created_at).toISOString(),
+    })),
+    average_rating: all.length ? all.reduce((sum, rating) => sum + rating, 0) / all.length : null,
+    count: all.length,
   }
 }
