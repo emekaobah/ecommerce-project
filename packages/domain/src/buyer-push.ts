@@ -34,7 +34,7 @@ const STATE_PUSHES: { [S in FulfilmentState]?: (order: BuyerPushOrder) => BuyerP
   }),
   delivered: ({ display_id, shop }) => ({
     title: `Order #${display_id} delivered`,
-    body: `Your order from ${shop} has arrived. Your receipt is in your email.`,
+    body: `Your order from ${shop} has arrived.`,
   }),
   rejected: ({ display_id, shop, rejected_by }) => ({
     title: `Order #${display_id} cancelled`,

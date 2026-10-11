@@ -42,9 +42,10 @@ type BuyerCheckout = {
 async function buyerCheckout(scope: Scope, groupId: string): Promise<BuyerCheckout | null> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({ entity: "order_group", fields: ["id", "customer_id"], filters: { id: groupId } })
-  const customerId = (data[0] as { customer_id?: string | null } | undefined)?.customer_id
+  const customerId = (data[0] as unknown as { customer_id?: string | null } | undefined)?.customer_id
   if (!customerId) return null
   const group = await retrieveBuyerOrderGroup(scope, customerId, groupId)
+  if (!group.orders.length) return null
   const { data: orders } = await query.graph({
     entity: "order",
     fields: ["id", "email", "shipping_total", "shipping_address.*"],
@@ -62,11 +63,14 @@ async function buyerCheckout(scope: Scope, groupId: string): Promise<BuyerChecko
   }
 }
 
-/** The checkout a shop's order was part of. */
-async function groupOfOrder(scope: Scope, orderId: string): Promise<string | null> {
+/** A shop's order as its buyer is told about it, and the checkout it was part of. */
+async function buyerOrder(scope: Scope, orderId: string): Promise<{ checkout: BuyerCheckout; order: BuyerOrder } | null> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({ entity: "order_group_order", fields: ["order_group_id"], filters: { order_id: orderId } })
-  return (data[0] as { order_group_id: string } | undefined)?.order_group_id ?? null
+  const groupId = (data[0] as unknown as { order_group_id: string } | undefined)?.order_group_id
+  const checkout = groupId ? await buyerCheckout(scope, groupId) : null
+  const order = checkout?.group.orders.find((o) => o.id === orderId)
+  return checkout && order ? { checkout, order } : null
 }
 
 async function buyerDevices(scope: Scope, customerId: string): Promise<string[]> {
@@ -130,7 +134,7 @@ export async function confirmCheckout(scope: Scope, groupId: string, now = new D
     const opens = status?.state === "closed" && status.opens_at ? openingLabel(status.opens_at, now, shop!.time_zone) : null
     return { ...emailOrder(order, delivery), opens }
   })
-  const currency = group.orders[0]?.currency_code ?? ""
+  const currency = group.orders[0]!.currency_code
   const push = orderConfirmedPush({ display_id: group.display_id, shops: orders.map((o) => ({ name: o.shop, opens: o.opens })) })
   await Promise.all([
     emailBuyer(scope, checkout.email, {
@@ -154,31 +158,32 @@ export async function confirmCheckout(scope: Scope, groupId: string, now = new D
  * when it is a state they are told about (`buyerStatusPush`).
  */
 export async function pushOrderState(scope: Scope, orderId: string, state: FulfilmentState): Promise<void> {
-  const groupId = await groupOfOrder(scope, orderId)
-  const checkout = groupId ? await buyerCheckout(scope, groupId) : null
-  const order = checkout?.group.orders.find((o) => o.id === orderId)
-  if (!checkout || !order) return
+  const found = await buyerOrder(scope, orderId)
+  if (!found) return
+  const { checkout, order } = found
   const push = buyerStatusPush(state, {
     display_id: order.display_id,
     shop: order.seller.name,
     rejected_by: order.fulfilment.rejected_by,
   })
   if (!push) return
+  // An order can reach a state again (a courier label rebooked after the shipper cancelled it):
+  // the device is told each time, once.
+  const reachedAt = (await fulfilmentsOf(scope, [orderId])).get(orderId)?.reached?.[state] ?? ""
   await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
     template: `buyer-order-${state.replaceAll("_", "-")}`,
     ...push,
     data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
-    idempotencyKey: (to) => `buyer-order-${state}:${orderId}:${to}`,
+    idempotencyKey: (to) => `buyer-order-${state}:${orderId}:${reachedAt}:${to}`,
     about: `${state} for order ${orderId}`,
   })
 }
 
 /** Emails the buyer their receipt for a shop's order once it is delivered (#5). */
 export async function emailDeliveryReceipt(scope: Scope, orderId: string): Promise<void> {
-  const groupId = await groupOfOrder(scope, orderId)
-  const checkout = groupId ? await buyerCheckout(scope, groupId) : null
-  const order = checkout?.group.orders.find((o) => o.id === orderId)
-  if (!checkout || !order) return
+  const found = await buyerOrder(scope, orderId)
+  if (!found) return
+  const { checkout, order } = found
   const record = (await fulfilmentsOf(scope, [orderId])).get(orderId)
   const deliveredAt = record?.reached?.delivered ?? record?.payout_eligible_at ?? new Date()
   const hours = (await shopHoursOf(scope, [order.seller.id])).get(order.seller.id)

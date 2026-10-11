@@ -1,14 +1,15 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import seedDemoData from "../../src/scripts/seed"
 import { rejectOverdueOrders } from "../../src/lib/order-acceptance"
-import { buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, RICE, type Shop } from "../helpers/checkout"
+import { ADDRESS, buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, RICE, TOTAL, type Shop } from "../helpers/checkout"
+import { BEST_VALUE_FEE } from "../helpers/shipbubble"
 import { fakeClerk } from "../helpers/clerk"
 import { fakeExpoPush, pushToken } from "../helpers/expo-push"
 import { fakePaystack } from "../helpers/paystack"
 import { fakeResend } from "../helpers/resend"
 import { fakeShipbubble } from "../helpers/shipbubble"
 import { ALWAYS_OPEN, keepShopsOpen } from "../helpers/shop-hours"
-import { WEEKDAYS, type WeeklyHours } from "@oja/domain"
+import { formatMoney, WEEKDAYS, type WeeklyHours } from "@oja/domain"
 import { setWeeklyHours } from "../../src/lib/shop-hours"
 
 jest.setTimeout(5 * 60 * 1000)
@@ -113,10 +114,10 @@ medusaIntegrationTestRunner({
         expect(email).toMatchObject({ from: "Oja <orders@oja.test>", subject: `Your Oja order #${group} is confirmed` })
         const grocery = await displayIdOf("order", await buyer.shopOrderId(GROCERY, cartId))
         const gadgets = await displayIdOf("order", await buyer.shopOrderId(GADGETS, cartId))
-        for (const text of [GROCERY.name, `#${grocery}`, RICE.title, GADGETS.name, `#${gadgets}`, LANTERN.title]) {
-          expect(email.html).toContain(text)
-          expect(email.text).toContain(text)
-        }
+        const details = [GROCERY.name, `#${grocery}`, RICE.title, GADGETS.name, `#${gadgets}`, LANTERN.title, ADDRESS.address_1]
+        const money = (amount: number) => formatMoney(amount, "ngn")
+        for (const text of details) expect(email.html).toContain(text)
+        for (const text of [...details, `Delivery ${money(BEST_VALUE_FEE)}`, `Total paid ${money(TOTAL)}`]) expect(email.text).toContain(text)
       })
 
       it("tells Ada a shop that is closed now prepares its order when it opens", async () => {
@@ -165,6 +166,22 @@ medusaIntegrationTestRunner({
         for (const push of pushes) expect(push.data).toEqual({ url: `/order/${groupId}`, order_group_id: groupId, order_id: orderId })
         // Picking, packing, the courier confirming and the parcel in transit are the shop's and courier's own steps.
         expect(await settledPushesTo(device)).toHaveLength(5)
+      })
+
+      it("pushes Ada again when a courier the shipper cancelled is rebooked", async () => {
+        const device = await registerAda()
+        const { orderId } = await confirmedCheckout(device)
+        const waybill = await packAndBook(orderId)
+        await pushesTo(device, 3)
+
+        await shipbubbleSays(waybill, "cancelled")
+        await post(GROCERY, `${orderId}/book-label`)
+
+        const pushes = await pushesTo(device, 4)
+        expect(pushes.map(({ title }) => title).slice(2)).toEqual([
+          `Courier booked for order #${await displayIdOf("order", orderId)}`,
+          `Courier booked for order #${await displayIdOf("order", orderId)}`,
+        ])
       })
 
       it("pushes Ada when the shop rejects her order, and says it is refunded", async () => {

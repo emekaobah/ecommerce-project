@@ -9,7 +9,7 @@ describe("buyerStatusPush", () => {
     ["accepted", "Order #42 accepted", "Mama Put Groceries is preparing your order."],
     ["label_booked", "Courier booked for order #42", "Mama Put Groceries has booked a courier to deliver your order."],
     ["handed_to_courier", "Order #42 picked up", "The courier has collected your order from Mama Put Groceries."],
-    ["delivered", "Order #42 delivered", "Your order from Mama Put Groceries has arrived. Your receipt is in your email."],
+    ["delivered", "Order #42 delivered", "Your order from Mama Put Groceries has arrived."],
   ] as const)("tells the buyer their order is %s", (state, title, body) => {
     expect(buyerStatusPush(state, order)).toEqual({ title, body })
   })
