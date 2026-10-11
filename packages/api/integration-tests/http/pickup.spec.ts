@@ -1,5 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { PERISHABLE_PICKUP_NOTE, PICKUP_HOLD_NOTICE } from "@oja/domain"
+import { openingHoursLines, PERISHABLE_PICKUP_NOTE, PICKUP_HOLD_NOTICE } from "@oja/domain"
 import { payOutDeliveredOrders } from "../../src/lib/pay-out-orders"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import seedDemoData from "../../src/scripts/seed"
@@ -388,8 +388,9 @@ medusaIntegrationTestRunner({
           body: expect.stringContaining(GROCERY.pickup.address_1),
           data: { url: `/order/${groupId}`, order_id: orderId },
         })
-        expect(push.body).toMatch(/code/i)
-        expect(push.body).toMatch(/open/i)
+        expect(push.body).toMatch(/code is in the/i)
+        expect(push.body).toContain(GROCERY.pickup.landmark)
+        expect(push.body).toContain(`Hours: ${openingHoursLines(ALWAYS_OPEN).join("; ")}.`)
         await api.delete(`/store/push-tokens/${encodeURIComponent(device)}`, ada())
       })
 

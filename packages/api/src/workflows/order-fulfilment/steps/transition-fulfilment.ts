@@ -29,7 +29,7 @@ function nextFulfilment(orderId: string, from: Fulfilment, trigger: FulfilmentTr
   if (!result.ok) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
-      `Order ${orderId} is a ${from.method} order ${result.error.from.replaceAll("_", " ")}: it can't be ${trigger.type.replaceAll("_", " ")}`
+      `Order ${orderId} (${from.method}) is ${result.error.from.replaceAll("_", " ")}: it can't be ${trigger.type.replaceAll("_", " ")}`
     )
   }
   return result.fulfilment
@@ -42,7 +42,7 @@ async function currentFulfilment(container: Parameters<typeof fulfilmentService>
   const placed = await placedOrderOf(container, orderId)
   if (!placed) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order with id: ${orderId} was not found`)
   const { placed_at, method } = placed
-  return { previous, from: newFulfilment(method) as Fulfilment, placedAt: placed_at }
+  return { previous, from: newFulfilment(method), placedAt: placed_at }
 }
 
 /** A new pickup code: random digits, never derived from the order. */

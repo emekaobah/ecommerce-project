@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { checkPickupCode, isPickupCodeFormat, openingHoursLines } from "./pickup"
+import { checkPickupCode, isPickupCodeFormat, openingHoursLines, pickupReadyPush } from "./pickup"
 
 const now = new Date("2026-10-11T12:00:00.000Z")
 const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString()
@@ -70,6 +70,33 @@ describe("openingHoursLines", () => {
     expect(openingHoursLines({ mon: always, tue: always, wed: always, thu: always, fri: always, sat: always, sun: always })).toEqual([
       "Mon–Sun Open 24 hours",
     ])
+  })
+})
+
+describe("pickupReadyPush", () => {
+  const address = { address_1: "14 Adeniran Ogunsanya Street", address_2: null, city: "Surulere", landmark: "Beside the filling station" }
+  const weekly = {
+    mon: [{ opens: "07:00", closes: "20:00" }],
+    tue: [{ opens: "07:00", closes: "20:00" }],
+    wed: [{ opens: "07:00", closes: "20:00" }],
+    thu: [{ opens: "07:00", closes: "20:00" }],
+    fri: [{ opens: "07:00", closes: "20:00" }],
+    sat: [{ opens: "07:00", closes: "20:00" }],
+    sun: [],
+  }
+
+  test("tells the buyer the code is in the app, where to collect, and the shop's hours", () => {
+    expect(pickupReadyPush({ displayId: 42, shopName: "Iya Bisi Foodstuff", address, weekly, appName: "Oja" })).toEqual({
+      title: "Order #42 is ready for pickup",
+      body:
+        "Your pickup code is in the Oja app. Collect it from Iya Bisi Foodstuff, 14 Adeniran Ogunsanya Street, Surulere " +
+        "(Beside the filling station). Hours: Mon–Sat 07:00–20:00; Sun Closed.",
+    })
+  })
+
+  test("leaves out the hours of a shop that has none set", () => {
+    const { body } = pickupReadyPush({ displayId: 7, shopName: "Shop", address: { ...address, landmark: null }, weekly: null, appName: "Oja" })
+    expect(body).toBe("Your pickup code is in the Oja app. Collect it from Shop, 14 Adeniran Ogunsanya Street, Surulere.")
   })
 })
 

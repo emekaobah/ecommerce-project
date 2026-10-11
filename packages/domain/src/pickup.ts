@@ -40,6 +40,40 @@ export function openingHoursLines(weekly: WeeklyHours): string[] {
   return runs.map(({ from, to, hours }) => `${DAY_LABELS[from]}${from === to ? "" : `–${DAY_LABELS[to]}`} ${hours}`)
 }
 
+/** Where a collection point is, as a push reads it. */
+export type PickupPushAddress = {
+  address_1: string | null
+  address_2: string | null
+  city: string | null
+  landmark: string | null
+}
+
+/**
+ * The buyer's push when their pickup order is Ready for pickup (#12, ADR 0008): the code is in
+ * the app, where to collect it, and the shop's hours.
+ */
+export function pickupReadyPush({
+  displayId,
+  shopName,
+  address,
+  weekly,
+  appName,
+}: {
+  displayId: number
+  shopName: string
+  address: PickupPushAddress
+  weekly: WeeklyHours | null
+  appName: string
+}): { title: string; body: string } {
+  const place = [address.address_1, address.address_2, address.city].filter(Boolean).join(", ")
+  const where = `Collect it from ${shopName}, ${place}${address.landmark ? ` (${address.landmark})` : ""}.`
+  const hours = weekly ? `Hours: ${openingHoursLines(weekly).join("; ")}.` : null
+  return {
+    title: `Order #${displayId} is ready for pickup`,
+    body: [`Your pickup code is in the ${appName} app.`, where, hours].filter(Boolean).join(" "),
+  }
+}
+
 /** Whether a typed or scanned code looks like a pickup code: six digits. */
 export const isPickupCodeFormat = (code: string) => new RegExp(`^\\d{${PICKUP_CODE_LENGTH}}$`).test(code)
 

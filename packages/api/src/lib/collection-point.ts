@@ -1,11 +1,11 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { createSellerShippingOptionsWorkflow } from "@mercurjs/core/workflows"
-import { addressFormValues, addressFromForm, getAddressConfig, toE164, type AddressFieldKey } from "@oja/domain"
+import { addressFormValues, addressFromForm, getAddressConfig, toE164, type AddressFieldKey, type WeeklyHours } from "@oja/domain"
 import { COLLECTION_POINT_MODULE, type CollectionPointModuleService } from "../modules/collection-point"
 import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble"
 import type { PickupAddressInput } from "./onboarding"
-import { sellersWithHours } from "./shop-hours"
+import { sellersWithHours, shopHoursOf } from "./shop-hours"
 
 // A shop's collection point (#12, docs/design.md → Pickup): a shop that sets one offers its
 // buyers in-store pickup at checkout. It is the shop's pickup address (followed as it changes)
@@ -91,6 +91,20 @@ export async function collectionPointsOf(scope: Scope, sellerIds: string[]): Pro
         phone: row.phone,
       },
     ])
+  )
+}
+
+/** Where and when buyers collect from a shop: its collection point, open the shop's own hours (ADR 0004). */
+export type CollectionPlace = CollectionPointView & { weekly: WeeklyHours | null; time_zone: string | null }
+
+/** Each shop's collection point with its hours, by seller; a shop without one doesn't offer pickup. */
+export async function collectionPlacesOf(scope: Scope, sellerIds: string[]): Promise<Map<string, CollectionPlace>> {
+  const [points, hours] = await Promise.all([collectionPointsOf(scope, sellerIds), shopHoursOf(scope, sellerIds)])
+  return new Map(
+    [...points].map(([sellerId, point]) => {
+      const shopHours = hours.get(sellerId)
+      return [sellerId, { ...point, weekly: shopHours?.weekly ?? null, time_zone: shopHours?.time_zone ?? null }]
+    })
   )
 }
 

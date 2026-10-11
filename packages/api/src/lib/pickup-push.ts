@@ -1,13 +1,12 @@
-import { PRODUCT_NAME } from "@oja/domain"
+import { pickupReadyPush, PRODUCT_NAME } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PUSH_CHANNEL } from "../modules/expo-push"
 import { DEVICE_NOT_REGISTERED } from "../modules/expo-push/expo-api"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
-import { collectionPointsOf, type CollectionPointAddress } from "./collection-point"
+import { collectionPlacesOf } from "./collection-point"
 import { errorMessage } from "./errors"
 import { forgetPushDevices } from "./push-receipts"
-import { shopStatusesOf } from "./shop-hours"
 
 // The buyer's push when their pickup order is Ready for pickup (#12), on the push channel
 // (ADR 0008): the code is in the app, and where and when to come. Each device is told once.
@@ -22,10 +21,8 @@ type ReadyOrder = {
   order_group?: { id: string } | null
 }
 
-const addressLine = (a: CollectionPointAddress) => [a.address_1, a.address_2, a.city].filter(Boolean).join(", ")
-
 /** Pushes every device of the order's buyer that the order is ready to collect. */
-export async function pushPickupReady(scope: Scope, orderId: string, now = new Date()): Promise<void> {
+export async function pushPickupReady(scope: Scope, orderId: string): Promise<void> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "order",
@@ -38,21 +35,16 @@ export async function pushPickupReady(scope: Scope, orderId: string, now = new D
     .resolve<PushTokenModuleService>(PUSH_TOKEN_MODULE)
     .listPushTokens({ actor_type: "customer", actor_id: order.customer_id })
   if (!tokens.length) return
-  const [points, statuses] = await Promise.all([
-    collectionPointsOf(scope, [order.seller.id]),
-    shopStatusesOf(scope, [order.seller.id], now),
-  ])
-  const point = points.get(order.seller.id)
-  const status = statuses.get(order.seller.id)
-  const hours = status ? (status.label === "Open" ? "Open now" : status.label) : null
-  const title = `Order #${order.display_id} is ready for pickup`
-  const body = [
-    `Your pickup code is in the ${PRODUCT_NAME} app.`,
-    point ? `Collect it from ${order.seller.name}, ${addressLine(point.address)}.` : null,
-    hours ? `${hours}.` : null,
-  ]
-    .filter(Boolean)
-    .join(" ")
+  // A shop keeps its collection point once set, so a pickup order's shop has one.
+  const place = (await collectionPlacesOf(scope, [order.seller.id])).get(order.seller.id)
+  if (!place) return
+  const { title, body } = pickupReadyPush({
+    displayId: order.display_id,
+    shopName: order.seller.name,
+    address: place.address,
+    weekly: place.weekly,
+    appName: PRODUCT_NAME,
+  })
   const devices = tokens.map((t) => t.token)
   const notifications = scope.resolve(Modules.NOTIFICATION)
   // One device a call, so a refusal is known to be that device's.

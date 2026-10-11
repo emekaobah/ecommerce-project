@@ -15,7 +15,6 @@ import {
   type FulfilmentMethod,
   type LinePrice,
   type PriceChange,
-  type WeeklyHours,
 } from "@oja/domain"
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
 import type { PaystackSessionData } from "../modules/paystack/service"
@@ -24,14 +23,15 @@ import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
 import {
+  collectionPlacesOf,
   collectionPointsOf,
   isPickupMethod,
   PICKUP_METHOD_DATA,
   pickupOptionsBySeller,
-  type CollectionPointView,
+  type CollectionPlace,
 } from "./collection-point"
 import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
-import { closedShopError, shopHoursOf } from "./shop-hours"
+import { closedShopError } from "./shop-hours"
 
 // Checkout of a multi-shop cart (#16): the buyer's address, each shop's delivery, then a
 // Paystack payment for the lot. Paystack's webhook completes the cart into an order group
@@ -88,7 +88,7 @@ export type DeliveryUnavailable = { code: "perishable_too_slow"; reason: string 
  * In-store pickup as checkout offers it for a shop with a collection point (#12): where, how,
  * and when (the shop's own hours), always free, with what happens if it isn't collected.
  */
-export type PickupOffer = CollectionPointView & { weekly: WeeklyHours | null; time_zone: string | null; hold_notice: string }
+export type PickupOffer = CollectionPlace & { hold_notice: string }
 
 export type CheckoutSellerGroup = CartSellerGroup & {
   /** How the shop's order reaches the buyer: delivered (preselected where it can be), or collected in store. */
@@ -356,14 +356,15 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
   const receiverCode = addressCodeOf(address)
   const unavailable = unavailableDeliveries(cart)
   const sellerIds = grouped.sellers.flatMap((g) => (g.seller ? [g.seller.id] : []))
-  const [timeZone, collecting, pickupOffers] = await Promise.all([
+  const [timeZone, collecting, places] = await Promise.all([
     regionTimeZone(scope, grouped.region_id),
-    pickupsBySeller(scope, cart),
-    pickupOffersOf(scope, sellerIds),
+    collectedShops(scope, cart),
+    collectionPlacesOf(scope, sellerIds),
   ])
   const sellers = grouped.sellers.map((group): CheckoutSellerGroup => {
     const sellerId = group.seller?.id
-    const pickup = (sellerId && pickupOffers.get(sellerId)) || null
+    const place = sellerId ? places.get(sellerId) : undefined
+    const pickup = place ? { ...place, hold_notice: PICKUP_HOLD_NOTICE } : null
     const method: FulfilmentMethod = sellerId && collecting.has(sellerId) ? "pickup" : "delivery"
     const delivery = sellerId && method === "delivery" ? deliveries.get(sellerId) : undefined
     // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
@@ -416,27 +417,10 @@ const contactOf = (address: Partial<CheckoutContact> | null): CheckoutContact | 
     : null
 
 /** The shops whose orders the buyer collects: those with their pickup as the cart's shipping method. */
-async function pickupsBySeller(scope: MedusaContainer, cart: CartRow): Promise<Map<string, string>> {
+async function collectedShops(scope: MedusaContainer, cart: CartRow): Promise<Set<string>> {
   const methods = (cart.shipping_methods ?? []).filter((m) => m.shipping_option_id && isPickupMethod(m))
   const sellerByOption = await sellerOfOptions(scope, methods.map((m) => m.shipping_option_id!))
-  return new Map(methods.flatMap((m) => {
-    const seller = sellerByOption.get(m.shipping_option_id!)
-    return seller ? [[seller, m.id] as const] : []
-  }))
-}
-
-/** Pickup as each shop with a collection point offers it. */
-async function pickupOffersOf(scope: MedusaContainer, sellerIds: string[]): Promise<Map<string, PickupOffer>> {
-  const [points, hours] = await Promise.all([collectionPointsOf(scope, sellerIds), shopHoursOf(scope, sellerIds)])
-  return new Map(
-    [...points].map(([sellerId, point]) => {
-      const shopHours = hours.get(sellerId)
-      return [
-        sellerId,
-        { ...point, weekly: shopHours?.weekly ?? null, time_zone: shopHours?.time_zone ?? null, hold_notice: PICKUP_HOLD_NOTICE },
-      ]
-    })
-  )
+  return new Set(methods.flatMap((m) => sellerByOption.get(m.shipping_option_id!) ?? []))
 }
 
 const linePrice = ({ unit_price, compare_at_unit_price, is_tax_inclusive }: LinePrice): LinePrice => ({
@@ -533,12 +517,17 @@ async function setShopMethods(
 ) {
   const { sellers, currency_code, region_id } = await retrieveCartBySeller(scope, cart.id)
   const ids = sellers.map((g) => g.seller!.id)
-  const [optionBySeller, pickupOptions, timeZone] = await Promise.all([
+  const [optionBySeller, pickupOptions, timeZone, points] = await Promise.all([
     shipbubbleOptionsBySeller(scope, ids),
     pickupOptionsBySeller(scope, ids),
     regionTimeZone(scope, region_id),
+    collectionPointsOf(scope, ids),
   ])
-  const points = await collectionPointsOf(scope, ids)
+  const pickupOption = (sellerId: string) => {
+    const id = pickupOptions.get(sellerId)
+    if (!id) throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Shop ${sellerId} has a collection point but no pickup option`)
+    return id
+  }
   const delivered = sellers.filter((g) => !pickup.has(g.seller!.id))
   // Each shop is quoted from its own pickup address, so the quotes are asked for at once.
   const quotes: ShopQuote[] = await Promise.all(
@@ -566,7 +555,7 @@ async function setShopMethods(
   const collected = [...pickup, ...quotes.flatMap((q) => ("collect" in q && q.collect ? [q.sellerId] : []))]
   const options = [
     ...quotes.flatMap((q) => ("option" in q ? [q.option] : [])),
-    ...collected.map((sellerId) => ({ id: pickupOptions.get(sellerId)!, data: { ...PICKUP_METHOD_DATA } })),
+    ...collected.map((sellerId) => ({ id: pickupOption(sellerId), data: { ...PICKUP_METHOD_DATA } })),
   ]
   const unavailable = Object.fromEntries(quotes.flatMap((q) => ("unavailable" in q ? [[q.sellerId, q.unavailable]] : [])))
   // A shop that can't deliver keeps no delivery quoted for an earlier cart, which would still be
@@ -590,8 +579,7 @@ async function setShopMethods(
  * The shops the buyer collects from, each in the cart and offering pickup (a collection point);
  * refused (400) otherwise.
  */
-async function pickupShops(scope: MedusaContainer, cartId: string, sellerIds: string[]): Promise<Set<string>> {
-  const { sellers } = await retrieveCartBySeller(scope, cartId)
+async function pickupShops(scope: MedusaContainer, sellers: CartSellerGroup[], sellerIds: string[]): Promise<Set<string>> {
   const points = await collectionPointsOf(scope, sellerIds)
   for (const id of sellerIds) {
     const group = sellers.find((g) => g.seller?.id === id)
@@ -629,8 +617,8 @@ export async function prepareCheckout(
 
   const priceChanges = await repriceLines(scope, cartId)
   await dropEmptyShopDeliveries(scope, cart)
-  const collecting = await pickupShops(scope, cartId, pickup)
   const { sellers } = await retrieveCartBySeller(scope, cartId)
+  const collecting = await pickupShops(scope, sellers, pickup)
   const allCollected = sellers.every((g) => collecting.has(g.seller!.id))
 
   if (allCollected) {
@@ -667,7 +655,6 @@ export async function prepareCheckout(
   })
   return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
 }
-
 
 /**
  * Changes a shop's delivery to another of the choices it was quoted (best value, the cheapest

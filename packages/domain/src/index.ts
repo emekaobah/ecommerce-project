@@ -65,13 +65,14 @@ export {
   checkPickupCode,
   isPickupCodeFormat,
   openingHoursLines,
+  pickupReadyPush,
   PERISHABLE_PICKUP_NOTE,
   PICKUP_CODE_ATTEMPTS,
   PICKUP_CODE_LENGTH,
   PICKUP_CODE_WINDOW_MS,
   PICKUP_HOLD_NOTICE,
 } from "./pickup"
-export type { PickupCodeCheck, PickupCodeState } from "./pickup"
+export type { PickupCodeCheck, PickupCodeState, PickupPushAddress } from "./pickup"
 export { formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
 export type { DisplayPrice, ListingPrice, PricedOffer, ShopGroup } from "./listing"
 export { currentShop, shopChoice } from "./shop-choice"

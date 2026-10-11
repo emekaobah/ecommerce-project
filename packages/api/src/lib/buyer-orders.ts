@@ -1,8 +1,8 @@
-import type { ShopHours, WeeklyHours } from "@oja/domain"
+import type { ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
-import { collectionPointsOf, type CollectionPointView } from "./collection-point"
+import { collectionPlacesOf, type CollectionPlace } from "./collection-point"
 import {
   fulfilmentService,
   fulfilmentsOf,
@@ -71,33 +71,12 @@ function buyerFulfilment(record: FulfilmentRecord | undefined, order: PlacedOrde
  * A pickup order's collection details as its buyer sees them: the shop's collection point, open
  * the shop's hours, and the code to show at the counter, only while the order is Ready for pickup.
  */
-export type BuyerPickup = CollectionPointView & { weekly: WeeklyHours | null; time_zone: string | null; code: string | null }
+export type BuyerPickup = CollectionPlace & { code: string | null }
 
-function buyerPickup(
-  record: FulfilmentRecord | undefined,
-  point: CollectionPointView | undefined,
-  hours: ShopHours | null
-): BuyerPickup | null {
-  if (record?.fulfilment.method !== "pickup") return null
-  return {
-    follows_pickup_address: point?.follows_pickup_address ?? false,
-    address: point?.address ?? NO_ADDRESS,
-    instructions: point?.instructions ?? "",
-    phone: point?.phone ?? null,
-    weekly: hours?.weekly ?? null,
-    time_zone: hours?.time_zone ?? null,
-    code: record.fulfilment.state === "ready_for_pickup" ? record.pickup_code : null,
-  }
-}
-
-const NO_ADDRESS: CollectionPointView["address"] = {
-  address_1: null,
-  address_2: null,
-  city: null,
-  province: null,
-  postal_code: null,
-  country_code: null,
-  landmark: null,
+/** A shop keeps its collection point once set (#12), so a pickup order's shop always has one. */
+function buyerPickup(record: FulfilmentRecord | undefined, place: CollectionPlace | undefined): BuyerPickup | null {
+  if (record?.fulfilment.method !== "pickup" || !place) return null
+  return { ...place, code: record.fulfilment.state === "ready_for_pickup" ? record.pickup_code : null }
 }
 
 /** An order's refunds as its buyer sees them: what comes back, and how far it has got. */
@@ -215,7 +194,7 @@ async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, Buy
     fulfilmentService(scope).listOrderRefunds({ order_id: ids }),
   ])
   const sellerIds = (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : []))
-  const [hours, points] = await Promise.all([shopHoursOf(scope, sellerIds), collectionPointsOf(scope, sellerIds)])
+  const [hours, places] = await Promise.all([shopHoursOf(scope, sellerIds), collectionPlacesOf(scope, sellerIds)])
   const refundsOf = (orderId: string) => refunds.filter((r) => r.order_id === orderId)
   return new Map(
     (data as any[]).map((o) => {
@@ -227,7 +206,7 @@ async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, Buy
           ...buyerOrder(o, record?.removed ?? {}),
           fulfilment: buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o) }, shopHours),
           refund: buyerRefund(refundsOf(o.id)),
-          pickup: buyerPickup(record, points.get(o.seller?.id), shopHours),
+          pickup: buyerPickup(record, places.get(o.seller?.id)),
         },
       ]
     })

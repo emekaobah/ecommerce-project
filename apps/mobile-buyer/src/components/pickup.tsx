@@ -1,4 +1,4 @@
-import { openingHoursLines, PICKUP_CODE_LENGTH, type WeeklyHours } from '@oja/domain';
+import { openingHoursLines, type WeeklyHours } from '@oja/domain';
 import { Text, useTheme } from '@oja/ui';
 import qrcode from 'qrcode-generator';
 import { useMemo } from 'react';
@@ -111,7 +111,7 @@ export function PickupCode({ code }: Readonly<{ code: string }>) {
         ))}
       </View>
       <Text variant="heading" accessibilityLabel={`Pickup code ${code.split('').join(' ')}`} style={{ letterSpacing: 6 }}>
-        {code.padStart(PICKUP_CODE_LENGTH, '0')}
+        {code}
       </Text>
     </View>
   );
