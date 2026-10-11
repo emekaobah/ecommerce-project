@@ -36,8 +36,8 @@ export type SeedSeller = {
     longitude: number
   }
   /**
-   * Where the shop is paid (#26): a Paystack bank code and a 10-digit NUBAN. Invented numbers at
-   * GTBank, which Paystack's test mode resolves to a dummy holder; live keys need real accounts.
+   * Where the shop is paid (#26) where Paystack isn't configured: a Paystack bank code and an
+   * invented 10-digit NUBAN. With Paystack, shops are paid into `seedBankAccount()` instead.
    */
   bank: { bank_code: string; bank_name: string; account_number: string }
   /** Weekly opening hours in the region's timezone (ADR 0004): a gate to going live. */
@@ -46,7 +46,19 @@ export type SeedSeller = {
   staff: SeedPerson
 }
 
-const daily = (opens: string, closes: string) => [{ opens, closes }]
+/**
+ * The one account every seeded shop is paid into where Paystack is configured. Paystack checks
+ * account numbers with the bank even in test mode, so it must be a real account; a test key
+ * moves no money. Kept in `SEED_BANK_CODE` and `SEED_BANK_ACCOUNT_NUMBER`, never in the repo.
+ */
+export function seedBankAccount(
+  env: Record<string, string | undefined> = process.env
+): { bank_code: string; account_number: string } | undefined {
+  const { SEED_BANK_CODE: bank_code, SEED_BANK_ACCOUNT_NUMBER: account_number } = env
+  return bank_code && account_number ? { bank_code, account_number } : undefined
+}
+
+const daily =(opens: string, closes: string) => [{ opens, closes }]
 
 export const SEED_SELLERS: SeedSeller[] = [
   {

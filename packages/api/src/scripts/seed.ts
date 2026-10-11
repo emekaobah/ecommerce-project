@@ -64,6 +64,7 @@ import {
   SEED_SELLERS,
   SEED_SIZES,
   SEED_VAT,
+  seedBankAccount,
   seedImageUrl,
   seedShippingDefaults,
   type Department,
@@ -687,8 +688,9 @@ const UNVALIDATED_ADDRESS_CODE = 0;
 const UNVERIFIED_RECIPIENT = "RCP_seed_unverified";
 
 // Each shop goes live the way a shop owner makes it (#26): its weekly hours set (ADR 0004), its
-// pickup address validated with Shipbubble (by the seeded pin) and its bank account resolved
-// with Paystack. A shop Paystack can't resolve is left for its owner to finish in the vendor panel.
+// pickup address validated with Shipbubble (by the seeded pin) and the seed's bank account
+// (`seedBankAccount()`) resolved with Paystack. A shop without one is left for its owner to finish
+// in the vendor panel.
 async function seedOnboarding(container: MedusaContainer, seller: SeededSeller) {
   // Hours a shop has changed since are its own.
   if (!(await sellersWithHours(container, [seller.id])).has(seller.id)) {
@@ -732,8 +734,15 @@ async function seedOnboarding(container: MedusaContainer, seller: SeededSeller) 
   }
   // As above: a placeholder recipient is replaced once Paystack is configured.
   if (account && account.recipient_code !== UNVERIFIED_RECIPIENT) return;
+  const payTo = seedBankAccount();
+  if (!payTo) {
+    logger.warn(
+      `"${seller.config.name}" isn't live: set SEED_BANK_CODE and SEED_BANK_ACCOUNT_NUMBER to a real account for Paystack to resolve, or its owner can add one in the vendor panel.`
+    );
+    return;
+  }
   try {
-    await saveBankAccount(container, seller.id, { bank_code: bank.bank_code, account_number: bank.account_number });
+    await saveBankAccount(container, seller.id, payTo);
   } catch (error) {
     logger.warn(
       `"${seller.config.name}" isn't live: Paystack didn't take its bank account (${errorMessage(error)}). Its owner can add one in the vendor panel.`
