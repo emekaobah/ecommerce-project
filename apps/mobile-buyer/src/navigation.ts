@@ -17,6 +17,16 @@ export function openOrderGroup(group: { id: string }) {
   router.push({ pathname: '/order/[id]', params: { id: group.id } });
 }
 
+/** Opens every published review of a shop or product; the title names what they're of. */
+export function openReviews(kind: 'seller' | 'product', id: string, title: string) {
+  router.push({ pathname: '/reviews', params: { kind, id, title } });
+}
+
+/** Opens the form to review one shop's order of an order group, once the buyer has received it (#7). */
+export function openWriteReview(group: { id: string }, order: { id: string }) {
+  router.push({ pathname: '/review/[id]', params: { id: order.id, group: group.id } });
+}
+
 /** Opens a category's listings; the name titles the screen before anything loads. */
 export function openCategory(category: { id: string; name: string }) {
   router.push({ pathname: '/category/[id]', params: { id: category.id, name: category.name } });

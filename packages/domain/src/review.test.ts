@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { FulfilmentState } from "./fulfilment"
-import { canReview, ratingSummary, reviewerName, reviewStatus } from "./review"
+import { canReview, ratingSummary, reviewerName, reviewStatus, reviewTargets } from "./review"
 
 describe("canReview", () => {
   test("lets the buyer review a shop's order once it is delivered", () => {
@@ -21,6 +21,31 @@ describe("canReview", () => {
       "in_transit",
     ]
     for (const state of before) expect(canReview(state)).toBe(false)
+  })
+})
+
+describe("reviewTargets", () => {
+  const order = {
+    seller: { id: "sel_grocer", name: "Mama Put Groceries" },
+    items: [
+      { product_id: "prod_rice", product_title: "Ofada Rice 5kg", quantity: 2 },
+      { product_id: "prod_rice", product_title: "Ofada Rice 5kg", quantity: 1 },
+      { product_id: "prod_oil", product_title: "Palm Oil 1L", quantity: 0 },
+      { product_id: null, product_title: "Deleted product", quantity: 1 },
+    ],
+    reviews: [],
+  }
+
+  test("offers the shop, then each product the buyer received once, as the order lists them", () => {
+    expect(reviewTargets(order)).toEqual([
+      { reference: "seller", reference_id: "sel_grocer", title: "Mama Put Groceries" },
+      { reference: "product", reference_id: "prod_rice", title: "Ofada Rice 5kg" },
+    ])
+  })
+
+  test("leaves out what the buyer already reviewed on the order", () => {
+    const reviewed = { ...order, reviews: [{ reference: "seller" as const, reference_id: "sel_grocer" }] }
+    expect(reviewTargets(reviewed).map((t) => t.reference_id)).toEqual(["prod_rice"])
   })
 })
 

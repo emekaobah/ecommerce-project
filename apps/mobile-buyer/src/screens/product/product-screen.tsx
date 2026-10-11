@@ -23,6 +23,7 @@ import { useCartSession } from '@/cart/cart-provider';
 import { ListingTile, LISTING_TILE_SIZE } from '@/components/listing-tile';
 import { PerishableNotice } from '@/components/perishable';
 import { Price } from '@/components/price';
+import { ReviewsPreview, ShopRating } from '@/components/reviews';
 import { ShopStatusBadge } from '@/components/shop-status';
 import { openShop } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
@@ -80,6 +81,7 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
       <View style={{ paddingHorizontal: theme.space.md, gap: theme.space.lg }}>
         <Summary listing={listing.data} currencyCode={region.region.currency_code} />
         <Details product={listing.data.product} />
+        <ReviewsPreview kind="product" id={productId} title={listing.data.product.title} />
         <Attribution credits={listing.data.product.attribution} />
       </View>
       <MoreFromShop
@@ -135,6 +137,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
         <Button label={seller.name} variant="link" onPress={() => openShop(seller)} style={styles.inlineLink} />
         <DeliveryTime listing={listing} currencyCode={currencyCode} />
       </View>
+      <ShopRating sellerId={seller.id} />
       <ShopStatusBadge status={seller.shop_status} withNote />
       {product.perishable ? <PerishableNotice /> : null}
       {offers.length > 1 ? (

@@ -122,6 +122,6 @@ export type { BuyerPush, BuyerPushOrder, BuyerPushPickup, ConfirmedShop, Removed
 export { pickProgress, scanBarcode } from "./picking"
 export type { PickLine, PickProgress, ScanResult } from "./picking"
 export { photoUploadSize, quickAddForm } from "./quick-add"
-export { canReview, ratingSummary, reviewerName, reviewStatus } from "./review"
-export type { Rating, ReviewStatus } from "./review"
+export { canReview, ratingSummary, reviewerName, reviewStatus, reviewTargets } from "./review"
+export type { Rating, ReviewStatus, ReviewTarget } from "./review"
 export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAddFormValue } from "./quick-add"
