@@ -1,0 +1,100 @@
+import { formatMoney, PRODUCT_NAME } from "@oja/domain"
+import { Body, Column, Container, Head, Heading, Hr, Html, Preview, Row, Section, Text } from "@react-email/components"
+import type { ReactNode } from "react"
+
+// What the buyer emails share (#5), in the apps' monochrome look (docs/design.md): black ink,
+// grey secondary text and dividers.
+
+const INK = "#000000"
+const SECONDARY = "#545454"
+const DIVIDER = "#E2E2E2"
+const FONT = "Manrope, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+
+const text = { color: INK, fontSize: "15px", lineHeight: "22px", margin: "0" }
+const secondary = { ...text, color: SECONDARY, fontSize: "13px", lineHeight: "20px" }
+
+/** One line of a shop's order. */
+export type EmailLine = { title: string; variant: string | null; quantity: number; total: number }
+
+/** One shop's order in a buyer email. */
+export type EmailShopOrder = {
+  display_id: number
+  shop: string
+  lines: EmailLine[]
+  delivery: number
+  /** What the buyer paid for it. */
+  paid: number
+}
+
+export function EmailLayout({ preview, heading, children }: { preview: string; heading: string; children: ReactNode }) {
+  return (
+    <Html lang="en">
+      <Head />
+      <Preview>{preview}</Preview>
+      <Body style={{ backgroundColor: "#FFFFFF", fontFamily: FONT, margin: "0", padding: "24px 0" }}>
+        <Container style={{ maxWidth: "560px", padding: "0 16px" }}>
+          <Text style={{ ...text, fontSize: "20px", fontWeight: 800 }}>{PRODUCT_NAME}</Text>
+          <Heading as="h1" style={{ color: INK, fontSize: "26px", lineHeight: "32px", fontWeight: 800, margin: "24px 0 8px" }}>
+            {heading}
+          </Heading>
+          {children}
+          <Hr style={{ borderColor: DIVIDER, margin: "32px 0 16px" }} />
+          <Text style={secondary}>{`Open the ${PRODUCT_NAME} app to follow your orders.`}</Text>
+        </Container>
+      </Body>
+    </Html>
+  )
+}
+
+export const Paragraph = ({ children }: { children: ReactNode }) => <Text style={{ ...text, margin: "0 0 12px" }}>{children}</Text>
+
+export const Note = ({ children }: { children: ReactNode }) => <Text style={{ ...secondary, margin: "4px 0 0" }}>{children}</Text>
+
+/** A label and an amount, right-aligned. */
+export function AmountRow({ label, amount, strong = false }: { label: string; amount: string; strong?: boolean }) {
+  const style = { ...text, fontWeight: strong ? 800 : 400 }
+  return (
+    <Row>
+      <Column style={style}>{label}</Column>
+      <Column style={{ ...style, textAlign: "right" }}>{amount}</Column>
+    </Row>
+  )
+}
+
+/** A shop's order: its lines, delivery and what was paid; `children` say more under its heading. */
+export function ShopOrder({ order, currency, children }: { order: EmailShopOrder; currency: string; children?: ReactNode }) {
+  const money = (amount: number) => formatMoney(amount, currency)
+  return (
+    <Section style={{ marginTop: "24px" }}>
+      <Hr style={{ borderColor: DIVIDER, margin: "0 0 16px" }} />
+      <Text style={{ ...text, fontWeight: 800 }}>{order.shop}</Text>
+      <Text style={secondary}>{`#${order.display_id}`}</Text>
+      {children}
+      <Section style={{ marginTop: "12px" }}>
+        {order.lines.map((line, i) => (
+          <AmountRow
+            key={i}
+            label={`${line.quantity} × ${line.title}${line.variant && line.variant !== line.title ? ` (${line.variant})` : ""}`}
+            amount={money(line.total)}
+          />
+        ))}
+        <AmountRow label="Delivery" amount={money(order.delivery)} />
+        <AmountRow label="Paid" amount={money(order.paid)} strong />
+      </Section>
+    </Section>
+  )
+}
+
+/** The delivery address, one line each. */
+export function Address({ lines }: { lines: string[] }) {
+  return (
+    <Section style={{ marginTop: "24px" }}>
+      <Text style={{ ...text, fontWeight: 800 }}>Delivering to</Text>
+      {lines.map((line, i) => (
+        <Text key={i} style={secondary}>
+          {line}
+        </Text>
+      ))}
+    </Section>
+  )
+}

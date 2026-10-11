@@ -11,9 +11,19 @@ module.exports = {
         },
       },
     ],
+    // The buyer emails are React Email templates (src/emails).
+    "^.+\\.tsx$": [
+      "@swc/jest",
+      {
+        jsc: {
+          parser: { syntax: "typescript", tsx: true },
+          transform: { react: { runtime: "automatic" } },
+        },
+      },
+    ],
   },
   testEnvironment: "node",
-  moduleFileExtensions: ["js", "ts", "json"],
+  moduleFileExtensions: ["js", "ts", "tsx", "json"],
   modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],
   setupFiles: ["./integration-tests/setup.js"],
 };
