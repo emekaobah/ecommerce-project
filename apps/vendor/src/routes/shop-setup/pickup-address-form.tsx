@@ -31,7 +31,7 @@ import type { Onboarding } from "./types"
 
 const METADATA = "metadata."
 
-/** The form's values and the confirmed pin as the API takes a pickup address: Medusa's columns, the rest in `metadata`. */
+/** The form's values and the confirmed pin as the API takes an address: Medusa's columns, the rest in `metadata`. */
 function toAddress(values: AddressFormValues, countryCode: string, pin: Pin) {
   const address: Record<string, string> = {}
   const metadata: Record<string, string | number> = { ...pin }
@@ -41,6 +41,9 @@ function toAddress(values: AddressFormValues, countryCode: string, pin: Pin) {
   }
   return { ...address, country_code: countryCode, metadata }
 }
+
+/** An address as the API takes it from the form. */
+export type EnteredAddress = ReturnType<typeof toAddress>
 
 /**
  * The shop's pickup address (ADR 0002, #41): found with Google search or the browser's location,
@@ -73,7 +76,12 @@ export const PickupAddressForm = ({
         </Text>
       </div>
       {config ? (
-        <PickupAddressEntry config={config} onboarding={onboarding} onSaved={onSaved} />
+        <AddressEntry
+          config={config}
+          saved={onboarding.pickup_address}
+          saveLabel={t("shopSetup.pickup.save")}
+          onSave={async (address) => onSaved((await client.vendor.onboarding.pickupAddress.mutate(address)).onboarding)}
+        />
       ) : (
         <Text size="small" className="text-ui-fg-error px-6 py-4">
           {t("shopSetup.pickup.noCountry")}
@@ -83,17 +91,28 @@ export const PickupAddressForm = ({
   )
 }
 
-const PickupAddressEntry = ({
+/**
+ * An address found with Google search or the browser's location, filling the country's form,
+ * then pinned on the map (ADR 0002). `omit`: form fields the address doesn't take (a collection
+ * point names no person); `pinLabels`: what the pin marks; `onSave` saves the address and pin.
+ */
+export const AddressEntry = ({
   config,
-  onboarding,
-  onSaved,
+  saved,
+  saveLabel,
+  onSave,
+  omit = [],
+  pinLabels,
 }: {
   config: AddressConfig
-  onboarding: Onboarding
-  onSaved: (onboarding: Onboarding) => void
+  saved: Parameters<typeof addressFormValues>[0]
+  saveLabel: string
+  onSave: (address: EnteredAddress) => Promise<unknown>
+  omit?: AddressFieldKey[]
+  pinLabels?: { title: string; help: string }
 }) => {
   const { t } = useTranslation()
-  const saved = onboarding.pickup_address
+  const fields = config.fields.filter((field) => !omit.includes(field.key))
   const [values, setValues] = useState<AddressFormValues>(() => addressFormValues(saved, config.countryCode))
   const [errors, setErrors] = useState<AddressFormErrors>({})
   const [pin, setPin] = useState<Pin | null>(() => pinOf(saved))
@@ -106,9 +125,10 @@ const PickupAddressEntry = ({
   const addressAt = useAddressAt()
 
   const save = useMutation({
-    mutationFn: async (confirmed: Pin) =>
-      (await client.vendor.onboarding.pickupAddress.mutate(toAddress(values, config.countryCode, confirmed))).onboarding,
-    onSuccess: onSaved,
+    mutationFn: (confirmed: Pin) => {
+      const entered = Object.fromEntries(Object.entries(values).filter(([key]) => !omit.includes(key as AddressFieldKey)))
+      return onSave(toAddress(entered, config.countryCode, confirmed))
+    },
   })
 
   const set = (key: AddressFieldKey, value: string) => {
@@ -162,7 +182,10 @@ const PickupAddressEntry = ({
 
   const submit = () => {
     const checked = addressFromForm(values, config.countryCode)
-    if (!checked.ok) return setErrors(checked.errors)
+    const problems = checked.ok
+      ? {}
+      : Object.fromEntries(Object.entries(checked.errors).filter(([key]) => !omit.includes(key as AddressFieldKey)))
+    if (Object.keys(problems).length) return setErrors(problems)
     if (pin) return save.mutate(pin)
     setSaveOnConfirm(true)
     void placePinByHand()
@@ -224,7 +247,7 @@ const PickupAddressEntry = ({
               {t("shopSetup.pickup.searchAgain")}
             </Button>
           </div>
-          {config.fields.map((field) => {
+          {fields.map((field) => {
             const id = `pickup-${field.key}`
             const value = values[field.key] ?? ""
             const error = errors[field.key]
@@ -268,6 +291,7 @@ const PickupAddressEntry = ({
             <PinMap
               key={`${pinRequest.at.latitude},${pinRequest.at.longitude},${pinRequest.zoom}`}
               request={pinRequest}
+              labels={pinLabels}
               onConfirm={confirmPin}
               onCancel={() => {
                 setPinRequest(null)
@@ -296,7 +320,7 @@ const PickupAddressEntry = ({
           )}
           <div className="md:col-span-2">
             <Button type="submit" size="small" isLoading={save.isPending} disabled={!!pinRequest}>
-              {t("shopSetup.pickup.save")}
+              {saveLabel}
             </Button>
           </div>
         </form>
