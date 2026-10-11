@@ -92,5 +92,5 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
-      - name: Integration tests (shard ${{ matrix.shard }}/3)
-        run: bun run --cwd packages/api test:integration:http --shard=${{ matrix.shard }}/3
+      - name: Integration tests (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+        run: bun run --cwd packages/api test:integration:http --shard=${{ matrix.shard }}/${{ strategy.job-total }}
