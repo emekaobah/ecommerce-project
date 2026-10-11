@@ -1,10 +1,11 @@
 import { newFulfilment, recordReached, transition, type FulfilmentTrigger } from "@oja/domain"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import {
   asFulfilmentRecord,
   fulfilmentService,
   fulfilmentsOf,
+  ORDER_STATE_CHANGED,
   type FulfilmentRecord,
   type Shipment,
 } from "../../../lib/order-fulfilment"
@@ -48,10 +49,11 @@ export const checkTransitionStep = createStep(
  * Moves the order's fulfilment on by the trigger, or refuses a trigger its state doesn't allow.
  * Records when the order reached its new state (#25). An order reaching Delivered, by whichever
  * trigger, may now be paid out; a shipment cancelled back to Packed may be alerted about again.
+ * A new state emits `order_fulfilment.state_changed` once the workflow succeeds.
  */
 export const transitionFulfilmentStep = createStep(
   "transition-order-fulfilment",
-  async ({ order_id, trigger, reject_reason, shipment }: TransitionFulfilmentInput, { container }) => {
+  async ({ order_id, trigger, reject_reason, shipment }: TransitionFulfilmentInput, { container, eventGroupId }) => {
     const service = fulfilmentService(container)
     const previous = (await fulfilmentsOf(container, [order_id])).get(order_id)
     const placedAt = previous?.placed_at ?? (await placedAtOf(container, order_id))
@@ -71,6 +73,14 @@ export const transitionFulfilmentStep = createStep(
     const saved = previous
       ? await service.updateOrderFulfilments({ id: previous.id, ...next })
       : await service.createOrderFulfilments({ order_id, placed_at: placedAt, ...next })
+    if (fulfilment.state !== from.state) {
+      // Grouped with the workflow's other events: released only if it succeeds, cleared if not.
+      await container.resolve(Modules.EVENT_BUS).emit({
+        name: ORDER_STATE_CHANGED,
+        data: { id: order_id, state: fulfilment.state },
+        metadata: { eventGroupId },
+      })
+    }
     return new StepResponse(asFulfilmentRecord(saved), previous ? { previous } : { created: saved.id })
   },
   async (compensation: Compensation | undefined, { container }) => {

@@ -21,6 +21,12 @@ import type { OrderTransaction } from "./shop-order"
 
 type Scope = Pick<MedusaContainer, "resolve">
 
+/**
+ * Emitted whenever an order's fulfilment moves to another state, by whatever trigger, with
+ * `{ id, state }` (the order and the state it reached). The buyer is pushed about the states
+ * they care about (#5).
+ */
+export const ORDER_STATE_CHANGED = "order_fulfilment.state_changed"
 /** Emitted when staff accept a new order, with `{ id }` (the order). */
 export const ORDER_ACCEPTED = "order_fulfilment.accepted"
 /** Emitted when a new order is rejected, by its shop or by the accept deadline, with `{ id, rejected_by }`. */
