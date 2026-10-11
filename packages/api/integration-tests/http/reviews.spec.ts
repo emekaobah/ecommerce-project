@@ -222,5 +222,31 @@ medusaIntegrationTestRunner({
         expect(await status(shopReviews(GROCERY))).toBe(404)
       })
     })
+
+    describe("moderation", () => {
+      it("shows the shop's reply under its review once the review is published", async () => {
+        const { grocery } = await deliveredGrocery()
+        const pending = await reviewShop(grocery, GROCERY, 3, "Rice was fine, bag was torn")
+
+        await vendor(GROCERY, `reviews/${pending.id}`, { seller_note: "Sorry about the bag, we've changed supplier" })
+        const before = await shopReviews(GROCERY)
+        await moderate(pending.id, "published")
+        const after = await shopReviews(GROCERY)
+
+        expect(before.reviews).toEqual([])
+        expect(after.reviews).toEqual([
+          expect.objectContaining({ id: pending.id, seller_note: "Sorry about the bag, we've changed supplier" }),
+        ])
+      })
+
+      it("sends a review its author edits back to moderation", async () => {
+        const { great } = await twoPublishedShopReviews()
+
+        const { data } = await api.post(`/store/reviews/${great.id}`, { rating: 1, customer_note: "Changed my mind" }, buyer.ada())
+
+        expect(data.review).toMatchObject({ rating: 1, customer_note: "Changed my mind", status: "pending" })
+        expect((await shopReviews(GROCERY)).reviews.map((r: any) => r.id)).not.toContain(great.id)
+      })
+    })
   },
 })
