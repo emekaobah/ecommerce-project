@@ -64,6 +64,7 @@ export type {
 export {
   checkPickupCode,
   isPickupCodeFormat,
+  openingHoursLines,
   PERISHABLE_PICKUP_NOTE,
   PICKUP_CODE_ATTEMPTS,
   PICKUP_CODE_LENGTH,

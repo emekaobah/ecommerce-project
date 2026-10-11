@@ -3,6 +3,8 @@
  * counter checks it, and what the buyer is told at checkout.
  */
 
+import { WEEKDAYS, type OpenPeriod, type Weekday, type WeeklyHours } from "./shop-hours"
+
 /** A pickup code is this many digits, shown in the buyer's order and as a QR code of them. */
 export const PICKUP_CODE_LENGTH = 6
 /** How many wrong codes an order takes within `PICKUP_CODE_WINDOW_MS` before it refuses any code. */
@@ -13,6 +15,30 @@ export const PICKUP_CODE_WINDOW_MS = 15 * 60 * 1000
 export const PICKUP_HOLD_NOTICE = "Collect within 5 open days; fresh items aren't refunded if not collected."
 /** Why a shop with fresh items switched to pickup at checkout (`perishable_too_slow`, #69). */
 export const PERISHABLE_PICKUP_NOTE = "No courier can get fresh items to you in time — collect in store"
+
+const DAY_LABELS: Record<Weekday, string> = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" }
+
+/** One day's hours as the buyer reads them. */
+const dayHours = (periods: OpenPeriod[]) => {
+  if (!periods.length) return "Closed"
+  if (periods.length === 1 && periods[0]!.opens === "00:00" && periods[0]!.closes === "24:00") return "Open 24 hours"
+  return periods.map((p) => `${p.opens}–${p.closes}`).join(", ")
+}
+
+/**
+ * A shop's weekly hours as lines for the buyer collecting from it, in week order: consecutive
+ * days open the same hours share a line ("Mon–Wed 07:00–20:00").
+ */
+export function openingHoursLines(weekly: WeeklyHours): string[] {
+  const runs: { from: Weekday; to: Weekday; hours: string }[] = []
+  for (const day of WEEKDAYS) {
+    const hours = dayHours(weekly[day])
+    const last = runs.at(-1)
+    if (last?.hours === hours) last.to = day
+    else runs.push({ from: day, to: day, hours })
+  }
+  return runs.map(({ from, to, hours }) => `${DAY_LABELS[from]}${from === to ? "" : `–${DAY_LABELS[to]}`} ${hours}`)
+}
 
 /** Whether a typed or scanned code looks like a pickup code: six digits. */
 export const isPickupCodeFormat = (code: string) => new RegExp(`^\\d{${PICKUP_CODE_LENGTH}}$`).test(code)

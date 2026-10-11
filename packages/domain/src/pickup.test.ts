@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { checkPickupCode, isPickupCodeFormat } from "./pickup"
+import { checkPickupCode, isPickupCodeFormat, openingHoursLines } from "./pickup"
 
 const now = new Date("2026-10-11T12:00:00.000Z")
 const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString()
@@ -42,6 +42,34 @@ describe("checkPickupCode", () => {
       reason: "wrong_code",
       wrongAttempts: [now.toISOString()],
     })
+  })
+})
+
+describe("openingHoursLines", () => {
+  const day = (opens: string, closes: string) => [{ opens, closes }]
+
+  test("groups days open the same hours, in week order, and says which days are closed", () => {
+    expect(
+      openingHoursLines({
+        mon: day("07:00", "20:00"),
+        tue: day("07:00", "20:00"),
+        wed: day("07:00", "20:00"),
+        thu: [],
+        fri: day("07:00", "20:00"),
+        sat: [
+          { opens: "09:00", closes: "13:00" },
+          { opens: "14:00", closes: "18:00" },
+        ],
+        sun: [],
+      }),
+    ).toEqual(["Mon–Wed 07:00–20:00", "Thu Closed", "Fri 07:00–20:00", "Sat 09:00–13:00, 14:00–18:00", "Sun Closed"])
+  })
+
+  test("a shop open round the clock every day reads as one line", () => {
+    const always = day("00:00", "24:00")
+    expect(openingHoursLines({ mon: always, tue: always, wed: always, thu: always, fri: always, sat: always, sun: always })).toEqual([
+      "Mon–Sun Open 24 hours",
+    ])
   })
 })
 
