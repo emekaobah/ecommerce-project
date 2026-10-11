@@ -86,10 +86,12 @@ Branches: **Rejected** (seller declines → refund); **Partially available** (or
 
 ### Pickup
 
-- A shop opts in by setting a **collection point**: by default it *follows* the shop's pickup address (ticking it consents to showing that address to buyers); unticked, it is a separate address entered as in ADR 0002. Always with buyer-facing instructions (and optional phone). It uses the shop's hours. Pickup is free.
-- The **pickup code** is per seller order, random, issued at Ready for pickup and shown only in the buyer's order: 6 digits plus a QR of them. Server-verified, attempts rate-limited per order. Whoever holds the code may collect (bearer); staff see the buyer's name and items and record who collected.
+- Planned in #12 (pickup path), #32 (hold, Not collected) and #33 (notifications); decisions grilled on 2026-10-11.
+- A shop opts in by setting one **collection point** (owners and managers; only once the shop has opening hours): by default it *follows* the shop's pickup address (ticking it consents to showing that address to buyers); unticked, it is a separate address entered as in ADR 0002, with a map pin and no Shipbubble check. Always with buyer-facing instructions (and optional phone). It uses the shop's hours. Pickup is free.
+- At checkout delivery stays preselected; a perishable shop no courier reaches in time switches to pickup where it has a collection point (the buyer can still remove the fresh items instead). An all-pickup checkout needs no delivery address. Checkout states the hold and the perishable rule.
+- The **pickup code** is per seller order, random, issued at Ready for pickup and shown only in the buyer's order: 6 digits plus a QR of them. Server-verified; 5 wrong tries per order in 15 minutes, then refused until the window passes. Whoever holds the code may collect (bearer); any member who works on orders can hand over, sees the buyer's name and items, and must record who collected. Collected makes the order payout-eligible at once (no delivery fee in the payout).
 - Collection is **all or nothing**, accepted only in Ready for pickup, allowed outside hours if staff are present. No switching method after payment.
-- **Hold**: 5 days of open time after Ready; perishable orders until the shop closes on its next open day after Ready (mixed orders take the shorter). Reminders at half-way and on the last day. On expiry → **Not collected**: full refund, stock returned, no payout; but **perishable lines are not refunded** and are paid out to the shop (stated at checkout).
+- **Hold**: 5 open days after Ready (an open day is a calendar day the shop opens; the Ready day and closed days don't count), ending at closing time; perishable orders until the shop closes on its next open day after Ready (mixed orders take the shorter). The clock freezes while the shop is paused with no resume date. Reminders at half-way and on the last day. On expiry → **Not collected**, which is final: non-perishable lines are removed by order edit and refunded, their stock returned; **perishable lines are not refunded** and are paid out to the shop less commission (stated at checkout).
 
 ### Perishables
 
