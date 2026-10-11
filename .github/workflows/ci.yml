@@ -1,17 +1,62 @@
 name: CI
 
+# Railway deploys main only after this passes (checkSuites in .railway/railway.ts), so it runs on
+# push to main as well as on PRs: two PRs can pass apart and break main together.
 on:
   pull_request:
+    paths-ignore: ["**/*.md", "docs/**"]
   push:
     branches: [main]
+    paths-ignore: ["**/*.md", "docs/**"]
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Fails fast on type errors and unit tests, without waiting on the integration shards.
   check:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache Bun downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Generate route types
+        run: bun run codegen
+
+      - name: Typecheck
+        run: bun run check-types
+
+      - name: Unit tests (API)
+        run: bun run --cwd packages/api test:unit
+
+      - name: Unit tests (other packages)
+        run: bun run test --filter='!@acme/api'
+
+  # The integration suite, split three ways, each shard on its own database.
+  integration:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     services:
       postgres:
         image: postgres:18-alpine
@@ -29,7 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.2
 
@@ -45,13 +90,7 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
 
       - name: Install
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Generate route types
-        run: bun run codegen
-
-      - name: Typecheck
-        run: bun run check-types
-
-      - name: Test
-        run: bun run test
+      - name: Integration tests (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+        run: bun run --cwd packages/api test:integration:http --shard=${{ matrix.shard }}/${{ strategy.job-total }}

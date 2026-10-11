@@ -71,7 +71,8 @@ export default defineRailway((ctx) => {
     ...Object.fromEntries(sharedVariables.map((name) => [name, ctx.shared[name]])),
   })
 
-  const source = github("emekaobah/ecommerce-project", { branch: "main" })
+  // checkSuites is Railway's "Wait for CI": a push to main deploys only once its CI passes.
+  const source = github("emekaobah/ecommerce-project", { branch: "main", checkSuites: true })
 
   const api = service("oja-api", {
     source,
