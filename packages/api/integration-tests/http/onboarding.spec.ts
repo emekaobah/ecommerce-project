@@ -152,12 +152,11 @@ medusaIntegrationTestRunner({
             shipbubble.codeOf(`${shop.pickup.latitude},${shop.pickup.longitude}`)
           )
         }
-        // Every seeded shop is paid into the seed's one account (SEED_BANK_*).
-        expect(paystack.recipients().map((r) => r.details)).toEqual(
-          SEED_SELLERS.map(() =>
-            expect.objectContaining({ bank_code: process.env.SEED_BANK_CODE, account_number: process.env.SEED_BANK_ACCOUNT_NUMBER })
-          )
-        )
+        // Every seeded shop is paid into the seed's one account (SEED_BANK_*), registered once:
+        // Paystack's test mode allows only 3 bank lookups a day.
+        expect(paystack.recipients().map((r) => r.details)).toEqual([
+          expect.objectContaining({ bank_code: process.env.SEED_BANK_CODE, account_number: process.env.SEED_BANK_ACCOUNT_NUMBER }),
+        ])
         const { data } = await api.get(`/store/listings?region_id=${regionId}&limit=100`, { headers: store })
         expect(new Set(data.listings.map((l: any) => l.seller.name))).toEqual(new Set(SEED_SELLERS.map((s) => s.name)))
       })
@@ -360,6 +359,20 @@ medusaIntegrationTestRunner({
         expect(res.data.message).toBe(
           "We couldn't find account 0999999999 at Guaranty Trust Bank. Check the account number and the bank."
         )
+        expect((await onboardingOf(shop.owner)).bank_account.account_number).toBe(BANK.account_number)
+      })
+
+      it("says Paystack is limiting lookups, not that the account doesn't exist, when it is", async () => {
+        const shop = await newShop()
+        await saveBank(shop, BANK)
+        paystack.limitResolves(true)
+
+        const res = await saveBank(shop, { bank_code: "058", account_number: "0123456780" })
+          .catch((e) => e.response)
+          .finally(() => paystack.limitResolves(false))
+
+        expect(res.status).toBe(400)
+        expect(res.data.message).toBe("Paystack can't check bank accounts right now. Try again later.")
         expect((await onboardingOf(shop.owner)).bank_account.account_number).toBe(BANK.account_number)
       })
 

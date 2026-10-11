@@ -49,6 +49,9 @@ export const accountName = (accountNumber: string) => `OJA TEST HOLDER ${account
 /** How Paystack refuses an account it can't find (422). */
 const UNRESOLVED = "Could not resolve account name. Check parameters or try again."
 
+/** How Paystack's test mode refuses a bank lookup past its daily allowance (429). */
+const RESOLVE_LIMIT = "Test mode daily limit of 3 live bank resolves exceeded. Use test bank codes 001 or upgrade to live mode."
+
 type Recipient = {
   recipient_code: string
   type: string
@@ -62,10 +65,11 @@ type Recipient = {
  * verifies transactions and takes refunds like Paystack, and a test settles them (`pay`,
  * `fail`, `settleRefund`) and signs `charge.success` and `refund.*` webhooks with the same
  * secret key. It lists `BANKS`, resolves any 10-digit account at one of them (as
- * `accountName`) unless a test says it doesn't exist (`unknownAccount`), and creates transfer
- * recipients for accounts it resolves. It queues transfers to those recipients, which a test
- * settles (`settleTransfer`) and signs `transfer.*` webhooks for, and lists refunds by date,
- * including any a test made by hand (`refundByHand`).
+ * `accountName`) unless a test says it doesn't exist (`unknownAccount`) or has used up the
+ * daily lookups (`limitResolves`), and creates transfer recipients for accounts it resolves. It
+ * queues transfers to those recipients, which a test settles (`settleTransfer`) and signs
+ * `transfer.*` webhooks for, and lists refunds by date, including any a test made by hand
+ * (`refundByHand`).
  */
 export function fakePaystack(port: number) {
   const secretKey = `sk_test_${randomUUID().replaceAll("-", "")}`
@@ -73,6 +77,7 @@ export function fakePaystack(port: number) {
   const refunds = new Map<number, Refund>()
   let refundError: string | undefined
   const unknownAccounts = new Set<string>()
+  let resolveLimited = false
   const recipients: Recipient[] = []
   const transfers = new Map<string, Transfer>()
   let transferError: string | undefined
@@ -195,6 +200,7 @@ export function fakePaystack(port: number) {
   }
 
   const resolveAccount = (req: IncomingMessage) => {
+    if (resolveLimited) return refused(429, RESOLVE_LIMIT)
     const params = new URL(req.url ?? "", "https://paystack.test").searchParams
     const accountNumber = params.get("account_number") ?? ""
     const holder = holderOf(params.get("bank_code") ?? "", accountNumber)
@@ -310,6 +316,10 @@ export function fakePaystack(port: number) {
     /** Paystack can't find this account number at any bank from now on. */
     unknownAccount: (accountNumber: string) => {
       unknownAccounts.add(accountNumber)
+    },
+    /** Every bank lookup is refused with test mode's daily-limit error (429), until cleared. */
+    limitResolves: (limited: boolean) => {
+      resolveLimited = limited
     },
     /** Every transfer recipient created, oldest first. */
     recipients: () => [...recipients],
