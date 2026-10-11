@@ -1,4 +1,4 @@
-import type { ShopHours } from "@oja/domain"
+import { canReview, type ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
@@ -14,6 +14,7 @@ import {
   type Picks,
   type PlacedOrder,
 } from "./order-fulfilment"
+import { reviewsOfOrders, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
 
 // The buyer's order history (#17): each checkout is an order group, split into one order per
@@ -54,6 +55,10 @@ export type BuyerOrder = {
   refund: BuyerRefund | null
   /** Where and when to collect a pickup order, and its code once ready (#12); null for a delivered order. */
   pickup: BuyerPickup | null
+  /** Whether the buyer may review its shop and products (#7): once they have received it. */
+  can_review: boolean
+  /** The buyer's reviews of its shop and products, and where each is in moderation. */
+  reviews: BuyerReview[]
 }
 
 /**
@@ -191,10 +196,11 @@ async function withOrders(scope: Scope, groups: GroupRow[]): Promise<BuyerOrderG
 async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, BuyerOrder>> {
   if (!ids.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [{ data }, fulfilments, refunds] = await Promise.all([
+  const [{ data }, fulfilments, refunds, reviews] = await Promise.all([
     query.graph({ entity: "order", fields: ORDER_FIELDS, filters: { id: ids } }),
     fulfilmentsOf(scope, ids),
     fulfilmentService(scope).listOrderRefunds({ order_id: ids }),
+    reviewsOfOrders(scope, ids),
   ])
   const sellerIds = (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : []))
   const [hours, places] = await Promise.all([shopHoursOf(scope, sellerIds), collectionPlacesOf(scope, sellerIds)])
@@ -210,6 +216,9 @@ async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, Buy
           fulfilment: buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o) }, shopHours),
           refund: buyerRefund(refundsOf(o.id)),
           pickup: buyerPickup(record, places.get(o.seller?.id)),
+          // An order without a fulfilment row yet is New.
+          can_review: canReview(record?.state ?? "new"),
+          reviews: reviews.get(o.id) ?? [],
         },
       ]
     })
@@ -229,7 +238,7 @@ function paidTotal(o: any): number {
   return captures.reduce((sum, t) => sum + Number(t!.amount), 0)
 }
 
-function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund" | "pickup"> {
+function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund" | "pickup" | "can_review" | "reviews"> {
   return {
     id: o.id,
     display_id: o.display_id,

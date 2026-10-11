@@ -223,6 +223,43 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("the buyer's order", () => {
+      const groceryOrder = async (cartId: string, orderId: string) => {
+        const { data } = await api.get(`/store/order-history/${await buyer.orderGroupOf(cartId)}`, buyer.ada())
+        return data.order_group.orders.find((o: any) => o.id === orderId)
+      }
+
+      it("can be reviewed once delivered, and shows its author their review waiting for moderation, then published with the shop's reply", async () => {
+        const { cartId, grocery } = await paidOrders()
+        const before = await groceryOrder(cartId, grocery)
+        await deliver(grocery)
+        const delivered = await groceryOrder(cartId, grocery)
+        const shopReview = await reviewShop(grocery, GROCERY, 4, "Fresh")
+        // The shop may reply straight away, but its reply shows only once the review is published.
+        await vendor(GROCERY, `reviews/${shopReview.id}`, { seller_note: "Thank you!" })
+        const pending = await groceryOrder(cartId, grocery)
+        await moderate(shopReview.id, "published")
+        const published = await groceryOrder(cartId, grocery)
+
+        expect(before).toMatchObject({ can_review: false, reviews: [] })
+        expect(delivered).toMatchObject({ can_review: true, reviews: [] })
+        expect(pending.reviews).toEqual([
+          {
+            id: shopReview.id,
+            reference: "seller",
+            reference_id: await buyer.sellerId(GROCERY),
+            rating: 4,
+            customer_note: "Fresh",
+            seller_note: null,
+            status: "pending",
+          },
+        ])
+        expect(published.reviews).toEqual([
+          expect.objectContaining({ id: shopReview.id, status: "published", seller_note: "Thank you!" }),
+        ])
+      })
+    })
+
     describe("moderation", () => {
       it("shows the shop's reply under its review once the review is published", async () => {
         const { grocery } = await deliveredGrocery()

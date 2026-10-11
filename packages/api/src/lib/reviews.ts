@@ -1,6 +1,7 @@
-import { canReview, reviewerName } from "@oja/domain"
+import { canReview, reviewerName, type ReviewStatus } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import OrderReviewLink from "@mercurjs/core/links/order-review"
 import ProductReviewLink from "@mercurjs/core/links/product-review"
 import SellerReviewLink from "@mercurjs/core/links/seller-review"
 import { fulfilmentsOf } from "./order-fulfilment"
@@ -50,6 +51,73 @@ export async function assertReviewable(
   if (!ofOrder) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, `This order has no ${reference} ${reference_id} to review`)
   }
+}
+
+/**
+ * A review as its author sees it on their order: what it's of and where it is in moderation.
+ * The shop's reply shows only once the review is published, as it does to other buyers.
+ */
+export type BuyerReview = ReviewTarget & {
+  id: string
+  rating: number
+  customer_note: string | null
+  seller_note: string | null
+  status: ReviewStatus
+}
+
+type OrderReviewRow = {
+  order_id: string
+  review?: {
+    id: string
+    reference: ReviewTarget["reference"]
+    rating: number
+    customer_note: string | null
+    seller_note: string | null
+    status: ReviewStatus
+    product?: { id: string } | null
+    seller?: { id: string } | null
+  } | null
+}
+
+/** The reviews written on each of the orders, by order id; an order not listed has none. */
+export async function reviewsOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, BuyerReview[]>> {
+  if (!orderIds.length) return new Map()
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: OrderReviewLink.entryPoint,
+    fields: [
+      "order_id",
+      "review.id",
+      "review.reference",
+      "review.rating",
+      "review.customer_note",
+      "review.seller_note",
+      "review.status",
+      "review.product.id",
+      "review.seller.id",
+    ],
+    filters: { order_id: orderIds },
+  })
+  const byOrder = new Map<string, BuyerReview[]>()
+  for (const { order_id, review } of data as unknown as OrderReviewRow[]) {
+    // A deleted review keeps its link.
+    if (!review) continue
+    const reference_id = (review.reference === "product" ? review.product : review.seller)?.id
+    if (!reference_id) continue
+    byOrder.set(order_id, [
+      ...(byOrder.get(order_id) ?? []),
+      {
+        id: review.id,
+        reference: review.reference,
+        reference_id,
+        rating: Number(review.rating),
+        customer_note: review.customer_note,
+        seller_note: review.status === "published" ? review.seller_note : null,
+        status: review.status,
+      },
+    ])
+  }
+  return byOrder
 }
 
 /** A published review as any buyer sees it: the reviewer by first name and initial only. */
