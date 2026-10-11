@@ -213,7 +213,10 @@ medusaIntegrationTestRunner({
 
         const { data } = await api.post("/store/push-tokens", { token: device }, buyer.ada())
         expect(data).toEqual({ push_token: { token: device } })
-        expect(await settledPushesTo(device, paidOrders)).toEqual([])
+        // Ada's own order confirmation (#5), not the shop's new-order push.
+        const pushes = await settledPushesTo(device, paidOrders)
+        expect(pushes).toEqual([expect.objectContaining({ data: expect.objectContaining({ url: expect.stringMatching(/^\/order\//) }) })])
+        expect(pushes[0].data).not.toHaveProperty("seller_id")
 
         const removed = await api.delete(`/store/push-tokens/${encodeURIComponent(device)}`, buyer.ada())
         expect(removed.data).toEqual({ token: device, deleted: true })
