@@ -152,8 +152,11 @@ medusaIntegrationTestRunner({
             shipbubble.codeOf(`${shop.pickup.latitude},${shop.pickup.longitude}`)
           )
         }
-        expect(paystack.recipients().map((r) => r.name)).toEqual(
-          SEED_SELLERS.map((s) => s.bank.account_number).map((n) => expect.stringContaining(n.slice(-4)))
+        // Every seeded shop is paid into the seed's one account (SEED_BANK_*).
+        expect(paystack.recipients().map((r) => r.details)).toEqual(
+          SEED_SELLERS.map(() =>
+            expect.objectContaining({ bank_code: process.env.SEED_BANK_CODE, account_number: process.env.SEED_BANK_ACCOUNT_NUMBER })
+          )
         )
         const { data } = await api.get(`/store/listings?region_id=${regionId}&limit=100`, { headers: store })
         expect(new Set(data.listings.map((l: any) => l.seller.name))).toEqual(new Set(SEED_SELLERS.map((s) => s.name)))

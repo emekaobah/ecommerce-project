@@ -37,6 +37,9 @@ const sharedVariables = [
   "CLERK_JWT_KEY",
   // Paystack secret key; starts and verifies payments and checks webhook signatures.
   "PAYSTACK_SECRET_KEY",
+  // The real account the seed pays every demo shop into; Paystack resolves it even in test mode.
+  "SEED_BANK_CODE",
+  "SEED_BANK_ACCOUNT_NUMBER",
   // Shipbubble API key; validates delivery addresses and quotes courier rates (#23). Required.
   "SHIPBUBBLE_API_KEY",
   // Anthropic API key; Claude drafts catalogue fields no product database had (#36).
