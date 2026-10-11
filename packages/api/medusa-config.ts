@@ -254,6 +254,8 @@ module.exports = withMercur({
     { resolve: './src/modules/shop-hours' },
     // Each device's Expo push token, and the buyer or shop member signed in on it (#27).
     { resolve: './src/modules/push-token' },
+    // Where each shop's buyers collect pickup orders, for shops that offer pickup (#12).
+    { resolve: './src/modules/collection-point' },
     { resolve: '@medusajs/medusa/file', options: { providers: [fileProvider] } },
   ],
 })

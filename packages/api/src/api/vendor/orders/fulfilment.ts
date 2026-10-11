@@ -18,5 +18,5 @@ export async function shopsOwnOrder(req: VendorRequest<unknown>) {
  * `names`: members' names by id, for who handed the order over.
  */
 export const fulfilmentResponse = (record: FulfilmentRecord, names?: Map<string, string>): VendorOrderFulfilmentResponse => ({
-  fulfilment: fulfilmentView(record, record.placed_at, null, { names }),
+  fulfilment: fulfilmentView(record, { placed_at: record.placed_at, method: record.fulfilment.method }, null, { names }),
 })
