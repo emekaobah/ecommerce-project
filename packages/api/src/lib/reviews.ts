@@ -4,6 +4,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import OrderReviewLink from "@mercurjs/core/links/order-review"
 import ProductReviewLink from "@mercurjs/core/links/product-review"
 import SellerReviewLink from "@mercurjs/core/links/seller-review"
+import type { ReviewDTO } from "@mercurjs/types"
 import { fulfilmentsOf } from "./order-fulfilment"
 
 // Reviews and ratings (#7) on Mercur's review module: one `review` per target (a shop, or a
@@ -77,6 +78,34 @@ type OrderReviewRow = {
   } | null
 }
 
+/**
+ * A review as its author is shown it: the shop's reply hidden until the review is published,
+ * as other buyers see it. A review read without its status shows no reply.
+ */
+export function asAuthorSees<R extends { seller_note?: string | null; status?: ReviewStatus }>(review: R): R {
+  return review.status === "published" ? review : { ...review, seller_note: null }
+}
+
+type GraphPage = { skip?: number; take?: number; order?: Record<string, unknown> }
+
+/**
+ * Reviews as their author is shown them (`asAuthorSees`), for the buyer's own review routes.
+ * Status is always read, since it decides whether the reply shows.
+ */
+export async function authorReviews(
+  scope: Scope,
+  { fields, filters, pagination }: { fields: string[]; filters: Record<string, unknown>; pagination?: GraphPage }
+) {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data, metadata } = await query.graph({
+    entity: "review",
+    fields: [...new Set([...fields, "status"])],
+    filters,
+    pagination,
+  })
+  return { reviews: (data as unknown as ReviewDTO[]).map(asAuthorSees), metadata }
+}
+
 /** The reviews written on each of the orders, by order id; an order not listed has none. */
 export async function reviewsOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, BuyerReview[]>> {
   if (!orderIds.length) return new Map()
@@ -103,15 +132,17 @@ export async function reviewsOfOrders(scope: Scope, orderIds: string[]): Promise
     const reference_id = (review.reference === "product" ? review.product : review.seller)?.id
     if (!reference_id) continue
     const reviews = byOrder.get(order_id) ?? []
-    reviews.push({
-      id: review.id,
-      reference: review.reference,
-      reference_id,
-      rating: Number(review.rating),
-      customer_note: review.customer_note,
-      seller_note: review.status === "published" ? review.seller_note : null,
-      status: review.status,
-    })
+    reviews.push(
+      asAuthorSees({
+        id: review.id,
+        reference: review.reference,
+        reference_id,
+        rating: Number(review.rating),
+        customer_note: review.customer_note,
+        seller_note: review.seller_note,
+        status: review.status,
+      })
+    )
     byOrder.set(order_id, reviews)
   }
   return byOrder

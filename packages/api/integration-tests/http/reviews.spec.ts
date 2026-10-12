@@ -260,6 +260,26 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("the buyer's own reviews", () => {
+      it("hide the shop's reply until the review is published", async () => {
+        const { grocery } = await deliveredGrocery()
+        const pending = await reviewShop(grocery, GROCERY, 4, "Fresh")
+        await vendor(GROCERY, `reviews/${pending.id}`, { seller_note: "Thank you!" })
+        const replyOf = async () => {
+          const { data: list } = await api.get("/store/reviews", buyer.ada())
+          const { data: one } = await api.get(`/store/reviews/${pending.id}`, buyer.ada())
+          return [list.reviews.find((r: any) => r.id === pending.id).seller_note, one.review.seller_note]
+        }
+
+        const before = await replyOf()
+        await moderate(pending.id, "published")
+        const after = await replyOf()
+
+        expect(before).toEqual([null, null])
+        expect(after).toEqual(["Thank you!", "Thank you!"])
+      })
+    })
+
     describe("moderation", () => {
       it("shows the shop's reply under its review once the review is published", async () => {
         const { grocery } = await deliveredGrocery()
