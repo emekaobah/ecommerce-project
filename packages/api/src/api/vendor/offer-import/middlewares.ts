@@ -1,10 +1,7 @@
-import { validateAndTransformBody, validateAndTransformQuery, type MiddlewareRoute } from "@medusajs/framework/http"
+import { validateAndTransformBody, validateAndTransformQuery } from "@medusajs/framework/http"
+import type { PolicedRoute } from "../../policed-route"
 import { MAY_CREATE_OFFERS, MAY_PRICE_OFFERS } from "./permissions"
 import { VendorGetOfferCosts, VendorPreviewOfferImport, VendorRunOfferImport } from "./validators"
-
-// Medusa checks a route's RBAC policies (as Mercur's own vendor routes declare
-// them), though its public route type leaves the field out.
-type PolicedRoute = MiddlewareRoute & { policies: { resource: string; operation: string }[] }
 
 export const vendorOfferImportMiddlewares: PolicedRoute[] = [
   { method: ["GET"], matcher: "/vendor/offer-import", middlewares: [], policies: MAY_CREATE_OFFERS },

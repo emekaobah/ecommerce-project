@@ -26,6 +26,7 @@ import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
 import { vendorOrderPayoutMiddlewares } from "./vendor/orders/[id]/payout/middlewares";
 import { vendorShopHoursMiddlewares } from "./vendor/shop-hours/middlewares";
 import { vendorCollectionPointMiddlewares } from "./vendor/collection-point/middlewares";
+import { vendorReadyForPickupMiddlewares } from "./vendor/ready-for-pickup/middlewares";
 import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
@@ -254,6 +255,7 @@ export default defineMiddlewares({
         ...vendorShopHoursMiddlewares,
         // Where a shop's buyers collect pickup orders (#12): owners and managers set it.
         ...vendorCollectionPointMiddlewares,
+        ...vendorReadyForPickupMiddlewares,
         { method: ["POST"], matcher: "/vendor/sellers/me", middlewares: [refuseMercurClosures] },
         { method: ["POST"], matcher: "/vendor/sellers/:id", middlewares: [refuseMercurClosures] },
         { method: ["POST"], matcher: "/admin/sellers", middlewares: [refuseMercurClosures] },

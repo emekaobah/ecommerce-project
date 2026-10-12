@@ -1,10 +1,7 @@
-import { validateAndTransformBody, type MiddlewareRoute } from "@medusajs/framework/http"
+import { validateAndTransformBody } from "@medusajs/framework/http"
+import type { PolicedRoute } from "../../policed-route"
 import { PolicyOperation } from "@medusajs/framework/utils"
 import { VendorSetCollectionPoint } from "./validators"
-
-// Medusa checks a route's RBAC policies (as Mercur's own vendor routes declare
-// them), though its public route type leaves the field out.
-type PolicedRoute = MiddlewareRoute & { policies: { resource: string; operation: string }[] }
 
 // Every member sees where buyers collect; only owners and managers (seller update) set it (#12).
 const MAY_READ_SHOP = [{ resource: "seller", operation: PolicyOperation.read }]

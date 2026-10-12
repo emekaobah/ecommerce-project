@@ -345,6 +345,17 @@ export async function placedOrderOf(scope: Scope, orderId: string): Promise<{ pl
   return order && { placed_at: new Date(order.created_at), method: methodOfOrder(order) }
 }
 
+/** The shop's orders Ready for pickup (#12), by when they became ready, longest waiting first. */
+export async function readyForPickup(scope: Scope, sellerId: string): Promise<string[]> {
+  const rows = (await fulfilmentService(scope).listOrderFulfilments({ state: "ready_for_pickup" })).map(asFulfilmentRecord)
+  const sellers = await sellersOfOrders(scope, rows.map((r) => r.order_id))
+  const readyAt = (r: FulfilmentRecord) => r.reached?.ready_for_pickup ?? ""
+  return rows
+    .filter((r) => sellers.get(r.order_id) === sellerId)
+    .sort((a, b) => readyAt(a).localeCompare(readyAt(b)))
+    .map((r) => r.order_id)
+}
+
 /** The shop each order was placed with. */
 export async function sellersOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, string>> {
   if (!orderIds.length) return new Map()

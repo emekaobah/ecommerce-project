@@ -4,7 +4,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
-import { orderValue, useOrders } from '@/api/orders';
+import { orderValue, useOrders, useReadyOrders } from '@/api/orders';
 import { useCurrentSeller } from '@/api/sellers';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { itemsSummary } from '@/orders/items';
@@ -16,11 +16,14 @@ export function OrdersScreen() {
   const router = useRouter();
   const sellerId = useSession()?.sellerId;
   const seller = useCurrentSeller(sellerId);
-  const orders = useOrders(sellerId);
+  const [readyOnly, setReadyOnly] = useState(false);
+  const recent = useOrders(sellerId);
+  // Orders waiting at the counter for their buyers (#12), found by the server however old.
+  const ready = useReadyOrders(sellerId);
+  const orders = readyOnly ? ready : recent;
   const now = useNow();
   // Only a pull shows the spinner; background refetches stay silent.
   const [pulling, setPulling] = useState(false);
-  const [readyOnly, setReadyOnly] = useState(false);
   const refresh = () => {
     setPulling(true);
     void orders.refetch().finally(() => setPulling(false));
@@ -32,9 +35,8 @@ export function OrdersScreen() {
       return <ErrorState title="Couldn't load orders" message={orders.error.message} onRetry={refresh} />;
     }
     if (!orders.data) return <LoadingState />;
-    // Orders waiting at the counter for their buyers (#12).
-    const ready = orders.data.filter((o) => o.fulfilment.state === 'ready_for_pickup');
-    const shown = readyOnly ? ready : orders.data;
+    const readyCount = ready.data?.length ?? 0;
+    const shown = orders.data;
 
     return (
       <FlatList
@@ -42,11 +44,11 @@ export function OrdersScreen() {
         keyExtractor={(o) => o.id}
         contentContainerStyle={shown.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space.md }}
         ListHeaderComponent={
-          ready.length || readyOnly ? (
+          readyCount || readyOnly ? (
             <View style={[styles.filters, { gap: theme.space.sm, paddingVertical: theme.space.sm }]}>
               <Button label="All orders" variant={readyOnly ? 'secondary' : 'primary'} onPress={() => setReadyOnly(false)} />
               <Button
-                label={`Ready for pickup (${ready.length})`}
+                label={`Ready for pickup (${readyCount})`}
                 variant={readyOnly ? 'primary' : 'secondary'}
                 onPress={() => setReadyOnly(true)}
               />

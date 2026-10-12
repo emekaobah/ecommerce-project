@@ -484,6 +484,18 @@ medusaIntegrationTestRunner({
         expect(await status(post(GROCERY, `${orderId}/collect`, { code: "123456", collected_by: " " }))).toBe(400)
       })
 
+      it("lists only the shop's orders ready for pickup, whatever their age, to any member who works on orders", async () => {
+        const { orderId } = await pickupOrder()
+        await packed(orderId)
+        const { orderId: notReady } = await pickupOrder()
+
+        const { data } = await api.get("/vendor/ready-for-pickup", await staff(GROCERY))
+
+        expect(data.order_ids).toEqual([orderId])
+        expect(data.order_ids).not.toContain(notReady)
+        expect((await api.get("/vendor/ready-for-pickup", await owner(GADGETS))).data.order_ids).toEqual([])
+      })
+
       it("refuses label booking on a pickup order", async () => {
         const { orderId } = await pickupOrder()
         await packed(orderId)

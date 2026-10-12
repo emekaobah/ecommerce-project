@@ -55,6 +55,28 @@ export function useOrders(sellerId: string | undefined) {
   });
 }
 
+async function fetchReadyOrders() {
+  const { order_ids } = await vendorClient.vendor.readyForPickup.query();
+  if (!order_ids.length) return [];
+  const { orders } = await vendorClient.vendor.orders.query({ id: order_ids, limit: order_ids.length, fields: ORDER_FIELDS });
+  const byId = new Map((orders as WithFulfilment<(typeof orders)[number]>[]).map((o) => [o.id, o]));
+  // Longest waiting first, as the server lists them.
+  return order_ids.flatMap((id) => byId.get(id) ?? []);
+}
+
+/**
+ * The shop's orders waiting at the counter for their buyers (#12), longest waiting first,
+ * however old: the server finds them, not the recent orders the list shows. Checked again every
+ * minute while on screen.
+ */
+export function useReadyOrders(sellerId: string | undefined) {
+  return useQuery({
+    queryKey: [...orderKeys.list(sellerId ?? ''), 'ready-for-pickup'],
+    queryFn: sellerId ? fetchReadyOrders : skipToken,
+    refetchInterval: 60_000,
+  });
+}
+
 /** One of the shop's orders. */
 export function useOrder(orderId: string) {
   return useQuery({ queryKey: orderKeys.detail(orderId), queryFn: () => fetchOrder(orderId) });
