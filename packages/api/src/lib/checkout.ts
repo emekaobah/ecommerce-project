@@ -416,6 +416,12 @@ const contactOf = (address: Partial<CheckoutContact> | null): CheckoutContact | 
     ? { first_name: address.first_name, last_name: address.last_name, phone: address.phone }
     : null
 
+/** The shops checkout switched to pickup itself: collected, and refused delivery when last quoted. */
+async function switchedToPickup(scope: MedusaContainer, cart: CartRow): Promise<Set<string>> {
+  const refused = unavailableDeliveries(cart)
+  return new Set([...(await collectedShops(scope, cart))].filter((sellerId) => refused[sellerId]))
+}
+
 /** The shops whose orders the buyer collects: those with their pickup as the cart's shipping method. */
 async function collectedShops(scope: MedusaContainer, cart: CartRow): Promise<Set<string>> {
   const methods = (cart.shipping_methods ?? []).filter((m) => m.shipping_option_id && isPickupMethod(m))
@@ -618,15 +624,26 @@ export async function prepareCheckout(
   const priceChanges = await repriceLines(scope, cartId)
   await dropEmptyShopDeliveries(scope, cart)
   const { sellers } = await retrieveCartBySeller(scope, cartId)
-  const collecting = await pickupShops(scope, sellers, pickup)
+  const chosen = await pickupShops(scope, sellers, pickup)
+  // Without an address, a shop checkout already switched to pickup (fresh items no courier
+  // brings in time) stays collected: there is nowhere to deliver it.
+  const switched = shippingAddress ? [] : [...(await switchedToPickup(scope, cart))]
+  const collecting = new Set([...chosen, ...switched])
   const allCollected = sellers.every((g) => collecting.has(g.seller!.id))
 
   if (allCollected) {
     const buyer = contact ?? (shippingAddress && contactOf(shippingAddress))
     if (!buyer) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Give your name and phone number for the shop")
-    await updateCartWorkflow(scope).run({ input: { id: cartId, email: customer.email, billing_address: buyer as CreateAddressDTO } })
-    // Nothing is delivered, so no address is kept.
-    if (cart.shipping_address) await scope.resolve(Modules.CART).updateCarts(cartId, { shipping_address_id: null })
+    // Nothing is delivered, so no delivery address is kept: only its country, as a new cart has.
+    const country = cart.shipping_address?.country_code
+    await updateCartWorkflow(scope).run({
+      input: {
+        id: cartId,
+        email: customer.email,
+        billing_address: buyer as CreateAddressDTO,
+        ...(cart.shipping_address?.address_1 && country && { shipping_address: { country_code: country } }),
+      },
+    })
     await setShopMethods(scope, await buyersCart(scope, cartId, customerId), { receiverCode: null, pickup: collecting })
     return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
   }

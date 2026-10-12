@@ -292,6 +292,23 @@ medusaIntegrationTestRunner({
         expect(await fulfilmentOf(GROCERY, await orderOf(GROCERY))).toMatchObject({ method: "pickup" })
       })
 
+      it("need no address once the buyer collects from every other shop too", async () => {
+        await setCollectionPoint(GROCERY)
+        await setCollectionPoint(GADGETS)
+        const cartId = await freshCart()
+        await prepare(cartId, { shipping_address: ADDRESS })
+
+        // The grocery was switched to pickup; Ada collects the lantern too, and gives no address.
+        const { data } = await prepare(cartId, { contact: CONTACT, pickup: [await sellerId(GADGETS)] })
+
+        expect(data.checkout).toMatchObject({ shipping_address: null, contact: CONTACT, shipping_total: 0, ready_to_pay: true })
+        expect(data.checkout.sellers.map((g: any) => g.method)).toEqual(["pickup", "pickup"])
+        const { orderOf } = await pay(cartId)
+        for (const shop of [GROCERY, GADGETS]) {
+          expect(await fulfilmentOf(shop, await orderOf(shop))).toMatchObject({ method: "pickup" })
+        }
+      })
+
       it("let the buyer remove the fresh items and have the rest delivered", async () => {
         await setCollectionPoint(GROCERY)
         const cartId = await freshCart()

@@ -121,10 +121,13 @@ function CheckoutForm({
   // The shops the buyer chose to collect from (#12). One checkout switched to pickup itself (fresh
   // items no courier brings in time) isn't among them: it is quoted for delivery again.
   const chosenPickup = checkout.sellers.flatMap((g) => (g.seller && g.method === 'pickup' && !g.pickup_note ? [g.seller.id] : []));
+  // Those switched stay collected while nothing else is delivered: checkout then needs no address.
+  const switchedToPickup = checkout.sellers.flatMap((g) => (g.seller && g.method === 'pickup' && g.pickup_note ? [g.seller.id] : []));
+  const collectsAll = (ids: string[]) => checkout.sellers.every((g) => g.seller && (ids.includes(g.seller.id) || switchedToPickup.includes(g.seller.id)));
   /** A change of method waiting for what checkout needs first: an address, or the buyer's details. */
   const [pendingPickup, setPendingPickup] = useState<string[] | null>(null);
   const pickup = pendingPickup ?? chosenPickup;
-  const everyCollected = checkout.sellers.every((g) => g.seller && pickup.includes(g.seller.id));
+  const everyCollected = collectsAll(pickup);
 
   const deliverTo = (address: PinnedDeliveryAddress, onDelivered?: () => void) =>
     prepare.mutate(
@@ -144,7 +147,7 @@ function CheckoutForm({
   /** The buyer chooses how one shop's order reaches them. */
   const chooseMethod = (sellerId: string, method: 'delivery' | 'pickup') => {
     const next = method === 'pickup' ? [...chosenPickup, sellerId] : chosenPickup.filter((id) => id !== sellerId);
-    const allCollected = checkout.sellers.every((g) => g.seller && next.includes(g.seller.id));
+    const allCollected = collectsAll(next);
     const contact = checkout.contact ?? contactOf(customer.data);
     if (allCollected && contact) return prepare.mutate({ contact, pickup: next });
     if (!allCollected && cartAddress) return prepare.mutate({ shippingAddress: cartAddress, pickup: next });
