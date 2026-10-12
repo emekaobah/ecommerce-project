@@ -1,9 +1,8 @@
 import { canReview, reviewerName, type ReviewKind, type ReviewStatus, type ReviewSubject } from "@oja/domain"
+import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import OrderReviewLink from "@mercurjs/core/links/order-review"
-import ProductReviewLink from "@mercurjs/core/links/product-review"
-import SellerReviewLink from "@mercurjs/core/links/seller-review"
 import type { ReviewDTO } from "@mercurjs/types"
 import { fulfilmentsOf } from "./order-fulfilment"
 
@@ -171,53 +170,76 @@ type ReviewRow = {
   customer?: { first_name: string | null; last_name: string | null } | null
 }
 
-const LINKS = {
-  product: { entryPoint: ProductReviewLink.entryPoint, column: "product_id" },
-  seller: { entryPoint: SellerReviewLink.entryPoint, column: "seller_id" },
+/**
+ * A review has no target column, only a link table to its product or shop: Mercur's
+ * product-review and seller-review links, whose tables Mercur's review service joins by these
+ * names for its own (status-blind) ratings.
+ */
+const LINK_TABLES = {
+  product: { table: "product_product_review_review", column: "product_id" },
+  seller: { table: "seller_seller_review_review", column: "seller_id" },
 } as const
 
-/** Ids of every review of the target, whatever its status; a review has no target column, only a link. */
-async function reviewIdsOf(scope: Scope, { reference, reference_id }: ReviewSubject): Promise<string[]> {
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { entryPoint, column } = LINKS[reference]
-  const { data } = await query.graph({ entity: entryPoint, fields: ["review_id"], filters: { [column]: reference_id } })
-  return (data as unknown as { review_id: string }[]).map((link) => link.review_id)
+/** The target's published reviews, as a query to aggregate or page through. */
+function publishedOf(scope: Scope, { reference, reference_id }: ReviewSubject) {
+  const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
+  const { table, column } = LINK_TABLES[reference]
+  return knex("review")
+    .join(table, `${table}.review_id`, "review.id")
+    .where(`${table}.${column}`, reference_id)
+    .where("review.status", "published")
+    .whereNull("review.deleted_at")
+    .whereNull(`${table}.deleted_at`)
 }
 
 /**
  * A shop's or a product's published reviews, newest first: what other buyers see (#7). Pending
- * and rejected reviews never count, toward the list or the rating.
+ * and rejected reviews never count, toward the list or the rating, which the database averages
+ * and counts.
  */
 export async function publishedReviews(
   scope: Scope,
   target: ReviewSubject,
   page: { limit: number; offset: number }
 ): Promise<PublishedReviews> {
-  const ids = await reviewIdsOf(scope, target)
-  if (!ids.length) return { reviews: [], average_rating: null, count: 0 }
+  const [[rating], pageRows] = await Promise.all([
+    publishedOf(scope, target).avg({ average: "review.rating" }).count({ count: "review.id" }),
+    publishedOf(scope, target)
+      .select("review.id")
+      .orderBy([{ column: "review.created_at", order: "desc" }, { column: "review.id", order: "desc" }])
+      .limit(page.limit)
+      .offset(page.offset),
+  ])
+  const count = Number(rating?.count ?? 0)
+  const average_rating = count ? Number(rating!.average) : null
+  const ids = (pageRows as { id: string }[]).map((r) => r.id)
+  if (!ids.length) return { reviews: [], average_rating, count }
 
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const filters = { id: ids, status: "published" as const }
-  const [{ data: rows }, { data: ratings }] = await Promise.all([
-    query.graph({
-      entity: "review",
-      fields: ["id", "rating", "customer_note", "seller_note", "created_at", "customer.first_name", "customer.last_name"],
-      filters,
-      pagination: { skip: page.offset, take: page.limit, order: { created_at: "DESC" } },
-    }),
-    query.graph({ entity: "review", fields: ["rating"], filters }),
-  ])
-  const all = (ratings as unknown as { rating: number }[]).map((r) => Number(r.rating))
+  const { data } = await query.graph({
+    entity: "review",
+    fields: ["id", "rating", "customer_note", "seller_note", "created_at", "customer.first_name", "customer.last_name"],
+    filters: { id: ids },
+  })
+  const byId = new Map((data as unknown as ReviewRow[]).map((r) => [r.id, r]))
   return {
-    reviews: (rows as unknown as ReviewRow[]).map((r) => ({
-      id: r.id,
-      rating: Number(r.rating),
-      customer_note: r.customer_note,
-      seller_note: r.seller_note,
-      author: reviewerName(r.customer),
-      created_at: new Date(r.created_at).toISOString(),
-    })),
-    average_rating: all.length ? all.reduce((sum, rating) => sum + rating, 0) / all.length : null,
-    count: all.length,
+    // In the page's order, newest first.
+    reviews: ids.flatMap((id) => {
+      const r = byId.get(id)
+      return r
+        ? [
+            {
+              id: r.id,
+              rating: Number(r.rating),
+              customer_note: r.customer_note,
+              seller_note: r.seller_note,
+              author: reviewerName(r.customer),
+              created_at: new Date(r.created_at).toISOString(),
+            },
+          ]
+        : []
+    }),
+    average_rating,
+    count,
   }
 }
