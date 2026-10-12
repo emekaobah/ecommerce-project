@@ -218,6 +218,49 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("acting on an order the moment it appears", () => {
+      /**
+       * The shop's order of a checkout Paystack has just paid for, as soon as the shop can see it:
+       * Mercur's checkout workflow may still be running, and `order.placed`, which records the
+       * order as New, is only sent once it finishes.
+       */
+      const justPlaced = async (shop: Shop) => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        const { reference } = await buyer.startPayment(cartId)
+        paystack.pay(reference)
+        const webhook = buyer.postWebhook(paystack.chargeSuccess(reference))
+        const sellerId = await buyer.sellerId(shop)
+        // Polled tightly: the window between the order appearing and being recorded is short.
+        for (let tries = 0; tries < 4000; tries++) {
+          const orderIds = (await buyer.ordersOfCart(cartId)).map((c) => c.order_id)
+          const { data } = orderIds.length
+            ? await buyer
+                .query()
+                .graph({ entity: "order_seller", fields: ["order_id"], filters: { seller_id: sellerId, order_id: orderIds } })
+            : { data: [] }
+          const orderId = data[0]?.order_id as string | undefined
+          if (orderId) return { orderId, settled: webhook }
+          await new Promise((resolve) => setTimeout(resolve, 5))
+        }
+        throw new Error(`${shop.name}'s order of cart ${cartId} never appeared`)
+      }
+
+      it("isn't refused because the order is still being recorded", async () => {
+        // A race: each round is a chance for the shop's action and the recording to collide.
+        for (let round = 0; round < 6; round++) {
+          const { orderId, settled } = await justPlaced(GADGETS)
+          paystack.refuseRefunds("Insufficient balance")
+          try {
+            expect(await status(reject(GADGETS, orderId))).toBe(200)
+          } finally {
+            paystack.refuseRefunds(undefined)
+          }
+          await settled
+        }
+      })
+    })
+
     describe("the accept deadline", () => {
       it("rejects and refunds orders not accepted within 24 hours, and leaves the others alone", async () => {
         const { reference, gadgets, grocery } = await paidOrders()
