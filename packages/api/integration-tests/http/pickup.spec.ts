@@ -17,7 +17,7 @@ import {
   type Shop,
 } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
-import { fakeExpoPush, pushToken } from "../helpers/expo-push"
+import { fakeExpoPush, pushToken, type PushMessage } from "../helpers/expo-push"
 import { fakePaystack } from "../helpers/paystack"
 import { BEST_VALUE_FEE, COURIERS, fakeShipbubble } from "../helpers/shipbubble"
 import { ALWAYS_OPEN } from "../helpers/shop-hours"
@@ -399,7 +399,9 @@ medusaIntegrationTestRunner({
 
         await packed(orderId)
 
-        const [push] = await eventually(async () => expo.sentTo(device), (sent) => sent.length > 0)
+        // The buyer was told of the confirmation and the acceptance first (#5).
+        const ready = (sent: PushMessage[]) => sent.find((p) => /ready for pickup/i.test(p.title ?? ""))
+        const push = ready(await eventually(async () => expo.sentTo(device), (sent) => !!ready(sent)))!
         expect(push).toMatchObject({
           title: expect.stringMatching(/ready for pickup/i),
           body: expect.stringContaining(GROCERY.pickup.address_1),

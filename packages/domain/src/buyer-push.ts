@@ -1,5 +1,8 @@
+import { PRODUCT_NAME } from "./app-identity"
 import type { FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
+import { openingHoursLines } from "./pickup"
+import type { WeeklyHours } from "./shop-hours"
 
 /**
  * What a buyer's phone is told about their orders (#5): their checkout confirmed, and each step
@@ -9,11 +12,25 @@ import { formatMoney } from "./money"
 /** A push's title and body. */
 export type BuyerPush = { title: string; body: string }
 
-/** One shop's order, as a push about it names it. */
+/** Where a pickup order is collected (#12), as its push says: the collection point and the shop's hours. */
+export type BuyerPushPickup = {
+  address: { address_1: string | null; address_2: string | null; city: string | null; landmark: string | null }
+  weekly: WeeklyHours | null
+}
+
+/** One shop's order, as a push about it names it; `pickup` for an order the buyer collects. */
 export type BuyerPushOrder = {
   display_id: number
   shop: string
   rejected_by: "seller" | "accept_deadline" | null
+  pickup?: BuyerPushPickup | null
+}
+
+/** Where and when to collect a pickup order, for its Ready for pickup push. */
+function collectFrom(shop: string, { address, weekly }: BuyerPushPickup) {
+  const place = [address.address_1, address.address_2, address.city].filter(Boolean).join(", ")
+  const where = `Collect it from ${shop}, ${place}${address.landmark ? ` (${address.landmark})` : ""}.`
+  return weekly ? `${where} Hours: ${openingHoursLines(weekly).join("; ")}.` : where
 }
 
 /**
@@ -36,6 +53,12 @@ const STATE_PUSHES: { [S in FulfilmentState]?: (order: BuyerPushOrder) => BuyerP
   delivered: ({ display_id, shop }) => ({
     title: `Order #${display_id} delivered`,
     body: `Your order from ${shop} has arrived.`,
+  }),
+  // In-store pickup (#12): the code to collect with is only in the app. Collected isn't pushed:
+  // the buyer, or whoever had the code, was at the counter.
+  ready_for_pickup: ({ display_id, shop, pickup }) => ({
+    title: `Order #${display_id} is ready for pickup`,
+    body: [`Your pickup code is in the ${PRODUCT_NAME} app.`, pickup ? collectFrom(shop, pickup) : null].filter(Boolean).join(" "),
   }),
   rejected: ({ display_id, shop, rejected_by }) => ({
     title: `Order #${display_id} cancelled`,

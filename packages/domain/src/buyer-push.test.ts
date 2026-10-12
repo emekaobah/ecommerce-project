@@ -29,6 +29,42 @@ describe("buyerStatusPush", () => {
     })
   })
 
+  describe("a pickup order", () => {
+    const pickup = {
+      address: { address_1: "14 Adeniran Ogunsanya Street", address_2: null, city: "Surulere", landmark: "Beside the filling station" },
+      weekly: {
+        mon: [{ opens: "07:00", closes: "20:00" }],
+        tue: [{ opens: "07:00", closes: "20:00" }],
+        wed: [{ opens: "07:00", closes: "20:00" }],
+        thu: [{ opens: "07:00", closes: "20:00" }],
+        fri: [{ opens: "07:00", closes: "20:00" }],
+        sat: [{ opens: "07:00", closes: "20:00" }],
+        sun: [],
+      },
+    }
+
+    test("ready tells the buyer the code is in the app, where to collect, and the shop's hours", () => {
+      expect(buyerStatusPush("ready_for_pickup", { ...order, pickup })).toEqual({
+        title: "Order #42 is ready for pickup",
+        body:
+          "Your pickup code is in the Oja app. Collect it from Mama Put Groceries, 14 Adeniran Ogunsanya Street, Surulere " +
+          "(Beside the filling station). Hours: Mon–Sat 07:00–20:00; Sun Closed.",
+      })
+    })
+
+    test("ready leaves out the hours of a shop that has none set", () => {
+      const { body } = buyerStatusPush("ready_for_pickup", {
+        ...order,
+        pickup: { address: { ...pickup.address, landmark: null }, weekly: null },
+      })!
+      expect(body).toBe("Your pickup code is in the Oja app. Collect it from Mama Put Groceries, 14 Adeniran Ogunsanya Street, Surulere.")
+    })
+
+    test("stays quiet once collected: the buyer was at the counter (#33 adds the pickup emails)", () => {
+      expect(buyerStatusPush("collected", { ...order, pickup })).toBeNull()
+    })
+  })
+
   test.each<FulfilmentState>(["new", "picking", "partially_available", "packed", "courier_confirmed", "in_transit"])(
     "stays quiet about the shop's own steps (%s)",
     (state) => {

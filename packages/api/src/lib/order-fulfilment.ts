@@ -41,13 +41,11 @@ export const ORDER_REFUND_PROCESSED = "order_refund.processed"
 export const ORDER_ACCEPTED = "order_fulfilment.accepted"
 /** Emitted when a new order is rejected, by its shop or by the accept deadline, with `{ id, rejected_by }`. */
 export const ORDER_REJECTED = "order_fulfilment.rejected"
-/** Emitted when staff pack a picked delivery order, ready for a courier label, with `{ id }` (the order). */
-export const ORDER_PACKED = "order_fulfilment.packed"
 /**
- * Emitted when staff pack a picked pickup order, now Ready for pickup with its code issued
- * (#12), with `{ id }` (the order). Its buyer is pushed to come for it.
+ * Emitted when staff pack a picked order, with `{ id }` (the order): a delivery order is then
+ * ready for a courier label, a pickup order Ready for pickup with its code issued (#12).
  */
-export const ORDER_READY_FOR_PICKUP = "order_fulfilment.ready_for_pickup"
+export const ORDER_PACKED = "order_fulfilment.packed"
 /** Emitted when a pickup order is handed over at the counter, and so may be paid out (#12), with `{ id }` (the order). */
 export const ORDER_COLLECTED = "order_fulfilment.collected"
 /** Emitted once when a new order nears its accept deadline unaccepted, with `{ id }` (the order). */

@@ -164,6 +164,7 @@ export async function pushOrderState(scope: Scope, orderId: string, state: Fulfi
     display_id: order.display_id,
     shop: order.seller.name,
     rejected_by: order.fulfilment.rejected_by,
+    pickup: order.pickup,
   })
   if (!push) return
   // An order can reach a state again (a courier label rebooked after the shipper cancelled it):
