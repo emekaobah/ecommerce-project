@@ -104,6 +104,24 @@ medusaIntegrationTestRunner({
         }
       })
 
+      it("gives the fashion shop a collection point at its pickup address, so pickup works in dev (#12)", async () => {
+        const fashion = SEED_SELLERS.find((s) => s.collection_point)!
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: [seller] } = await query.graph({ entity: "seller", fields: ["id"], filters: { email: fashion.owner.email } })
+        const { data: login } = await api.post("/auth/member/emailpass", { email: fashion.owner.email, password: SEED_PASSWORD })
+
+        const { data } = await api.get("/vendor/collection-point", {
+          headers: { authorization: `Bearer ${login.token}`, "x-seller-id": seller.id },
+        })
+
+        expect(fashion.department).toBe("Fashion")
+        expect(data.collection_point).toMatchObject({
+          follows_pickup_address: true,
+          address: { address_1: fashion.pickup.address_1 },
+          instructions: fashion.collection_point!.instructions,
+        })
+      })
+
       it("lets every seeded owner and staff member log in with the documented password", async () => {
         for (const seller of SEED_SELLERS) {
           for (const email of [seller.owner.email, seller.staff.email]) {
