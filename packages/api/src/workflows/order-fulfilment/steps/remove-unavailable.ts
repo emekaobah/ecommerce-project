@@ -6,8 +6,8 @@ import { itemsOf } from "../../../lib/order-picking"
 
 type Scope = Parameters<typeof fulfilmentsOf>[0]
 
-/** Each line's quantity once its unavailable units are gone, for the order edit. */
-export type RemovalPlan = { items: { id: string; quantity: number }[]; total_before: number }
+/** Each line's quantity once its unavailable units are gone, for the order edit, and the units removed of each. */
+export type RemovalPlan = { items: { id: string; quantity: number }[]; units: Picks; total_before: number }
 
 /**
  * Works out the order edit that removes the units marked unavailable: each marked line's new
@@ -33,7 +33,7 @@ export const planRemovalStep = createStep("plan-unavailable-removal", async ({ o
       `Every item of order ${order_id} is marked unavailable: there would be nothing left to send`
     )
   }
-  return new StepResponse<RemovalPlan>({ items, total_before: await orderTotal(container, order_id) })
+  return new StepResponse<RemovalPlan>({ items, units: Object.fromEntries(marked), total_before: await orderTotal(container, order_id) })
 })
 
 type Compensation = Pick<FulfilmentRecord, "id" | "state" | "fulfilment" | "unavailable" | "removed">

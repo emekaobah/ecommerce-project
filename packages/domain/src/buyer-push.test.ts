@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { buyerStatusPush, orderConfirmedPush } from "./buyer-push"
+import { buyerStatusPush, itemsRemovedPush, orderConfirmedPush, refundCompletedPush } from "./buyer-push"
+import { formatMoney } from "./money"
 import type { FulfilmentState } from "./fulfilment"
 
 const order = { display_id: 42, shop: "Mama Put Groceries", rejected_by: null }
@@ -63,6 +64,47 @@ describe("orderConfirmedPush", () => {
     expect(orderConfirmedPush({ display_id: 7, shops })).toEqual({
       title: "Order #7 confirmed",
       body: "Mama Put Groceries is closed now: it prepares your order when it opens at 8am Tue.",
+    })
+  })
+})
+
+describe("itemsRemovedPush", () => {
+  const order = { display_id: 42, shop: "Mama Put Groceries", refund: 14500, currency_code: "ngn" }
+
+  test("names the items the shop didn't have and what is refunded", () => {
+    expect(itemsRemovedPush({ ...order, items: [{ title: "Ofada Rice 5kg", quantity: 1 }] })).toEqual({
+      title: "Items removed from order #42",
+      body: `Mama Put Groceries didn't have 1 × Ofada Rice 5kg. You'll be refunded ${formatMoney(14500, "ngn")}.`,
+    })
+  })
+
+  test("names two lines", () => {
+    const items = [
+      { title: "Ofada Rice 5kg", quantity: 2 },
+      { title: "Honey Beans 2kg", quantity: 1 },
+    ]
+    expect(itemsRemovedPush({ ...order, items }).body).toBe(
+      `Mama Put Groceries didn't have 2 × Ofada Rice 5kg and 1 × Honey Beans 2kg. You'll be refunded ${formatMoney(14500, "ngn")}.`
+    )
+  })
+
+  test("counts the units instead once more than two lines were removed", () => {
+    const items = [
+      { title: "Ofada Rice 5kg", quantity: 2 },
+      { title: "Honey Beans 2kg", quantity: 1 },
+      { title: "Palm Oil 1L", quantity: 1 },
+    ]
+    expect(itemsRemovedPush({ ...order, items }).body).toBe(
+      `Mama Put Groceries didn't have 4 of your items. You'll be refunded ${formatMoney(14500, "ngn")}.`
+    )
+  })
+})
+
+describe("refundCompletedPush", () => {
+  test("says the refund from the shop has completed", () => {
+    expect(refundCompletedPush({ display_id: 42, shop: "Mama Put Groceries", amount: 14500, currency_code: "ngn" })).toEqual({
+      title: "Refund for order #42 completed",
+      body: `The refund of ${formatMoney(14500, "ngn")} from Mama Put Groceries has completed.`,
     })
   })
 })

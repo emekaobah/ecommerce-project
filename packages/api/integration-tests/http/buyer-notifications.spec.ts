@@ -1,7 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import seedDemoData from "../../src/scripts/seed"
 import { rejectOverdueOrders } from "../../src/lib/order-acceptance"
-import { ADDRESS, buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, RICE, TOTAL, type Shop } from "../helpers/checkout"
+import { ADDRESS, buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, ORDER_TOTALS, RICE, TOTAL, type Shop } from "../helpers/checkout"
 import { BEST_VALUE_FEE } from "../helpers/shipbubble"
 import { fakeClerk } from "../helpers/clerk"
 import { fakeExpoPush, pushToken } from "../helpers/expo-push"
@@ -76,9 +76,9 @@ medusaIntegrationTestRunner({
     }
     /** Ada's paid checkout, her phone told it is confirmed: the grocery's order of it, and its group. */
     const confirmedCheckout = async (device: string) => {
-      const { cartId } = await buyer.paidCheckout()
+      const { cartId, reference } = await buyer.paidCheckout()
       await pushesTo(device)
-      return { cartId, orderId: await buyer.shopOrderId(GROCERY, cartId), groupId: await buyer.orderGroupOf(cartId) }
+      return { cartId, reference, orderId: await buyer.shopOrderId(GROCERY, cartId), groupId: await buyer.orderGroupOf(cartId) }
     }
     /** The grocery accepts, picks and packs the order, and books its courier label; returns the waybill. */
     const packAndBook = async (orderId: string) => {
@@ -211,6 +211,58 @@ medusaIntegrationTestRunner({
           title: `Order #${await displayIdOf("order", orderId)} cancelled`,
           body: `${GROCERY.name} didn't accept your order in time. You'll get a full refund.`,
         })
+      })
+    })
+
+    describe("items the shop didn't have", () => {
+      it("pushes Ada which shop removed them and what she is refunded, opening the order", async () => {
+        const device = await registerAda()
+        const { orderId, groupId } = await confirmedCheckout(device)
+        await post(GROCERY, `${orderId}/accept`)
+        await post(GROCERY, `${orderId}/start-picking`)
+        const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
+        await post(GROCERY, `${orderId}/pick-list/${pick_list.lines[0].id}/unavailable`, { quantity: 1 })
+
+        await post(GROCERY, `${orderId}/remove-unavailable`)
+
+        const [, , push] = await pushesTo(device, 3)
+        expect(push).toMatchObject({
+          title: `Items removed from order #${await displayIdOf("order", orderId)}`,
+          body: `${GROCERY.name} didn't have 1 × ${RICE.title}. You'll be refunded ${formatMoney(RICE.price, "ngn")}.`,
+          data: { url: `/order/${groupId}`, order_group_id: groupId, order_id: orderId },
+        })
+      })
+    })
+
+    describe("a refund Paystack has processed", () => {
+      it("pushes Ada once that her refund has completed, and nothing for one still pending or failed", async () => {
+        const device = await registerAda()
+        const { cartId, reference, orderId } = await confirmedCheckout(device)
+        await post(GROCERY, `${orderId}/reject`, { reason: "Out of stock" })
+        await post(GADGETS, `${await buyer.shopOrderId(GADGETS, cartId)}/reject`, { reason: "Closed for stock-taking" })
+        await pushesTo(device, 3)
+        const refundOf = (shopTotal: number) => paystack.refundsOf(reference).find((r) => r.amount === shopTotal * 100)!
+        const grocery = refundOf(ORDER_TOTALS.get(GROCERY)!)
+        const gadgets = refundOf(ORDER_TOTALS.get(GADGETS)!)
+
+        // Still pending: nothing to tell.
+        await buyer.postWebhook(paystack.refundEvent(grocery.id))
+        expect(await settledPushesTo(device)).toHaveLength(3)
+
+        paystack.settleRefund(grocery.id, "processed")
+        paystack.settleRefund(gadgets.id, "failed")
+        await buyer.postWebhook(paystack.refundEvent(grocery.id))
+        await buyer.postWebhook(paystack.refundEvent(gadgets.id))
+        // Paystack sends a webhook again when it isn't sure we got it.
+        await buyer.postWebhook(paystack.refundEvent(grocery.id))
+
+        const [, , , push] = await pushesTo(device, 4)
+        expect(push).toMatchObject({
+          title: `Refund for order #${await displayIdOf("order", orderId)} completed`,
+          body: `The refund of ${formatMoney(ORDER_TOTALS.get(GROCERY)!, "ngn")} from ${GROCERY.name} has completed.`,
+          data: { order_id: orderId },
+        })
+        expect(await settledPushesTo(device)).toHaveLength(4)
       })
     })
 

@@ -27,6 +27,14 @@ type Scope = Pick<MedusaContainer, "resolve">
  * they care about (#5).
  */
 export const ORDER_STATE_CHANGED = "order_fulfilment.state_changed"
+/**
+ * Emitted when units staff found unavailable are removed from an order (#22), with
+ * `{ id, amount, removed, at }`: the order, what the edit took off its total (which the buyer
+ * is refunded), the units removed of each line by line item id, and when (ISO 8601).
+ */
+export const ORDER_ITEMS_REMOVED = "order_fulfilment.items_removed"
+/** Emitted when Paystack has processed an order's refund, so the money has reached the buyer, with `{ id }` (the order refund). */
+export const ORDER_REFUND_PROCESSED = "order_refund.processed"
 /** Emitted when staff accept a new order, with `{ id }` (the order). */
 export const ORDER_ACCEPTED = "order_fulfilment.accepted"
 /** Emitted when a new order is rejected, by its shop or by the accept deadline, with `{ id, rejected_by }`. */

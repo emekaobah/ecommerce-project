@@ -1,6 +1,8 @@
 import {
   addressLines,
   buyerStatusPush,
+  itemsRemovedPush,
+  refundCompletedPush,
   openingLabel,
   orderConfirmedPush,
   PRODUCT_NAME,
@@ -18,7 +20,7 @@ import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
 import { sendEmail } from "./email"
-import { fulfilmentsOf } from "./order-fulfilment"
+import { fulfilmentService, fulfilmentsOf, type Picks } from "./order-fulfilment"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
 
@@ -203,5 +205,58 @@ export async function emailDeliveryReceipt(scope: Scope, orderId: string): Promi
       />
     ),
     key: `delivery-receipt:${orderId}`,
+  })
+}
+
+/**
+ * Pushes the buyer that a shop removed items it didn't have from their order (#22), and what
+ * they are refunded for them: `order_fulfilment.items_removed`'s data.
+ */
+export async function pushItemsRemoved(
+  scope: Scope,
+  { id: orderId, amount, removed, at }: { id: string; amount: number; removed: Picks; at: string }
+): Promise<void> {
+  const found = await buyerOrder(scope, orderId)
+  if (!found) return
+  const { checkout, order } = found
+  const items = Object.entries(removed).flatMap(([id, quantity]) => {
+    const item = order.items.find((i) => i.id === id)
+    return item && quantity > 0 ? [{ title: item.product_title ?? "Item", quantity }] : []
+  })
+  const push = itemsRemovedPush({
+    display_id: order.display_id,
+    shop: order.seller.name,
+    items,
+    refund: amount,
+    currency_code: order.currency_code,
+  })
+  await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+    template: "buyer-order-items-removed",
+    ...push,
+    data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+    // Items can be removed from an order more than once: each removal is told once.
+    idempotencyKey: (to) => `buyer-order-items-removed:${orderId}:${at}:${to}`,
+    about: `the items removed from order ${orderId}`,
+  })
+}
+
+/** Pushes the buyer that a refund of their order has completed: Paystack processed it. */
+export async function pushRefundCompleted(scope: Scope, refundId: string): Promise<void> {
+  const [refund] = await fulfilmentService(scope).listOrderRefunds({ id: refundId })
+  const found = refund?.order_id ? await buyerOrder(scope, refund.order_id) : null
+  if (!refund || !found) return
+  const { checkout, order } = found
+  const push = refundCompletedPush({
+    display_id: order.display_id,
+    shop: order.seller.name,
+    amount: Number(refund.amount),
+    currency_code: refund.currency_code,
+  })
+  await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+    template: "buyer-refund-completed",
+    ...push,
+    data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: order.id },
+    idempotencyKey: (to) => `buyer-refund-completed:${refund.id}:${to}`,
+    about: `the refund ${refund.id}`,
   })
 }

@@ -1,4 +1,5 @@
 import type { FulfilmentState } from "./fulfilment"
+import { formatMoney } from "./money"
 
 /**
  * What a buyer's phone is told about their orders (#5): their checkout confirmed, and each step
@@ -64,4 +65,50 @@ export function orderConfirmedPush({ display_id, shops }: { display_id: number; 
   const next =
     shops.length === 1 && only ? `We'll let you know when ${only.name} accepts it.` : `We'll let you know as each of your ${shops.length} shops accepts it.`
   return { title: `Order #${display_id} confirmed`, body: closed.length ? closed.join(" ") : next }
+}
+
+/** A line the shop removed as unavailable while picking, and how many of it. */
+export type RemovedItem = { title: string; quantity: number }
+
+/**
+ * The push telling the buyer a shop removed items it didn't have from their order, and what it
+ * refunds for them (#22). Two lines are named; more are counted, to keep the push short.
+ */
+export function itemsRemovedPush({
+  display_id,
+  shop,
+  items,
+  refund,
+  currency_code,
+}: {
+  display_id: number
+  shop: string
+  items: RemovedItem[]
+  refund: number
+  currency_code: string
+}): BuyerPush {
+  const units = items.reduce((sum, item) => sum + item.quantity, 0)
+  const removed = items.length <= 2 ? items.map((item) => `${item.quantity} × ${item.title}`).join(" and ") : `${units} of your items`
+  return {
+    title: `Items removed from order #${display_id}`,
+    body: `${shop} didn't have ${removed}. You'll be refunded ${formatMoney(refund, currency_code)}.`,
+  }
+}
+
+/** The push telling the buyer a refund of their order has reached them (Paystack processed it). */
+export function refundCompletedPush({
+  display_id,
+  shop,
+  amount,
+  currency_code,
+}: {
+  display_id: number
+  shop: string
+  amount: number
+  currency_code: string
+}): BuyerPush {
+  return {
+    title: `Refund for order #${display_id} completed`,
+    body: `The refund of ${formatMoney(amount, currency_code)} from ${shop} has completed.`,
+  }
 }
