@@ -1,4 +1,4 @@
-import { reviewStatus, reviewTargets, reviewTitle } from '@oja/domain';
+import { reviewAction, reviewStatus, reviewTitle } from '@oja/domain';
 import { Button, StatusChip, Text, useTheme } from '@oja/ui';
 import { View } from 'react-native';
 
@@ -9,12 +9,13 @@ import { openWriteReview } from '@/navigation';
 /**
  * The buyer's reviews of a shop's order (#7), each with where it is in moderation (a pending
  * one says it waits to be checked) and the shop's reply once published; and, once the order is
- * received, a way to review what they haven't yet.
+ * received, a way to review it, or to edit the reviews once all are written: a buyer has one
+ * review of each shop and product, whichever order they wrote it on.
  */
 export function OrderReviews({ groupId, order }: Readonly<{ groupId: string; order: SellerOrder }>) {
   const theme = useTheme();
-  const toReview = order.can_review ? reviewTargets(order) : [];
-  if (!order.reviews.length && !toReview.length) return null;
+  const action = reviewAction(order);
+  if (!order.reviews.length && !action) return null;
   return (
     <View style={{ gap: theme.space.sm }}>
       {order.reviews.length ? <Text variant="label">Your reviews</Text> : null}
@@ -35,9 +36,9 @@ export function OrderReviews({ groupId, order }: Readonly<{ groupId: string; ord
           </View>
         );
       })}
-      {toReview.length ? (
+      {action ? (
         <Button
-          label={order.reviews.length ? 'Review the rest' : 'Review this order'}
+          label={action === 'edit' ? 'Edit your review' : order.reviews.length ? 'Review the rest' : 'Review this order'}
           variant="secondary"
           onPress={() => openWriteReview({ id: groupId }, order)}
         />

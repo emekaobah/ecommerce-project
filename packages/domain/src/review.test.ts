@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { FulfilmentState } from "./fulfilment"
-import { canReview, ratingSummary, reviewerName, reviewStatus, reviewTargets, reviewTitle } from "./review"
+import { canReview, ratingSummary, reviewerName, reviewAction, reviewForm, reviewStatus, reviewTitle } from "./review"
 
 describe("canReview", () => {
   test("lets the buyer review a shop's order once it is delivered", () => {
@@ -24,8 +24,12 @@ describe("canReview", () => {
   })
 })
 
-describe("reviewTargets", () => {
+const shopReview = { id: "rev_shop", reference: "seller" as const, reference_id: "sel_grocer", rating: 4, customer_note: "Fresh" }
+const riceReview = { id: "rev_rice", reference: "product" as const, reference_id: "prod_rice", rating: 5, customer_note: null }
+
+describe("reviewForm", () => {
   const order = {
+    can_review: true,
     seller: { id: "sel_grocer", name: "Mama Put Groceries" },
     items: [
       { product_id: "prod_rice", product_title: "Ofada Rice 5kg", quantity: 2 },
@@ -37,15 +41,25 @@ describe("reviewTargets", () => {
   }
 
   test("offers the shop, then each product the buyer received once, as the order lists them", () => {
-    expect(reviewTargets(order)).toEqual([
-      { reference: "seller", reference_id: "sel_grocer", title: "Mama Put Groceries" },
-      { reference: "product", reference_id: "prod_rice", title: "Ofada Rice 5kg" },
+    expect(reviewForm(order)).toEqual([
+      { reference: "seller", reference_id: "sel_grocer", title: "Mama Put Groceries", review: null },
+      { reference: "product", reference_id: "prod_rice", title: "Ofada Rice 5kg", review: null },
     ])
   })
 
-  test("leaves out what the buyer already reviewed on the order", () => {
-    const reviewed = { ...order, reviews: [{ reference: "seller" as const, reference_id: "sel_grocer" }] }
-    expect(reviewTargets(reviewed).map((t) => t.reference_id)).toEqual(["prod_rice"])
+  test("carries the buyer's review of each, whichever order they wrote it on, to edit", () => {
+    expect(reviewForm({ ...order, reviews: [shopReview] }).map((t) => t.review?.id ?? null)).toEqual(["rev_shop", null])
+  })
+
+  test("asks the buyer to review a received order, and to edit once every review is written", () => {
+    expect(reviewAction(order)).toBe("write")
+    expect(reviewAction({ ...order, reviews: [shopReview] })).toBe("write")
+    expect(reviewAction({ ...order, reviews: [shopReview, riceReview] })).toBe("edit")
+  })
+
+  test("asks nothing until the order is received", () => {
+    expect(reviewAction({ ...order, can_review: false })).toBeNull()
+    expect(reviewAction({ ...order, can_review: false, reviews: [shopReview] })).toBeNull()
   })
 })
 

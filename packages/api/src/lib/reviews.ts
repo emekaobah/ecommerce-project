@@ -2,7 +2,7 @@ import { canReview, reviewerName, type ReviewKind, type ReviewStatus, type Revie
 import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import OrderReviewLink from "@mercurjs/core/links/order-review"
+import CustomerReviewLink from "@mercurjs/core/links/customer-review"
 import type { ReviewDTO } from "@mercurjs/types"
 import { fulfilmentsOf } from "./order-fulfilment"
 
@@ -20,9 +20,10 @@ type ReviewableOrderRow = {
 
 /**
  * Refuses a review the buyer may not write: of another buyer's order (not found), of a shop's
- * order before it reached its terminal success state (`canReview`), or of a target the order
- * didn't bring them: a shop other than the order's, or a product they didn't receive on it.
- * Mercur's create workflow then checks the target isn't already reviewed on the order.
+ * order before it reached its terminal success state (`canReview`), of a target the order didn't
+ * bring them (a shop other than the order's, or a product they didn't receive on it), or of a
+ * target they already reviewed, on any order: a buyer has one review of each shop and product,
+ * and edits it (Mercur refuses a second review on one order the same way).
  */
 export async function assertReviewable(
   scope: Scope,
@@ -49,6 +50,11 @@ export async function assertReviewable(
   if (!ofOrder) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, `This order has no ${reference} ${reference_id} to review`)
   }
+
+  if ((await buyerReviews(scope, customer_id)).has(subjectKey({ reference, reference_id }))) {
+    const what = reference === "seller" ? "this shop" : "this product"
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, `You've already reviewed ${what}. Edit your review instead.`)
+  }
 }
 
 /**
@@ -63,8 +69,7 @@ export type BuyerReview = ReviewSubject & {
   status: ReviewStatus
 }
 
-type OrderReviewRow = {
-  order_id: string
+type ReviewLinkRow = {
   review?: {
     id: string
     reference: ReviewKind
@@ -105,14 +110,18 @@ export async function authorReviews(
   return { reviews: (data as unknown as ReviewDTO[]).map(asAuthorSees), metadata }
 }
 
-/** The reviews written on each of the orders, by order id; an order not listed has none. */
-export async function reviewsOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, BuyerReview[]>> {
-  if (!orderIds.length) return new Map()
+/** A subject's key in a map of the buyer's reviews. */
+export const subjectKey = ({ reference, reference_id }: ReviewSubject) => `${reference}:${reference_id}`
+
+/**
+ * The buyer's reviews, by what each is of (`subjectKey`): one per shop and per product, whichever
+ * order it was written on (#7).
+ */
+export async function buyerReviews(scope: Scope, customerId: string): Promise<Map<string, BuyerReview>> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
-    entity: OrderReviewLink.entryPoint,
+    entity: CustomerReviewLink.entryPoint,
     fields: [
-      "order_id",
       "review.id",
       "review.reference",
       "review.rating",
@@ -122,29 +131,28 @@ export async function reviewsOfOrders(scope: Scope, orderIds: string[]): Promise
       "review.product.id",
       "review.seller.id",
     ],
-    filters: { order_id: orderIds },
+    filters: { customer_id: customerId },
   })
-  const byOrder = new Map<string, BuyerReview[]>()
-  for (const { order_id, review } of data as unknown as OrderReviewRow[]) {
+  const bySubject = new Map<string, BuyerReview>()
+  for (const { review } of data as unknown as ReviewLinkRow[]) {
     // A deleted review keeps its link.
     if (!review) continue
     const reference_id = (review.reference === "product" ? review.product : review.seller)?.id
     if (!reference_id) continue
-    const reviews = byOrder.get(order_id) ?? []
-    reviews.push(
+    const subject = { reference: review.reference, reference_id }
+    bySubject.set(
+      subjectKey(subject),
       asAuthorSees({
         id: review.id,
-        reference: review.reference,
-        reference_id,
+        ...subject,
         rating: Number(review.rating),
         customer_note: review.customer_note,
         seller_note: review.seller_note,
         status: review.status,
       })
     )
-    byOrder.set(order_id, reviews)
   }
-  return byOrder
+  return bySubject
 }
 
 /** A published review as any buyer sees it: the reviewer by first name and initial only. */

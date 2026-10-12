@@ -29,10 +29,14 @@ export type ReviewSubject = { reference: ReviewKind; reference_id: string }
 /** Something on a received order the buyer can rate, named as the order names it. */
 export type ReviewTarget = ReviewSubject & { title: string }
 
+/** The buyer's own review of a shop or product, as their order carries it. */
+export type OwnReview = ReviewSubject & { id: string; rating: number; customer_note: string | null }
+
 type ReviewableOrder = {
   seller: { id: string; name: string }
   items: readonly { product_id: string | null; product_title: string | null; quantity: number }[]
-  reviews: readonly ReviewSubject[]
+  /** The buyer's reviews of the order's shop and products, whichever order each was written on. */
+  reviews: readonly OwnReview[]
 }
 
 /** The shop and each product the buyer received on the order (once, however many lines it's on). */
@@ -51,12 +55,23 @@ function receivedTargets(order: ReviewableOrder): ReviewTarget[] {
 
 const sameSubject = (a: ReviewSubject, b: ReviewSubject) => a.reference === b.reference && a.reference_id === b.reference_id
 
+/** A line of the review form: what to rate, and the buyer's review of it to edit, if they wrote one. */
+export type ReviewFormEntry = ReviewTarget & { review: OwnReview | null }
+
 /**
- * What the buyer can still review on a received order: the shop, then each product they got
- * (not one removed as unavailable), less what they reviewed.
+ * The review form for a received order: the shop, then each product the buyer got (not one
+ * removed as unavailable), each with the buyer's review of it if they already wrote one. A
+ * buyer has one review of each shop and product, whichever order they wrote it on, and edits it
+ * there rather than writing another: Oja sells everyday goods bought again and again.
  */
-export function reviewTargets(order: ReviewableOrder): ReviewTarget[] {
-  return receivedTargets(order).filter((t) => !order.reviews.some((r) => sameSubject(r, t)))
+export function reviewForm(order: ReviewableOrder): ReviewFormEntry[] {
+  return receivedTargets(order).map((t) => ({ ...t, review: order.reviews.find((r) => sameSubject(r, t)) ?? null }))
+}
+
+/** What the order offers: reviewing it, or editing the reviews once all are written; nothing until it's received. */
+export function reviewAction(order: ReviewableOrder & { can_review: boolean }): "write" | "edit" | null {
+  if (!order.can_review) return null
+  return reviewForm(order).some((entry) => !entry.review) ? "write" : "edit"
 }
 
 /** What a review on the order is of, as the order names it. */

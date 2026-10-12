@@ -30,6 +30,11 @@ medusaIntegrationTestRunner({
   env: {},
   testSuite: ({ api, getContainer }) => {
     const buyer = buyerCheckout({ api, getContainer, clerk, paystack })
+    // A buyer reviews each shop and product once, so ratings of several reviews need several buyers.
+    const [ben, chi, dee] = ["ben", "chi", "dee"].map((name) =>
+      buyerCheckout({ api, getContainer, clerk, paystack, email: `${name}@oja.test` })
+    )
+    type Buyer = typeof buyer
     let admin: RequestConfig
 
     beforeAll(async () => {
@@ -40,7 +45,7 @@ medusaIntegrationTestRunner({
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
     beforeEach(async () => {
       shipbubble.reset()
-      await buyer.load()
+      await Promise.all([buyer, ben, chi, dee].map((b) => b.load()))
     })
 
     const status = (request: Promise<unknown>) =>
@@ -58,10 +63,10 @@ medusaIntegrationTestRunner({
       return data[0].id as string
     }
 
-    /** A new paid checkout of Ada's: the lantern from the gadget hub, rice from the grocery. */
-    const paidOrders = async () => {
-      const { cartId } = await buyer.paidCheckout()
-      return { gadgets: await buyer.shopOrderId(GADGETS, cartId), grocery: await buyer.shopOrderId(GROCERY, cartId), cartId }
+    /** A new paid checkout of the buyer's (Ada's by default): the lantern from the gadget hub, rice from the grocery. */
+    const paidOrders = async (who: Buyer = buyer) => {
+      const { cartId } = await who.paidCheckout()
+      return { gadgets: await who.shopOrderId(GADGETS, cartId), grocery: await who.shopOrderId(GROCERY, cartId), cartId }
     }
     /** Takes the grocery's order all the way: accepted, picked, packed, handed to the courier and delivered. */
     const deliver = async (orderId: string) => {
@@ -77,9 +82,9 @@ medusaIntegrationTestRunner({
       await shipbubbleSays(waybill, "picked_up")
       await shipbubbleSays(waybill, "completed")
     }
-    /** Ada's checkout, with the grocery's order of it delivered. */
-    const deliveredGrocery = async () => {
-      const orders = await paidOrders()
+    /** The buyer's (Ada's by default) checkout, with the grocery's order of it delivered. */
+    const deliveredGrocery = async (who: Buyer = buyer) => {
+      const orders = await paidOrders(who)
       await deliver(orders.grocery)
       return orders
     }
@@ -88,8 +93,14 @@ medusaIntegrationTestRunner({
     const reviewShop = async (orderId: string, shop: Shop, rating = 5, note: string | null = null, as: RequestConfig = buyer.ada()) =>
       (await review({ order_id: orderId, reference: "seller", reference_id: await buyer.sellerId(shop), rating, customer_note: note }, as))
         .data.review
-    const reviewProduct = async (orderId: string, title: string, rating = 5, note: string | null = null) =>
-      (await review({ order_id: orderId, reference: "product", reference_id: await productId(title), rating, customer_note: note }))
+    const reviewProduct = async (
+      orderId: string,
+      title: string,
+      rating = 5,
+      note: string | null = null,
+      as: RequestConfig = buyer.ada()
+    ) =>
+      (await review({ order_id: orderId, reference: "product", reference_id: await productId(title), rating, customer_note: note }, as))
         .data.review
 
     describe("writing a review", () => {
@@ -127,13 +138,23 @@ medusaIntegrationTestRunner({
         expect(await status(reviewShop(grocery, GROCERY, 5, null, { headers: buyer.headers() }))).toBe(401)
       })
 
-      it("takes one review of each shop and product per order", async () => {
-        const { grocery } = await deliveredGrocery()
-        await reviewShop(grocery, GROCERY)
-        await reviewProduct(grocery, RICE.title)
+      it("takes one review of each shop and product per buyer, whatever the order, and points them to edit it", async () => {
+        const first = await deliveredGrocery()
+        const later = await deliveredGrocery()
+        await reviewShop(first.grocery, GROCERY)
+        await reviewProduct(first.grocery, RICE.title)
 
-        expect(await status(reviewShop(grocery, GROCERY))).toBe(400)
-        expect(await status(reviewProduct(grocery, RICE.title))).toBe(400)
+        const refusal = (attempt: Promise<unknown>) => attempt.then(() => undefined, (e: any) => e.response)
+        const refusals = [
+          await refusal(reviewShop(first.grocery, GROCERY)),
+          await refusal(reviewShop(later.grocery, GROCERY)),
+          await refusal(reviewProduct(later.grocery, RICE.title)),
+        ]
+
+        for (const refused of refusals) {
+          expect(refused?.status).toBe(400)
+          expect(refused?.data.message).toMatch(/edit your review/i)
+        }
       })
     })
 
@@ -144,12 +165,12 @@ medusaIntegrationTestRunner({
     const productReviews = async (title: string, query = "") =>
       (await api.get(`/store/products/${await productId(title)}/reviews${query}`, { headers: buyer.headers() })).data
 
-    /** Two published reviews of the grocery, rated 5 then 2. */
+    /** Two published reviews of the grocery: Ada's rated 5, then Ben's rated 2. */
     const twoPublishedShopReviews = async () => {
       const first = await deliveredGrocery()
-      const second = await deliveredGrocery()
+      const second = await deliveredGrocery(ben)
       const great = await reviewShop(first.grocery, GROCERY, 5, "Great")
-      const poor = await reviewShop(second.grocery, GROCERY, 2, "Late")
+      const poor = await reviewShop(second.grocery, GROCERY, 2, "Late", ben.ada())
       await moderate(great.id, "published")
       await moderate(poor.id, "published")
       return { first, second, great, poor }
@@ -159,12 +180,12 @@ medusaIntegrationTestRunner({
     describe("the public reviews", () => {
       it("show a shop's and a product's published reviews only, newest first, with their average and count", async () => {
         const { first, second, great, poor } = await twoPublishedShopReviews()
-        const third = await deliveredGrocery()
-        const fourth = await deliveredGrocery()
-        await reviewShop(third.grocery, GROCERY, 1, "Still waiting for moderation")
-        const rejected = await reviewShop(fourth.grocery, GROCERY, 1, "Rude words")
+        const third = await deliveredGrocery(chi)
+        const fourth = await deliveredGrocery(dee)
+        await reviewShop(third.grocery, GROCERY, 1, "Still waiting for moderation", chi.ada())
+        const rejected = await reviewShop(fourth.grocery, GROCERY, 1, "Rude words", dee.ada())
         const rice = await reviewProduct(first.grocery, RICE.title, 4, "Good rice")
-        await reviewProduct(second.grocery, RICE.title, 1)
+        await reviewProduct(second.grocery, RICE.title, 1, null, ben.ada())
         await moderate(rejected.id, "rejected")
         await moderate(rice.id, "published")
 
@@ -256,6 +277,22 @@ medusaIntegrationTestRunner({
         ])
         expect(published.reviews).toEqual([
           expect.objectContaining({ id: shopReview.id, status: "published", seller_note: "Thank you!" }),
+        ])
+      })
+    })
+
+    describe("a later order", () => {
+      it("shows the buyer's review of its shop or product from an earlier order, to edit rather than write again", async () => {
+        const first = await deliveredGrocery()
+        const shopReview = await reviewShop(first.grocery, GROCERY, 4, "Fresh")
+        const later = await deliveredGrocery()
+
+        const { data } = await api.get(`/store/order-history/${await buyer.orderGroupOf(later.cartId)}`, buyer.ada())
+        const order = data.order_group.orders.find((o: any) => o.id === later.grocery)
+
+        expect(order.can_review).toBe(true)
+        expect(order.reviews).toEqual([
+          expect.objectContaining({ id: shopReview.id, reference: "seller", rating: 4, status: "pending" }),
         ])
       })
     })

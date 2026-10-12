@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { reviewTargets, type ReviewTarget } from '@oja/domain';
+import { reviewAction, reviewForm, type ReviewFormEntry, type ReviewSubject } from '@oja/domain';
 import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
@@ -13,11 +13,17 @@ import { StarInput } from '@/components/reviews';
 const NOTE_LIMIT = 300;
 
 type Draft = { rating: number; note: string };
-const key = (t: Pick<ReviewTarget, 'reference' | 'reference_id'>) => `${t.reference}:${t.reference_id}`;
+const key = (s: ReviewSubject) => `${s.reference}:${s.reference_id}`;
+const draftFrom = (entry: ReviewFormEntry): Draft => ({
+  rating: entry.review?.rating ?? 0,
+  note: entry.review?.customer_note ?? '',
+});
 
 /**
  * Reviewing a received shop's order (#7): the shop and each product on it, each rated from one
- * to five with an optional note. Only what the buyer rates is sent; each waits for moderation.
+ * to five with an optional note. A buyer has one review of each shop and product: one they
+ * already wrote, on this order or an earlier one, is filled in to edit. Only what the buyer rated
+ * or changed is sent, and each waits for moderation.
  */
 export function WriteReviewScreen({ groupId, orderId }: Readonly<{ groupId: string; orderId: string }>) {
   const { userId } = useAuth();
@@ -28,52 +34,62 @@ export function WriteReviewScreen({ groupId, orderId }: Readonly<{ groupId: stri
   }
   if (!group.data) return <LoadingState />;
   const order = group.data.orders.find((o) => o.id === orderId);
-  const targets = order ? reviewTargets(order) : [];
-  if (!order || !order.can_review || !targets.length) {
+  if (!order || !reviewAction(order)) {
     return (
       <EmptyState
-        title={order?.can_review ? 'All reviewed' : 'Not ready for review'}
-        message={
-          order?.can_review
-            ? "You've reviewed everything on this order."
-            : 'You can review an order once you have received it.'
-        }
+        title="Not ready for review"
+        message="You can review an order once you have received it."
         action={{ label: 'Back to the order', onPress: () => router.back() }}
       />
     );
   }
-  return <ReviewForm order={order} targets={targets} />;
+  return <ReviewForm order={order} entries={reviewForm(order)} />;
 }
 
-function ReviewForm({ order, targets }: Readonly<{ order: SellerOrder; targets: ReviewTarget[] }>) {
+function ReviewForm({ order, entries }: Readonly<{ order: SellerOrder; entries: ReviewFormEntry[] }>) {
   const theme = useTheme();
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
+    Object.fromEntries(entries.map((entry) => [key(entry), draftFrom(entry)])),
+  );
   const submit = useSubmitReviews();
-  const draftOf = (t: ReviewTarget): Draft => drafts[key(t)] ?? { rating: 0, note: '' };
-  const update = (t: ReviewTarget, change: Partial<Draft>) =>
-    setDrafts((current) => ({ ...current, [key(t)]: { ...draftOf(t), ...change } }));
+  const update = (entry: ReviewFormEntry, change: Partial<Draft>) =>
+    setDrafts((current) => ({ ...current, [key(entry)]: { ...current[key(entry)]!, ...change } }));
 
-  const rated: ReviewDraft[] = targets.flatMap((t) => {
-    const { rating, note } = draftOf(t);
-    return rating ? [{ reference: t.reference, reference_id: t.reference_id, rating, customer_note: note.trim() || null }] : [];
+  // New reviews the buyer rated, and their reviews they changed.
+  const toSend: ReviewDraft[] = entries.flatMap((entry) => {
+    const { rating, note } = drafts[key(entry)]!;
+    const unchanged = rating === draftFrom(entry).rating && note === draftFrom(entry).note;
+    if (!rating || unchanged) return [];
+    return [
+      {
+        reference: entry.reference,
+        reference_id: entry.reference_id,
+        reviewId: entry.review?.id ?? null,
+        rating,
+        customer_note: note.trim() || null,
+      },
+    ];
   });
+  const editing = entries.every((entry) => entry.review);
 
   return (
     <>
-      <Stack.Screen options={{ title: `Review ${order.seller.name}` }} />
+      <Stack.Screen options={{ title: editing ? 'Edit your review' : `Review ${order.seller.name}` }} />
       <ScrollView
         style={{ backgroundColor: theme.colors.background }}
         contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg, paddingBottom: theme.space.xxl }}
         keyboardShouldPersistTaps="handled">
         <Text tone="secondary">
-          {"Rate what you'd like to. We check every review before it's published, so other buyers see it once it is."}
+          {
+            "You review each shop and product once, and can edit it after a later order. We check every review, and every edit, before other buyers see it."
+          }
         </Text>
-        {targets.map((target) => (
-          <TargetReview
-            key={key(target)}
-            target={target}
-            draft={draftOf(target)}
-            onChange={(change) => update(target, change)}
+        {entries.map((entry) => (
+          <EntryReview
+            key={key(entry)}
+            entry={entry}
+            draft={drafts[key(entry)]!}
+            onChange={(change) => update(entry, change)}
           />
         ))}
         {submit.error ? (
@@ -82,34 +98,39 @@ function ReviewForm({ order, targets }: Readonly<{ order: SellerOrder; targets: 
           </Text>
         ) : null}
         <Button
-          label={rated.length > 1 ? `Send ${rated.length} reviews` : 'Send review'}
-          disabled={!rated.length}
+          label={editing ? 'Save changes' : 'Send review'}
+          disabled={!toSend.length}
           loading={submit.isPending}
-          onPress={() => submit.mutate({ orderId: order.id, drafts: rated }, { onSuccess: () => router.back() })}
+          onPress={() => submit.mutate({ orderId: order.id, drafts: toSend }, { onSuccess: () => router.back() })}
         />
       </ScrollView>
     </>
   );
 }
 
-function TargetReview({
-  target,
+function EntryReview({
+  entry,
   draft,
   onChange,
-}: Readonly<{ target: ReviewTarget; draft: Draft; onChange: (change: Partial<Draft>) => void }>) {
+}: Readonly<{ entry: ReviewFormEntry; draft: Draft; onChange: (change: Partial<Draft>) => void }>) {
   const theme = useTheme();
-  const heading = target.reference === 'seller' ? `The shop: ${target.title}` : target.title;
+  const heading = entry.reference === 'seller' ? `The shop: ${entry.title}` : entry.title;
   return (
     <View style={{ gap: theme.space.sm }}>
       <Text variant="heading">{heading}</Text>
-      <StarInput value={draft.rating} onChange={(rating) => onChange({ rating })} label={`Rate ${target.title}`} />
+      {entry.review ? (
+        <Text variant="caption" tone="secondary">
+          Your review: change it here.
+        </Text>
+      ) : null}
+      <StarInput value={draft.rating} onChange={(rating) => onChange({ rating })} label={`Rate ${entry.title}`} />
       {draft.rating ? (
         <TextInput
           value={draft.note}
           onChangeText={(note) => onChange({ note })}
           placeholder="What stood out? (optional)"
           placeholderTextColor={theme.colors.textSecondary}
-          accessibilityLabel={`Your review of ${target.title} (optional)`}
+          accessibilityLabel={`Your review of ${entry.title} (optional)`}
           maxLength={NOTE_LIMIT}
           multiline
           style={[

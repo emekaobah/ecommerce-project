@@ -45,21 +45,28 @@ export function useReviewPages(kind: ReviewKind, id: string) {
   });
 }
 
-/** One review the buyer writes of a shop or product on their order. */
-export type ReviewDraft = ReviewSubject & { rating: number; customer_note: string | null };
+/**
+ * One review the buyer writes of a shop or product on their order, or an edit of the one they
+ * already wrote of it (`reviewId`), on this order or an earlier one.
+ */
+export type ReviewDraft = ReviewSubject & { reviewId: string | null; rating: number; customer_note: string | null };
+
+function sendReview(orderId: string, { reviewId, rating, customer_note, ...subject }: ReviewDraft) {
+  return reviewId
+    ? storeClient.store.reviews.$id.mutate({ $id: reviewId, rating, customer_note })
+    : storeClient.store.reviews.mutate({ order_id: orderId, ...subject, rating, customer_note });
+}
 
 /**
- * Submits the buyer's reviews of a received order, one per shop or product they rated. Each
- * waits for moderation, which the order then shows. Each is sent on its own, so when some fail
- * the error says the others were saved; the order shows which.
+ * Submits the buyer's new and edited reviews of a received order. Each waits for moderation,
+ * an edit again, which the order then shows. Each is sent on its own, so when some fail the
+ * error says the others were saved; the order shows which.
  */
 export function useSubmitReviews() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ orderId, drafts }: { orderId: string; drafts: ReviewDraft[] }) => {
-      const sent = await Promise.allSettled(
-        drafts.map((draft) => storeClient.store.reviews.mutate({ order_id: orderId, ...draft })),
-      );
+      const sent = await Promise.allSettled(drafts.map((draft) => sendReview(orderId, draft)));
       const failed = sent.flatMap((result) => (result.status === 'rejected' ? [result.reason as Error] : []));
       if (!failed.length) return;
       const saved = drafts.length - failed.length;
