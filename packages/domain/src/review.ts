@@ -8,9 +8,9 @@ import type { StatusView } from "./order-history"
 
 /**
  * The states a shop's order ends in once the buyer has it: the fulfilment's terminal success.
- * A delivery ends Delivered; a pickup path (#12) adds its own end here.
+ * A delivery ends Delivered; an in-store pickup (#12) ends Collected.
  */
-const RECEIVED: ReadonlySet<FulfilmentState> = new Set<FulfilmentState>(["delivered"])
+const RECEIVED: ReadonlySet<FulfilmentState> = new Set<FulfilmentState>(["delivered", "collected"])
 
 /**
  * Whether the buyer may review a shop's order (the shop, and the products on it): only once the

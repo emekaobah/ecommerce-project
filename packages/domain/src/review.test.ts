@@ -3,8 +3,9 @@ import type { FulfilmentState } from "./fulfilment"
 import { canReview, ratingSummary, reviewerName, reviewAction, reviewForm, reviewStatus, reviewTitle } from "./review"
 
 describe("canReview", () => {
-  test("lets the buyer review a shop's order once it is delivered", () => {
+  test("lets the buyer review a shop's order once it is delivered, or collected in store", () => {
     expect(canReview("delivered")).toBe(true)
+    expect(canReview("collected")).toBe(true)
   })
 
   test("refuses every state before the buyer has the order, and a rejected order", () => {
@@ -19,6 +20,7 @@ describe("canReview", () => {
       "courier_confirmed",
       "handed_to_courier",
       "in_transit",
+      "ready_for_pickup",
     ]
     for (const state of before) expect(canReview(state)).toBe(false)
   })

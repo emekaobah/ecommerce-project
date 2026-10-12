@@ -438,6 +438,22 @@ medusaIntegrationTestRunner({
         expect(transfer).toMatchObject({ amount: kobo(goods) - Math.round(kobo(goods) / 10) })
       })
 
+      it("lets the buyer review the shop once the order is collected, not while ready for pickup (#7)", async () => {
+        const { orderId, groupId } = await pickupOrder()
+        await packed(orderId)
+        const reviewShop = async () =>
+          api.post("/store/reviews", { order_id: orderId, reference: "seller", reference_id: await sellerId(GROCERY), rating: 5 }, ada())
+        const ready = await adasOrder(groupId, orderId)
+        const tooEarly = await status(reviewShop())
+
+        await collect(orderId, ready.pickup.code)
+
+        expect(ready.can_review).toBe(false)
+        expect(tooEarly).toBe(400)
+        expect((await adasOrder(groupId, orderId)).can_review).toBe(true)
+        expect((await reviewShop()).data.review).toMatchObject({ reference: "seller", rating: 5, status: "pending" })
+      })
+
       it("refuses a wrong code, and the sixth wrong try within 15 minutes even with the right code", async () => {
         const { orderId, groupId } = await pickupOrder()
         await packed(orderId)
