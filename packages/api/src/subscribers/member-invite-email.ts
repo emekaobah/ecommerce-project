@@ -1,13 +1,14 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MemberInviteWorkflowEvents } from "@mercurjs/core/workflows"
+import { sendEmail } from "../lib/email"
 
 type InviteCreated = { id: string; token: string }
 
 // Mercur creates staff invites (owner → Settings → Users in the vendor panel)
 // and emits an event, but sends nothing: this emails the invitee the vendor
 // panel's accept link. Emails go out on the "email" channel, whose provider is
-// configured in medusa-config.
+// configured in medusa-config; one that can't be sent is logged, and the owner can resend it.
 export default async function memberInviteEmailHandler({
   event,
   container,
@@ -30,9 +31,9 @@ export default async function memberInviteEmailHandler({
     const inviteUrl = `${vendorUrl}/invite?token=${encodeURIComponent(token)}`
     const sellerName = seller?.name ?? "a shop"
     const roleName = role?.name ?? invite.role_id
-    await container.resolve(Modules.NOTIFICATION).createNotifications({
+    await sendEmail(container, {
+      about: `the invite ${id}`,
       to: invite.email,
-      channel: "email",
       template: "member-invite",
       data: { invite_url: inviteUrl, seller_name: sellerName, role: roleName },
       content: {

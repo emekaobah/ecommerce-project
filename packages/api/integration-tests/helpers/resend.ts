@@ -7,11 +7,13 @@ export type SentEmail = { from: string; to: string | string[]; subject: string; 
 /**
  * Stands in for Resend's API: the backend's `RESEND_API_URL` points here. It accepts every email
  * sent with its API key, answers with an id as Resend does, and records each email for tests to
- * inspect.
+ * inspect. It refuses emails to an address it is told to, as Resend's test sender refuses every
+ * address but the account's own.
  */
 export function fakeResend(port: number) {
   const apiKey = `re_${randomUUID().replaceAll("-", "")}`
   const emails: SentEmail[] = []
+  const refused = new Set<string>()
   let server: Server | undefined
 
   const readBody = async (req: IncomingMessage) => {
@@ -24,7 +26,11 @@ export function fakeResend(port: number) {
     if (req.headers.authorization !== `Bearer ${apiKey}`) {
       return { status: 401, body: { statusCode: 401, name: "validation_error", message: "API key is invalid" } }
     }
-    emails.push((await readBody(req)) as SentEmail)
+    const email = (await readBody(req)) as SentEmail
+    if ([email.to].flat().some((to) => refused.has(to))) {
+      return { status: 403, body: { statusCode: 403, name: "validation_error", message: "You can only send testing emails to your own email address" } }
+    }
+    emails.push(email)
     return { status: 200, body: { id: randomUUID() } }
   }
 
@@ -48,8 +54,13 @@ export function fakeResend(port: number) {
     stop: () => new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve())),
     /** Every email sent to this address, oldest first. */
     sentTo: (address: string) => emails.filter((e) => [e.to].flat().includes(address)),
+    /** Resend refuses emails to this address. */
+    refuse: (address: string) => {
+      refused.add(address)
+    },
     reset: () => {
       emails.length = 0
+      refused.clear()
     },
   }
 }

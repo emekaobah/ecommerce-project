@@ -9,7 +9,7 @@ import {
   type StoredAddress,
 } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { ReactElement } from "react"
 import { DeliveryReceiptEmail } from "../emails/delivery-receipt"
 import { OrderConfirmationEmail } from "../emails/order-confirmation"
@@ -17,7 +17,7 @@ import type { EmailShopOrder } from "../emails/parts"
 import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
-import { errorMessage } from "./errors"
+import { sendEmail } from "./email"
 import { fulfilmentsOf } from "./order-fulfilment"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
@@ -104,18 +104,14 @@ async function emailBuyer(scope: Scope, to: string | null, email: { template: st
     logger.warn(`Not sending ${email.key}: the order has no email address`)
     return
   }
-  try {
-    const { html, text } = await renderEmail(email.body)
-    await scope.resolve(Modules.NOTIFICATION).createNotifications({
-      to,
-      channel: "email",
-      template: email.template,
-      content: { subject: email.subject, html, text },
-      idempotency_key: email.key,
-    })
-  } catch (error) {
-    logger.warn(`Emailing ${email.key} failed: ${errorMessage(error)}`)
-  }
+  const { html, text } = await renderEmail(email.body)
+  await sendEmail(scope, {
+    to,
+    template: email.template,
+    content: { subject: email.subject, html, text },
+    idempotency_key: email.key,
+    about: email.key,
+  })
 }
 
 /**

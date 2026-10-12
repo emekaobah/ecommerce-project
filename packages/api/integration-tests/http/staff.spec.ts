@@ -4,9 +4,17 @@ import { createOrderWorkflow } from "@medusajs/medusa/core-flows"
 import { SellerRole } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
+import memberInviteEmailHandler from "../../src/subscribers/member-invite-email"
 import { vendorHeaders } from "../helpers/auth"
+import { fakeResend } from "../helpers/resend"
 
 jest.setTimeout(5 * 60 * 1000)
+
+const resend = fakeResend(56000 + (process.pid % 1000))
+// Set before the runner loads medusa-config: invites go out through Resend.
+process.env.RESEND_API_KEY = resend.apiKey
+process.env.RESEND_API_URL = resend.apiUrl
+process.env.RESEND_FROM = "Oja <staff@oja.test>"
 
 medusaIntegrationTestRunner({
   inApp: true,
@@ -16,8 +24,11 @@ medusaIntegrationTestRunner({
 
     // Seeded once; the runner restores this snapshot before every test.
     beforeAll(async () => {
+      await resend.start()
       await seedDemoData({ container: getContainer(), args: [] } as any)
     })
+    afterAll(() => resend.stop())
+    beforeEach(() => resend.reset())
 
     const sellerId = async (shop: (typeof SEED_SELLERS)[number]) => {
       const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
@@ -77,6 +88,25 @@ medusaIntegrationTestRunner({
         expect(me.seller_member.rbac_role.id).toBe(SellerRole.ORDER_MANAGEMENT)
         expect(await status(api.get("/vendor/orders", ada))).toBe(200)
         expect(await status(api.get("/vendor/payouts", ada))).toBe(403)
+      })
+
+      it("logs an invite email Resend refuses, rather than failing", async () => {
+        resend.refuse("tunde@oja.test")
+        const owner = await signedIn(grocery.owner.email, grocery)
+        const { data } = await api.post(
+          `/vendor/sellers/${await sellerId(grocery)}/members`,
+          { email: "tunde@oja.test", role_id: SellerRole.ORDER_MANAGEMENT },
+          owner
+        )
+        const { id, token } = data.member_invite
+
+        const sent = memberInviteEmailHandler({
+          event: { name: "member_invite.created", data: { id, token } },
+          container: getContainer(),
+        } as any)
+
+        await expect(sent).resolves.toBeUndefined()
+        expect(resend.sentTo("tunde@oja.test")).toEqual([])
       })
     })
 
