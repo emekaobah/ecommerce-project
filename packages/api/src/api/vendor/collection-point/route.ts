@@ -1,5 +1,5 @@
 import type { MedusaResponse } from "@medusajs/framework/http"
-import { setCollectionPoint, vendorCollectionPoint, type VendorCollectionPoint } from "../../../lib/collection-point"
+import { removeCollectionPoint, setCollectionPoint, vendorCollectionPoint, type VendorCollectionPoint } from "../../../lib/collection-point"
 import { sellerOf, type VendorRequest } from "../offer-import/seller"
 import type { VendorSetCollectionPointType } from "./validators"
 
@@ -17,4 +17,9 @@ export const GET = async (req: VendorRequest, res: MedusaResponse<VendorCollecti
  */
 export const POST = async (req: VendorRequest<VendorSetCollectionPointType>, res: MedusaResponse<VendorCollectionPointResponse>) => {
   res.json(await setCollectionPoint(req.scope, sellerOf(req), req.validatedBody))
+}
+
+/** Stops the shop offering pickup. Refused while an order is still to be collected there. */
+export const DELETE = async (req: VendorRequest, res: MedusaResponse<VendorCollectionPointResponse>) => {
+  res.json(await removeCollectionPoint(req.scope, sellerOf(req)))
 }

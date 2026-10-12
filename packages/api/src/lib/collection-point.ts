@@ -1,8 +1,10 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { deleteShippingOptionsWorkflow } from "@medusajs/medusa/core-flows"
 import { createSellerShippingOptionsWorkflow } from "@mercurjs/core/workflows"
 import { addressFormValues, addressFromForm, getAddressConfig, toE164, type AddressFieldKey, type WeeklyHours } from "@oja/domain"
 import { COLLECTION_POINT_MODULE, type CollectionPointModuleService } from "../modules/collection-point"
+import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../modules/order-fulfilment"
 import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble"
 import type { PickupAddressInput } from "./onboarding"
 import { sellersWithHours, shopHoursOf } from "./shop-hours"
@@ -183,6 +185,35 @@ export async function setCollectionPoint(scope: MedusaContainer, sellerId: strin
   await ensurePickupOption(scope, sellerId)
   if (existing) await service(scope).updateCollectionPoints({ id: existing.id, ...row })
   else await service(scope).createCollectionPoints({ seller_id: sellerId, ...row })
+  return vendorCollectionPoint(scope, sellerId)
+}
+
+/** States a pickup order is still to be collected in. */
+const OPEN_PICKUP_STATES = ["new", "accepted", "picking", "partially_available", "ready_for_pickup"]
+
+/**
+ * Stops the shop offering pickup (owners and managers, #12): its collection point and its pickup
+ * shipping option go, so checkout no longer offers it, and a cart that had chosen it is delivered
+ * again. Refused while one of its orders is still to be collected: its buyer needs to know where.
+ */
+export async function removeCollectionPoint(scope: MedusaContainer, sellerId: string): Promise<VendorCollectionPoint> {
+  const open = await scope
+    .resolve<OrderFulfilmentModuleService>(ORDER_FULFILMENT_MODULE)
+    .listOrderFulfilments({ state: OPEN_PICKUP_STATES }, { select: ["order_id", "fulfilment"] })
+  // The model keeps the fulfilment as untyped JSON.
+  const pickupOrders = open.filter((r) => (r.fulfilment as { method?: string }).method === "pickup").map((r) => r.order_id)
+  const { data: theirs } = pickupOrders.length
+    ? await scope
+        .resolve(ContainerRegistrationKeys.QUERY)
+        .graph({ entity: "order_seller", fields: ["order_id"], filters: { order_id: pickupOrders, seller_id: sellerId } })
+    : { data: [] }
+  if (theirs.length) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Some pickup orders are still to collect here. Hand them over first.")
+  }
+  const options = (await sellerOptions(scope, [sellerId])).filter(isPickupOption).map((o) => o.id)
+  if (options.length) await deleteShippingOptionsWorkflow(scope).run({ input: { ids: options } })
+  const rows = await service(scope).listCollectionPoints({ seller_id: sellerId })
+  if (rows.length) await service(scope).deleteCollectionPoints(rows.map((r) => r.id))
   return vendorCollectionPoint(scope, sellerId)
 }
 

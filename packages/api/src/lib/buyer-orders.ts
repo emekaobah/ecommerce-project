@@ -73,7 +73,10 @@ function buyerFulfilment(record: FulfilmentRecord | undefined, order: PlacedOrde
  */
 export type BuyerPickup = CollectionPlace & { code: string | null }
 
-/** A shop keeps its collection point once set (#12), so a pickup order's shop always has one. */
+/**
+ * A shop removes its collection point only once none of its pickup orders is left to collect
+ * (#12), so an order still to collect has one; a collected order then shows its timeline alone.
+ */
 function buyerPickup(record: FulfilmentRecord | undefined, place: CollectionPlace | undefined): BuyerPickup | null {
   if (record?.fulfilment.method !== "pickup" || !place) return null
   return { ...place, code: record.fulfilment.state === "ready_for_pickup" ? record.pickup_code : null }

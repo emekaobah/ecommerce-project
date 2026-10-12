@@ -15,4 +15,5 @@ export const vendorCollectionPointMiddlewares: PolicedRoute[] = [
     middlewares: [validateAndTransformBody(VendorSetCollectionPoint)],
     policies: MAY_CHANGE_SHOP,
   },
+  { method: ["DELETE"], matcher: "/vendor/collection-point", middlewares: [], policies: MAY_CHANGE_SHOP },
 ]

@@ -201,6 +201,8 @@
     "phone": "Phone number for buyers",
     "hours": "Open during your shop's opening hours.",
     "save": "Save collection point",
+    "removeHelp": "Stop offering pickup: buyers then get only delivery from you. You can't while an order is still to be collected.",
+    "remove": "Stop offering pickup",
     "pin": {
       "title": "Where do buyers collect?",
       "help": "Drag the pin, or click the map, to where buyers come for their orders."

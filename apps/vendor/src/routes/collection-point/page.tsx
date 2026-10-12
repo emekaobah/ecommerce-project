@@ -113,6 +113,10 @@ const CollectionPointForm = ({
       }),
     onSuccess: onSaved,
   })
+  const remove = useMutation({
+    mutationFn: () => client.vendor.collectionPoint.delete(),
+    onSuccess: onSaved,
+  })
   const countryCode = onboarding.data?.country_code
   const addressConfig = countryCode ? getAddressConfig(countryCode) : null
 
@@ -182,6 +186,23 @@ const CollectionPointForm = ({
         <Text size="small" className="text-ui-fg-error">
           {t("shopSetup.pickup.noCountry")}
         </Text>
+      )}
+      {saved && (
+        <div className="flex flex-col gap-y-2 border-t pt-4">
+          <Text size="small" className="text-ui-fg-subtle">
+            {t("collectionPoint.removeHelp")}
+          </Text>
+          {remove.isError && (
+            <Text size="small" className="text-ui-fg-error" aria-live="polite">
+              {remove.error.message}
+            </Text>
+          )}
+          <div>
+            <Button size="small" variant="danger" isLoading={remove.isPending} onClick={() => remove.mutate()}>
+              {t("collectionPoint.remove")}
+            </Button>
+          </div>
+        </div>
       )}
     </Container>
   )

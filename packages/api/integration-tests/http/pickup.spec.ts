@@ -503,5 +503,40 @@ medusaIntegrationTestRunner({
         expect(await status(post(GROCERY, `${orderId}/book-label`))).toBe(400)
       })
     })
+
+    describe("removing the collection point", () => {
+      beforeEach(() => setCollectionPoint(GROCERY))
+      const remove = async (as?: unknown) => api.delete("/vendor/collection-point", as ?? (await owner(GROCERY)))
+
+      it("stops the shop offering pickup, even to a cart that had chosen it", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId, { shipping_address: ADDRESS, pickup: [await sellerId(GROCERY)] })
+
+        const { data } = await remove()
+
+        expect(data).toEqual({ collection_point: null, has_hours: true })
+        const { data: again } = await api.get(`/store/carts/${cartId}/checkout`, ada())
+        expect(await shopIn(again.checkout, GROCERY)).toMatchObject({ method: "delivery", pickup: null })
+        expect(again.checkout.ready_to_pay).toBe(false)
+        expect(await status(prepare(cartId, { shipping_address: ADDRESS, pickup: [await sellerId(GROCERY)] }))).toBe(400)
+        const { data: delivered } = await prepare(cartId, { shipping_address: ADDRESS })
+        expect(await shopIn(delivered.checkout, GROCERY)).toMatchObject({ method: "delivery", shipping: { amount: BEST_VALUE_FEE } })
+      })
+
+      it("is refused while an order is still to be collected there", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId, { shipping_address: ADDRESS, pickup: [await sellerId(GROCERY)] })
+        await pay(cartId)
+
+        const refused = await errorOf(remove())
+
+        expect(refused).toEqual({ status: 400, message: expect.stringMatching(/to collect/i) })
+        expect((await api.get("/vendor/collection-point", await owner(GROCERY))).data.collection_point).not.toBeNull()
+      })
+
+      it("is for owners and managers only", async () => {
+        expect(await status(remove(await staff(GROCERY)))).toBe(403)
+      })
+    })
   },
 })
