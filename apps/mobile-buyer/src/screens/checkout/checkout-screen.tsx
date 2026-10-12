@@ -23,7 +23,7 @@ import {
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useSaveAddress, useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
 import {
@@ -40,7 +40,8 @@ import { isAlreadyPaid } from '@/api/errors';
 import { AddressCard } from '@/components/address/address-card';
 import { AddressEntry } from '@/components/address/address-entry';
 import { AddressForm } from '@/components/address/address-form';
-import { PickupDetails, RadioOption } from '@/components/pickup';
+import { PickupDetails } from '@/components/pickup';
+import { RadioOption } from '@/components/radio-option';
 import { useAddressDraft } from '@/components/address/use-address-draft';
 import { ToggleRow } from '@/components/toggle-row';
 import { useCartSession } from '@/cart/cart-provider';
@@ -595,26 +596,19 @@ function SavedAddressPicker({
         const address = checkoutAddressOf(saved, countryCode);
         const selected = choosing ? savedAddressFor([saved], choosing, countryCode) !== null : saved.id === chosenId;
         return (
-          <Pressable
+          <RadioOption
             key={saved.id}
-            accessibilityRole="radio"
-            accessibilityState={{ selected, disabled: busy }}
+            selected={selected}
             disabled={busy}
-            onPress={() => (address ? onChoose(address) : onPin(saved))}
-            style={{
-              minHeight: theme.touchTarget,
-              padding: theme.space.md,
-              gap: theme.space.sm,
-              borderRadius: theme.radius.md,
-              borderColor: selected ? theme.colors.ink : theme.colors.divider,
-              borderWidth: selected ? 2 : 1,
-            }}>
-            <AddressCard
-              address={saved}
-              badge={saved.is_default_shipping ? <StatusChip label="Default" tone="info" /> : null}
-            />
-            {address ? null : <Text tone="accent">Place its pin on the map to deliver here</Text>}
-          </Pressable>
+            onPress={() => (address ? onChoose(address) : onPin(saved))}>
+            <View style={{ gap: theme.space.sm }}>
+              <AddressCard
+                address={saved}
+                badge={saved.is_default_shipping ? <StatusChip label="Default" tone="info" /> : null}
+              />
+              {address ? null : <Text tone="accent">Place its pin on the map to deliver here</Text>}
+            </View>
+          </RadioOption>
         );
       })}
       {error ? (
@@ -671,17 +665,17 @@ function ShopSummary({
       {group.pickup && sellerId ? (
         <View style={{ gap: theme.space.sm }} accessibilityRole="radiogroup" accessibilityLabel={`How to get ${group.seller?.name}'s order`}>
           <RadioOption
-            label="Delivery"
             selected={group.method === 'delivery'}
             disabled={choosingMethod}
-            onPress={() => group.method !== 'delivery' && onChooseMethod(sellerId, 'delivery')}
-          />
+            onPress={() => group.method !== 'delivery' && onChooseMethod(sellerId, 'delivery')}>
+            <Text variant="label">Delivery</Text>
+          </RadioOption>
           <RadioOption
-            label="Pickup · Free"
             selected={group.method === 'pickup'}
             disabled={choosingMethod}
-            onPress={() => group.method !== 'pickup' && onChooseMethod(sellerId, 'pickup')}
-          />
+            onPress={() => group.method !== 'pickup' && onChooseMethod(sellerId, 'pickup')}>
+            <Text variant="label">Pickup · Free</Text>
+          </RadioOption>
         </View>
       ) : null}
       {group.method === 'pickup' && group.pickup ? (
@@ -737,21 +731,12 @@ function DeliveryChoices({
         const selected = choice.id === chosenId;
         const arrives = deliveryEstimate(choice.delivery_eta_time, now, choice.time_zone);
         return (
-          <Pressable
+          <RadioOption
             key={choice.id}
-            accessibilityRole="radio"
-            accessibilityState={{ selected, disabled: choose.isPending }}
+            selected={selected}
             disabled={choose.isPending}
             onPress={() => {
               if (!selected) choose.mutate({ sellerId, choiceId: choice.id });
-            }}
-            style={{
-              minHeight: theme.touchTarget,
-              padding: theme.space.md,
-              gap: theme.space.xs,
-              borderRadius: theme.radius.md,
-              borderColor: selected ? theme.colors.ink : theme.colors.divider,
-              borderWidth: selected ? 2 : 1,
             }}>
             <View style={styles.spread}>
               <Text variant="label" style={styles.shrink}>
@@ -762,7 +747,7 @@ function DeliveryChoices({
             <Text tone="secondary">
               {arrives} · {choice.courier_name}
             </Text>
-          </Pressable>
+          </RadioOption>
         );
       })}
       {choose.error ? (

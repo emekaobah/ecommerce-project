@@ -2,7 +2,7 @@ import { openingHoursLines, type WeeklyHours } from '@oja/domain';
 import { Text, useTheme } from '@oja/ui';
 import qrcode from 'qrcode-generator';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 /** A collection point's address, as checkout and the order show it. */
 type PickupAddress = {
@@ -49,39 +49,6 @@ export function PickupDetails({ place, note }: Readonly<{ place: PickupPlace; no
   );
 }
 
-/** One option of a radio group, outlined in ink when chosen. */
-export function RadioOption({
-  label,
-  detail,
-  selected,
-  disabled,
-  onPress,
-}: Readonly<{ label: string; detail?: string; selected: boolean; disabled?: boolean; onPress: () => void }>) {
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={{
-        minHeight: theme.touchTarget,
-        padding: theme.space.md,
-        gap: theme.space.xs,
-        borderRadius: theme.radius.md,
-        borderColor: selected ? theme.colors.ink : theme.colors.divider,
-        borderWidth: selected ? 2 : 1,
-      }}>
-      <View style={styles.spread}>
-        <Text variant="label" style={styles.shrink}>
-          {label}
-        </Text>
-        {detail ? <Text variant="label">{detail}</Text> : null}
-      </View>
-    </Pressable>
-  );
-}
-
 /**
  * The code to collect a pickup order with: its digits, and a QR code of them for the counter to
  * scan. Drawn from plain views, so no native module is needed.
@@ -119,6 +86,4 @@ export function PickupCode({ code }: Readonly<{ code: string }>) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
-  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
-  shrink: { flexShrink: 1 },
 });
