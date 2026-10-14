@@ -1,8 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { offerIdOf } from "./cart-lines"
-import { fromSubunit } from "../modules/paystack/client"
-import { adjustmentTotals, taxRateOf } from "./discount-funding"
+import { discountsByCode } from "./discount-funding"
 import { perishableProductIds } from "./perishable"
 import { shopStatusesOf, type ShopStatusView } from "./shop-hours"
 
@@ -112,17 +111,6 @@ async function sellersByOffer(scope: MedusaContainer, offerIds: string[]): Promi
   return byOffer
 }
 
-/** What each code takes off the line, VAT included. */
-function discountsOf(row: ItemRow): CartDiscount[] {
-  const adjustments = (row.adjustments ?? []).map((a) => ({ amount: Number(a.amount), is_tax_inclusive: a.is_tax_inclusive }))
-  const totals = adjustmentTotals({ tax_rate: taxRateOf(row.tax_lines), adjustments })
-  const byCode = new Map<string, number>()
-  ;(row.adjustments ?? []).forEach((a, i) => {
-    if (a.code) byCode.set(a.code, (byCode.get(a.code) ?? 0) + totals[i]!)
-  })
-  return [...byCode].map(([code, subunits]) => ({ code, amount: fromSubunit(Math.round(subunits)) }))
-}
-
 function toItem(row: ItemRow, offerId: string | null, perishable: boolean): CartItem {
   const quantity = Number(row.quantity)
   const unitPrice = Number(row.unit_price)
@@ -139,7 +127,7 @@ function toItem(row: ItemRow, offerId: string | null, perishable: boolean): Cart
     compare_at_unit_price: row.compare_at_unit_price == null ? null : Number(row.compare_at_unit_price),
     is_tax_inclusive: !!row.is_tax_inclusive,
     subtotal: unitPrice * quantity,
-    discounts: discountsOf(row),
+    discounts: discountsByCode(row),
     perishable,
   }
 }

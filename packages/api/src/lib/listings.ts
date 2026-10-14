@@ -1,5 +1,11 @@
 import type { ComputeActionContext, MedusaContainer } from "@medusajs/framework/types"
-import { ComputedActions, ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import {
+  ApplicationMethodTargetType,
+  ComputedActions,
+  ContainerRegistrationKeys,
+  MedusaError,
+  Modules,
+} from "@medusajs/framework/utils"
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
 import { ProductStatus } from "@mercurjs/types"
 import type { ShopDeal } from "@oja/domain"
@@ -414,7 +420,7 @@ async function dealsOf(
       p.seller &&
       sellerIds.has(p.seller.id) &&
       p.application_method &&
-      p.application_method.target_type !== "shipping_methods" &&
+      p.application_method.target_type !== ApplicationMethodTargetType.SHIPPING_METHODS &&
       (!p.application_method.currency_code || p.application_method.currency_code === region.currency_code)
   )
   const withDeals = groups.filter((g) => promotions.some((p) => p.seller!.id === g.seller.id))

@@ -48,6 +48,26 @@ export function adjustmentTotals(line: { tax_rate: number; adjustments: Omit<Adj
   )
 }
 
+/** A line or delivery with its adjustments as the cart holds them. */
+export type CodedDiscounts = {
+  tax_lines?: { rate: number | string }[] | null
+  adjustments?: { code: string | null; amount: number | string; is_tax_inclusive: boolean | null }[] | null
+}
+
+/** What each code takes off a line or delivery, VAT included. */
+export function discountsByCode({ tax_lines, adjustments = [] }: CodedDiscounts): { code: string; amount: number }[] {
+  const rows = adjustments ?? []
+  const totals = adjustmentTotals({
+    tax_rate: taxRateOf(tax_lines),
+    adjustments: rows.map((a) => ({ amount: Number(a.amount), is_tax_inclusive: a.is_tax_inclusive })),
+  })
+  const byCode = new Map<string, number>()
+  rows.forEach((a, i) => {
+    if (a.code) byCode.set(a.code, (byCode.get(a.code) ?? 0) + totals[i]!)
+  })
+  return [...byCode].map(([code, subunits]) => ({ code, amount: fromSubunit(Math.round(subunits)) }))
+}
+
 /**
  * What Oja funds of the discounts on what the buyer kept: its share of each line's discounts,
  * for the units still on the order. A line's discounts stay as they were for the units it was

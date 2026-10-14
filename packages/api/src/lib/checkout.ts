@@ -21,10 +21,9 @@ import type { PaystackSessionData } from "../modules/paystack/service"
 import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData } from "../modules/shipbubble"
 import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-promotions"
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
-import { fromSubunit } from "../modules/paystack/client"
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
-import { adjustmentTotals, taxRateOf } from "./discount-funding"
+import { discountsByCode } from "./discount-funding"
 import {
   collectionPlacesOf,
   collectionPointsOf,
@@ -456,9 +455,7 @@ async function cartPromotions(scope: MedusaContainer, cart: CartRow, sellers: Ca
   const add = (code: string, amount: number) => amounts.set(code, (amounts.get(code) ?? 0) + amount)
   for (const discount of sellers.flatMap((g) => g.items.flatMap((i) => i.discounts))) add(discount.code, discount.amount)
   for (const method of cart.shipping_methods ?? []) {
-    const adjustments = (method.adjustments ?? []).map((a) => ({ amount: Number(a.amount), is_tax_inclusive: a.is_tax_inclusive }))
-    const totals = adjustmentTotals({ tax_rate: taxRateOf(method.tax_lines), adjustments })
-    ;(method.adjustments ?? []).forEach((a, i) => a.code && add(a.code, fromSubunit(Math.round(totals[i]!))))
+    for (const discount of discountsByCode(method)) add(discount.code, discount.amount)
   }
   if (!amounts.size) return []
   const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
@@ -854,7 +851,7 @@ async function enteredCodes(scope: MedusaContainer, cart: CartRow): Promise<stri
   const { data } = await scope
     .resolve(ContainerRegistrationKeys.QUERY)
     .graph({ entity: "promotion", fields: ["code", "is_automatic"], filters: { code: codes } })
-  return (data as { code: string; is_automatic: boolean }[]).filter((p) => !p.is_automatic).map((p) => p.code)
+  return (data as unknown as { code: string; is_automatic: boolean }[]).filter((p) => !p.is_automatic).map((p) => p.code)
 }
 
 type CodeLookup = CodedPromotion & { id: string; is_automatic: boolean; seller?: { name: string } | null }

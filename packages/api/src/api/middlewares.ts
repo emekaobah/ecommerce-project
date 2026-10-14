@@ -14,7 +14,7 @@ import {
     StoreStartCheckoutPayment,
 } from "./store/carts/[id]/checkout/validators";
 import { promoCodesAtCheckout } from "./store/carts/[id]/checkout/promo-codes-at-checkout";
-import { shopsDontDiscountDelivery } from "./vendor/promotions/delivery-is-ojas";
+import { shopsDontDiscountDelivery } from "./vendor/promotions/shops-dont-discount-delivery";
 import { deliveryChosenAtCheckout } from "./store/carts/[id]/checkout/delivery-by-checkout";
 import { verifyPaystackSignature } from "./hooks/paystack-signature";
 import { verifyShipbubbleSignature } from "./hooks/shipbubble-signature";

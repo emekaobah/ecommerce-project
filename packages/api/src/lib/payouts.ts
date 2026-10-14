@@ -41,11 +41,11 @@ export type OrderPayout = {
 export function payoutOf({
   transactions,
   delivery,
-  ojaDiscount = 0,
+  ojaDiscount,
 }: {
   transactions: OrderTransaction[]
   delivery: number
-  ojaDiscount?: number
+  ojaDiscount: number
 }): OrderPayout {
   const sum = (reference: string) =>
     transactions.filter((t) => t.reference === reference).reduce((total, t) => total + toSubunit(Number(t.amount)), 0)
