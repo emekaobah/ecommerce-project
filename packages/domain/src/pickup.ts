@@ -37,11 +37,13 @@ export function openingHoursLines(weekly: WeeklyHours): string[] {
     if (last?.hours === hours) last.to = day
     else runs.push({ from: day, to: day, hours })
   }
-  return runs.map(({ from, to, hours }) => `${DAY_LABELS[from]}${from === to ? "" : `–${DAY_LABELS[to]}`} ${hours}`)
+  return runs.map(({ from, to, hours }) => `${dayRange(from, to)} ${hours}`)
 }
 
+const dayRange = (from: Weekday, to: Weekday) => (from === to ? DAY_LABELS[from] : `${DAY_LABELS[from]}–${DAY_LABELS[to]}`)
+
 /** Whether a typed or scanned code looks like a pickup code: six digits. */
-export const isPickupCodeFormat = (code: string) => new RegExp(`^\\d{${PICKUP_CODE_LENGTH}}$`).test(code)
+export const isPickupCodeFormat = (code: string) => new RegExp(String.raw`^\d{${PICKUP_CODE_LENGTH}}$`).test(code)
 
 /** An order's code, if issued, and when (ISO 8601) wrong codes were tried on it. */
 export type PickupCodeState = { code: string | null; wrongAttempts: string[] }
@@ -56,7 +58,7 @@ export type PickupCodeCheck =
 /** Compares in time independent of where the codes differ. */
 function sameCode(a: string, b: string) {
   let diff = a.length ^ b.length
-  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0)
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.codePointAt(i) ?? 0) ^ (b.codePointAt(i) ?? 0)
   return diff === 0
 }
 

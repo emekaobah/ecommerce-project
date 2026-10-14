@@ -77,7 +77,7 @@ const STEPS: Record<FulfilmentMethod, Record<Audience, Step[]>> = {
 }
 
 /** Where each path ends, every step done. */
-const FINAL: FulfilmentState[] = ["delivered", "collected"]
+const FINAL = new Set<FulfilmentState>(["delivered", "collected"])
 
 /**
  * The order's steps for the buyer or staff along its method's path: done up to the one it is at,
@@ -100,7 +100,7 @@ export function fulfilmentTimeline(
     states.includes("new") ? placed_at : (states.map((s) => reached[s]).find((at) => at != null) ?? null)
   return steps.map((step, i) => {
     if (i > current) return { label: step.label, status: "upcoming", at: null }
-    const status = i < current || FINAL.includes(state) ? "done" : "current"
+    const status = i < current || FINAL.has(state) ? "done" : "current"
     return { label: step.label, status, at: timeOf(step) }
   })
 }

@@ -128,7 +128,7 @@ export type CollectionPointInput = {
 const COLLECTION_PIN_NEEDED = "Place the pin on the map where buyers collect"
 
 /** Fields of the address form a collection point doesn't take: it names no person. */
-const NOT_ASKED: AddressFieldKey[] = ["first_name", "last_name", "phone"]
+const NOT_ASKED = new Set<string>(["first_name", "last_name", "phone"] satisfies AddressFieldKey[])
 
 /**
  * A separate collection point's address, checked against its country's form and needing the pin
@@ -148,7 +148,7 @@ function separateAddress(form: PickupAddressInput | null | undefined): StoredAdd
   const result = pin ? addressFromForm(values, country, pin) : addressFromForm(values, country)
   const problems = result.ok
     ? []
-    : Object.entries(result.errors).flatMap(([key, problem]) => (NOT_ASKED.includes(key as AddressFieldKey) ? [] : [problem]))
+    : Object.entries(result.errors).flatMap(([key, problem]) => (NOT_ASKED.has(key) ? [] : [problem]))
   if (!pin) problems.push(COLLECTION_PIN_NEEDED)
   if (problems.length) throw new MedusaError(MedusaError.Types.INVALID_DATA, `${problems.join(". ")}.`)
   const columns = Object.fromEntries(

@@ -87,6 +87,22 @@ export function CheckoutScreen() {
   return <CheckoutForm cartId={cartId} checkout={checkout.data} countryCode={countryCode} />;
 }
 
+/**
+ * The shops the buyer chose to collect from (#12), and whether a set of chosen shops means every
+ * order is collected. A shop checkout switched to pickup itself (fresh items no courier brings in
+ * time) isn't chosen: it is quoted for delivery again. It stays collected while nothing else is
+ * delivered, and checkout then needs no address.
+ */
+function pickupChoice(checkout: Checkout) {
+  const pickupShops = (switched: boolean) =>
+    checkout.sellers.flatMap((g) => (g.seller && g.method === 'pickup' && !!g.pickup_note === switched ? [g.seller.id] : []));
+  const chosenPickup = pickupShops(false);
+  const switchedToPickup = new Set(pickupShops(true));
+  const collectsAll = (ids: string[]) =>
+    checkout.sellers.every((g) => g.seller && (ids.includes(g.seller.id) || switchedToPickup.has(g.seller.id)));
+  return { chosenPickup, collectsAll };
+}
+
 function CheckoutForm({
   cartId,
   checkout,
@@ -119,12 +135,7 @@ function CheckoutForm({
       countryCode,
     });
 
-  // The shops the buyer chose to collect from (#12). One checkout switched to pickup itself (fresh
-  // items no courier brings in time) isn't among them: it is quoted for delivery again.
-  const chosenPickup = checkout.sellers.flatMap((g) => (g.seller && g.method === 'pickup' && !g.pickup_note ? [g.seller.id] : []));
-  // Those switched stay collected while nothing else is delivered: checkout then needs no address.
-  const switchedToPickup = checkout.sellers.flatMap((g) => (g.seller && g.method === 'pickup' && g.pickup_note ? [g.seller.id] : []));
-  const collectsAll = (ids: string[]) => checkout.sellers.every((g) => g.seller && (ids.includes(g.seller.id) || switchedToPickup.includes(g.seller.id)));
+  const { chosenPickup, collectsAll } = pickupChoice(checkout);
   /** A change of method waiting for what checkout needs first: an address, or the buyer's details. */
   const [pendingPickup, setPendingPickup] = useState<string[] | null>(null);
   const pickup = pendingPickup ?? chosenPickup;
@@ -189,7 +200,8 @@ function CheckoutForm({
     });
   };
   const [editingContact, setEditingContact] = useState(false);
-  const editing = everyCollected ? editingContact || !checkout.contact || !!pendingPickup : step !== 'chosen';
+  const editingDetails = editingContact || !checkout.contact || !!pendingPickup;
+  const editing = everyCollected ? editingDetails : step !== 'chosen';
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -295,7 +307,7 @@ function ContactDetails({
 }>) {
   const theme = useTheme();
   const config = getAddressConfig(countryCode);
-  const fields = { ...config, fields: config.fields.filter((f) => CONTACT_FIELDS.includes(f.key)) };
+  const fields = { ...config, fields: config.fields.filter((f) => CONTACT_FIELDS.has(f.key)) };
   const [values, setValues] = useState<AddressFormValues>({
     first_name: contact?.first_name ?? '',
     last_name: contact?.last_name ?? '',
@@ -304,7 +316,7 @@ function ContactDetails({
   const [errors, setErrors] = useState<AddressFormErrors>({});
   const save = () => {
     const checked = addressFromForm(values, countryCode);
-    const problems = checked.ok ? {} : Object.fromEntries(Object.entries(checked.errors).filter(([key]) => CONTACT_FIELDS.includes(key as AddressFieldKey)));
+    const problems = checked.ok ? {} : Object.fromEntries(Object.entries(checked.errors).filter(([key]) => CONTACT_FIELDS.has(key)));
     const phone = toE164(values.phone ?? '', countryCode);
     if (Object.keys(problems).length || !phone) return setErrors(problems);
     onSave({ first_name: values.first_name!.trim(), last_name: values.last_name!.trim(), phone });
@@ -333,14 +345,14 @@ function ContactDetails({
           ) : null}
           <Button label="Continue" onPress={save} loading={saving} />
         </>
-      ) : contact ? (
-        <Text>{`${contact.first_name} ${contact.last_name} · ${contact.phone}`}</Text>
-      ) : null}
+      ) : (
+        contact && <Text>{`${contact.first_name} ${contact.last_name} · ${contact.phone}`}</Text>
+      )}
     </View>
   );
 }
 
-const CONTACT_FIELDS: AddressFieldKey[] = ['first_name', 'last_name', 'phone'];
+const CONTACT_FIELDS = new Set<string>(['first_name', 'last_name', 'phone'] satisfies AddressFieldKey[]);
 
 /** Each shop's part of the order, then the order's totals. */
 function CheckoutSummary({
@@ -532,7 +544,7 @@ function PriceChanges({ changes, currencyCode }: Readonly<{ changes: PriceChange
           {priceChangeMessage(change, currencyCode)}
         </Text>
       ))}
-      <Text tone="secondary">The total below is what you'll pay.</Text>
+      <Text tone="secondary">{"The total below is what you'll pay."}</Text>
     </View>
   );
 }

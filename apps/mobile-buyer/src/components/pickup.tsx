@@ -60,7 +60,11 @@ export function PickupCode({ code }: Readonly<{ code: string }>) {
     qr.addData(code);
     qr.make();
     const count = qr.getModuleCount();
-    return Array.from({ length: count }, (_, row) => Array.from({ length: count }, (_, col) => qr.isDark(row, col)));
+    // A module's place in the grid is what it is, so it keys it.
+    return Array.from({ length: count }, (_, row) => ({
+      key: `row-${row}`,
+      cells: Array.from({ length: count }, (_, col) => ({ key: `${row}:${col}`, dark: qr.isDark(row, col) })),
+    }));
   }, [code]);
   const size = 6;
   return (
@@ -69,10 +73,10 @@ export function PickupCode({ code }: Readonly<{ code: string }>) {
         accessible
         accessibilityLabel={`QR code of your pickup code ${code.split('').join(' ')}`}
         style={{ padding: size * 4, backgroundColor: '#FFFFFF' }}>
-        {modules.map((row, r) => (
-          <View key={r} style={styles.row}>
-            {row.map((dark, c) => (
-              <View key={c} style={{ width: size, height: size, backgroundColor: dark ? '#000000' : '#FFFFFF' }} />
+        {modules.map((row) => (
+          <View key={row.key} style={styles.row}>
+            {row.cells.map((cell) => (
+              <View key={cell.key} style={{ width: size, height: size, backgroundColor: cell.dark ? '#000000' : '#FFFFFF' }} />
             ))}
           </View>
         ))}

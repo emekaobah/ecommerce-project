@@ -29,7 +29,8 @@ export type BuyerPushOrder = {
 /** Where and when to collect a pickup order, for its Ready for pickup push. */
 function collectFrom(shop: string, { address, weekly }: BuyerPushPickup) {
   const place = [address.address_1, address.address_2, address.city].filter(Boolean).join(", ")
-  const where = `Collect it from ${shop}, ${place}${address.landmark ? ` (${address.landmark})` : ""}.`
+  const landmark = address.landmark ? ` (${address.landmark})` : ""
+  const where = `Collect it from ${shop}, ${place}${landmark}.`
   return weekly ? `${where} Hours: ${openingHoursLines(weekly).join("; ")}.` : where
 }
 
