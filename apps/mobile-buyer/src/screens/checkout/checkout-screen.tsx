@@ -33,6 +33,7 @@ import {
   useStartPayment,
   type Checkout,
   type CheckoutContact,
+  type CheckoutPreparation,
   type CheckoutSellerGroup,
 } from '@/api/checkout';
 import { useCustomer } from '@/api/customer';
@@ -103,6 +104,20 @@ function pickupChoice(checkout: Checkout) {
   return { chosenPickup, collectsAll };
 }
 
+/**
+ * What checkout can be prepared with once the buyer changes which shops they collect from: their
+ * details when every order is collected, else the cart's address. Null while it lacks that.
+ */
+function preparationFor(
+  pickup: string[],
+  allCollected: boolean,
+  contact: CheckoutContact | null,
+  cartAddress: PinnedDeliveryAddress | null,
+): CheckoutPreparation | null {
+  if (allCollected) return contact ? { contact, pickup } : null;
+  return cartAddress ? { shippingAddress: cartAddress, pickup } : null;
+}
+
 function CheckoutForm({
   cartId,
   checkout,
@@ -160,9 +175,8 @@ function CheckoutForm({
   const chooseMethod = (sellerId: string, method: 'delivery' | 'pickup') => {
     const next = method === 'pickup' ? [...chosenPickup, sellerId] : chosenPickup.filter((id) => id !== sellerId);
     const allCollected = collectsAll(next);
-    const contact = checkout.contact ?? contactOf(customer.data);
-    if (allCollected && contact) return prepare.mutate({ contact, pickup: next });
-    if (!allCollected && cartAddress) return prepare.mutate({ shippingAddress: cartAddress, pickup: next });
+    const ready = preparationFor(next, allCollected, checkout.contact ?? contactOf(customer.data), cartAddress);
+    if (ready) return prepare.mutate(ready);
     // Checkout needs the buyer's details, or an address, first.
     setPendingPickup(next);
     if (!allCollected) setBuyerStep(hasSaved ? 'choosing' : 'entering');
