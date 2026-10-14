@@ -20,7 +20,7 @@ Facts that shaped the decision (checked 2026-10-06):
 
 Pushes go through the notification module. We do not build a separate push service. Our provider (`src/modules/expo-push`) is registered for a `push` channel. A notification is one device: `to` is the Expo push token, `content.subject` and `content.text` are the title and body, and `data` is what the app reads when the push is tapped. The notification's `external_id` is Expo's ticket id.
 
-Code that pushes (`src/lib/shop-push.ts`) works out who should be told and which of their devices to use, then calls `createNotifications` once per device. Email will use the same module on the `email` channel, so a status change can be sent to both channels from one place.
+Code that pushes (`src/lib/shop-push.ts`, and `src/lib/buyer-notifications.tsx` for buyers, #5) works out who should be told and which of their devices to use, then sends to them through `pushToDevices` (`src/lib/push-devices.ts`), which calls `createNotifications` once per device. Email will use the same module on the `email` channel, so a status change can be sent to both channels from one place.
 
 ### One token per device, owned by whoever registered it last
 
@@ -41,5 +41,5 @@ Every push has an idempotency key `<kind>:<order id>:<device token>`. An event c
 - Adding a channel (email, SMS) means adding a provider. Code that pushes does not change.
 - Sending one notification per device costs one notification-module transaction and one Expo request per device. A shop has a few devices, so this is cheap. It also means a refusal is known to belong to that device. For large fan-outs (marketing pushes) we would batch instead.
 - Idempotency depends on the notification module's check, which is not locked (Medusa notes this in its source). Two exactly simultaneous sends of the same event could both go out. We accept that.
-- The provider cannot reach the push-token module, because module isolation keeps them apart. So a `DeviceNotRegistered` refusal reaches `shop-push.ts` only as an error message, and it is matched on Expo's error code.
+- The provider cannot reach the push-token module, because module isolation keeps them apart. So a `DeviceNotRegistered` refusal reaches `push-devices.ts` only as an error message, and it is matched on Expo's error code.
 - If Expo cannot be asked for receipts when the job runs, that hour's dead devices are not found from receipts. The next push to such a device gets a `DeviceNotRegistered` ticket and removes it then.

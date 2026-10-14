@@ -7,8 +7,8 @@ const at = "2026-10-09T10:00:00.000Z"
 const hoursLater = (hours: number) => new Date(new Date(at).getTime() + hours * 60 * 60 * 1000)
 
 describe("handoverDisagreement", () => {
-  const tapped: Fulfilment = { state: "courier_confirmed", handover: { staff: { actor, at } } }
-  const pickedUp: Fulfilment = { state: "courier_confirmed", handover: { pickup: { at } } }
+  const tapped: Fulfilment = { method: "delivery", state: "courier_confirmed", handover: { staff: { actor, at } } }
+  const pickedUp: Fulfilment = { method: "delivery", state: "courier_confirmed", handover: { pickup: { at } } }
 
   test("staff handed over two hours ago and the courier hasn't reported the pickup: waiting for the courier", () => {
     expect(handoverDisagreement(tapped, hoursLater(2))).toEqual({ waiting_for: "courier", since: at })
@@ -23,14 +23,14 @@ describe("handoverDisagreement", () => {
   })
 
   test("isn't one before either half, or once both are in", () => {
-    expect(handoverDisagreement({ state: "courier_confirmed", handover: {} }, hoursLater(10))).toBeNull()
-    const handedOver: Fulfilment = { state: "handed_to_courier", handover: { staff: { actor, at }, pickup: { at } } }
+    expect(handoverDisagreement({ method: "delivery", state: "courier_confirmed", handover: {} }, hoursLater(10))).toBeNull()
+    const handedOver: Fulfilment = { method: "delivery", state: "handed_to_courier", handover: { staff: { actor, at }, pickup: { at } } }
     expect(handoverDisagreement(handedOver, hoursLater(10))).toBeNull()
   })
 })
 
 describe("handoverAlertDue", () => {
-  const tapped: Fulfilment = { state: "courier_confirmed", handover: { staff: { actor, at } } }
+  const tapped: Fulfilment = { method: "delivery", state: "courier_confirmed", handover: { staff: { actor, at } } }
 
   test("is due once the halves disagree and the owner hasn't been alerted", () => {
     expect(handoverAlertDue(tapped, null, hoursLater(2))).toEqual({ waiting_for: "courier", since: at })
@@ -43,7 +43,7 @@ describe("handoverAlertDue", () => {
   })
 
   test("isn't due once they agree, however long ago the last alert was", () => {
-    const handedOver: Fulfilment = { state: "handed_to_courier", handover: { staff: { actor, at }, pickup: { at } } }
+    const handedOver: Fulfilment = { method: "delivery", state: "handed_to_courier", handover: { staff: { actor, at }, pickup: { at } } }
     expect(handoverAlertDue(handedOver, hoursLater(2).toISOString(), hoursLater(100))).toBeNull()
   })
 })

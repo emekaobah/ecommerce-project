@@ -1,3 +1,4 @@
+import type { ReviewKind } from '@oja/domain';
 import { router } from 'expo-router';
 
 import type { Listing } from '@/api/listings';
@@ -15,6 +16,16 @@ export function openShop(seller: Pick<Listing['seller'], 'id'>) {
 /** Opens one of the buyer's order groups: each shop's order of a checkout. */
 export function openOrderGroup(group: { id: string }) {
   router.push({ pathname: '/order/[id]', params: { id: group.id } });
+}
+
+/** Opens every published review of a shop or product; the title names what they're of. */
+export function openReviews(kind: ReviewKind, id: string, title: string) {
+  router.push({ pathname: '/reviews', params: { kind, id, title } });
+}
+
+/** Opens the form to review one shop's order of an order group, once the buyer has received it (#7). */
+export function openWriteReview(group: { id: string }, order: { id: string }) {
+  router.push({ pathname: '/review/[id]', params: { id: order.id, group: group.id } });
 }
 
 /** Opens a category's listings; the name titles the screen before anything loads. */

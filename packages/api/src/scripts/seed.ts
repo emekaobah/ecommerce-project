@@ -77,6 +77,7 @@ import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../
 import { ADDRESS_CODE, addressCodeOf, validatedPickupChange } from "../lib/delivery";
 import { COMMISSION_PERCENT } from "../lib/payouts";
 import { registerBankAccount, type RegisteredBankAccount } from "../lib/onboarding";
+import { collectionPointsOf, PICKUP_OPTION_TYPE, setCollectionPoint } from "../lib/collection-point";
 import { sellersWithHours, setWeeklyHours } from "../lib/shop-hours";
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account";
 import { errorMessage } from "../lib/errors";
@@ -646,6 +647,7 @@ async function seedShipbubbleDelivery(
       "fulfillment_sets.service_zones.id",
       "fulfillment_sets.service_zones.shipping_options.id",
       "fulfillment_sets.service_zones.shipping_options.provider_id",
+      "fulfillment_sets.service_zones.shipping_options.type.code",
     ],
     filters: { id: locationId },
   });
@@ -656,8 +658,11 @@ async function seedShipbubbleDelivery(
     });
   }
   const serviceZone = location.fulfillment_sets![0]!.service_zones![0]!;
-  const options = (serviceZone.shipping_options ?? []) as { id: string; provider_id: string }[];
-  const flat = options.filter((o) => o.provider_id !== SHIPBUBBLE_PROVIDER_ID).map((o) => o.id);
+  const options = (serviceZone.shipping_options ?? []) as { id: string; provider_id: string; type?: { code?: string } | null }[];
+  // The shop's free pickup option (#12) stays: it is how its collection point reaches checkout.
+  const flat = options
+    .filter((o) => o.provider_id !== SHIPBUBBLE_PROVIDER_ID && o.type?.code !== PICKUP_OPTION_TYPE)
+    .map((o) => o.id);
   if (flat.length) await deleteShippingOptionsWorkflow(container).run({ input: { ids: flat } });
   if (options.some((o) => o.provider_id === SHIPBUBBLE_PROVIDER_ID)) return;
 
@@ -717,6 +722,13 @@ async function seedOnboarding(
       ? await validatedPickupChange(container, seller.id, {})
       : { metadata: { ...row.address!.metadata, [ADDRESS_CODE]: UNVALIDATED_ADDRESS_CODE } };
     await updateSellerAddressWorkflow(container).run({ input: { seller_id: seller.id, data: { metadata } } });
+  }
+
+  // A shop that offers pickup (#12) collects at its pickup address; one its owner changed since
+  // is left as it is.
+  const { collection_point } = seller.config;
+  if (collection_point && !(await collectionPointsOf(container, [seller.id])).has(seller.id)) {
+    await setCollectionPoint(container, seller.id, { follows_pickup_address: true, instructions: collection_point.instructions });
   }
 
   const [account] = await container

@@ -6,6 +6,7 @@ import { isNotFound } from '@/api/errors';
 import { useListings } from '@/api/listings';
 import { useShop, type Shop } from '@/api/shops';
 import { ListingRow } from '@/components/listing-row';
+import { ReviewsPreview } from '@/components/reviews';
 import { ShopFacts } from '@/components/shop-facts';
 import { ShopStatusBadge } from '@/components/shop-status';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -59,6 +60,12 @@ function ShopHeader({ shop }: Readonly<{ shop: Shop }>) {
       <ShopFacts seller={shop} />
       <ShopStatusBadge status={shop.shop_status} withNote />
       {shop.description ? <Text style={{ marginTop: theme.space.xs }}>{shop.description}</Text> : null}
+      <View style={{ marginTop: theme.space.md }}>
+        <ReviewsPreview kind="seller" id={shop.id} title={shop.name} />
+      </View>
+      <Text variant="heading" style={{ marginTop: theme.space.lg }}>
+        Products
+      </Text>
     </View>
   );
 }

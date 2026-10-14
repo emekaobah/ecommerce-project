@@ -1,15 +1,20 @@
-import type { ShopHours } from "@oja/domain"
+import { canReview, type ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
+import { collectionPlacesOf, type CollectionPlace } from "./collection-point"
 import {
   fulfilmentService,
   fulfilmentsOf,
   fulfilmentView,
+  METHOD_FIELDS,
+  methodOfOrder,
   type FulfilmentRecord,
   type FulfilmentView,
   type Picks,
+  type PlacedOrder,
 } from "./order-fulfilment"
+import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
 
 // The buyer's order history (#17): each checkout is an order group, split into one order per
@@ -48,17 +53,38 @@ export type BuyerOrder = {
   paid_total: number
   /** What has been refunded of it, and where that is; null while nothing has been. */
   refund: BuyerRefund | null
+  /** Where and when to collect a pickup order, and its code once ready (#12); null for a delivered order. */
+  pickup: BuyerPickup | null
+  /** Whether the buyer may review its shop and products (#7): once they have received it. */
+  can_review: boolean
+  /** The buyer's reviews of its shop and products, written on this order or an earlier one (one each), and where each is in moderation. */
+  reviews: BuyerReview[]
 }
 
 /**
  * An order's fulfilment as its buyer sees it (#25): its state, the courier's tracking link once
  * a label is booked, and its timeline in the buyer's steps. Not who at the shop handed it over.
  */
-export type BuyerFulfilmentView = Omit<FulfilmentView, "handover">
+export type BuyerFulfilmentView = Omit<FulfilmentView, "handover" | "collection">
 
-function buyerFulfilment(record: FulfilmentRecord | undefined, placedAt: Date | string, hours: ShopHours | null): BuyerFulfilmentView {
-  const { handover: _staffOnly, ...view } = fulfilmentView(record, placedAt, hours, { audience: "buyer" })
+function buyerFulfilment(record: FulfilmentRecord | undefined, order: PlacedOrder, hours: ShopHours | null): BuyerFulfilmentView {
+  const { handover: _staffOnly, collection: _alsoStaffOnly, ...view } = fulfilmentView(record, order, hours, { audience: "buyer" })
   return view
+}
+
+/**
+ * A pickup order's collection details as its buyer sees them: the shop's collection point, open
+ * the shop's hours, and the code to show at the counter, only while the order is Ready for pickup.
+ */
+export type BuyerPickup = CollectionPlace & { code: string | null }
+
+/**
+ * A shop removes its collection point only once none of its pickup orders is left to collect
+ * (#12), so an order still to collect has one; a collected order then shows its timeline alone.
+ */
+function buyerPickup(record: FulfilmentRecord | undefined, place: CollectionPlace | undefined): BuyerPickup | null {
+  if (record?.fulfilment.method !== "pickup" || !place) return null
+  return { ...place, code: record.fulfilment.state === "ready_for_pickup" ? record.pickup_code : null }
 }
 
 /** An order's refunds as its buyer sees them: what comes back, and how far it has got. */
@@ -119,6 +145,7 @@ const ORDER_FIELDS = [
   "credit_line_total",
   "transactions.amount",
   "transactions.reference",
+  ...METHOD_FIELDS,
 ]
 
 type GroupRow = { id: string; display_id: number; created_at: Date | string; orders?: ({ id: string } | null)[] | null }
@@ -136,7 +163,7 @@ export async function listBuyerOrderGroups(
     filters: { customer_id: customerId },
     pagination: { skip: page.offset, take: page.limit, order: { created_at: "DESC" } },
   })
-  return { order_groups: await withOrders(scope, data as unknown as GroupRow[]), count: metadata?.count ?? 0 }
+  return { order_groups: await withOrders(scope, customerId, data as unknown as GroupRow[]), count: metadata?.count ?? 0 }
 }
 
 /** One of the buyer's order groups; another buyer's is not found. */
@@ -147,14 +174,14 @@ export async function retrieveBuyerOrderGroup(scope: Scope, customerId: string, 
     fields: ["id", "display_id", "created_at", "orders.id"],
     filters: { id, customer_id: customerId },
   })
-  const [group] = await withOrders(scope, data as unknown as GroupRow[])
+  const [group] = await withOrders(scope, customerId, data as unknown as GroupRow[])
   if (!group) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order group with id ${id} was not found`)
   return group
 }
 
-async function withOrders(scope: Scope, groups: GroupRow[]): Promise<BuyerOrderGroup[]> {
+async function withOrders(scope: Scope, customerId: string, groups: GroupRow[]): Promise<BuyerOrderGroup[]> {
   const ids = groups.flatMap((g) => (g.orders ?? []).flatMap((o) => (o ? [o.id] : [])))
-  const orders = await buyerOrders(scope, ids)
+  const orders = await buyerOrders(scope, customerId, ids)
   return groups.map((g) => ({
     id: g.id,
     display_id: g.display_id,
@@ -166,26 +193,46 @@ async function withOrders(scope: Scope, groups: GroupRow[]): Promise<BuyerOrderG
   }))
 }
 
-async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, BuyerOrder>> {
+async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Promise<Map<string, BuyerOrder>> {
   if (!ids.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [{ data }, fulfilments, refunds] = await Promise.all([
+  const [{ data }, fulfilments, refunds, reviews] = await Promise.all([
     query.graph({ entity: "order", fields: ORDER_FIELDS, filters: { id: ids } }),
     fulfilmentsOf(scope, ids),
     fulfilmentService(scope).listOrderRefunds({ order_id: ids }),
+    buyerReviews(scope, customerId),
   ])
-  const hours = await shopHoursOf(scope, (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : [])))
+  const sellerIds = (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : []))
+  const [hours, places] = await Promise.all([shopHoursOf(scope, sellerIds), collectionPlacesOf(scope, sellerIds)])
   const refundsOf = (orderId: string) => refunds.filter((r) => r.order_id === orderId)
   return new Map(
-    (data as any[]).map((o) => [
-      o.id,
-      {
-        ...buyerOrder(o, fulfilments.get(o.id)?.removed ?? {}),
-        fulfilment: buyerFulfilment(fulfilments.get(o.id), o.created_at, hours.get(o.seller?.id) ?? null),
-        refund: buyerRefund(refundsOf(o.id)),
-      },
-    ])
+    (data as any[]).map((o) => {
+      const record = fulfilments.get(o.id)
+      const shopHours = hours.get(o.seller?.id) ?? null
+      return [
+        o.id,
+        {
+          ...buyerOrder(o, record?.removed ?? {}),
+          fulfilment: buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o) }, shopHours),
+          refund: buyerRefund(refundsOf(o.id)),
+          pickup: buyerPickup(record, places.get(o.seller?.id)),
+          // An order without a fulfilment row yet is New.
+          can_review: canReview(record?.state ?? "new"),
+          reviews: reviewsOf(o, reviews),
+        },
+      ]
+    })
   )
+}
+
+/** The buyer's reviews of the order's shop and of the products on it, whichever order each was written on. */
+function reviewsOf(o: any, reviews: Map<string, BuyerReview>): BuyerReview[] {
+  const productIds = new Set<string>((o.items ?? []).flatMap((i: any) => (i.product_id ? [i.product_id] : [])))
+  const subjects = [
+    ...(o.seller?.id ? [{ reference: "seller" as const, reference_id: o.seller.id as string }] : []),
+    ...[...productIds].map((reference_id) => ({ reference: "product" as const, reference_id })),
+  ]
+  return subjects.flatMap((subject) => reviews.get(subjectKey(subject)) ?? [])
 }
 
 /**
@@ -201,7 +248,7 @@ function paidTotal(o: any): number {
   return captures.reduce((sum, t) => sum + Number(t!.amount), 0)
 }
 
-function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund"> {
+function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund" | "pickup" | "can_review" | "reviews"> {
   return {
     id: o.id,
     display_id: o.display_id,

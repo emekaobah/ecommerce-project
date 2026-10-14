@@ -42,6 +42,8 @@ export type SeedSeller = {
   bank: { bank_code: string; bank_name: string; account_number: string }
   /** Weekly opening hours in the region's timezone (ADR 0004): a gate to going live. */
   hours: WeeklyHours
+  /** Where buyers collect in store, at the pickup address (#12); a shop without one only delivers. */
+  collection_point?: { instructions: string }
   owner: SeedPerson
   staff: SeedPerson
 }
@@ -112,6 +114,8 @@ export const SEED_SELLERS: SeedSeller[] = [
       sat: daily("10:00", "17:00"),
       sun: [],
     },
+    // Buyers can try on before collecting: the demo's pickup shop.
+    collection_point: { instructions: "Come up to the second floor and give your code at the counter." },
     owner: { email: "fashion.owner@oja.test", first_name: "Ngozi", last_name: "Okafor" },
     staff: { email: "fashion.staff@oja.test", first_name: "Chidi", last_name: "Eze" },
   },

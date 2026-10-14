@@ -14,18 +14,22 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse<S
 }
 
 /**
- * Sets the delivery address, reprices every line and adds each shop's delivery. `price_changes`
- * lists the lines whose shop's price changed, for the buyer to see.
+ * Reprices every line and sets how each shop's order reaches the buyer: the shops in `pickup`
+ * are collected in store (#12), the rest delivered to the address. `price_changes` lists the
+ * lines whose shop's price changed, for the buyer to see.
  */
 export const POST = async (
   req: AuthenticatedMedusaRequest<StorePrepareCheckoutType>,
   res: MedusaResponse<StorePrepareCheckoutResponse>
 ) => {
+  const { shipping_address, contact, pickup } = req.validatedBody
   res.json(
     await prepareCheckout(req.scope, {
       cartId: req.params.id,
       customerId: req.auth_context.actor_id,
-      shippingAddress: req.validatedBody.shipping_address,
+      shippingAddress: shipping_address,
+      contact,
+      pickup,
     })
   )
 }

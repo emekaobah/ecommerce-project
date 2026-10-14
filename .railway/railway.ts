@@ -56,6 +56,9 @@ const sharedVariables = [
   "S3_FILE_URL",
   // Sentry project DSN for the backend (#19); errors from the server and the worker.
   "SENTRY_DSN",
+  // Resend (#5): the API key, and the sender, an address on a domain verified in Resend.
+  "RESEND_API_KEY",
+  "RESEND_FROM",
 ] as const
 
 export default defineRailway((ctx) => {

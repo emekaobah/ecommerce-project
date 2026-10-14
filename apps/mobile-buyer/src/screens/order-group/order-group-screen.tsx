@@ -6,7 +6,9 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { Linking, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useOrderGroup, type OrderGroup, type SellerOrder } from '@/api/orders';
+import { OrderReviews } from '@/components/order-reviews';
 import { OrderStatusDetails, orderedAt } from '@/components/order-status';
+import { PickupCode, PickupDetails } from '@/components/pickup';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 /** A checkout: each shop's order of it, with its items, where it is, and the courier's tracking. */
@@ -40,7 +42,7 @@ export function OrderGroupScreen() {
           ) : null}
         </View>
         {group.data.orders.map((order) => (
-          <ShopOrder key={order.id} order={order} />
+          <ShopOrder key={order.id} groupId={group.data.id} order={order} />
         ))}
         {entry ? (
           <View style={[styles.spread, { paddingTop: theme.space.sm }]}>
@@ -53,7 +55,7 @@ export function OrderGroupScreen() {
   );
 }
 
-function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
+function ShopOrder({ groupId, order }: Readonly<{ groupId: string; order: SellerOrder }>) {
   const theme = useTheme();
   return (
     <View
@@ -68,6 +70,7 @@ function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
         <Text tone="secondary">#{order.display_id}</Text>
       </View>
       <OrderStatusDetails order={order} />
+      {order.pickup ? <Collection order={order} pickup={order.pickup} /> : null}
       <Tracking order={order} />
       {order.items.map((item) => (
         <View key={item.id} style={[styles.item, { gap: theme.space.md }]}>
@@ -88,9 +91,10 @@ function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
         </View>
       ))}
       <View style={styles.spread}>
-        <Text tone="secondary">Paid to this shop, with delivery</Text>
+        <Text tone="secondary">{order.pickup ? 'Paid to this shop' : 'Paid to this shop, with delivery'}</Text>
         <Text variant="label">{formatMoney(order.paid_total, order.currency_code)}</Text>
       </View>
+      <OrderReviews groupId={groupId} order={order} />
     </View>
   );
 }
@@ -113,6 +117,27 @@ function Tracking({ order }: Readonly<{ order: SellerOrder }>) {
       ) : null}
       {timeline.length ? <Timeline steps={timeline} /> : null}
     </>
+  );
+}
+
+/**
+ * A pickup order's collection (#12): where and when to collect it, and once it is Ready for
+ * pickup the code to show at the counter, with its QR code. Whoever shows the code collects it.
+ */
+function Collection({ order, pickup }: Readonly<{ order: SellerOrder; pickup: NonNullable<SellerOrder['pickup']> }>) {
+  const theme = useTheme();
+  const collected = order.fulfilment.state === 'collected';
+  return (
+    <View style={{ gap: theme.space.md, padding: theme.space.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }}>
+      <Text variant="label">{collected ? 'Collected in store' : 'Collect in store'}</Text>
+      {pickup.code ? (
+        <>
+          <PickupCode code={pickup.code} />
+          <Text tone="secondary">Show this code at the counter. Whoever has it can collect the whole order.</Text>
+        </>
+      ) : null}
+      {collected ? null : <PickupDetails place={pickup} note={pickup.code ? null : 'Your code appears here when the order is ready.'} />}
+    </View>
   );
 }
 

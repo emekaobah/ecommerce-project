@@ -3,6 +3,7 @@ import {
   fulfilmentTimeline,
   newFulfilment,
   type Fulfilment,
+  type FulfilmentMethod,
   type FulfilmentState,
   type Reached,
   type ShopHours,
@@ -10,6 +11,7 @@ import {
 } from "@oja/domain"
 import type { InferTypeOf, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { isPickupMethod } from "./collection-point"
 import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../modules/order-fulfilment"
 import type OrderFulfilment from "../modules/order-fulfilment/models/order-fulfilment"
 import type OrderRefund from "../modules/order-fulfilment/models/order-refund"
@@ -21,12 +23,31 @@ import type { OrderTransaction } from "./shop-order"
 
 type Scope = Pick<MedusaContainer, "resolve">
 
+/**
+ * Emitted whenever an order's fulfilment moves to another state, by whatever trigger, with
+ * `{ id, state }` (the order and the state it reached). The buyer is pushed about the states
+ * they care about (#5).
+ */
+export const ORDER_STATE_CHANGED = "order_fulfilment.state_changed"
+/**
+ * Emitted when units staff found unavailable are removed from an order (#22), with
+ * `{ id, amount, removed, at }`: the order, what the edit took off its total (which the buyer
+ * is refunded), the units removed of each line by line item id, and when (ISO 8601).
+ */
+export const ORDER_ITEMS_REMOVED = "order_fulfilment.items_removed"
+/** Emitted when Paystack has processed an order's refund, so the money has reached the buyer, with `{ id }` (the order refund). */
+export const ORDER_REFUND_PROCESSED = "order_refund.processed"
 /** Emitted when staff accept a new order, with `{ id }` (the order). */
 export const ORDER_ACCEPTED = "order_fulfilment.accepted"
 /** Emitted when a new order is rejected, by its shop or by the accept deadline, with `{ id, rejected_by }`. */
 export const ORDER_REJECTED = "order_fulfilment.rejected"
-/** Emitted when staff pack a picked order, ready for a courier label, with `{ id }` (the order). */
+/**
+ * Emitted when staff pack a picked order, with `{ id }` (the order): a delivery order is then
+ * ready for a courier label, a pickup order Ready for pickup with its code issued (#12).
+ */
 export const ORDER_PACKED = "order_fulfilment.packed"
+/** Emitted when a pickup order is handed over at the counter, and so may be paid out (#12), with `{ id }` (the order). */
+export const ORDER_COLLECTED = "order_fulfilment.collected"
 /** Emitted once when a new order nears its accept deadline unaccepted, with `{ id }` (the order). */
 export const ORDER_ACCEPT_DEADLINE_NEAR = "order_fulfilment.accept_deadline_near"
 /** Emitted when staff book a courier label for a packed order, with `{ id }` (the order). */
@@ -91,6 +112,10 @@ export type FulfilmentRecord = {
   payout_eligible_at: Date | null
   /** When the owner was last alerted that the handover's halves disagree (#25). */
   handover_alerted_at: Date | null
+  /** A pickup order's code, from Ready for pickup on (#12); never shown to staff. */
+  pickup_code: string | null
+  /** When wrong pickup codes were tried on the order (ISO 8601). */
+  pickup_code_attempts: string[] | null
 }
 
 export type OrderRefundRecord = InferTypeOf<typeof OrderRefund>
@@ -117,6 +142,8 @@ export async function orderOfShipment(scope: Scope, shipmentId: string): Promise
 
 /** What staff see of an order's fulfilment: its state, and while it is New, when it must be accepted by. */
 export type FulfilmentView = {
+  /** How the order reaches its buyer: by courier, or collected in store (#12). */
+  method: FulfilmentMethod
   state: FulfilmentState
   /**
    * ISO 8601; only while the order waits to be accepted. 24 of the shop's open hours after it
@@ -132,6 +159,11 @@ export type FulfilmentView = {
    * member who confirmed it and when, and when the courier reported picking it up (ISO 8601).
    */
   handover: { staff: { name: string | null; at: string } | null; picked_up_at: string | null } | null
+  /**
+   * A pickup order's handover at the counter, once collected (#12): the staff member who checked
+   * the code and when, and the name the collector gave.
+   */
+  collection: { staff: { name: string | null; at: string }; collected_by: string } | null
   /** The order's steps as staff (or its buyer) see them, done up to where it is. */
   timeline: TimelineStep[]
 }
@@ -141,21 +173,34 @@ function handoverOf(fulfilment: Fulfilment) {
   return "handover" in fulfilment ? fulfilment.handover : null
 }
 
+/** A collected pickup order's handover at the counter. */
+function collectionOf(fulfilment: Fulfilment) {
+  return "collection" in fulfilment ? fulfilment.collection : null
+}
+
 /** `names`: members' names by id, for who handed the order over; `audience`: whose steps the timeline shows. */
 export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
 
-/** `hours`: the shop's, which the accept deadline counts in; null for a shop without hours. */
+/** The order a fulfilment view is of: when it was placed, and how it was to reach its buyer. */
+export type PlacedOrder = { placed_at: Date | string; method: FulfilmentMethod }
+
+/**
+ * `order`: an order without a row yet is New, by the method it was placed with. `hours`: the
+ * shop's, which the accept deadline counts in; null for a shop without hours.
+ */
 export function fulfilmentView(
   record: FulfilmentRecord | undefined,
-  placedAt: Date | string,
+  order: PlacedOrder,
   hours: ShopHours | null,
   { names = new Map<string, string>(), audience = "staff" }: FulfilmentViewOptions = {}
 ): FulfilmentView {
-  const fulfilment = record?.fulfilment ?? newFulfilment()
+  const fulfilment = record?.fulfilment ?? newFulfilment(order.method)
   const shipment = record?.shipment
   const handover = handoverOf(fulfilment)
-  const placed_at = new Date(placedAt).toISOString()
+  const collection = collectionOf(fulfilment)
+  const placed_at = new Date(order.placed_at).toISOString()
   return {
+    method: fulfilment.method,
     state: fulfilment.state,
     accept_by: fulfilment.state === "new" ? acceptDeadline(placed_at, hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
@@ -172,14 +217,21 @@ export function fulfilmentView(
       staff: handover.staff ? { name: names.get(handover.staff.actor) ?? null, at: handover.staff.at } : null,
       picked_up_at: handover.pickup?.at ?? null,
     },
-    timeline: fulfilmentTimeline({ state: fulfilment.state, placed_at, reached: record?.reached ?? {} }, audience),
+    collection: collection && {
+      staff: { name: names.get(collection.actor) ?? null, at: collection.at },
+      collected_by: collection.collectedBy,
+    },
+    timeline: fulfilmentTimeline(
+      { method: fulfilment.method, state: fulfilment.state, placed_at, reached: record?.reached ?? {} },
+      audience
+    ),
   }
 }
 
-/** The names of the members who handed these orders over, by member id. */
+/** The names of the members who handed these orders over, to a courier or at the counter, by member id. */
 export async function handoverNames(scope: Scope, records: Iterable<FulfilmentRecord>): Promise<Map<string, string>> {
   const ids = [...records].flatMap((r) => {
-    const actor = handoverOf(r.fulfilment)?.staff?.actor
+    const actor = handoverOf(r.fulfilment)?.staff?.actor ?? collectionOf(r.fulfilment)?.actor
     return actor ? [actor] : []
   })
   if (!ids.length) return new Map()
@@ -253,8 +305,12 @@ export async function orderMoney(scope: Scope, orderId: string, payments: Paymen
 export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentView>> {
   if (!orderIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "order", fields: ["id", "created_at", "seller.id"], filters: { id: orderIds } })
-  const orders = data as { id: string; created_at: Date | string; seller?: { id: string } | null }[]
+  const { data } = await query.graph({
+    entity: "order",
+    fields: ["id", "created_at", "seller.id", ...METHOD_FIELDS],
+    filters: { id: orderIds },
+  })
+  const orders = data as unknown as (OrderWithMethods & { id: string; created_at: Date | string; seller?: { id: string } | null })[]
   const [records, hours] = await Promise.all([
     fulfilmentsOf(scope, orderIds),
     shopHoursOf(scope, orders.flatMap((o) => (o.seller ? [o.seller.id] : []))),
@@ -263,9 +319,41 @@ export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise
   return new Map(
     orders.map((o) => [
       o.id,
-      fulfilmentView(records.get(o.id), o.created_at, (o.seller && hours.get(o.seller.id)) || null, { names }),
+      fulfilmentView(
+        records.get(o.id),
+        { placed_at: o.created_at, method: methodOfOrder(o) },
+        (o.seller && hours.get(o.seller.id)) || null,
+        { names }
+      ),
     ])
   )
+}
+
+/** The order fields `methodOfOrder` reads. */
+export const METHOD_FIELDS = ["shipping_methods.data"]
+export type OrderWithMethods = { shipping_methods?: ({ data?: Record<string, unknown> | null } | null)[] | null }
+
+/** How an order was placed to reach its buyer: collected when its shipping method is its shop's pickup (#12). */
+export const methodOfOrder = (order: OrderWithMethods): FulfilmentMethod =>
+  (order.shipping_methods ?? []).some(isPickupMethod) ? "pickup" : "delivery"
+
+/** When the order was placed and how, to reach its buyer, read from the order itself; undefined for no such order. */
+export async function placedOrderOf(scope: Scope, orderId: string): Promise<{ placed_at: Date; method: FulfilmentMethod } | undefined> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "order", fields: ["created_at", ...METHOD_FIELDS], filters: { id: orderId } })
+  const order = data[0] as unknown as (OrderWithMethods & { created_at: Date | string }) | undefined
+  return order && { placed_at: new Date(order.created_at), method: methodOfOrder(order) }
+}
+
+/** The shop's orders Ready for pickup (#12), by when they became ready, longest waiting first. */
+export async function readyForPickup(scope: Scope, sellerId: string): Promise<string[]> {
+  const rows = (await fulfilmentService(scope).listOrderFulfilments({ state: "ready_for_pickup" })).map(asFulfilmentRecord)
+  const sellers = await sellersOfOrders(scope, rows.map((r) => r.order_id))
+  const readyAt = (r: FulfilmentRecord) => r.reached?.ready_for_pickup ?? ""
+  return rows
+    .filter((r) => sellers.get(r.order_id) === sellerId)
+    .sort((a, b) => readyAt(a).localeCompare(readyAt(b)))
+    .map((r) => r.order_id)
 }
 
 /** The shop each order was placed with. */

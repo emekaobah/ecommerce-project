@@ -53,17 +53,19 @@ function loadMaps(key: string): Promise<MapsApi> {
 const toPin = (position: { lat(): number; lng(): number }): Pin => ({ latitude: position.lat(), longitude: position.lng() })
 
 /**
- * A map at the request, with a pin the owner drags (or clicks the map to move) to where couriers
- * collect from the shop, then confirms.
+ * A map at the request, with a pin the owner drags (or clicks the map to move) to the place, then
+ * confirms. `labels` says what the pin marks: by default, where couriers collect from the shop.
  */
 export const PinMap = ({
   request,
   onConfirm,
   onCancel,
+  labels,
 }: {
   request: PinRequest
   onConfirm: (pin: Pin) => void
   onCancel: () => void
+  labels?: { title: string; help: string }
 }) => {
   const { t } = useTranslation()
   const element = useRef<HTMLDivElement>(null)
@@ -107,10 +109,10 @@ export const PinMap = ({
   return (
     <div className="flex flex-col gap-y-3 md:col-span-2">
       <Text size="small" weight="plus">
-        {t("shopSetup.pickup.pin.title")}
+        {labels?.title ?? t("shopSetup.pickup.pin.title")}
       </Text>
       <Text size="small" className="text-ui-fg-subtle">
-        {t("shopSetup.pickup.pin.help")}
+        {labels?.help ?? t("shopSetup.pickup.pin.help")}
       </Text>
       {failed ? (
         <Text size="small" className="text-ui-fg-error">

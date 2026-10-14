@@ -51,7 +51,8 @@ export async function eventually<T>(read: () => Promise<T>, done: (value: T) => 
 }
 
 /**
- * A buyer (Ada) checking out the seeded shops with Paystack, and the shops seeing her orders.
+ * A buyer (Ada, unless another `email` is given) checking out the seeded shops with Paystack,
+ * and the shops seeing her orders. `ada` signs in as that buyer.
  * Call `load` in a `beforeEach`, once the app has been seeded.
  */
 export function buyerCheckout({
@@ -59,11 +60,13 @@ export function buyerCheckout({
   getContainer,
   clerk,
   paystack,
+  email = "ada@oja.test",
 }: {
   api: Api
   getContainer: () => MedusaContainer
   clerk: ReturnType<typeof fakeClerk>
   paystack: ReturnType<typeof fakePaystack>
+  email?: string
 }) {
   let headers: Record<string, string> = {}
   let regionId = ""
@@ -81,7 +84,7 @@ export function buyerCheckout({
     const token = clerk.sessionToken({ sub: `user_${email}`, email })
     return { headers: { ...headers, authorization: `Bearer ${token}` } }
   }
-  const ada = () => as("ada@oja.test")
+  const ada = () => as(email)
 
   const sellerId = async (shop: Shop) => {
     const { data } = await query().graph({ entity: "seller", fields: ["id"], filters: { name: shop.name } })

@@ -283,8 +283,15 @@ export function shopStatusLabel(status: ShopStatus, now: Date, timeZone: string)
   if (status.state === "closed_until") {
     return `Closed until ${sameDay ? timeLabel(instant, timeZone) : dayLabel(instant, timeZone, { weekday: "short", day: "numeric", month: "short" })}`
   }
-  if (sameDay) return `Closed · opens ${timeLabel(instant, timeZone)}`
+  return `Closed · opens ${openingLabel(at, now, timeZone)}`
+}
+
+/** "9:30pm" (today), "8am Tue", "8am Tue 13 Oct": when a closed shop opens (ISO 8601 `opensAt`), in the region's timezone. */
+export function openingLabel(opensAt: string, now: Date, timeZone: string): string {
+  const instant = Date.parse(opensAt)
+  const time = timeLabel(instant, timeZone)
+  if (dateIn(instant, timeZone) === dateIn(now.getTime(), timeZone)) return time
   const withinWeek = instant - now.getTime() < 6 * DAY_MS
   const day = dayLabel(instant, timeZone, withinWeek ? { weekday: "short" } : { weekday: "short", day: "numeric", month: "short" })
-  return `Closed · opens ${timeLabel(instant, timeZone)} ${day}`
+  return `${time} ${day}`
 }

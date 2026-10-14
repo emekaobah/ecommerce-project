@@ -15,7 +15,7 @@ import { refuseVendorCapture } from "./vendor/payments/no-capture";
 import { showTheShopItsOwnOrder } from "./vendor/orders/shop-view";
 import { courierFulfilmentsByLabelOnly } from "./vendor/orders/labels-only";
 import { hideBuyerPins } from "./vendor/buyer-pins";
-import { VendorMarkUnavailable, VendorRecordPick, VendorRejectOrder } from "./vendor/orders/validators";
+import { VendorCollectOrder, VendorMarkUnavailable, VendorRecordPick, VendorRejectOrder } from "./vendor/orders/validators";
 import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
@@ -25,10 +25,13 @@ import { validatePickupAddressFirst } from "./pickup-address-check";
 import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
 import { vendorOrderPayoutMiddlewares } from "./vendor/orders/[id]/payout/middlewares";
 import { vendorShopHoursMiddlewares } from "./vendor/shop-hours/middlewares";
+import { vendorCollectionPointMiddlewares } from "./vendor/collection-point/middlewares";
+import { vendorReadyForPickupMiddlewares } from "./vendor/ready-for-pickup/middlewares";
 import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
+import { StoreGetPublishedReviews } from "./store/reviews/validators";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
@@ -63,6 +66,17 @@ export default defineMiddlewares({
                 authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
                 validateAndTransformQuery(StoreGetListingParams, {}),
             ],
+        },
+        // Shops' and products' published reviews and ratings, for everyone (#7).
+        {
+            method: ["GET"],
+            matcher: "/store/sellers/:id/reviews",
+            middlewares: [validateAndTransformQuery(StoreGetPublishedReviews, {})],
+        },
+        {
+            method: ["GET"],
+            matcher: "/store/products/:id/reviews",
+            middlewares: [validateAndTransformQuery(StoreGetPublishedReviews, {})],
         },
         {
             method: ["GET"],
@@ -194,6 +208,12 @@ export default defineMiddlewares({
             matcher: "/vendor/orders/:id/pick-list/:item_id",
             middlewares: [validateAndTransformBody(VendorRecordPick)],
         },
+        // A pickup order is handed over against its code (#12).
+        {
+            method: ["POST"],
+            matcher: "/vendor/orders/:id/collect",
+            middlewares: [validateAndTransformBody(VendorCollectOrder)],
+        },
         { method: ["POST"], matcher: "/vendor/orders/:id/fulfillments", middlewares: [courierFulfilmentsByLabelOnly] },
         {
             method: ["POST"],
@@ -245,6 +265,9 @@ export default defineMiddlewares({
         // A shop's hours, exceptions and pause (ADR 0004, #68): the only source of truth for
         // closures, so Mercur's seller closure fields can't be written.
         ...vendorShopHoursMiddlewares,
+        // Where a shop's buyers collect pickup orders (#12): owners and managers set it.
+        ...vendorCollectionPointMiddlewares,
+        ...vendorReadyForPickupMiddlewares,
         { method: ["POST"], matcher: "/vendor/sellers/me", middlewares: [refuseMercurClosures] },
         { method: ["POST"], matcher: "/vendor/sellers/:id", middlewares: [refuseMercurClosures] },
         { method: ["POST"], matcher: "/admin/sellers", middlewares: [refuseMercurClosures] },

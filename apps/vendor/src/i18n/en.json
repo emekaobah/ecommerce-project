@@ -185,6 +185,29 @@
       "link": "Finish shop setup"
     }
   },
+  "collectionPoint": {
+    "title": "In-store pickup",
+    "description": "Let buyers collect their orders from you. Set where they collect, and what to tell them. Pickup is free, and they come when you're open.",
+    "offered": "Buyers can choose to collect their orders here at checkout. They come during your opening hours with the code in their app.",
+    "loadError": "Could not load your collection point.",
+    "needsHours": "Set your opening hours first: buyers collect when your shop is open.",
+    "setHours": "Set opening hours",
+    "askAnOwner": "Only the shop's owners and managers can change where buyers collect.",
+    "usePickupAddress": "Use pickup address",
+    "consent": "Buyers collect from your pickup address, and we show it to them. Untick to give a different address.",
+    "address": "Collection point address",
+    "instructions": "Instructions for buyers",
+    "instructionsPlaceholder": "e.g. Ask at the till for online orders",
+    "phone": "Phone number for buyers",
+    "hours": "Open during your shop's opening hours.",
+    "save": "Save collection point",
+    "removeHelp": "Stop offering pickup: buyers then get only delivery from you. You can't while an order is still to be collected.",
+    "remove": "Stop offering pickup",
+    "pin": {
+      "title": "Where do buyers collect?",
+      "help": "Drag the pin, or click the map, to where buyers come for their orders."
+    }
+  },
   "shopHours": {
     "title": "Opening hours",
     "description": "When your shop is open. Buyers can order any time; outside your hours they are told the order is prepared when you open, and the 24 hours you have to accept an order count only while you are open.",

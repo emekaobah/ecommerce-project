@@ -113,6 +113,22 @@ const fileProvider = process.env.S3_BUCKET
       },
     }
 
+// Emails go out through Resend (#5) once an API key is set. RESEND_FROM is the sender, an address
+// on a domain verified in Resend (`Oja <onboarding@resend.dev>`, Resend's test sender, delivers
+// only to the Resend account's own address).
+const emailProvider = process.env.RESEND_API_KEY
+  ? {
+      resolve: './src/modules/resend',
+      id: 'resend',
+      options: {
+        channels: ['email'],
+        apiKey: process.env.RESEND_API_KEY,
+        from: process.env.RESEND_FROM,
+        apiUrl: process.env.RESEND_API_URL || undefined,
+      },
+    }
+  : null
+
 const dashboardAppDir = (name: string) => {
   const bundled = path.join(__dirname, 'dashboards', name)
   return fs.existsSync(bundled) ? bundled : path.join(__dirname, `../../apps/${name}`)
@@ -168,8 +184,9 @@ module.exports = withMercur({
         ],
       },
     },
-    // Medusa's default only has the admin "feed" channel. Emails (staff invites)
-    // are logged by the local provider until a real email provider is configured.
+    // Medusa's default only has the admin "feed" channel. Emails (staff invites, buyers' order
+    // confirmations and receipts) go out through Resend when it is configured, and are only
+    // logged by the local provider otherwise.
     {
       resolve: '@medusajs/medusa/notification',
       options: {
@@ -177,8 +194,9 @@ module.exports = withMercur({
           {
             resolve: '@medusajs/medusa/notification-local',
             id: 'local',
-            options: { name: 'Local Notification Provider', channels: ['feed', 'email'] },
+            options: { name: 'Local Notification Provider', channels: ['feed', ...(emailProvider ? [] : ['email'])] },
           },
+          ...(emailProvider ? [emailProvider] : []),
           // Pushes to the buyer and vendor apps through Expo (#27). Sends without an access token
           // until the Expo project turns on enhanced push security.
           {
@@ -236,6 +254,8 @@ module.exports = withMercur({
     { resolve: './src/modules/shop-hours' },
     // Each device's Expo push token, and the buyer or shop member signed in on it (#27).
     { resolve: './src/modules/push-token' },
+    // Where each shop's buyers collect pickup orders, for shops that offer pickup (#12).
+    { resolve: './src/modules/collection-point' },
     { resolve: '@medusajs/medusa/file', options: { providers: [fileProvider] } },
   ],
 })

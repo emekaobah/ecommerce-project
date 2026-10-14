@@ -27,7 +27,24 @@ export const StoreCheckoutAddress = z.object({
   ),
 })
 
-export const StorePrepareCheckout = z.object({ shipping_address: StoreCheckoutAddress })
+/** The buyer's name and phone, given on their own when every shop's order is collected (#12). */
+export const StoreCheckoutContact = z.object({ first_name: required, last_name: required, phone: required })
+
+/**
+ * How each shop's order reaches the buyer: `pickup` lists the shops collected in store, the rest
+ * are delivered to `shipping_address`. A checkout where every shop is collected takes no address,
+ * only the buyer's `contact` (or the address's name and phone).
+ */
+export const StorePrepareCheckout = z
+  .object({
+    shipping_address: StoreCheckoutAddress.optional(),
+    contact: StoreCheckoutContact.optional(),
+    pickup: z.array(required).max(50).default([]),
+  })
+  .refine((body) => body.shipping_address || body.contact, {
+    message: "Give a delivery address, or your name and phone when you collect everything",
+    path: ["shipping_address"],
+  })
 export type StorePrepareCheckoutType = z.infer<typeof StorePrepareCheckout>
 
 /** One of a shop's quoted delivery choices (`delivery_choices[].id`). */

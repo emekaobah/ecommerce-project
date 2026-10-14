@@ -1,11 +1,13 @@
 import { confirmOrderEditRequestWorkflow } from "@mercurjs/core/workflows"
 import {
   beginOrderEditOrderWorkflow,
+  emitEventStep,
   orderEditUpdateItemQuantityWorkflow,
   releaseLockStep,
   requestOrderEditRequestWorkflow,
 } from "@medusajs/medusa/core-flows"
-import { WorkflowResponse, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
+import { WorkflowResponse, createWorkflow, transform, when } from "@medusajs/framework/workflows-sdk"
+import { ORDER_ITEMS_REMOVED } from "../../../lib/order-fulfilment"
 import { UNAVAILABLE_NOTE } from "../../../lib/order-picking"
 import { planRemovalStep, recordRemovalStep } from "../steps/remove-unavailable"
 import { lockOrderFulfilment } from "../compose"
@@ -21,6 +23,7 @@ export type RemoveUnavailableInput = { order_id: string; /** The member who remo
  * Refunding the buyer is a separate workflow (`refundOrderShareWorkflow`), as for a rejected
  * order: money that has moved can't be undone, and a refund Paystack turns down shouldn't undo
  * the edit. The response carries what the edit took off the order's total, which is the refund.
+ * Once it succeeds, `order_fulfilment.items_removed` tells the buyer (#5).
  */
 export const removeUnavailableWorkflow = createWorkflow("remove-unavailable-order-items", (input: RemoveUnavailableInput) => {
   // Four order-edit workflows run under the lock, so it is held longer than a plain transition's.
@@ -51,6 +54,15 @@ export const removeUnavailableWorkflow = createWorkflow("remove-unavailable-orde
       total_before: plan.total_before,
     }))
   )
+  when("items-removed", { removal }, ({ removal }) => removal.removed_amount > 0).then(() => {
+    const data = transform({ input, plan, removal }, ({ input, plan, removal }) => ({
+      id: input.order_id,
+      amount: removal.removed_amount,
+      removed: plan.units,
+      at: new Date().toISOString(),
+    }))
+    emitEventStep({ eventName: ORDER_ITEMS_REMOVED, data }).config({ name: "emit-items-removed" })
+  })
   releaseLockStep({ key: lock })
   return new WorkflowResponse(removal)
 })

@@ -15,7 +15,10 @@
         "NODE_ENV",
         "MERCUR_BACKEND_URL",
         "VITE_MERCUR_BACKEND_URL",
-        "VITE_GOOGLE_MAPS_BROWSER_KEY"
+        "VITE_GOOGLE_MAPS_BROWSER_KEY",
+        "RESEND_API_KEY",
+        "RESEND_FROM",
+        "RESEND_API_URL"
       ],
       "passThroughEnv": [
         "S3_BUCKET"

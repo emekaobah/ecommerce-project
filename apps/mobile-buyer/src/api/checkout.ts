@@ -31,17 +31,33 @@ export function useCheckout(cartId: string | null | undefined, { waitForOrder = 
   });
 }
 
+/** The buyer's name and phone, when every shop's order is collected and no address is given. */
+export type CheckoutContact = { first_name: string; last_name: string; phone: string };
+
 /**
- * Sets the delivery address, with its pin; the backend reprices the cart and adds each shop's
- * delivery. Resolves to the lines whose shop's price changed, for the buyer to see.
+ * How each shop's order reaches the buyer: the shops in `pickup` are collected in store (#12),
+ * the rest delivered to `shippingAddress`. With every shop collected, `contact` stands in for it.
+ */
+export type CheckoutPreparation = {
+  shippingAddress?: PinnedDeliveryAddress | null;
+  contact?: CheckoutContact | null;
+  pickup: string[];
+};
+
+/**
+ * Sets how each shop's order reaches the buyer: the delivery address, with its pin, and the
+ * shops collected in store; the backend reprices the cart and adds each shop's delivery or
+ * pickup. Resolves to the lines whose shop's price changed, for the buyer to see.
  */
 export function usePrepareCheckout(cartId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (shippingAddress: PinnedDeliveryAddress) =>
+    mutationFn: ({ shippingAddress, contact, pickup }: CheckoutPreparation) =>
       storeClient.store.carts.$id.checkout.mutate({
         $id: cartId,
-        shipping_address: shippingAddress,
+        ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
+        ...(contact ? { contact } : {}),
+        pickup,
       }),
     onSuccess: ({ checkout }) => queryClient.setQueryData(checkoutKeys.detail(cartId), checkout),
     // Repricing may have changed the cart's lines.

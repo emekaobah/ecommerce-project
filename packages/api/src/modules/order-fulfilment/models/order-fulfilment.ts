@@ -34,8 +34,15 @@ const OrderFulfilment = model
     shipment_id: model.text().nullable(),
     /** When the order last reached each state (`@oja/domain`'s `Reached`), for its timeline (#25). */
     reached: model.json().nullable(),
-    /** When the order was delivered, and so may be paid out to the shop (#25, #29). */
+    /** When the order was delivered or collected, and so may be paid out to the shop (#25, #29, #12). */
     payout_eligible_at: model.dateTime().nullable(),
+    /**
+     * A pickup order's code (#12): random digits, issued when it is Ready for pickup, shown only
+     * to its buyer, and checked at the counter.
+     */
+    pickup_code: model.text().nullable(),
+    /** When wrong pickup codes were tried on the order (ISO 8601), for the attempt limit. */
+    pickup_code_attempts: model.array().nullable(),
     /** When the owner was last alerted that staff and the courier disagree about the handover; daily while they do (#25). */
     handover_alerted_at: model.dateTime().nullable(),
   })

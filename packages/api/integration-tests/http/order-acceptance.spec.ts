@@ -76,12 +76,14 @@ medusaIntegrationTestRunner({
         const order = await shopOrder(GADGETS, gadgets)
 
         expect(order.fulfilment).toEqual({
+          method: "delivery",
           state: "new",
           accept_by: new Date(Date.parse(order.created_at) + 24 * HOUR).toISOString(),
           rejected_by: null,
           reject_reason: null,
           shipment: null,
           handover: null,
+          collection: null,
           timeline: expect.arrayContaining([{ label: "Placed", status: "current", at: new Date(order.created_at).toISOString() }]),
         })
       })
@@ -137,12 +139,14 @@ medusaIntegrationTestRunner({
         const { data } = await reject(GADGETS, gadgets, "The lantern is out of stock")
 
         expect(data.fulfilment).toEqual({
+          method: "delivery",
           state: "rejected",
           accept_by: null,
           rejected_by: "seller",
           reject_reason: "The lantern is out of stock",
           shipment: null,
           handover: null,
+          collection: null,
           // A rejected order's status says why; it has no steps to show.
           timeline: [],
         })
@@ -215,6 +219,49 @@ medusaIntegrationTestRunner({
 
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([ORDER_TOTALS.get(GADGETS)! * 100])
         expect(paidOnOrder(await shopOrder(GADGETS, gadgets)).refunded).toBe(ORDER_TOTALS.get(GADGETS))
+      })
+    })
+
+    describe("acting on an order the moment it appears", () => {
+      /**
+       * The shop's order of a checkout Paystack has just paid for, as soon as the shop can see it:
+       * Mercur's checkout workflow may still be running, and `order.placed`, which records the
+       * order as New, is only sent once it finishes.
+       */
+      const justPlaced = async (shop: Shop) => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        const { reference } = await buyer.startPayment(cartId)
+        paystack.pay(reference)
+        const webhook = buyer.postWebhook(paystack.chargeSuccess(reference))
+        const sellerId = await buyer.sellerId(shop)
+        // Polled tightly: the window between the order appearing and being recorded is short.
+        for (let tries = 0; tries < 4000; tries++) {
+          const orderIds = (await buyer.ordersOfCart(cartId)).map((c) => c.order_id)
+          const { data } = orderIds.length
+            ? await buyer
+                .query()
+                .graph({ entity: "order_seller", fields: ["order_id"], filters: { seller_id: sellerId, order_id: orderIds } })
+            : { data: [] }
+          const orderId = data[0]?.order_id as string | undefined
+          if (orderId) return { orderId, settled: webhook }
+          await new Promise((resolve) => setTimeout(resolve, 5))
+        }
+        throw new Error(`${shop.name}'s order of cart ${cartId} never appeared`)
+      }
+
+      it("isn't refused because the order is still being recorded", async () => {
+        // A race: each round is a chance for the shop's action and the recording to collide.
+        for (let round = 0; round < 6; round++) {
+          const { orderId, settled } = await justPlaced(GADGETS)
+          paystack.refuseRefunds("Insufficient balance")
+          try {
+            expect(await status(reject(GADGETS, orderId))).toBe(200)
+          } finally {
+            paystack.refuseRefunds(undefined)
+          }
+          await settled
+        }
       })
     })
 
