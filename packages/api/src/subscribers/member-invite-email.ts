@@ -1,48 +1,52 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MemberInviteWorkflowEvents } from "@mercurjs/core/workflows"
+import { sendEmail } from "../lib/email"
 
 type InviteCreated = { id: string; token: string }
 
 // Mercur creates staff invites (owner → Settings → Users in the vendor panel)
 // and emits an event, but sends nothing: this emails the invitee the vendor
 // panel's accept link. Emails go out on the "email" channel, whose provider is
-// configured in medusa-config.
+// configured in medusa-config; one that can't be sent is logged, and the owner can resend it.
 export default async function memberInviteEmailHandler({
   event,
   container,
 }: SubscriberArgs<InviteCreated | InviteCreated[]>) {
+  const invites = Array.isArray(event.data) ? event.data : [event.data]
+  await Promise.all(invites.map((invite) => emailInvite(container, invite)))
+}
+
+async function emailInvite(container: SubscriberArgs<InviteCreated>["container"], { id, token }: InviteCreated) {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const vendorUrl = process.env.MERCUR_VENDOR_URL
+  const {
+    data: [invite],
+  } = await query.graph({
+    entity: "member_invite",
+    fields: ["email", "role_id", "seller_id"],
+    filters: { id },
+  })
+  if (!invite) return
+  const [{ data: [seller] }, { data: [role] }] = await Promise.all([
+    query.graph({ entity: "seller", fields: ["name"], filters: { id: invite.seller_id } }),
+    query.graph({ entity: "rbac_role", fields: ["name"], filters: { id: invite.role_id } }),
+  ])
 
-  for (const { id, token } of Array.isArray(event.data) ? event.data : [event.data]) {
-    const { data: [invite] } = await query.graph({
-      entity: "member_invite",
-      fields: ["email", "role_id", "seller_id"],
-      filters: { id },
-    })
-    if (!invite) continue
-    const [{ data: [seller] }, { data: [role] }] = await Promise.all([
-      query.graph({ entity: "seller", fields: ["name"], filters: { id: invite.seller_id } }),
-      query.graph({ entity: "rbac_role", fields: ["name"], filters: { id: invite.role_id } }),
-    ])
-
-    const inviteUrl = `${vendorUrl}/invite?token=${encodeURIComponent(token)}`
-    const sellerName = seller?.name ?? "a shop"
-    const roleName = role?.name ?? invite.role_id
-    await container.resolve(Modules.NOTIFICATION).createNotifications({
-      to: invite.email,
-      channel: "email",
-      template: "member-invite",
-      data: { invite_url: inviteUrl, seller_name: sellerName, role: roleName },
-      content: {
-        subject: `You've been invited to join ${sellerName}`,
-        html: `<p>You've been invited to join <strong>${escapeHtml(sellerName)}</strong> as ${escapeHtml(
-          roleName
-        )}.</p><p><a href="${escapeHtml(inviteUrl)}">Accept the invite</a></p>`,
-      },
-    })
-  }
+  const inviteUrl = `${process.env.MERCUR_VENDOR_URL}/invite?token=${encodeURIComponent(token)}`
+  const sellerName = seller?.name ?? "a shop"
+  const roleName = role?.name ?? invite.role_id
+  await sendEmail(container, {
+    about: `the invite ${id}`,
+    to: invite.email,
+    template: "member-invite",
+    data: { invite_url: inviteUrl, seller_name: sellerName, role: roleName },
+    content: {
+      subject: `You've been invited to join ${sellerName}`,
+      html: `<p>You've been invited to join <strong>${escapeHtml(sellerName)}</strong> as ${escapeHtml(
+        roleName
+      )}.</p><p><a href="${escapeHtml(inviteUrl)}">Accept the invite</a></p>`,
+    },
+  })
 }
 
 const escapeHtml = (text: string) =>

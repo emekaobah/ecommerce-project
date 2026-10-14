@@ -6,6 +6,7 @@ import {
   weeklyHoursErrors,
   isOrderable,
   nextOpening,
+  openingLabel,
   openTimeBetween,
   shopStatus,
   shopStatusLabel,
@@ -392,5 +393,17 @@ describe("hoursExceptionErrors", () => {
     expect(
       hoursExceptionErrors({ starts_on: "2026-12-27", ends_on: "2026-12-27", closed: false, periods: [{ opens: "14:00", closes: "10:00" }], note: null })
     ).toEqual(["Closing time must be after opening time"])
+  })
+})
+
+describe("openingLabel", () => {
+  const now = lagos("2026-10-05T19:00:00") // Monday evening
+
+  test.each([
+    ["later today", "2026-10-05T21:30:00", "9:30pm"],
+    ["tomorrow", "2026-10-06T08:00:00", "8am Tue"],
+    ["more than a week away", "2026-10-13T08:00:00", "8am Tue 13 Oct"],
+  ])("a shop opening %s", (_, local, text) => {
+    expect(openingLabel(lagos(local).toISOString(), now, "Africa/Lagos")).toBe(text)
   })
 })

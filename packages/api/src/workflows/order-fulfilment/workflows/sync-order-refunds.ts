@@ -1,7 +1,8 @@
 import type { IOrderModuleService, IPaymentModuleService } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
-import { fulfilmentService, type OrderRefundRecord } from "../../../lib/order-fulfilment"
+import { emitEventStep } from "@medusajs/medusa/core-flows"
+import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
+import { fulfilmentService, ORDER_REFUND_PROCESSED, type OrderRefundRecord } from "../../../lib/order-fulfilment"
 import { paystackClient } from "../../../modules/paystack"
 import { UNSETTLED_REFUND_STATUSES, type PaystackRefundStatus } from "../../../modules/paystack/client"
 
@@ -77,11 +78,16 @@ const unrecordFailedRefundsStep = createStep("unrecord-failed-order-refunds", as
 /**
  * Brings the order refunds of a Paystack transaction up to date. Paystack's `refund.*`
  * webhooks name the transaction but not the refund, so each unsettled refund is fetched by
- * its id.
+ * its id. An order's refund that reaches processed emits `order_refund.processed`, once: a
+ * settled refund isn't fetched again, however often Paystack repeats the webhook.
  */
 export const syncOrderRefundsWorkflow = createWorkflow("sync-order-refunds", (input: { transaction_reference: string }) => {
   const changes = fetchRefundChangesStep(input)
   updateRefundStatusesStep(changes)
   unrecordFailedRefundsStep(changes)
+  const processed = transform({ changes }, ({ changes }) =>
+    changes.filter((c) => c.to === "processed" && c.row.order_id).map((c) => ({ id: c.id }))
+  )
+  emitEventStep({ eventName: ORDER_REFUND_PROCESSED, data: processed })
   return new WorkflowResponse(changes)
 })

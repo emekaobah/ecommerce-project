@@ -1,6 +1,8 @@
+import { releaseLockStep } from "@medusajs/medusa/core-flows"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { fulfilmentService, fulfilmentsOf } from "../../../lib/order-fulfilment"
+import { lockOrderFulfilment } from "../compose"
 
 const recordNewOrderStep = createStep(
   "record-new-order-fulfilment",
@@ -22,7 +24,15 @@ const recordNewOrderStep = createStep(
   }
 )
 
-/** A placed order starts New, so the accept-deadline job can find it. */
+/**
+ * A placed order starts New, so the accept-deadline job can find it. Under the order's
+ * fulfilment lock, like every transition: staff may act on the order before `order.placed`
+ * arrives (it is sent only once Mercur's checkout workflow finishes), and a transition creates
+ * the row itself then. Without the lock both could create it, and one would be refused.
+ */
 export const recordPlacedOrderWorkflow = createWorkflow("record-placed-order", (input: { order_id: string }) => {
-  return new WorkflowResponse(recordNewOrderStep(input))
+  const lock = lockOrderFulfilment(input)
+  const recorded = recordNewOrderStep(input)
+  releaseLockStep({ key: lock })
+  return new WorkflowResponse(recorded)
 })

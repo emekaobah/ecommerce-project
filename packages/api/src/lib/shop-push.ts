@@ -1,11 +1,8 @@
 import { acceptDeadline, acceptTimeLeft, type HandoverDisagreement, type ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { PUSH_CHANNEL } from "../modules/expo-push"
-import { DEVICE_NOT_REGISTERED } from "../modules/expo-push/expo-api"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
-import { errorMessage } from "./errors"
-import { forgetPushDevices } from "./push-receipts"
+import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
 
 // Pushes to a shop's members about one of its orders (#27): a new order, its accept deadline
@@ -102,8 +99,7 @@ async function shopDevices(scope: Scope, sellerId: string, ownersOnly: boolean):
 
 /**
  * Tells the order's shop what happened to it, on every member's device. Each device is told of
- * each event once, however often it is raised. A device Expo says is no longer installed is
- * forgotten; any other push Expo refuses is logged. Either way the other devices get theirs.
+ * each event once, however often it is raised.
  */
 export async function pushToShop(
   scope: Scope,
@@ -119,27 +115,12 @@ export async function pushToShop(
   if (!devices.length) return
   const hours = (await shopHoursOf(scope, [order.seller_id], now)).get(order.seller_id) ?? null
   const { title, body } = message(order, now, hours, detail)
-  const notifications = scope.resolve(Modules.NOTIFICATION)
-  // One device a call, so a refusal is known to be that device's.
-  const sent = await Promise.allSettled(
-    devices.map((to) =>
-      notifications.createNotifications({
-        to,
-        channel: PUSH_CHANNEL,
-        template: `shop-${kind.replaceAll("_", "-")}`,
-        content: { subject: title, text: body },
-        data: { url: `/orders/${order.id}`, order_id: order.id, seller_id: order.seller_id },
-        idempotency_key: [kind, order.id, to, ...(repeats ? [now.toISOString()] : [])].join(":"),
-      })
-    )
-  )
-  const gone: string[] = []
-  const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
-  sent.forEach((result, i) => {
-    if (result.status === "fulfilled") return
-    const reason = errorMessage(result.reason)
-    if (reason.includes(DEVICE_NOT_REGISTERED)) gone.push(devices[i])
-    else logger.warn(`Pushing ${kind} for order ${orderId} failed: ${reason}`)
+  await pushToDevices(scope, devices, {
+    template: `shop-${kind.replaceAll("_", "-")}`,
+    title,
+    body,
+    data: { url: `/orders/${order.id}`, order_id: order.id, seller_id: order.seller_id },
+    idempotencyKey: (to) => [kind, order.id, to, ...(repeats ? [now.toISOString()] : [])].join(":"),
+    about: `${kind} for order ${orderId}`,
   })
-  await forgetPushDevices(scope, gone)
 }
