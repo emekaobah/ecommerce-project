@@ -158,6 +158,11 @@ function CartRow({
         {variant ? <Text variant="caption" tone="secondary">{variant}</Text> : null}
         {item.perishable ? <PerishableChip /> : null}
         <Price price={{ amount: item.unit_price, compareAt: item.compare_at_unit_price }} currencyCode={currencyCode} />
+        {item.discounts.map((discount) => (
+          <Text key={discount.code} variant="caption" tone="secondary">
+            {`${discount.code} −${formatMoney(discount.amount, currencyCode)}`}
+          </Text>
+        ))}
         {available ? (
           <Stepper title={title} quantity={item.quantity} disabled={busy} onChange={onChange} />
         ) : (

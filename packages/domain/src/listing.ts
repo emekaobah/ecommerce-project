@@ -1,3 +1,5 @@
+import { formatMoney } from "./money"
+
 // How a shop listing is shown. Listings are always one shop's offer (no cross-shop
 // comparison), so these rules only ever pick between one shop's own variants.
 
@@ -35,6 +37,25 @@ export function listingPrice(offers: PricedOffer[]): ListingPrice | undefined {
   )
   const amounts = new Set(offers.map((o) => o.calculated_price.calculated_amount))
   return { ...offerPrice(cheapest), from: amounts.size > 1, offerId: cheapest.id }
+}
+
+/**
+ * One of a listing's shop's automatic promotions that applies to the product (#6). Only ever that
+ * shop's own: no badge compares shops (docs/design.md).
+ */
+export type ShopDeal = {
+  type: "percentage" | "fixed"
+  value: number
+  /** `each`: off every unit; `across`/`once`: off what is bought from the shop. */
+  allocation: "each" | "across" | "once"
+  currency_code: string
+}
+
+/** The badge for a shop's deal, e.g. "10% off at this shop". */
+export function dealLabel(deal: ShopDeal, locale?: string): string {
+  if (deal.type === "percentage") return `${deal.value}% off at this shop`
+  const amount = formatMoney(deal.value, deal.currency_code, locale)
+  return deal.allocation === "each" ? `${amount} off each at this shop` : `${amount} off at this shop`
 }
 
 /** The shop's lead time to ship, in days. */

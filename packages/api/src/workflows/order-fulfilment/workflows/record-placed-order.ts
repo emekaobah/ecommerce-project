@@ -1,6 +1,7 @@
 import { newFulfilment } from "@oja/domain"
 import { releaseLockStep } from "@medusajs/medusa/core-flows"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
+import { fundingToRecord } from "../../../lib/discount-funding"
 import { fulfilmentService, fulfilmentsOf, placedOrderOf } from "../../../lib/order-fulfilment"
 import { lockOrderFulfilment } from "../compose"
 
@@ -23,16 +24,34 @@ const recordNewOrderStep = createStep(
   }
 )
 
+/** Who funds each promotion on the order (#6), as it stands when the order is placed; once. */
+const recordDiscountFundingStep = createStep(
+  "record-discount-funding",
+  async ({ order_id: orderId }: { order_id: string }, { container }) => {
+    const service = fulfilmentService(container)
+    const [recorded] = await service.listDiscountFundings({ order_id: orderId }, { take: 1 })
+    const funding = recorded ? [] : await fundingToRecord(container, orderId)
+    if (!funding.length) return new StepResponse<void, string[]>(undefined, [])
+    const created = await service.createDiscountFundings(funding.map((f) => ({ ...f, order_id: orderId })))
+    return new StepResponse<void, string[]>(undefined, created.map((c) => c.id))
+  },
+  async (createdIds: string[] | undefined, { container }) => {
+    if (createdIds?.length) await fulfilmentService(container).deleteDiscountFundings(createdIds)
+  }
+)
+
 /**
  * A placed order starts New, so the accept-deadline job can find it, with the method it was
  * placed with fixed: delivered, or collected in store (#12). Under the order's fulfilment
  * lock, like every transition: staff may act on the order before `order.placed` arrives (it is
  * sent only once Mercur's checkout workflow finishes), and a transition creates the row itself
- * then. Without the lock both could create it, and one would be refused.
+ * then. Without the lock both could create it, and one would be refused. Who funds each of its
+ * discounts is recorded too, for its payout.
  */
 export const recordPlacedOrderWorkflow = createWorkflow("record-placed-order", (input: { order_id: string }) => {
   const lock = lockOrderFulfilment(input)
   const recorded = recordNewOrderStep(input)
+  recordDiscountFundingStep(input)
   releaseLockStep({ key: lock })
   return new WorkflowResponse(recorded)
 })

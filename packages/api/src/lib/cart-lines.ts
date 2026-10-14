@@ -4,6 +4,7 @@ import { addToCartWorkflow } from "@medusajs/medusa/core-flows"
 import { priceOffers } from "./listings"
 import { isLive } from "./onboarding"
 import { refuseClosedShops } from "./shop-hours"
+import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-promotions"
 
 // Cart lines are priced from their own offer and pinned there.
 //
@@ -127,6 +128,8 @@ async function addPricedLines(
       additional_data: additionalData,
     },
   })
+  // Medusa works promotions out over the whole cart; a shop's are its items' alone (#6).
+  await applyShopPromotionsWorkflow(scope).run({ input: { cart_id: cartId } })
 }
 
 /**

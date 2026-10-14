@@ -12,6 +12,17 @@ describe("payoutOf", () => {
       paid: 6500,
       refunded: 0,
       delivery: 1500,
+      oja_discount: 0,
+      commission: 500,
+      amount: 4500,
+    })
+  })
+
+  it("adds back the discounts Oja funds, so its promotions don't cost the shop", () => {
+    // ₦5,000 of goods, ₦500 off them on Oja: the shop is paid as if the buyer paid in full.
+    expect(payoutOf({ transactions: [capture(6000)], delivery: 1500, ojaDiscount: 500 })).toMatchObject({
+      paid: 6000,
+      oja_discount: 500,
       commission: 500,
       amount: 4500,
     })

@@ -72,8 +72,8 @@ export {
   PICKUP_HOLD_NOTICE,
 } from "./pickup"
 export type { PickupCodeCheck, PickupCodeState } from "./pickup"
-export { formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
-export type { DisplayPrice, ListingPrice, PricedOffer, ShopGroup } from "./listing"
+export { dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
+export type { DisplayPrice, ListingPrice, PricedOffer, ShopDeal, ShopGroup } from "./listing"
 export { currentShop, shopChoice } from "./shop-choice"
 export type { ShopChoice } from "./shop-choice"
 export { cartOnSignIn } from "./cart"

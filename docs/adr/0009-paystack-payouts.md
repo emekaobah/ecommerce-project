@@ -33,4 +33,4 @@ Facts that shaped the decision (checked 2026-10-09):
 - Mercur's commission lines don't follow refunds made without an order edit, but payouts don't read them. After such a refund, the order page shows Mercur's commission as the order was placed beside the payout's, which is what the shop is charged.
 - A refund is taken off what the shop is paid for goods: a refund of the delivery fee, which Oja keeps, is borne by the shop.
 - Paying one transfer per order costs a Paystack transfer fee per order.
-- Platform promotions (#30) aren't in the calculation yet: a discount lowers what was captured, so the shop bears it.
+- A discount lowers what was captured, so the shop bears it, unless Oja funds it: ADR 0010 (#6) adds those back.

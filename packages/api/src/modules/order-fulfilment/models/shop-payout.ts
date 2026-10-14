@@ -20,6 +20,8 @@ const ShopPayout = model
     paid: model.bigNumber(),
     refunded: model.bigNumber(),
     delivery: model.bigNumber(),
+    /** What Oja funded of the order's discounts, paid to the shop on top (#6). */
+    oja_discount: model.bigNumber().default(0),
     commission: model.bigNumber(),
     /** What the shop was owed for the order when it was paid out. */
     amount: model.bigNumber(),

@@ -22,6 +22,7 @@ import { useToggleWishlist, useWishlist } from '@/api/wishlist';
 import { useCartSession } from '@/cart/cart-provider';
 import { ListingTile, LISTING_TILE_SIZE } from '@/components/listing-tile';
 import { PerishableNotice } from '@/components/perishable';
+import { DealBadges } from '@/components/deal-badge';
 import { Price } from '@/components/price';
 import { ReviewsPreview, ShopRating } from '@/components/reviews';
 import { ShopStatusBadge } from '@/components/shop-status';
@@ -133,6 +134,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
       <Text variant="title">{product.title}</Text>
       {product.subtitle ? <Text tone="secondary">{product.subtitle}</Text> : null}
       {selected ? <Price price={offerPrice(selected)} currencyCode={currencyCode} variant="heading" /> : null}
+      <DealBadges deals={listing.deals} all />
       <View style={[styles.shopRow, { gap: theme.space.xs }]}>
         <Button label={seller.name} variant="link" onPress={() => openShop(seller)} style={styles.inlineLink} />
         <DeliveryTime listing={listing} currencyCode={currencyCode} />

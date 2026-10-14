@@ -62,3 +62,7 @@ export const StoreStartCheckoutPayment = z.object({
     .refine((url) => /^https?:\/\//.test(url), "Paystack only returns the buyer to an http(s) URL"),
 })
 export type StoreStartCheckoutPaymentType = z.infer<typeof StoreStartCheckoutPayment>
+
+/** A promo code as the buyer typed it; case doesn't matter. */
+export const StoreApplyPromoCode = z.object({ code: required.max(100) })
+export type StoreApplyPromoCodeType = z.infer<typeof StoreApplyPromoCode>
