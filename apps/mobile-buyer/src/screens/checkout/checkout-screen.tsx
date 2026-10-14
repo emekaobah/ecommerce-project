@@ -237,46 +237,25 @@ function CheckoutForm({
             }}
           />
         ) : null}
-        <View style={{ gap: theme.space.md, display: everyCollected ? 'none' : 'flex' }}>
-          <View style={styles.spread}>
-            <Text variant="heading">Delivery address</Text>
-            <AddressStepLink
-              step={step}
-              busy={prepare.isPending}
-              hasSaved={hasSaved}
-              hasCartAddress={!!cartAddress || checkout.ready_to_pay}
-              onStep={(next) => setBuyerStep(next === 'chosen' ? null : next)}
-            />
-          </View>
-          {step === 'starting' ? (
-            <Text tone="secondary">Getting your address…</Text>
-          ) : null}
-          {step === 'chosen' ? (
-            <ChosenAddress address={checkout.shipping_address} saveError={saveToAddressBook.error} />
-          ) : null}
-          {step === 'choosing' && saved.data ? (
-            <SavedAddressPicker
-              addresses={saved.data}
-              chosenId={savedAddressFor(saved.data, checkout.shipping_address, countryCode)}
-              countryCode={countryCode}
-              choosing={prepare.isPending ? (prepare.variables?.shippingAddress ?? undefined) : undefined}
-              error={prepare.error}
-              onChoose={(address) => deliverTo(address)}
-              onPin={enterAddress}
-              onAdd={() => enterAddress(null)}
-            />
-          ) : null}
-          {step === 'entering' ? (
-            <AddressEntry
-              lookup={{ cart_id: cartId }}
-              {...draft.entry}
-              onSave={deliverToEntered}
-              saving={prepare.isPending}
-              saveError={prepare.error}>
-              {pinningSaved ? null : <ToggleRow label="Save to my addresses" value={saveNew} onChange={setSaveNew} />}
-            </AddressEntry>
-          ) : null}
-        </View>
+        <DeliveryAddress
+          hidden={everyCollected}
+          cartId={cartId}
+          checkout={checkout}
+          countryCode={countryCode}
+          step={step}
+          onStep={setBuyerStep}
+          hasCartAddress={!!cartAddress || checkout.ready_to_pay}
+          saved={saved.data}
+          saveError={saveToAddressBook.error}
+          prepare={prepare}
+          entry={draft.entry}
+          savesNew={!pinningSaved}
+          saveNew={saveNew}
+          onSaveNew={setSaveNew}
+          onChoose={deliverTo}
+          onEnter={enterAddress}
+          onEntered={deliverToEntered}
+        />
 
         {editing ? null : (
           <CheckoutSummary
@@ -289,6 +268,91 @@ function CheckoutForm({
       </ScrollView>
       {editing ? null : <PayBar cartId={cartId} checkout={checkout} prepare={prepare} />}
     </KeyboardAvoidingView>
+  );
+}
+
+/** Where the order is delivered: the cart's address, the buyer's saved ones, or a new one entered. */
+function DeliveryAddress({
+  hidden,
+  cartId,
+  checkout,
+  countryCode,
+  step,
+  onStep,
+  hasCartAddress,
+  saved,
+  saveError,
+  prepare,
+  entry,
+  savesNew,
+  saveNew,
+  onSaveNew,
+  onChoose,
+  onEnter,
+  onEntered,
+}: Readonly<{
+  /** Hidden while every order is collected. */
+  hidden: boolean;
+  cartId: string;
+  checkout: Checkout;
+  countryCode: string;
+  step: AddressStep;
+  onStep: (step: AddressStep | null) => void;
+  hasCartAddress: boolean;
+  saved: SavedAddressRecord[] | undefined;
+  saveError: Error | null;
+  prepare: ReturnType<typeof usePrepareCheckout>;
+  entry: ReturnType<typeof useAddressDraft>['entry'];
+  /** Whether a new address can be saved to the buyer's addresses (not when pinning a saved one). */
+  savesNew: boolean;
+  saveNew: boolean;
+  onSaveNew: (save: boolean) => void;
+  onChoose: (address: PinnedDeliveryAddress) => void;
+  onEnter: (from: SavedAddressRecord | null) => void;
+  onEntered: (pin: Pin) => void;
+}>) {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: theme.space.md, display: hidden ? 'none' : 'flex' }}>
+      <View style={styles.spread}>
+        <Text variant="heading">Delivery address</Text>
+        <AddressStepLink
+          step={step}
+          busy={prepare.isPending}
+          hasSaved={!!saved?.length}
+          hasCartAddress={hasCartAddress}
+          onStep={(next) => onStep(next === 'chosen' ? null : next)}
+        />
+      </View>
+      {step === 'starting' ? (
+        <Text tone="secondary">Getting your address…</Text>
+      ) : null}
+      {step === 'chosen' ? (
+        <ChosenAddress address={checkout.shipping_address} saveError={saveError} />
+      ) : null}
+      {step === 'choosing' && saved ? (
+        <SavedAddressPicker
+          addresses={saved}
+          chosenId={savedAddressFor(saved, checkout.shipping_address, countryCode)}
+          countryCode={countryCode}
+          choosing={prepare.isPending ? (prepare.variables?.shippingAddress ?? undefined) : undefined}
+          error={prepare.error}
+          onChoose={(address) => onChoose(address)}
+          onPin={onEnter}
+          onAdd={() => onEnter(null)}
+        />
+      ) : null}
+      {step === 'entering' ? (
+        <AddressEntry
+          lookup={{ cart_id: cartId }}
+          {...entry}
+          onSave={onEntered}
+          saving={prepare.isPending}
+          saveError={prepare.error}>
+          {savesNew ? <ToggleRow label="Save to my addresses" value={saveNew} onChange={onSaveNew} /> : null}
+        </AddressEntry>
+      ) : null}
+    </View>
   );
 }
 
