@@ -14,7 +14,7 @@ const text = { color: INK, fontSize: "15px", lineHeight: "22px", margin: "0" }
 const secondary = { ...text, color: SECONDARY, fontSize: "13px", lineHeight: "20px" }
 
 /** One line of a shop's order. */
-export type EmailLine = { title: string; variant: string | null; quantity: number; total: number }
+export type EmailLine = { id: string; title: string; variant: string | null; quantity: number; total: number }
 
 /** One shop's order in a buyer email. */
 export type EmailShopOrder = {
@@ -26,7 +26,7 @@ export type EmailShopOrder = {
   paid: number
 }
 
-export function EmailLayout({ preview, heading, children }: { preview: string; heading: string; children: ReactNode }) {
+export function EmailLayout({ preview, heading, children }: Readonly<{ preview: string; heading: string; children: ReactNode }>) {
   return (
     <Html lang="en">
       <Head />
@@ -46,12 +46,12 @@ export function EmailLayout({ preview, heading, children }: { preview: string; h
   )
 }
 
-export const Paragraph = ({ children }: { children: ReactNode }) => <Text style={{ ...text, margin: "0 0 12px" }}>{children}</Text>
+export const Paragraph = ({ children }: Readonly<{ children: ReactNode }>) => <Text style={{ ...text, margin: "0 0 12px" }}>{children}</Text>
 
-export const Note = ({ children }: { children: ReactNode }) => <Text style={{ ...secondary, margin: "4px 0 0" }}>{children}</Text>
+export const Note = ({ children }: Readonly<{ children: ReactNode }>) => <Text style={{ ...secondary, margin: "4px 0 0" }}>{children}</Text>
 
 /** A label and an amount, right-aligned. */
-export function AmountRow({ label, amount, strong = false }: { label: string; amount: string; strong?: boolean }) {
+export function AmountRow({ label, amount, strong = false }: Readonly<{ label: string; amount: string; strong?: boolean }>) {
   const style = { ...text, fontWeight: strong ? 800 : 400 }
   return (
     <Row>
@@ -62,7 +62,7 @@ export function AmountRow({ label, amount, strong = false }: { label: string; am
 }
 
 /** A shop's order: its lines, delivery and what was paid; `children` say more under its heading. */
-export function ShopOrder({ order, currency, children }: { order: EmailShopOrder; currency: string; children?: ReactNode }) {
+export function ShopOrder({ order, currency, children }: Readonly<{ order: EmailShopOrder; currency: string; children?: ReactNode }>) {
   const money = (amount: number) => formatMoney(amount, currency)
   return (
     <Section style={{ marginTop: "24px" }}>
@@ -71,12 +71,8 @@ export function ShopOrder({ order, currency, children }: { order: EmailShopOrder
       <Text style={secondary}>{`#${order.display_id}`}</Text>
       {children}
       <Section style={{ marginTop: "12px" }}>
-        {order.lines.map((line, i) => (
-          <AmountRow
-            key={i}
-            label={`${line.quantity} × ${line.title}${line.variant && line.variant !== line.title ? ` (${line.variant})` : ""}`}
-            amount={money(line.total)}
-          />
+        {order.lines.map((line) => (
+          <AmountRow key={line.id} label={`${line.quantity} × ${lineName(line)}`} amount={money(line.total)} />
         ))}
         <AmountRow label="Delivery" amount={money(order.delivery)} />
         <AmountRow label="Paid" amount={money(order.paid)} strong />
@@ -85,13 +81,17 @@ export function ShopOrder({ order, currency, children }: { order: EmailShopOrder
   )
 }
 
+/** A line's product, with its variant when that says more than the title. */
+const lineName = (line: EmailLine) =>
+  line.variant && line.variant !== line.title ? line.title + " (" + line.variant + ")" : line.title
+
 /** The delivery address, one line each. */
-export function Address({ lines }: { lines: string[] }) {
+export function Address({ lines }: Readonly<{ lines: string[] }>) {
   return (
     <Section style={{ marginTop: "24px" }}>
       <Text style={{ ...text, fontWeight: 800 }}>Delivering to</Text>
-      {lines.map((line, i) => (
-        <Text key={i} style={secondary}>
+      {lines.map((line) => (
+        <Text key={line} style={secondary}>
           {line}
         </Text>
       ))}

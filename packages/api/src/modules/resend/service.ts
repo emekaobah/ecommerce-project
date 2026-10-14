@@ -47,10 +47,8 @@ export class ResendNotificationProviderService extends AbstractNotificationProvi
     })
     const reply = (await res.json().catch(() => null)) as { id?: string; message?: string } | null
     if (!res.ok || !reply?.id) {
-      throw new MedusaError(
-        MedusaError.Types.UNEXPECTED_STATE,
-        `Resend refused the email to ${notification.to}: ${reply?.message ?? `HTTP ${res.status}`}`
-      )
+      const reason = reply?.message ?? `HTTP ${res.status}`
+      throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Resend refused the email to ${notification.to}: ${reason}`)
     }
     return { id: reply.id }
   }

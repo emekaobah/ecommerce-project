@@ -15,7 +15,7 @@ export type DeliveryReceiptProps = {
 }
 
 /** Sent when a shop's order is delivered (#5): the buyer's receipt for it. */
-export function DeliveryReceiptEmail({ group_display_id, currency, order, refunded, delivered_on, address }: DeliveryReceiptProps) {
+export function DeliveryReceiptEmail({ group_display_id, currency, order, refunded, delivered_on, address }: Readonly<DeliveryReceiptProps>) {
   return (
     <EmailLayout preview={`Your receipt for your order from ${order.shop}`} heading={`Your order from ${order.shop} was delivered`}>
       <Paragraph>{`It arrived on ${delivered_on}. Here is your receipt for this part of order #${group_display_id}.`}</Paragraph>

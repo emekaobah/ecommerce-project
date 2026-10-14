@@ -87,6 +87,7 @@ const emailOrder = (order: BuyerOrder, delivery: Map<string, number>): EmailShop
   display_id: order.display_id,
   shop: order.seller.name,
   lines: order.items.map((item) => ({
+    id: item.id,
     title: item.product_title ?? "Item",
     variant: item.variant_title,
     quantity: item.quantity,

@@ -12,7 +12,7 @@ export type OrderConfirmationProps = {
 }
 
 /** Sent once a checkout is paid and split into an order per shop (#5). */
-export function OrderConfirmationEmail({ display_id, currency, orders, address }: OrderConfirmationProps) {
+export function OrderConfirmationEmail({ display_id, currency, orders, address }: Readonly<OrderConfirmationProps>) {
   const total = orders.reduce((sum, o) => sum + o.paid, 0)
   const sentTo =
     orders.length === 1
