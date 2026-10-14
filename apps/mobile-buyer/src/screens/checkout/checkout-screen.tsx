@@ -1,7 +1,13 @@
 import { useAuth } from '@clerk/expo';
 import {
+  addressFromForm,
   addressStep,
   checkoutAddressOf,
+  getAddressConfig,
+  toE164,
+  type AddressFieldKey,
+  type AddressFormErrors,
+  type AddressFormValues,
   deliveryEstimate,
   formatMoney,
   preselectedAddress,
@@ -17,7 +23,7 @@ import {
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useSaveAddress, useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
 import {
@@ -26,12 +32,17 @@ import {
   usePrepareCheckout,
   useStartPayment,
   type Checkout,
+  type CheckoutContact,
+  type CheckoutPreparation,
   type CheckoutSellerGroup,
 } from '@/api/checkout';
 import { useCustomer } from '@/api/customer';
 import { isAlreadyPaid } from '@/api/errors';
 import { AddressCard } from '@/components/address/address-card';
 import { AddressEntry } from '@/components/address/address-entry';
+import { AddressForm } from '@/components/address/address-form';
+import { PickupDetails } from '@/components/pickup';
+import { RadioOption } from '@/components/radio-option';
 import { useAddressDraft } from '@/components/address/use-address-draft';
 import { ToggleRow } from '@/components/toggle-row';
 import { useCartSession } from '@/cart/cart-provider';
@@ -77,6 +88,36 @@ export function CheckoutScreen() {
   return <CheckoutForm cartId={cartId} checkout={checkout.data} countryCode={countryCode} />;
 }
 
+/**
+ * The shops the buyer chose to collect from (#12), and whether a set of chosen shops means every
+ * order is collected. A shop checkout switched to pickup itself (fresh items no courier brings in
+ * time) isn't chosen: it is quoted for delivery again. It stays collected while nothing else is
+ * delivered, and checkout then needs no address.
+ */
+function pickupChoice(checkout: Checkout) {
+  const pickupShops = (switched: boolean) =>
+    checkout.sellers.flatMap((g) => (g.seller && g.method === 'pickup' && !!g.pickup_note === switched ? [g.seller.id] : []));
+  const chosenPickup = pickupShops(false);
+  const switchedToPickup = new Set(pickupShops(true));
+  const collectsAll = (ids: string[]) =>
+    checkout.sellers.every((g) => g.seller && (ids.includes(g.seller.id) || switchedToPickup.has(g.seller.id)));
+  return { chosenPickup, collectsAll };
+}
+
+/**
+ * What checkout can be prepared with once the buyer changes which shops they collect from: their
+ * details when every order is collected, else the cart's address. Null while it lacks that.
+ */
+function preparationFor(
+  pickup: string[],
+  allCollected: boolean,
+  contact: CheckoutContact | null,
+  cartAddress: PinnedDeliveryAddress | null,
+): CheckoutPreparation | null {
+  if (allCollected) return contact ? { contact, pickup } : null;
+  return cartAddress ? { shippingAddress: cartAddress, pickup } : null;
+}
+
 function CheckoutForm({
   cartId,
   checkout,
@@ -109,13 +150,37 @@ function CheckoutForm({
       countryCode,
     });
 
+  const { chosenPickup, collectsAll } = pickupChoice(checkout);
+  /** A change of method waiting for what checkout needs first: an address, or the buyer's details. */
+  const [pendingPickup, setPendingPickup] = useState<string[] | null>(null);
+  const pickup = pendingPickup ?? chosenPickup;
+  const everyCollected = collectsAll(pickup);
+
   const deliverTo = (address: PinnedDeliveryAddress, onDelivered?: () => void) =>
-    prepare.mutate(address, {
-      onSuccess: () => {
-        setBuyerStep(null);
-        onDelivered?.();
+    prepare.mutate(
+      { shippingAddress: address, pickup },
+      {
+        onSuccess: () => {
+          setBuyerStep(null);
+          setPendingPickup(null);
+          onDelivered?.();
+        },
       },
-    });
+    );
+
+  const collectFrom = (contact: CheckoutContact) =>
+    prepare.mutate({ contact, pickup }, { onSuccess: () => setPendingPickup(null) });
+
+  /** The buyer chooses how one shop's order reaches them. */
+  const chooseMethod = (sellerId: string, method: 'delivery' | 'pickup') => {
+    const next = method === 'pickup' ? [...chosenPickup, sellerId] : chosenPickup.filter((id) => id !== sellerId);
+    const allCollected = collectsAll(next);
+    const ready = preparationFor(next, allCollected, checkout.contact ?? contactOf(customer.data), cartAddress);
+    if (ready) return prepare.mutate(ready);
+    // Checkout needs the buyer's details, or an address, first.
+    setPendingPickup(next);
+    if (!allCollected) setBuyerStep(hasSaved ? 'choosing' : 'entering');
+  };
 
   const chooseAddress = useCallback(() => setBuyerStep('choosing'), []);
   useAutomaticQuotes({
@@ -124,6 +189,8 @@ function CheckoutForm({
     countryCode,
     cartAddress,
     checkout,
+    pickup,
+    everyCollected,
     prepare,
     onFailed: chooseAddress,
   });
@@ -146,7 +213,9 @@ function CheckoutForm({
       }
     });
   };
-  const editing = step !== 'chosen';
+  const [editingContact, setEditingContact] = useState(false);
+  const editingDetails = editingContact || !checkout.contact || !!pendingPickup;
+  const editing = everyCollected ? editingDetails : step !== 'chosen';
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -154,68 +223,246 @@ function CheckoutForm({
         style={{ backgroundColor: theme.colors.background }}
         contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}
         keyboardShouldPersistTaps="handled">
-        <View style={{ gap: theme.space.md }}>
-          <View style={styles.spread}>
-            <Text variant="heading">Delivery address</Text>
-            <AddressStepLink
-              step={step}
-              busy={prepare.isPending}
-              hasSaved={hasSaved}
-              hasCartAddress={!!cartAddress || checkout.ready_to_pay}
-              onStep={(next) => setBuyerStep(next === 'chosen' ? null : next)}
-            />
-          </View>
-          {step === 'starting' ? (
-            <Text tone="secondary">Getting your address…</Text>
-          ) : null}
-          {step === 'chosen' ? (
-            <ChosenAddress address={checkout.shipping_address} saveError={saveToAddressBook.error} />
-          ) : null}
-          {step === 'choosing' && saved.data ? (
-            <SavedAddressPicker
-              addresses={saved.data}
-              chosenId={savedAddressFor(saved.data, checkout.shipping_address, countryCode)}
-              countryCode={countryCode}
-              choosing={prepare.isPending ? prepare.variables : undefined}
-              error={prepare.error}
-              onChoose={(address) => deliverTo(address)}
-              onPin={enterAddress}
-              onAdd={() => enterAddress(null)}
-            />
-          ) : null}
-          {step === 'entering' ? (
-            <AddressEntry
-              lookup={{ cart_id: cartId }}
-              {...draft.entry}
-              onSave={deliverToEntered}
-              saving={prepare.isPending}
-              saveError={prepare.error}>
-              {pinningSaved ? null : <ToggleRow label="Save to my addresses" value={saveNew} onChange={setSaveNew} />}
-            </AddressEntry>
-          ) : null}
-        </View>
+        {everyCollected ? (
+          <ContactDetails
+            countryCode={countryCode}
+            contact={checkout.contact ?? contactOf(customer.data)}
+            editing={editing}
+            saving={prepare.isPending}
+            error={prepare.error}
+            onEdit={() => setEditingContact(true)}
+            onSave={(contact) => {
+              setEditingContact(false);
+              collectFrom(contact);
+            }}
+          />
+        ) : null}
+        <DeliveryAddress
+          hidden={everyCollected}
+          cartId={cartId}
+          checkout={checkout}
+          countryCode={countryCode}
+          step={step}
+          onStep={setBuyerStep}
+          hasCartAddress={!!cartAddress || checkout.ready_to_pay}
+          saved={saved.data}
+          saveError={saveToAddressBook.error}
+          prepare={prepare}
+          entry={draft.entry}
+          savesNew={!pinningSaved}
+          saveNew={saveNew}
+          onSaveNew={setSaveNew}
+          onChoose={deliverTo}
+          onEnter={enterAddress}
+          onEntered={deliverToEntered}
+        />
 
-        {editing ? null : <CheckoutSummary cartId={cartId} checkout={checkout} />}
+        {editing ? null : (
+          <CheckoutSummary
+            cartId={cartId}
+            checkout={checkout}
+            choosingMethod={prepare.isPending}
+            onChooseMethod={chooseMethod}
+          />
+        )}
       </ScrollView>
       {editing ? null : <PayBar cartId={cartId} checkout={checkout} prepare={prepare} />}
     </KeyboardAvoidingView>
   );
 }
 
+/** Where the order is delivered: the cart's address, the buyer's saved ones, or a new one entered. */
+function DeliveryAddress({
+  hidden,
+  cartId,
+  checkout,
+  countryCode,
+  step,
+  onStep,
+  hasCartAddress,
+  saved,
+  saveError,
+  prepare,
+  entry,
+  savesNew,
+  saveNew,
+  onSaveNew,
+  onChoose,
+  onEnter,
+  onEntered,
+}: Readonly<{
+  /** Hidden while every order is collected. */
+  hidden: boolean;
+  cartId: string;
+  checkout: Checkout;
+  countryCode: string;
+  step: AddressStep;
+  onStep: (step: AddressStep | null) => void;
+  hasCartAddress: boolean;
+  saved: SavedAddressRecord[] | undefined;
+  saveError: Error | null;
+  prepare: ReturnType<typeof usePrepareCheckout>;
+  entry: ReturnType<typeof useAddressDraft>['entry'];
+  /** Whether a new address can be saved to the buyer's addresses (not when pinning a saved one). */
+  savesNew: boolean;
+  saveNew: boolean;
+  onSaveNew: (save: boolean) => void;
+  onChoose: (address: PinnedDeliveryAddress) => void;
+  onEnter: (from: SavedAddressRecord | null) => void;
+  onEntered: (pin: Pin) => void;
+}>) {
+  const theme = useTheme();
+  return (
+    <View style={{ gap: theme.space.md, display: hidden ? 'none' : 'flex' }}>
+      <View style={styles.spread}>
+        <Text variant="heading">Delivery address</Text>
+        <AddressStepLink
+          step={step}
+          busy={prepare.isPending}
+          hasSaved={!!saved?.length}
+          hasCartAddress={hasCartAddress}
+          onStep={(next) => onStep(next === 'chosen' ? null : next)}
+        />
+      </View>
+      {step === 'starting' ? (
+        <Text tone="secondary">Getting your address…</Text>
+      ) : null}
+      {step === 'chosen' ? (
+        <ChosenAddress address={checkout.shipping_address} saveError={saveError} />
+      ) : null}
+      {step === 'choosing' && saved ? (
+        <SavedAddressPicker
+          addresses={saved}
+          chosenId={savedAddressFor(saved, checkout.shipping_address, countryCode)}
+          countryCode={countryCode}
+          choosing={prepare.isPending ? (prepare.variables?.shippingAddress ?? undefined) : undefined}
+          error={prepare.error}
+          onChoose={(address) => onChoose(address)}
+          onPin={onEnter}
+          onAdd={() => onEnter(null)}
+        />
+      ) : null}
+      {step === 'entering' ? (
+        <AddressEntry
+          lookup={{ cart_id: cartId }}
+          {...entry}
+          onSave={onEntered}
+          saving={prepare.isPending}
+          saveError={prepare.error}>
+          {savesNew ? <ToggleRow label="Save to my addresses" value={saveNew} onChange={onSaveNew} /> : null}
+        </AddressEntry>
+      ) : null}
+    </View>
+  );
+}
+
+/** The buyer's name and phone from their account, when it has them all. */
+function contactOf(customer: { first_name?: string | null; last_name?: string | null; phone?: string | null } | null | undefined) {
+  const { first_name, last_name, phone } = customer ?? {};
+  return first_name && last_name && phone ? { first_name, last_name, phone } : null;
+}
+
+/**
+ * When every shop's order is collected (#12), checkout asks for no address: only the buyer's
+ * name and phone, for the shops to hand the orders to.
+ */
+function ContactDetails({
+  countryCode,
+  contact,
+  editing,
+  saving,
+  error,
+  onEdit,
+  onSave,
+}: Readonly<{
+  countryCode: string;
+  contact: CheckoutContact | null;
+  editing: boolean;
+  saving: boolean;
+  error: Error | null;
+  onEdit: () => void;
+  onSave: (contact: CheckoutContact) => void;
+}>) {
+  const theme = useTheme();
+  const config = getAddressConfig(countryCode);
+  const fields = { ...config, fields: config.fields.filter((f) => CONTACT_FIELDS.has(f.key)) };
+  const [values, setValues] = useState<AddressFormValues>({
+    first_name: contact?.first_name ?? '',
+    last_name: contact?.last_name ?? '',
+    phone: contact?.phone ?? '',
+  });
+  const [errors, setErrors] = useState<AddressFormErrors>({});
+  const save = () => {
+    const checked = addressFromForm(values, countryCode);
+    const problems = checked.ok ? {} : Object.fromEntries(Object.entries(checked.errors).filter(([key]) => CONTACT_FIELDS.has(key)));
+    const phone = toE164(values.phone ?? '', countryCode);
+    if (Object.keys(problems).length || !phone) return setErrors(problems);
+    onSave({ first_name: values.first_name!.trim(), last_name: values.last_name!.trim(), phone });
+  };
+  return (
+    <View style={{ gap: theme.space.md }}>
+      <View style={styles.spread}>
+        <Text variant="heading">Your details</Text>
+        {editing || saving ? null : <Button label="Change" variant="link" onPress={onEdit} />}
+      </View>
+      <Text tone="secondary">
+        {"You collect every order in store, so there's no delivery address. Each shop hands your order to whoever shows its code."}
+      </Text>
+      {editing ? (
+        <>
+          <AddressForm
+            config={fields}
+            values={values}
+            errors={errors}
+            onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
+          />
+          {error ? (
+            <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+              {error.message}
+            </Text>
+          ) : null}
+          <Button label="Continue" onPress={save} loading={saving} />
+        </>
+      ) : (
+        contact && <Text>{`${contact.first_name} ${contact.last_name} · ${contact.phone}`}</Text>
+      )}
+    </View>
+  );
+}
+
+const CONTACT_FIELDS = new Set<string>(['first_name', 'last_name', 'phone'] satisfies AddressFieldKey[]);
+
 /** Each shop's part of the order, then the order's totals. */
-function CheckoutSummary({ cartId, checkout }: Readonly<{ cartId: string; checkout: Checkout }>) {
+function CheckoutSummary({
+  cartId,
+  checkout,
+  choosingMethod,
+  onChooseMethod,
+}: Readonly<{
+  cartId: string;
+  checkout: Checkout;
+  choosingMethod: boolean;
+  onChooseMethod: (sellerId: string, method: 'delivery' | 'pickup') => void;
+}>) {
   const theme = useTheme();
   return (
     <>
       {checkout.sellers.map((group) => (
-        <ShopSummary key={group.seller?.id ?? 'gone'} cartId={cartId} group={group} currencyCode={checkout.currency_code} />
+        <ShopSummary
+          key={group.seller?.id ?? 'gone'}
+          cartId={cartId}
+          group={group}
+          currencyCode={checkout.currency_code}
+          choosingMethod={choosingMethod}
+          onChooseMethod={onChooseMethod}
+        />
       ))}
       <View style={{ gap: theme.space.sm }}>
         <Line label="Items" amount={checkout.item_subtotal} currencyCode={checkout.currency_code} />
         <Line label="Delivery" amount={checkout.shipping_total} currencyCode={checkout.currency_code} />
         <Line label="Total" amount={checkout.total} currencyCode={checkout.currency_code} strong />
         <Text variant="caption" tone="secondary">
-          Prices include VAT. Each shop delivers its own items.
+          Prices include VAT. Each shop delivers its own items, or hands them over in store.
         </Text>
       </View>
     </>
@@ -285,6 +532,8 @@ function useAutomaticQuotes({
   countryCode,
   cartAddress,
   checkout,
+  pickup,
+  everyCollected,
   prepare,
   onFailed,
 }: {
@@ -293,21 +542,27 @@ function useAutomaticQuotes({
   countryCode: string;
   cartAddress: PinnedDeliveryAddress | null;
   checkout: Checkout;
+  /** The shops the buyer collects from, which aren't quoted. */
+  pickup: string[];
+  /** Every shop is collected: there is nothing to quote. */
+  everyCollected: boolean;
   prepare: ReturnType<typeof usePrepareCheckout>;
   onFailed: () => void;
 }) {
   const preselecting = useRef(false);
   useEffect(() => {
-    const preselected = step === 'starting' && saved ? preselectedAddress(saved, countryCode) : null;
+    const preselected = step === 'starting' && saved && !everyCollected ? preselectedAddress(saved, countryCode) : null;
     if (!preselected || preselecting.current) return;
     preselecting.current = true;
-    prepare.mutate(preselected.address, { onError: onFailed });
-  }, [step, saved, countryCode, prepare, onFailed]);
+    prepare.mutate({ shippingAddress: preselected.address, pickup }, { onError: onFailed });
+  }, [step, saved, countryCode, everyCollected, pickup, prepare, onFailed]);
 
   // A shop that can't deliver its order (perishables no courier brings in time, #69) says why
-  // instead of being quoted again.
-  const missingRates = !checkout.ready_to_pay && checkout.sellers.some((g) => !g.shipping && !g.delivery_unavailable);
-  const needsQuote = step === 'chosen' && missingRates && !!cartAddress && !prepare.isPending;
+  // instead of being quoted again; a shop collected from needs no rates.
+  const missingRates =
+    !checkout.ready_to_pay &&
+    checkout.sellers.some((g) => g.method === 'delivery' && !g.shipping && !g.delivery_unavailable);
+  const needsQuote = step === 'chosen' && !everyCollected && missingRates && !!cartAddress && !prepare.isPending;
   const requoted = useRef(false);
   useEffect(() => {
     if (!needsQuote) {
@@ -316,8 +571,8 @@ function useAutomaticQuotes({
     }
     if (requoted.current || !cartAddress) return;
     requoted.current = true;
-    prepare.mutate(cartAddress, { onError: onFailed });
-  }, [needsQuote, step, cartAddress, prepare, onFailed]);
+    prepare.mutate({ shippingAddress: cartAddress, pickup }, { onError: onFailed });
+  }, [needsQuote, step, cartAddress, pickup, prepare, onFailed]);
 }
 
 /** The cart's address once chosen, and why saving it to the buyer's addresses failed, if it did. */
@@ -367,7 +622,7 @@ function PriceChanges({ changes, currencyCode }: Readonly<{ changes: PriceChange
           {priceChangeMessage(change, currencyCode)}
         </Text>
       ))}
-      <Text tone="secondary">The total below is what you'll pay.</Text>
+      <Text tone="secondary">{"The total below is what you'll pay."}</Text>
     </View>
   );
 }
@@ -431,26 +686,19 @@ function SavedAddressPicker({
         const address = checkoutAddressOf(saved, countryCode);
         const selected = choosing ? savedAddressFor([saved], choosing, countryCode) !== null : saved.id === chosenId;
         return (
-          <Pressable
+          <RadioOption
             key={saved.id}
-            accessibilityRole="radio"
-            accessibilityState={{ selected, disabled: busy }}
+            selected={selected}
             disabled={busy}
-            onPress={() => (address ? onChoose(address) : onPin(saved))}
-            style={{
-              minHeight: theme.touchTarget,
-              padding: theme.space.md,
-              gap: theme.space.sm,
-              borderRadius: theme.radius.md,
-              borderColor: selected ? theme.colors.ink : theme.colors.divider,
-              borderWidth: selected ? 2 : 1,
-            }}>
-            <AddressCard
-              address={saved}
-              badge={saved.is_default_shipping ? <StatusChip label="Default" tone="info" /> : null}
-            />
-            {address ? null : <Text tone="accent">Place its pin on the map to deliver here</Text>}
-          </Pressable>
+            onPress={() => (address ? onChoose(address) : onPin(saved))}>
+            <View style={{ gap: theme.space.sm }}>
+              <AddressCard
+                address={saved}
+                badge={saved.is_default_shipping ? <StatusChip label="Default" tone="info" /> : null}
+              />
+              {address ? null : <Text tone="accent">Place its pin on the map to deliver here</Text>}
+            </View>
+          </RadioOption>
         );
       })}
       {error ? (
@@ -467,8 +715,17 @@ function ShopSummary({
   cartId,
   group,
   currencyCode,
-}: Readonly<{ cartId: string; group: CheckoutSellerGroup; currencyCode: string }>) {
+  choosingMethod,
+  onChooseMethod,
+}: Readonly<{
+  cartId: string;
+  group: CheckoutSellerGroup;
+  currencyCode: string;
+  choosingMethod: boolean;
+  onChooseMethod: (sellerId: string, method: 'delivery' | 'pickup') => void;
+}>) {
   const theme = useTheme();
+  const sellerId = group.seller?.id;
   return (
     <View
       style={{
@@ -495,7 +752,31 @@ function ShopSummary({
         </View>
       ))}
       {group.perishable && !group.delivery_unavailable ? <PerishableRule /> : null}
-      <DeliveryChoices cartId={cartId} group={group} currencyCode={currencyCode} />
+      {group.pickup && sellerId ? (
+        <View style={{ gap: theme.space.sm }} accessibilityRole="radiogroup" accessibilityLabel={`How to get ${group.seller?.name}'s order`}>
+          <RadioOption
+            selected={group.method === 'delivery'}
+            disabled={choosingMethod}
+            onPress={() => group.method !== 'delivery' && onChooseMethod(sellerId, 'delivery')}>
+            <Text variant="label">Delivery</Text>
+          </RadioOption>
+          <RadioOption
+            selected={group.method === 'pickup'}
+            disabled={choosingMethod}
+            onPress={() => group.method !== 'pickup' && onChooseMethod(sellerId, 'pickup')}>
+            <Text variant="label">Pickup · Free</Text>
+          </RadioOption>
+        </View>
+      ) : null}
+      {group.method === 'pickup' && group.pickup ? (
+        <View style={{ gap: theme.space.xs }}>
+          <Text variant="label">Collect in store</Text>
+          {group.pickup_note ? <Text accessibilityLiveRegion="polite">{group.pickup_note}</Text> : null}
+          <PickupDetails place={group.pickup} note={group.pickup.hold_notice} />
+        </View>
+      ) : (
+        <DeliveryChoices cartId={cartId} group={group} currencyCode={currencyCode} />
+      )}
     </View>
   );
 }
@@ -540,21 +821,12 @@ function DeliveryChoices({
         const selected = choice.id === chosenId;
         const arrives = deliveryEstimate(choice.delivery_eta_time, now, choice.time_zone);
         return (
-          <Pressable
+          <RadioOption
             key={choice.id}
-            accessibilityRole="radio"
-            accessibilityState={{ selected, disabled: choose.isPending }}
+            selected={selected}
             disabled={choose.isPending}
             onPress={() => {
               if (!selected) choose.mutate({ sellerId, choiceId: choice.id });
-            }}
-            style={{
-              minHeight: theme.touchTarget,
-              padding: theme.space.md,
-              gap: theme.space.xs,
-              borderRadius: theme.radius.md,
-              borderColor: selected ? theme.colors.ink : theme.colors.divider,
-              borderWidth: selected ? 2 : 1,
             }}>
             <View style={styles.spread}>
               <Text variant="label" style={styles.shrink}>
@@ -565,7 +837,7 @@ function DeliveryChoices({
             <Text tone="secondary">
               {arrives} · {choice.courier_name}
             </Text>
-          </Pressable>
+          </RadioOption>
         );
       })}
       {choose.error ? (

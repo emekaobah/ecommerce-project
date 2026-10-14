@@ -7,35 +7,36 @@ const handover = { staff: { actor, at: "2026-10-09T11:00:00.000Z" }, pickup: { a
 
 describe("recordReached", () => {
   test("records when the order reached its new state", () => {
-    expect(recordReached({ accepted: "t1" }, { state: "accepted" }, { state: "picking" }, "t2")).toEqual({
+    expect(recordReached({ accepted: "t1" }, { method: "delivery", state: "accepted" }, { method: "delivery", state: "picking" }, "t2")).toEqual({
       accepted: "t1",
       picking: "t2",
     })
   })
 
   test("leaves the record as it was when the state didn't change (half a handover)", () => {
-    const confirmed: Fulfilment = { state: "courier_confirmed", handover: {} }
-    const halfway: Fulfilment = { state: "courier_confirmed", handover: { staff: handover.staff } }
+    const confirmed: Fulfilment = { method: "delivery", state: "courier_confirmed", handover: {} }
+    const halfway: Fulfilment = { method: "delivery", state: "courier_confirmed", handover: { staff: handover.staff } }
     expect(recordReached({ courier_confirmed: "t1" }, confirmed, halfway, "t2")).toEqual({ courier_confirmed: "t1" })
   })
 
   test("a state reached again takes its new time (a rebooked label)", () => {
-    expect(recordReached({ label_booked: "t1", packed: "t0" }, { state: "packed" }, { state: "label_booked" }, "t3")).toEqual({
+    expect(recordReached({ label_booked: "t1", packed: "t0" }, { method: "delivery", state: "packed" }, { method: "delivery", state: "label_booked" }, "t3")).toEqual({
       label_booked: "t3",
       packed: "t0",
     })
   })
 
   test("a handover is reached when the courier picked the parcel up, whichever half came last", () => {
-    const tapped: Fulfilment = { state: "courier_confirmed", handover: { staff: handover.staff } }
-    const handedOver: Fulfilment = { state: "handed_to_courier", handover }
+    const tapped: Fulfilment = { method: "delivery", state: "courier_confirmed", handover: { staff: handover.staff } }
+    const handedOver: Fulfilment = { method: "delivery", state: "handed_to_courier", handover }
     expect(recordReached({}, tapped, handedOver, handover.pickup.at)).toEqual({ handed_to_courier: handover.pickup.at })
-    const pickedUp: Fulfilment = { state: "courier_confirmed", handover: { pickup: handover.pickup } }
+    const pickedUp: Fulfilment = { method: "delivery", state: "courier_confirmed", handover: { pickup: handover.pickup } }
     expect(recordReached({}, pickedUp, handedOver, "2026-10-09T16:00:00.000Z")).toEqual({ handed_to_courier: handover.pickup.at })
   })
 
   test("a handover completed after the courier moved on records each state the courier reported, when it reported it", () => {
     const waiting: Fulfilment = {
+      method: "delivery",
       state: "courier_confirmed",
       handover: {
         pickup: handover.pickup,
@@ -46,7 +47,7 @@ describe("recordReached", () => {
       },
     }
     const tappedAt = "2026-10-09T15:00:00.000Z"
-    const delivered: Fulfilment = { state: "delivered", handover: { staff: { actor, at: tappedAt }, pickup: handover.pickup } }
+    const delivered: Fulfilment = { method: "delivery", state: "delivered", handover: { staff: { actor, at: tappedAt }, pickup: handover.pickup } }
     expect(recordReached({ courier_confirmed: "t1" }, waiting, delivered, tappedAt)).toEqual({
       courier_confirmed: "t1",
       handed_to_courier: handover.pickup.at,
@@ -56,8 +57,8 @@ describe("recordReached", () => {
   })
 
   test("transit completing a handover staff had tapped records the handover and the transit at once", () => {
-    const tapped: Fulfilment = { state: "courier_confirmed", handover: { staff: handover.staff } }
-    const inTransit: Fulfilment = { state: "in_transit", handover: { staff: handover.staff, pickup: { at: "t5" } } }
+    const tapped: Fulfilment = { method: "delivery", state: "courier_confirmed", handover: { staff: handover.staff } }
+    const inTransit: Fulfilment = { method: "delivery", state: "in_transit", handover: { staff: handover.staff, pickup: { at: "t5" } } }
     expect(recordReached({}, tapped, inTransit, "t5")).toEqual({ handed_to_courier: "t5", in_transit: "t5" })
   })
 })
@@ -68,6 +69,7 @@ describe("fulfilmentTimeline", () => {
   test("shows the buyer each step, done up to where the order is, with when it got there", () => {
     const timeline = fulfilmentTimeline(
       {
+        method: "delivery",
         state: "handed_to_courier",
         placed_at: placedAt,
         reached: {
@@ -94,7 +96,7 @@ describe("fulfilmentTimeline", () => {
   })
 
   test("shows staff the finer steps", () => {
-    expect(fulfilmentTimeline({ state: "courier_confirmed", placed_at: placedAt, reached: {} }, "staff").map((s) => s.label)).toEqual([
+    expect(fulfilmentTimeline({ method: "delivery", state: "courier_confirmed", placed_at: placedAt, reached: {} }, "staff").map((s) => s.label)).toEqual([
       "Placed",
       "Accepted",
       "Picking",
@@ -108,13 +110,13 @@ describe("fulfilmentTimeline", () => {
   })
 
   test("a partially available order is still being picked", () => {
-    const timeline = fulfilmentTimeline({ state: "partially_available", placed_at: placedAt, reached: {} }, "staff")
+    const timeline = fulfilmentTimeline({ method: "delivery", state: "partially_available", placed_at: placedAt, reached: {} }, "staff")
     expect(timeline.find((s) => s.status === "current")?.label).toBe("Picking")
   })
 
   test("doesn't show the time of a step the order went back from (a cancelled label)", () => {
     const timeline = fulfilmentTimeline(
-      { state: "packed", placed_at: placedAt, reached: { packed: "t1", label_booked: "t2", courier_confirmed: "t3" } },
+      { method: "delivery", state: "packed", placed_at: placedAt, reached: { packed: "t1", label_booked: "t2", courier_confirmed: "t3" } },
       "staff",
     )
     expect(timeline.find((s) => s.label === "Label booked")).toEqual({ label: "Label booked", status: "upcoming", at: null })
@@ -122,7 +124,7 @@ describe("fulfilmentTimeline", () => {
 
   test("a delivered order has every step done, a skipped one without a time", () => {
     const timeline = fulfilmentTimeline(
-      { state: "delivered", placed_at: placedAt, reached: { handed_to_courier: "t1", delivered: "t2" } },
+      { method: "delivery", state: "delivered", placed_at: placedAt, reached: { handed_to_courier: "t1", delivered: "t2" } },
       "buyer",
     )
     expect(timeline.every((s) => s.status === "done")).toBe(true)
@@ -133,6 +135,34 @@ describe("fulfilmentTimeline", () => {
   })
 
   test("a rejected order has no timeline: its status says why", () => {
-    expect(fulfilmentTimeline({ state: "rejected", placed_at: placedAt, reached: {} }, "buyer")).toEqual([])
+    expect(fulfilmentTimeline({ method: "delivery", state: "rejected", placed_at: placedAt, reached: {} }, "buyer")).toEqual([])
+  })
+
+  describe("a pickup order", () => {
+    const reached = {
+      accepted: "2026-10-09T08:10:00.000Z",
+      picking: "2026-10-09T08:20:00.000Z",
+      ready_for_pickup: "2026-10-09T09:00:00.000Z",
+    }
+
+    test("shows the buyer the pickup steps, with no courier", () => {
+      expect(fulfilmentTimeline({ method: "pickup", state: "ready_for_pickup", placed_at: placedAt, reached }, "buyer")).toEqual([
+        { label: "Order placed", status: "done", at: placedAt },
+        { label: "Accepted", status: "done", at: "2026-10-09T08:10:00.000Z" },
+        { label: "Being prepared", status: "done", at: "2026-10-09T08:20:00.000Z" },
+        { label: "Ready for pickup", status: "current", at: "2026-10-09T09:00:00.000Z" },
+        { label: "Collected", status: "upcoming", at: null },
+      ])
+    })
+
+    test("shows staff the pickup steps, every one done once collected", () => {
+      const timeline = fulfilmentTimeline(
+        { method: "pickup", state: "collected", placed_at: placedAt, reached: { ...reached, collected: "2026-10-09T12:00:00.000Z" } },
+        "staff",
+      )
+      expect(timeline.map((s) => s.label)).toEqual(["Placed", "Accepted", "Picking", "Ready for pickup", "Collected"])
+      expect(timeline.every((s) => s.status === "done")).toBe(true)
+      expect(timeline.at(-1)?.at).toBe("2026-10-09T12:00:00.000Z")
+    })
   })
 })

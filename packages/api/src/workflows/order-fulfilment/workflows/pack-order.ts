@@ -7,7 +7,10 @@ import { lockOrderFulfilment, staffTrigger } from "../compose"
 
 export type PackOrderInput = { order_id: string; /** The member who packed it. */ actor: string }
 
-/** Staff mark a fully picked order packed: Picking → Packed, ready for a courier label. */
+/**
+ * Staff mark a fully picked order packed: a delivery order is Packed, ready for a courier label;
+ * a pickup order is Ready for pickup, its code issued and its buyer pushed (#12).
+ */
 export const packOrderWorkflow = createWorkflow("pack-order", (input: PackOrderInput) => {
   const lock = lockOrderFulfilment(input)
   checkPickedStep({ order_id: input.order_id })

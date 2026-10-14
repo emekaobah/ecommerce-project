@@ -7,13 +7,29 @@ import {
   updateLineItemInCartWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { addSellerShippingMethodToCartWorkflow } from "@mercurjs/core/workflows"
-import { deliveryChoices, type DeliveryTag, type LinePrice, type PriceChange } from "@oja/domain"
+import {
+  deliveryChoices,
+  PERISHABLE_PICKUP_NOTE,
+  PICKUP_HOLD_NOTICE,
+  type DeliveryTag,
+  type FulfilmentMethod,
+  type LinePrice,
+  type PriceChange,
+} from "@oja/domain"
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
 import type { PaystackSessionData } from "../modules/paystack/service"
 import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData } from "../modules/shipbubble"
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
+import {
+  collectionPlacesOf,
+  collectionPointsOf,
+  isPickupMethod,
+  PICKUP_METHOD_DATA,
+  pickupOptionsBySeller,
+  type CollectionPlace,
+} from "./collection-point"
 import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
 import { closedShopError } from "./shop-hours"
 
@@ -68,26 +84,47 @@ export type CheckoutShipping = {
  */
 export type DeliveryUnavailable = { code: "perishable_too_slow"; reason: string }
 
+/**
+ * In-store pickup as checkout offers it for a shop with a collection point (#12): where, how,
+ * and when (the shop's own hours), always free, with what happens if it isn't collected.
+ */
+export type PickupOffer = CollectionPlace & { hold_notice: string }
+
 export type CheckoutSellerGroup = CartSellerGroup & {
-  /** The shop's chosen delivery, once quoted; null before, or when the cart changed since. */
+  /** How the shop's order reaches the buyer: delivered (preselected where it can be), or collected in store. */
+  method: FulfilmentMethod
+  /** The shop's chosen delivery, once quoted; null before, when the cart changed since, or for pickup. */
   shipping: CheckoutShipping | null
   /** Best value (preselected), the cheapest and the fastest, as quoted for the current cart. */
   delivery_choices: CheckoutDeliveryChoice[]
-  /** Set when the shop can't deliver the order as it stands; checkout can't be paid until it changes. */
+  /** Set when the shop can't deliver the order as it stands; checkout can't be paid until it changes, or it is collected. */
   delivery_unavailable: DeliveryUnavailable | null
+  /** Pickup, offered when the shop has a collection point; null when it doesn't. */
+  pickup: PickupOffer | null
+  /** Why checkout switched the shop to pickup itself: no courier brings its fresh items in time. */
+  pickup_note: string | null
 }
+
+/** Who the buyer is when nothing is delivered: a name and a phone, for the shop to hand the order to. */
+export type CheckoutContact = { first_name: string; last_name: string; phone: string }
 
 export type Checkout = {
   cart_id: string
   currency_code: string
   email: string | null
+  /** Where delivered orders go; null when every shop's order is collected. */
   shipping_address: CheckoutAddress | null
+  /** The buyer's name and phone, from the delivery address or, when every order is collected, given on their own. */
+  contact: CheckoutContact | null
   sellers: CheckoutSellerGroup[]
   item_subtotal: number
   shipping_total: number
   /** What the buyer pays: prices are VAT-inclusive, so items plus delivery. */
   total: number
-  /** The address is set, every item's shop delivers there and is taking orders, so payment can start. */
+  /**
+   * Every item's shop is taking orders and either delivers to the address or is collected (with
+   * the buyer's name and phone given), so payment can start.
+   */
   ready_to_pay: boolean
   /** Set once payment is confirmed and the cart has become orders. */
   order_group_id: string | null
@@ -121,6 +158,7 @@ type CartRow = {
   shipping_total: number | string
   metadata: Record<string, unknown> | null
   shipping_address: (CheckoutAddress & { id: string }) | null
+  billing_address: Partial<CheckoutContact> | null
   shipping_methods?:
     | {
         id: string
@@ -164,6 +202,9 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
       "shipping_total",
       "metadata",
       ...ADDRESS_FIELDS.map((f) => `shipping_address.${f}`),
+      "billing_address.first_name",
+      "billing_address.last_name",
+      "billing_address.phone",
       "shipping_methods.id",
       "shipping_methods.shipping_option_id",
       "shipping_methods.name",
@@ -175,7 +216,7 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
     ],
     filters: { id: cartId },
   })
-  const cart = data[0] as CartRow | undefined
+  const cart = data[0] as unknown as CartRow | undefined
   if (cart?.customer_id !== customerId) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `Cart ${cartId} not found`)
   }
@@ -310,12 +351,22 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
     ? await query.graph({ entity: "order_group", fields: ["id"], filters: { cart_id: cartId } })
     : { data: [] }
 
-  const address = cart.shipping_address
+  // A cart in a one-country region carries that country as a stub address: no place to deliver to.
+  const address = cart.shipping_address?.address_1 ? cart.shipping_address : null
   const receiverCode = addressCodeOf(address)
   const unavailable = unavailableDeliveries(cart)
-  const timeZone = await regionTimeZone(scope, grouped.region_id)
-  const sellers = grouped.sellers.map((group) => {
-    const delivery = group.seller ? deliveries.get(group.seller.id) : undefined
+  const sellerIds = grouped.sellers.flatMap((g) => (g.seller ? [g.seller.id] : []))
+  const [timeZone, collecting, places] = await Promise.all([
+    regionTimeZone(scope, grouped.region_id),
+    collectedShops(scope, cart),
+    collectionPlacesOf(scope, sellerIds),
+  ])
+  const sellers = grouped.sellers.map((group): CheckoutSellerGroup => {
+    const sellerId = group.seller?.id
+    const place = sellerId ? places.get(sellerId) : undefined
+    const pickup = place ? { ...place, hold_notice: PICKUP_HOLD_NOTICE } : null
+    const method: FulfilmentMethod = sellerId && collecting.has(sellerId) ? "pickup" : "delivery"
+    const delivery = sellerId && method === "delivery" ? deliveries.get(sellerId) : undefined
     // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
     // So does a shop's word that it can't deliver. An order with perishable items (perhaps only
     // since the quote) takes only a delivery still arriving by the end of tomorrow, and a shop
@@ -323,14 +374,21 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
     const basis = quoteBasis(receiverCode, parcelLines(group))
     const inTime = !!delivery && ratesFor([delivery.data.quote], { perishable: group.perishable, timeZone }).length > 0
     const current = delivery?.data.basis === basis && inTime ? delivery : undefined
-    const refused = group.seller ? unavailable[group.seller.id] : undefined
+    const refused = sellerId ? unavailable[sellerId] : undefined
+    const delivery_unavailable =
+      group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null
     return {
       ...group,
+      method,
       ...shopDelivery(current),
-      delivery_unavailable:
-        group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null,
+      delivery_unavailable,
+      pickup,
+      // Checkout switched it to pickup: no courier brings its fresh items in time (#69).
+      pickup_note: method === "pickup" && delivery_unavailable ? PERISHABLE_PICKUP_NOTE : null,
     }
   })
+  const contact = contactOf(cart.billing_address)
+  const allCollected = sellers.length > 0 && sellers.every((g) => g.method === "pickup")
   return {
     cart_id: cart.id,
     currency_code: cart.currency_code,
@@ -338,18 +396,37 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
     shipping_address: address
       ? (Object.fromEntries(ADDRESS_FIELDS.map((f) => [f, address[f] ?? null])) as CheckoutAddress)
       : null,
+    contact,
     sellers,
     // The shops' own prices, VAT included; Medusa's `item_subtotal` excludes the VAT.
     item_subtotal: grouped.item_subtotal,
     shipping_total: Number(cart.shipping_total),
     total: Number(cart.total),
     ready_to_pay:
-      !!address &&
+      (allCollected ? !!contact : !!address) &&
       !!cart.email &&
       sellers.length > 0 &&
-      sellers.every((g) => g.seller && g.shipping && g.shop_status?.orderable),
+      sellers.every((g) => g.seller && (g.method === "pickup" || g.shipping) && g.shop_status?.orderable),
     order_group_id: (groups[0] as { id: string } | undefined)?.id ?? null,
   }
+}
+
+const contactOf = (address: Partial<CheckoutContact> | null): CheckoutContact | null =>
+  address?.first_name && address.last_name && address.phone
+    ? { first_name: address.first_name, last_name: address.last_name, phone: address.phone }
+    : null
+
+/** The shops checkout switched to pickup itself: collected, and refused delivery when last quoted. */
+async function switchedToPickup(scope: MedusaContainer, cart: CartRow): Promise<Set<string>> {
+  const refused = unavailableDeliveries(cart)
+  return new Set([...(await collectedShops(scope, cart))].filter((sellerId) => refused[sellerId]))
+}
+
+/** The shops whose orders the buyer collects: those with their pickup as the cart's shipping method. */
+async function collectedShops(scope: MedusaContainer, cart: CartRow): Promise<Set<string>> {
+  const methods = (cart.shipping_methods ?? []).filter((m) => m.shipping_option_id && isPickupMethod(m))
+  const sellerByOption = await sellerOfOptions(scope, methods.map((m) => m.shipping_option_id!))
+  return new Set(methods.flatMap((m) => sellerByOption.get(m.shipping_option_id!) ?? []))
 }
 
 const linePrice = ({ unit_price, compare_at_unit_price, is_tax_inclusive }: LinePrice): LinePrice => ({
@@ -428,46 +505,70 @@ async function shipbubbleOptionsBySeller(scope: MedusaContainer, sellerIds: stri
 
 type ShopQuote =
   | { sellerId: string; option: { id: string; data: ShipbubbleMethodData } }
-  | { sellerId: string; unavailable: QuotedUnavailable }
+  /** `collect`: the shop has a collection point, so its order is collected instead. */
+  | { sellerId: string; unavailable: QuotedUnavailable; collect: boolean }
 
 /**
- * Each shop's delivery to the cart's address: Shipbubble's rates for the shop's parcel, with
+ * Each shop's way to the buyer (#12, #23): the shops the buyer collects from get their pickup;
+ * the rest are delivered to the cart's address at Shipbubble's rates for the shop's parcel, with
  * best value chosen. A shop no courier will deliver for refuses the checkout. An order with
  * perishable items goes only by rates arriving by the end of tomorrow (#69); with none, that
- * shop's delivery is unavailable, which the cart keeps so checkout can say why.
+ * shop's delivery is unavailable, which the cart keeps so checkout can say why, and its order is
+ * collected instead when the shop has a collection point.
  */
-async function setShopDeliveries(scope: MedusaContainer, cart: CartRow, receiverCode: number) {
+async function setShopMethods(
+  scope: MedusaContainer,
+  cart: CartRow,
+  { receiverCode, pickup }: { receiverCode: number | null; pickup: Set<string> }
+) {
   const { sellers, currency_code, region_id } = await retrieveCartBySeller(scope, cart.id)
-  const [optionBySeller, timeZone] = await Promise.all([
-    shipbubbleOptionsBySeller(scope, sellers.map((g) => g.seller!.id)),
+  const ids = sellers.map((g) => g.seller!.id)
+  const [optionBySeller, pickupOptions, timeZone, points] = await Promise.all([
+    shipbubbleOptionsBySeller(scope, ids),
+    pickupOptionsBySeller(scope, ids),
     regionTimeZone(scope, region_id),
+    collectionPointsOf(scope, ids),
   ])
+  const pickupOption = (sellerId: string) => {
+    const id = pickupOptions.get(sellerId)
+    if (!id) throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Shop ${sellerId} has a collection point but no pickup option`)
+    return id
+  }
+  const delivered = sellers.filter((g) => !pickup.has(g.seller!.id))
   // Each shop is quoted from its own pickup address, so the quotes are asked for at once.
   const quotes: ShopQuote[] = await Promise.all(
-    sellers.map(async (group): Promise<ShopQuote> => {
+    delivered.map(async (group): Promise<ShopQuote> => {
       const seller = group.seller!
       const optionId = optionBySeller.get(seller.id)
       const lines = parcelLines(group)
       const basis = quoteBasis(receiverCode, lines)
-      const rates = optionId
-        ? await quoteRates(scope, { sellerId: seller.id, receiverCode, lines, currencyCode: currency_code })
-        : []
+      const rates =
+        optionId && receiverCode != null
+          ? await quoteRates(scope, { sellerId: seller.id, receiverCode, lines, currencyCode: currency_code })
+          : []
       if (!optionId || !rates.length) {
         throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller.name} doesn't deliver to this address`)
       }
       const choices = deliveryChoices(ratesFor(rates, { perishable: group.perishable, timeZone }))
-      if (!choices.length) return { sellerId: seller.id, unavailable: { ...perishableTooSlow(seller.name), basis } }
+      if (!choices.length) {
+        return { sellerId: seller.id, unavailable: { ...perishableTooSlow(seller.name), basis }, collect: points.has(seller.id) }
+      }
       // `deliveryChoices` puts best value first.
       return { sellerId: seller.id, option: { id: optionId, data: { quote: choices[0]!, choices, basis } } }
     })
   )
 
-  const options = quotes.flatMap((q) => ("option" in q ? [q.option] : []))
+  const collected = [...pickup, ...quotes.flatMap((q) => ("collect" in q && q.collect ? [q.sellerId] : []))]
+  const options = [
+    ...quotes.flatMap((q) => ("option" in q ? [q.option] : [])),
+    ...collected.map((sellerId) => ({ id: pickupOption(sellerId), data: { ...PICKUP_METHOD_DATA } })),
+  ]
   const unavailable = Object.fromEntries(quotes.flatMap((q) => ("unavailable" in q ? [[q.sellerId, q.unavailable]] : [])))
-  // A shop that can't deliver keeps no delivery quoted for an earlier cart, which would still be charged.
+  // A shop that can't deliver keeps no delivery quoted for an earlier cart, which would still be
+  // charged; one collected instead has it replaced by its pickup.
   const deliveries = await deliveriesBySeller(scope, cart)
-  const stale = Object.keys(unavailable).flatMap((sellerId) => {
-    const method = deliveries.get(sellerId)
+  const stale = quotes.flatMap((q) => {
+    const method = "unavailable" in q && !q.collect ? deliveries.get(q.sellerId) : undefined
     return method ? [method.id] : []
   })
   const carts = scope.resolve(Modules.CART)
@@ -481,14 +582,40 @@ async function setShopDeliveries(scope: MedusaContainer, cart: CartRow, receiver
 }
 
 /**
- * Readies the buyer's cart to pay: every line at its shop's current price, the buyer's email
- * and delivery address, validated with Shipbubble, and each shop's delivery quoted with best
- * value chosen. Safe to repeat, e.g. after editing the address or the cart. Returns the
- * checkout and the lines whose price changed, for the buyer to see.
+ * The shops the buyer collects from, each in the cart and offering pickup (a collection point);
+ * refused (400) otherwise.
+ */
+async function pickupShops(scope: MedusaContainer, sellers: CartSellerGroup[], sellerIds: string[]): Promise<Set<string>> {
+  const points = await collectionPointsOf(scope, sellerIds)
+  for (const id of sellerIds) {
+    const group = sellers.find((g) => g.seller?.id === id)
+    if (!group) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Pickup was chosen for a shop that isn't in the cart")
+    if (!points.has(id)) throw new MedusaError(MedusaError.Types.INVALID_DATA, `${group.seller!.name} doesn't offer pickup`)
+  }
+  return new Set(sellerIds)
+}
+
+/** What the buyer sends to ready the cart to pay. */
+export type CheckoutPreparation = {
+  /** Where delivered orders go; not needed when every shop's order is collected. */
+  shippingAddress?: CheckoutAddress | null
+  /** The buyer's name and phone, when there is no delivery address to take them from. */
+  contact?: CheckoutContact | null
+  /** The shops whose orders the buyer collects in store (#12); the rest are delivered. */
+  pickup?: string[]
+}
+
+/**
+ * Readies the buyer's cart to pay: every line at its shop's current price, the buyer's email,
+ * and each shop's way to the buyer. Shops the buyer collects from get their pickup; the rest are
+ * delivered to the address, validated with Shipbubble, each quoted with best value chosen. A
+ * checkout where every shop is collected takes no address and asks Shipbubble nothing, only the
+ * buyer's name and phone. Safe to repeat, e.g. after editing the address, the choices or the
+ * cart. Returns the checkout and the lines whose price changed, for the buyer to see.
  */
 export async function prepareCheckout(
   scope: MedusaContainer,
-  { cartId, customerId, shippingAddress }: { cartId: string; customerId: string; shippingAddress: CheckoutAddress }
+  { cartId, customerId, shippingAddress, contact, pickup = [] }: { cartId: string; customerId: string } & CheckoutPreparation
 ): Promise<CheckoutPrepared> {
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
@@ -496,6 +623,32 @@ export async function prepareCheckout(
 
   const priceChanges = await repriceLines(scope, cartId)
   await dropEmptyShopDeliveries(scope, cart)
+  const { sellers } = await retrieveCartBySeller(scope, cartId)
+  const chosen = await pickupShops(scope, sellers, pickup)
+  // Without an address, a shop checkout already switched to pickup (fresh items no courier
+  // brings in time) stays collected: there is nowhere to deliver it.
+  const switched = shippingAddress ? [] : [...(await switchedToPickup(scope, cart))]
+  const collecting = new Set([...chosen, ...switched])
+  const allCollected = sellers.every((g) => collecting.has(g.seller!.id))
+
+  if (allCollected) {
+    const buyer = contact ?? (shippingAddress && contactOf(shippingAddress))
+    if (!buyer) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Give your name and phone number for the shop")
+    // Nothing is delivered, so no delivery address is kept: only its country, as a new cart has.
+    const country = cart.shipping_address?.country_code
+    await updateCartWorkflow(scope).run({
+      input: {
+        id: cartId,
+        email: customer.email,
+        billing_address: buyer as CreateAddressDTO,
+        ...(cart.shipping_address?.address_1 && country && { shipping_address: { country_code: country } }),
+      },
+    })
+    await setShopMethods(scope, await buyersCart(scope, cartId, customerId), { receiverCode: null, pickup: collecting })
+    return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
+  }
+
+  if (!shippingAddress) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Set the delivery address")
   // Validated unless it is the cart's own address sent again, which keeps its code (ADR 0002).
   // A code is never taken from the request: it sets what delivery costs and where it goes.
   const previous = cart.shipping_address
@@ -513,7 +666,10 @@ export async function prepareCheckout(
       billing_address: address as CreateAddressDTO,
     },
   })
-  await setShopDeliveries(scope, await buyersCart(scope, cartId, customerId), addressCodeOf(address)!)
+  await setShopMethods(scope, await buyersCart(scope, cartId, customerId), {
+    receiverCode: addressCodeOf(address)!,
+    pickup: collecting,
+  })
   return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
 }
 
@@ -580,10 +736,11 @@ export async function startCheckoutPayment(
   // A shop in a closed exception or paused takes no orders until it reopens (ADR 0004).
   const closed = checkout.sellers.find((g) => g.seller && g.shop_status && !g.shop_status.orderable)
   if (closed) throw closedShopError(closed.seller!.name, closed.shop_status!)
-  const undeliverable = checkout.sellers.find((g) => g.delivery_unavailable)
+  // A shop collected instead of delivered doesn't need a courier.
+  const undeliverable = checkout.sellers.find((g) => g.delivery_unavailable && g.method === "delivery")
   if (undeliverable) throw new MedusaError(MedusaError.Types.NOT_ALLOWED, undeliverable.delivery_unavailable!.reason)
   if (!checkout.ready_to_pay) {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Set the delivery address before paying")
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Choose how each shop's order reaches you before paying")
   }
   if (priceChanges.length) return { payment: null, price_changes: priceChanges, checkout }
 

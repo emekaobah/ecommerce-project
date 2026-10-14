@@ -10,8 +10,10 @@ export const orderKeys = {
   pickList: (orderId: string) => [...orderKeys.all, 'pick-list', orderId] as const,
 };
 
-// The default fields leave out the order total; `+` adds it to them.
-const ORDER_FIELDS = '+total,+credit_line_total,+created_at,+items.product_title,+items.quantity';
+// The default fields leave out the order total; `+` adds it to them. The buyer's name is who a
+// pickup order is for (#12).
+const ORDER_FIELDS =
+  '+total,+credit_line_total,+created_at,+items.product_title,+items.quantity,+billing_address.first_name,+billing_address.last_name';
 
 /**
  * What the buyer paid for the order. A refund adds a credit line that takes the refunded
@@ -49,6 +51,28 @@ export function useOrders(sellerId: string | undefined) {
   return useQuery({
     queryKey: orderKeys.list(sellerId ?? ''),
     queryFn: sellerId ? fetchOrders : skipToken,
+    refetchInterval: 60_000,
+  });
+}
+
+async function fetchReadyOrders() {
+  const { order_ids } = await vendorClient.vendor.readyForPickup.query();
+  if (!order_ids.length) return [];
+  const { orders } = await vendorClient.vendor.orders.query({ id: order_ids, limit: order_ids.length, fields: ORDER_FIELDS });
+  const byId = new Map((orders as WithFulfilment<(typeof orders)[number]>[]).map((o) => [o.id, o]));
+  // Longest waiting first, as the server lists them.
+  return order_ids.flatMap((id) => byId.get(id) ?? []);
+}
+
+/**
+ * The shop's orders waiting at the counter for their buyers (#12), longest waiting first,
+ * however old: the server finds them, not the recent orders the list shows. Checked again every
+ * minute while on screen.
+ */
+export function useReadyOrders(sellerId: string | undefined) {
+  return useQuery({
+    queryKey: [...orderKeys.list(sellerId ?? ''), 'ready-for-pickup'],
+    queryFn: sellerId ? fetchReadyOrders : skipToken,
     refetchInterval: 60_000,
   });
 }
@@ -178,7 +202,20 @@ export function useRemoveUnavailable(orderId: string) {
   });
 }
 
-/** Marks a fully picked order packed, ready for a courier label. */
+/**
+ * Hands a pickup order over at the counter (#12) against the code its collector shows, naming
+ * who collected it. A wrong code is refused; after five within 15 minutes every code is, for a while.
+ */
+export function useCollectOrder(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, collectedBy }: { code: string; collectedBy: string }) =>
+      vendorClient.vendor.orders.$id.collect.mutate({ $id: orderId, code, collected_by: collectedBy }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+  });
+}
+
+/** Marks a fully picked order packed: a delivery order is then ready for a courier label, a pickup order ready for its buyer. */
 export function usePackOrder(orderId: string) {
   const queryClient = useQueryClient();
   return useMutation({

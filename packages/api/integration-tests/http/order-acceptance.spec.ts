@@ -76,12 +76,14 @@ medusaIntegrationTestRunner({
         const order = await shopOrder(GADGETS, gadgets)
 
         expect(order.fulfilment).toEqual({
+          method: "delivery",
           state: "new",
           accept_by: new Date(Date.parse(order.created_at) + 24 * HOUR).toISOString(),
           rejected_by: null,
           reject_reason: null,
           shipment: null,
           handover: null,
+          collection: null,
           timeline: expect.arrayContaining([{ label: "Placed", status: "current", at: new Date(order.created_at).toISOString() }]),
         })
       })
@@ -137,12 +139,14 @@ medusaIntegrationTestRunner({
         const { data } = await reject(GADGETS, gadgets, "The lantern is out of stock")
 
         expect(data.fulfilment).toEqual({
+          method: "delivery",
           state: "rejected",
           accept_by: null,
           rejected_by: "seller",
           reject_reason: "The lantern is out of stock",
           shipment: null,
           handover: null,
+          collection: null,
           // A rejected order's status says why; it has no steps to show.
           timeline: [],
         })

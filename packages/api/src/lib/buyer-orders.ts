@@ -2,13 +2,17 @@ import type { ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
+import { collectionPlacesOf, type CollectionPlace } from "./collection-point"
 import {
   fulfilmentService,
   fulfilmentsOf,
   fulfilmentView,
+  METHOD_FIELDS,
+  methodOfOrder,
   type FulfilmentRecord,
   type FulfilmentView,
   type Picks,
+  type PlacedOrder,
 } from "./order-fulfilment"
 import { shopHoursOf } from "./shop-hours"
 
@@ -48,17 +52,34 @@ export type BuyerOrder = {
   paid_total: number
   /** What has been refunded of it, and where that is; null while nothing has been. */
   refund: BuyerRefund | null
+  /** Where and when to collect a pickup order, and its code once ready (#12); null for a delivered order. */
+  pickup: BuyerPickup | null
 }
 
 /**
  * An order's fulfilment as its buyer sees it (#25): its state, the courier's tracking link once
  * a label is booked, and its timeline in the buyer's steps. Not who at the shop handed it over.
  */
-export type BuyerFulfilmentView = Omit<FulfilmentView, "handover">
+export type BuyerFulfilmentView = Omit<FulfilmentView, "handover" | "collection">
 
-function buyerFulfilment(record: FulfilmentRecord | undefined, placedAt: Date | string, hours: ShopHours | null): BuyerFulfilmentView {
-  const { handover: _staffOnly, ...view } = fulfilmentView(record, placedAt, hours, { audience: "buyer" })
+function buyerFulfilment(record: FulfilmentRecord | undefined, order: PlacedOrder, hours: ShopHours | null): BuyerFulfilmentView {
+  const { handover: _staffOnly, collection: _alsoStaffOnly, ...view } = fulfilmentView(record, order, hours, { audience: "buyer" })
   return view
+}
+
+/**
+ * A pickup order's collection details as its buyer sees them: the shop's collection point, open
+ * the shop's hours, and the code to show at the counter, only while the order is Ready for pickup.
+ */
+export type BuyerPickup = CollectionPlace & { code: string | null }
+
+/**
+ * A shop removes its collection point only once none of its pickup orders is left to collect
+ * (#12), so an order still to collect has one; a collected order then shows its timeline alone.
+ */
+function buyerPickup(record: FulfilmentRecord | undefined, place: CollectionPlace | undefined): BuyerPickup | null {
+  if (record?.fulfilment.method !== "pickup" || !place) return null
+  return { ...place, code: record.fulfilment.state === "ready_for_pickup" ? record.pickup_code : null }
 }
 
 /** An order's refunds as its buyer sees them: what comes back, and how far it has got. */
@@ -119,6 +140,7 @@ const ORDER_FIELDS = [
   "credit_line_total",
   "transactions.amount",
   "transactions.reference",
+  ...METHOD_FIELDS,
 ]
 
 type GroupRow = { id: string; display_id: number; created_at: Date | string; orders?: ({ id: string } | null)[] | null }
@@ -174,17 +196,23 @@ async function buyerOrders(scope: Scope, ids: string[]): Promise<Map<string, Buy
     fulfilmentsOf(scope, ids),
     fulfilmentService(scope).listOrderRefunds({ order_id: ids }),
   ])
-  const hours = await shopHoursOf(scope, (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : [])))
+  const sellerIds = (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : []))
+  const [hours, places] = await Promise.all([shopHoursOf(scope, sellerIds), collectionPlacesOf(scope, sellerIds)])
   const refundsOf = (orderId: string) => refunds.filter((r) => r.order_id === orderId)
   return new Map(
-    (data as any[]).map((o) => [
-      o.id,
-      {
-        ...buyerOrder(o, fulfilments.get(o.id)?.removed ?? {}),
-        fulfilment: buyerFulfilment(fulfilments.get(o.id), o.created_at, hours.get(o.seller?.id) ?? null),
-        refund: buyerRefund(refundsOf(o.id)),
-      },
-    ])
+    (data as any[]).map((o) => {
+      const record = fulfilments.get(o.id)
+      const shopHours = hours.get(o.seller?.id) ?? null
+      return [
+        o.id,
+        {
+          ...buyerOrder(o, record?.removed ?? {}),
+          fulfilment: buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o) }, shopHours),
+          refund: buyerRefund(refundsOf(o.id)),
+          pickup: buyerPickup(record, places.get(o.seller?.id)),
+        },
+      ]
+    })
   )
 }
 
@@ -201,7 +229,7 @@ function paidTotal(o: any): number {
   return captures.reduce((sum, t) => sum + Number(t!.amount), 0)
 }
 
-function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund"> {
+function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund" | "pickup"> {
   return {
     id: o.id,
     display_id: o.display_id,

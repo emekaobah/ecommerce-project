@@ -1,10 +1,7 @@
-import { validateAndTransformBody, type MiddlewareRoute } from "@medusajs/framework/http"
+import { validateAndTransformBody } from "@medusajs/framework/http"
+import type { PolicedRoute } from "../../policed-route"
 import { PolicyOperation } from "@medusajs/framework/utils"
 import { VendorCreateHoursException, VendorPauseShop, VendorSetWeeklyHours } from "./validators"
-
-// Medusa checks a route's RBAC policies (as Mercur's own vendor routes declare
-// them), though its public route type leaves the field out.
-type PolicedRoute = MiddlewareRoute & { policies: { resource: string; operation: string }[] }
 
 // Every member sees the hours and whether the shop is paused; only owners and managers (seller
 // update, `role_seller_administration`) change them or pause (ADR 0004).

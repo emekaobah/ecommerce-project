@@ -67,29 +67,42 @@ export function OrderScreen() {
 
 /** What the order's state means for staff: the accept deadline, packed, or why it was rejected. */
 function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
-  if (fulfilment.state === 'new' && fulfilment.accept_by) {
-    return <Text tone="secondary">Accept by {new Date(fulfilment.accept_by).toLocaleString()}, or it is rejected and refunded.</Text>;
-  }
-  if (fulfilment.state === 'packed' && fulfilment.shipment?.cancelled) {
-    return <Text tone="secondary">Shipbubble cancelled the courier booking. Book a new label to send it.</Text>;
-  }
-  if (fulfilment.state === 'packed') return <Text tone="secondary">Packed, ready for a courier label.</Text>;
-  if (fulfilment.state === 'label_booked') {
-    return <Text tone="secondary">Label booked. Waiting for the courier to confirm the pickup.</Text>;
-  }
   if (fulfilment.state === 'courier_confirmed') return <HandoverNote fulfilment={fulfilment} />;
-  if (fulfilment.state === 'handed_to_courier') return <Text tone="secondary">With the courier, on its way to the buyer.</Text>;
-  if (fulfilment.state === 'in_transit') return <Text tone="secondary">In transit to the buyer.</Text>;
-  if (fulfilment.state === 'delivered') return <Text tone="secondary">Delivered to the buyer.</Text>;
-  if (fulfilment.state === 'rejected') {
-    return (
-      <Text tone="secondary">
-        {fulfilment.rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${fulfilment.reject_reason}.`} The
-        buyer&apos;s payment for this order is being refunded.
-      </Text>
-    );
+  const note = stateNote(fulfilment);
+  return note ? <Text tone="secondary">{note}</Text> : null;
+}
+
+/** The note for a state that always reads the same. */
+const STATE_NOTES: { [S in OrderFulfilment['state']]?: string } = {
+  packed: 'Packed, ready for a courier label.',
+  label_booked: 'Label booked. Waiting for the courier to confirm the pickup.',
+  handed_to_courier: 'With the courier, on its way to the buyer.',
+  in_transit: 'In transit to the buyer.',
+  delivered: 'Delivered to the buyer.',
+  ready_for_pickup: 'Ready at the counter. The buyer collects it with the code in their app.',
+};
+
+/** A pickup order's states before it is packed, when staff are told the buyer collects it. */
+const BEFORE_PACKING = new Set<OrderFulfilment['state']>(['new', 'accepted', 'picking', 'partially_available']);
+
+function stateNote(fulfilment: OrderFulfilment): string | null {
+  const { state } = fulfilment;
+  if (state === 'new' && fulfilment.accept_by) {
+    return `Accept by ${new Date(fulfilment.accept_by).toLocaleString()}, or it is rejected and refunded.`;
   }
-  return null;
+  if (state === 'packed' && fulfilment.shipment?.cancelled) {
+    return 'Shipbubble cancelled the courier booking. Book a new label to send it.';
+  }
+  if (state === 'collected' && fulfilment.collection) {
+    const { staff, collected_by } = fulfilment.collection;
+    return `Handed over by ${staff.name ?? 'a staff member'} to ${collected_by} at ${timeOf(staff.at)}.`;
+  }
+  if (state === 'rejected') {
+    const why = fulfilment.rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${fulfilment.reject_reason}.`;
+    return `${why} The buyer's payment for this order is being refunded.`;
+  }
+  if (fulfilment.method === 'pickup' && BEFORE_PACKING.has(state)) return 'The buyer collects this order in store.';
+  return STATE_NOTES[state] ?? null;
 }
 
 const timeOf = (at: string) => new Date(at).toLocaleTimeString(undefined, { timeStyle: 'short' });
@@ -177,6 +190,9 @@ function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilmen
         onPress={() => bookLabel.mutate()}
       />
     );
+  }
+  if (state === 'ready_for_pickup') {
+    return <Button label="Hand over to buyer" onPress={() => router.push({ pathname: '/orders/[id]/collect', params: { id: orderId } })} />;
   }
   if (state === 'courier_confirmed' && !fulfilment.handover?.staff) {
     return <Action label="Handed to courier" mutation={handOver} onPress={() => handOver.mutate()} />;

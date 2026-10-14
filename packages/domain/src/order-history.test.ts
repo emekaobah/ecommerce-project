@@ -18,6 +18,8 @@ describe("orderStatus", () => {
     ["handed_to_courier", "On its way", "info"],
     ["in_transit", "On its way", "info"],
     ["delivered", "Delivered", "success"],
+    ["ready_for_pickup", "Ready for pickup", "success"],
+    ["collected", "Collected", "success"],
   ] as const)("a %s order reads %s", (state, label, tone) => {
     expect(orderStatus({ fulfilment: { ...placed, state } })).toEqual({ label, tone, note: null })
   })
