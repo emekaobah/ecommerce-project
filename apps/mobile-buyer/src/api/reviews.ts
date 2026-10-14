@@ -14,7 +14,7 @@ export const reviewKeys = {
 export const REVIEW_PREVIEW_COUNT = 3;
 const PAGE_SIZE = 20;
 
-async function fetchPublishedReviews(kind: ReviewKind, id: string, page: { limit: number; offset: number }) {
+function fetchPublishedReviews(kind: ReviewKind, id: string, page: { limit: number; offset: number }) {
   return kind === 'seller'
     ? storeClient.store.sellers.$id.reviews.query({ $id: id, ...page })
     : storeClient.store.products.$id.reviews.query({ $id: id, ...page });

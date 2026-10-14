@@ -38,11 +38,17 @@ export function OrderReviews({ groupId, order }: Readonly<{ groupId: string; ord
       })}
       {action ? (
         <Button
-          label={action === 'edit' ? 'Edit your review' : order.reviews.length ? 'Review the rest' : 'Review this order'}
+          label={reviewLabel(action, order.reviews.length > 0)}
           variant="secondary"
           onPress={() => openWriteReview({ id: groupId }, order)}
         />
       ) : null}
     </View>
   );
+}
+
+/** What the order's review button says: edit, finish reviewing, or start. */
+function reviewLabel(action: 'write' | 'edit', reviewedSome: boolean) {
+  if (action === 'edit') return 'Edit your review';
+  return reviewedSome ? 'Review the rest' : 'Review this order';
 }
