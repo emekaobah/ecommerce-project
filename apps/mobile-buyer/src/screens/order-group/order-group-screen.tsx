@@ -6,6 +6,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { Linking, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useOrderGroup, type OrderGroup, type SellerOrder } from '@/api/orders';
+import { OrderReviews } from '@/components/order-reviews';
 import { OrderStatusDetails, orderedAt } from '@/components/order-status';
 import { PickupCode, PickupDetails } from '@/components/pickup';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -41,7 +42,7 @@ export function OrderGroupScreen() {
           ) : null}
         </View>
         {group.data.orders.map((order) => (
-          <ShopOrder key={order.id} order={order} />
+          <ShopOrder key={order.id} groupId={group.data.id} order={order} />
         ))}
         {entry ? (
           <View style={[styles.spread, { paddingTop: theme.space.sm }]}>
@@ -54,7 +55,7 @@ export function OrderGroupScreen() {
   );
 }
 
-function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
+function ShopOrder({ groupId, order }: Readonly<{ groupId: string; order: SellerOrder }>) {
   const theme = useTheme();
   return (
     <View
@@ -93,6 +94,7 @@ function ShopOrder({ order }: Readonly<{ order: SellerOrder }>) {
         <Text tone="secondary">{order.pickup ? 'Paid to this shop' : 'Paid to this shop, with delivery'}</Text>
         <Text variant="label">{formatMoney(order.paid_total, order.currency_code)}</Text>
       </View>
+      <OrderReviews groupId={groupId} order={order} />
     </View>
   );
 }

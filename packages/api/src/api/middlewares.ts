@@ -31,6 +31,7 @@ import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
+import { StoreGetPublishedReviews } from "./store/reviews/validators";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
@@ -65,6 +66,17 @@ export default defineMiddlewares({
                 authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
                 validateAndTransformQuery(StoreGetListingParams, {}),
             ],
+        },
+        // Shops' and products' published reviews and ratings, for everyone (#7).
+        {
+            method: ["GET"],
+            matcher: "/store/sellers/:id/reviews",
+            middlewares: [validateAndTransformQuery(StoreGetPublishedReviews, {})],
+        },
+        {
+            method: ["GET"],
+            matcher: "/store/products/:id/reviews",
+            middlewares: [validateAndTransformQuery(StoreGetPublishedReviews, {})],
         },
         {
             method: ["GET"],
