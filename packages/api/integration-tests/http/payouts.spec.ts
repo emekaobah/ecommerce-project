@@ -236,16 +236,43 @@ medusaIntegrationTestRunner({
     })
 
     describe("the vendor panel", () => {
-      it("shows each order's commission: 10% of its goods, never of delivery", async () => {
+      /** What Mercur's vendor order page asks for to show its own Commission row. */
+      const commissionLines = async (orderId: string, shop: Shop = GROCERY) =>
+        (await api.get(`/vendor/orders/${orderId}/commission-lines`, await buyer.owner(shop))).data
+
+      it("shows the payout's commission only: Mercur's commission lines, which Mercur still records, are hidden (#23)", async () => {
         const { cartId } = await buyer.paidCheckout()
         const orderId = await buyer.shopOrderId(GROCERY, cartId)
-
-        const lines = await eventually(
-          async () => (await api.get(`/vendor/orders/${orderId}/commission-lines`, await buyer.owner(GROCERY))).data.commission_lines as any[],
-          (l) => l.length > 0
+        const { data } = await buyer.query().graph({ entity: "order", fields: ["items.id"], filters: { id: orderId } })
+        const itemIds = (data[0].items ?? []).map((i: any) => i.id)
+        // Mercur writes its lines after the order is placed; wait for them, so the empty answer is ours.
+        await eventually(
+          async () =>
+            (await buyer.query().graph({ entity: "commission_line", fields: ["id"], filters: { item_id: itemIds } })).data,
+          (lines) => lines.length > 0
         )
 
-        expect(lines.reduce((sum, l) => sum + Number(l.amount), 0)).toBeCloseTo(GROCERY_GOODS / 10, 2)
+        expect(await commissionLines(orderId)).toEqual({ commission_lines: [], count: 0 })
+        expect((await orderPayout(orderId)).commission).toBe(GROCERY_GOODS / 10)
+      })
+
+      it("still shows one commission after a refund: the payout's 10% of what the buyer kept (#23)", async () => {
+        const { orderId } = await deliveredOrder()
+        await refundOrderShareWorkflow(getContainer()).run({ input: { order_id: orderId, amount: RICE.price } })
+
+        expect(await commissionLines(orderId)).toEqual({ commission_lines: [], count: 0 })
+        expect((await orderPayout(orderId)).commission).toBe((GROCERY_GOODS - RICE.price) / 10)
+      })
+
+      it("shows another shop's order's commission lines to no one", async () => {
+        const { orderId } = await bookedOrder()
+
+        const status = await commissionLines(orderId, GADGETS).then(
+          () => 200,
+          (e: any) => e.response?.status
+        )
+
+        expect(status).toBe(404)
       })
 
       it("shows an order's payout before it is due: what it will be, and that it waits for delivery", async () => {
