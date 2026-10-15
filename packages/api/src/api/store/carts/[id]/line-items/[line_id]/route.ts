@@ -1,8 +1,9 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import type { HttpTypes } from "@medusajs/framework/types"
-import { updateLineItemInCartWorkflow } from "@medusajs/medusa/core-flows"
+import { deleteLineItemsWorkflow, updateLineItemInCartWorkflow } from "@medusajs/medusa/core-flows"
 import { refetchCart } from "@mercurjs/core/api/store/carts/helpers"
 import { lineItemOfferId, offerLinePrice } from "../../../../../../lib/cart-lines"
+import { applyShopPromotionsWorkflow } from "../../../../../../workflows/checkout/apply-shop-promotions"
 
 type Body = { quantity: number; metadata?: Record<string, unknown> | null; additional_data?: Record<string, unknown> }
 
@@ -10,6 +11,7 @@ type Body = { quantity: number; metadata?: Record<string, unknown> | null; addit
  * Replaces Medusa's line item update (same body and query, validated by Medusa's middleware):
  * a quantity change reprices the line at its own offer's current price, never at another
  * shop's price for the same variant (see `lib/cart-lines.ts`). Quantity 0 removes the line.
+ * The cart's promotions are then worked out shop by shop (#6).
  */
 export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse<HttpTypes.StoreCartResponse>) => {
   const { id: cartId, line_id: lineId } = req.params
@@ -30,10 +32,18 @@ export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse<HttpTyp
       additional_data,
     },
   })
+  await applyShopPromotionsWorkflow(req.scope).run({ input: { cart_id: cartId } })
 
   const cart = await refetchCart(cartId, req.scope, req.queryConfig.fields)
   res.status(200).json({ cart })
 }
 
-// Removing a line needs no pricing: Medusa's own handler, re-exported so this file doesn't hide it.
-export { DELETE } from "@medusajs/medusa/api/store/carts/[id]/line-items/[line_id]/route"
+/** Replaces Medusa's line item removal: the cart's promotions are then worked out shop by shop (#6). */
+export const DELETE = async (req: MedusaRequest, res: MedusaResponse<HttpTypes.StoreLineItemDeleteResponse>) => {
+  const { id: cartId, line_id: lineId } = req.params
+  await deleteLineItemsWorkflow(req.scope).run({ input: { cart_id: cartId, ids: [lineId] } })
+  await applyShopPromotionsWorkflow(req.scope).run({ input: { cart_id: cartId } })
+
+  const cart = await refetchCart(cartId, req.scope, req.queryConfig.fields)
+  res.status(200).json({ id: lineId, object: "line-item", deleted: true, parent: cart })
+}

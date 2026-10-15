@@ -1,6 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { offerIdOf } from "./cart-lines"
+import { discountsByCode } from "./discount-funding"
 import { perishableProductIds } from "./perishable"
 import { shopStatusesOf, type ShopStatusView } from "./shop-hours"
 
@@ -27,15 +28,25 @@ export type CartItem = {
   is_tax_inclusive: boolean
   /** `unit_price` × `quantity`, before shipping and promotions. */
   subtotal: number
+  /**
+   * What promotions take off the line, VAT included, by code (#6): a shop's own promotion only
+   * ever discounts its own items. `subtotal` less these is what the buyer pays for it.
+   */
+  discounts: CartDiscount[]
   /** Fresh or chilled: its shop delivers it only by the end of the next day (#69). */
   perishable: boolean
 }
+
+/** What one promo code (or automatic promotion) takes off a line. */
+export type CartDiscount = { code: string; amount: number }
 
 export type CartSellerGroup = {
   /** Null for items whose offer is gone: the shop stopped selling it, so it can only be removed. */
   seller: CartSeller | null
   items: CartItem[]
   item_subtotal: number
+  /** What promotions take off the shop's items, VAT included. */
+  discount_total: number
   /** Some of the shop's items are perishable: it delivers only by rates arriving by the end of the next day (#69). */
   perishable: boolean
   /**
@@ -71,6 +82,8 @@ type ItemRow = {
   created_at: string | Date
   metadata: Record<string, unknown> | null
   offer?: { id: string } | null
+  tax_lines?: { rate: number | string }[] | null
+  adjustments?: { code: string | null; amount: number | string; is_tax_inclusive: boolean | null }[] | null
 }
 
 type CartRow = {
@@ -114,6 +127,7 @@ function toItem(row: ItemRow, offerId: string | null, perishable: boolean): Cart
     compare_at_unit_price: row.compare_at_unit_price == null ? null : Number(row.compare_at_unit_price),
     is_tax_inclusive: !!row.is_tax_inclusive,
     subtotal: unitPrice * quantity,
+    discounts: discountsByCode(row),
     perishable,
   }
 }
@@ -143,6 +157,10 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
       "items.created_at",
       "items.metadata",
       "items.offer.id",
+      "items.tax_lines.rate",
+      "items.adjustments.code",
+      "items.adjustments.amount",
+      "items.adjustments.is_tax_inclusive",
     ],
     filters: { id: cartId },
   })
@@ -163,7 +181,14 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
     const offerId = offerIds[i]
     const seller = (offerId && sellers.get(offerId)) || null
     const key = seller?.id ?? ""
-    const group = groups.get(key) ?? { seller, items: [], item_subtotal: 0, perishable: false, shop_status: null }
+    const group = groups.get(key) ?? {
+      seller,
+      items: [],
+      item_subtotal: 0,
+      discount_total: 0,
+      perishable: false,
+      shop_status: null,
+    }
     group.items.push(toItem(row, offerId, !!row.product_id && perishable.has(row.product_id)))
     groups.set(key, group)
   })
@@ -172,6 +197,7 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
     ...g,
     shop_status: g.seller ? statuses.get(g.seller.id)! : null,
     item_subtotal: sum(g.items.map((i) => i.subtotal)),
+    discount_total: sum(g.items.flatMap((i) => i.discounts.map((d) => d.amount))),
     perishable: g.items.some((i) => i.perishable),
   }))
 

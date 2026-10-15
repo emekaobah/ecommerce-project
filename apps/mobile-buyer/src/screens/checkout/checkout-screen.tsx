@@ -51,6 +51,8 @@ import { ShopStatusBadge } from '@/components/shop-status';
 import { env } from '@/config/env';
 import { useRegion } from '@/region/region-provider';
 
+import { PromoCodes } from './promo-codes';
+
 /**
  * Where Paystack sends the buyer back to. Paystack only redirects to an http(s) URL, so this is
  * a page on the API that the payment WebView catches and never loads (see pay-screen).
@@ -432,7 +434,7 @@ function ContactDetails({
 
 const CONTACT_FIELDS = new Set<string>(['first_name', 'last_name', 'phone'] satisfies AddressFieldKey[]);
 
-/** Each shop's part of the order, then the order's totals. */
+/** Each shop's part of the order, the promo codes, then the order's totals. */
 function CheckoutSummary({
   cartId,
   checkout,
@@ -457,9 +459,13 @@ function CheckoutSummary({
           onChooseMethod={onChooseMethod}
         />
       ))}
+      <PromoCodes cartId={cartId} checkout={checkout} />
       <View style={{ gap: theme.space.sm }}>
         <Line label="Items" amount={checkout.item_subtotal} currencyCode={checkout.currency_code} />
         <Line label="Delivery" amount={checkout.shipping_total} currencyCode={checkout.currency_code} />
+        {checkout.discount_total > 0 ? (
+          <Line label="Discounts" amount={-checkout.discount_total} currencyCode={checkout.currency_code} />
+        ) : null}
         <Line label="Total" amount={checkout.total} currencyCode={checkout.currency_code} strong />
         <Text variant="caption" tone="secondary">
           Prices include VAT. Each shop delivers its own items, or hands them over in store.
@@ -480,9 +486,10 @@ function PayBar({
   const startPayment = useStartPayment(cartId);
   // Both reprice the cart; the lines the latest one repriced are shown until the buyer pays.
   const priceChanges = latestPriceChanges(prepare, startPayment);
+  const discountChanged = !!startPayment.data?.discount_changed;
   const pay = () =>
     startPayment.mutate(PAYMENT_RETURN_URL, {
-      // No payment means a shop's price changed: the buyer sees the new total, then pays again.
+      // No payment means a price or discount changed: the buyer sees the new total, then pays again.
       onSuccess: ({ payment }) => {
         if (payment) router.push({ pathname: '/checkout/pay', params: { cartId, url: payment.authorization_url } });
       },
@@ -503,6 +510,11 @@ function PayBar({
         backgroundColor: theme.colors.background,
       }}>
       <PriceChanges changes={priceChanges} currencyCode={checkout.currency_code} />
+      {discountChanged ? (
+        <Text tone="secondary" accessibilityLiveRegion="polite">
+          {"Your discounts changed: a code ended, was used up or no longer applies. The total below is what you'll pay."}
+        </Text>
+      ) : null}
       {notice ? (
         <Text tone="secondary" accessibilityLiveRegion="polite">
           {notice}
@@ -747,6 +759,11 @@ function ShopSummary({
               {item.quantity} × {item.product_title ?? 'Item'}
             </Text>
             {item.perishable ? <PerishableChip /> : null}
+            {item.discounts.map((discount) => (
+              <Text key={discount.code} variant="caption" tone="secondary">
+                {`${discount.code} −${formatMoney(discount.amount, currencyCode)}`}
+              </Text>
+            ))}
           </View>
           <Text>{formatMoney(item.subtotal, currencyCode)}</Text>
         </View>

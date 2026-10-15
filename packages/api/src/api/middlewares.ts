@@ -7,7 +7,14 @@ import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } fro
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
 import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
-import { StoreChooseDelivery, StorePrepareCheckout, StoreStartCheckoutPayment } from "./store/carts/[id]/checkout/validators";
+import {
+    StoreApplyPromoCode,
+    StoreChooseDelivery,
+    StorePrepareCheckout,
+    StoreStartCheckoutPayment,
+} from "./store/carts/[id]/checkout/validators";
+import { promoCodesAtCheckout } from "./store/carts/[id]/checkout/promo-codes-at-checkout";
+import { shopsDontDiscountDelivery } from "./vendor/promotions/shops-dont-discount-delivery";
 import { deliveryChosenAtCheckout } from "./store/carts/[id]/checkout/delivery-by-checkout";
 import { verifyPaystackSignature } from "./hooks/paystack-signature";
 import { verifyShipbubbleSignature } from "./hooks/shipbubble-signature";
@@ -104,6 +111,18 @@ export default defineMiddlewares({
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreChooseDelivery)],
         },
         { method: ["POST"], matcher: "/store/carts/:id/shipping-methods", middlewares: [deliveryChosenAtCheckout] },
+        // Promo codes (#6): entered at checkout, which works a shop's promotions out on its own items.
+        {
+            method: ["POST"],
+            matcher: "/store/carts/:id/checkout/promo-codes",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreApplyPromoCode)],
+        },
+        {
+            method: ["DELETE"],
+            matcher: "/store/carts/:id/checkout/promo-codes/:code",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
+        { method: ["POST", "DELETE"], matcher: "/store/carts/:id/promotions", middlewares: [promoCodesAtCheckout] },
         {
             method: ["POST"],
             matcher: "/store/carts/:id/checkout/payment",
@@ -226,6 +245,8 @@ export default defineMiddlewares({
             middlewares: [validateAndTransformBody(VendorMarkUnavailable)],
         },
         { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
+        { method: ["POST"], matcher: "/vendor/promotions", middlewares: [shopsDontDiscountDelivery] },
+        { method: ["POST"], matcher: "/vendor/promotions/:id", middlewares: [shopsDontDiscountDelivery] },
         // A member's device registers for their shops' pushes (#27); Mercur authenticates the member.
         { method: ["POST"], matcher: "/vendor/push-tokens", middlewares: [validateAndTransformBody(PushTokenBody)] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },

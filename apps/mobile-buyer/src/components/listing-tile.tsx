@@ -6,11 +6,12 @@ import { Pressable, StyleSheet } from 'react-native';
 import type { Listing } from '@/api/listings';
 import { openListing } from '@/navigation';
 
+import { DealBadges } from './deal-badge';
 import { Price } from './price';
 
 export const LISTING_TILE_SIZE = 140;
 
-/** One shop's product in a horizontal shelf: photo on a neutral tile, name and the shop's price. */
+/** One shop's product in a horizontal shelf: photo on a neutral tile, name, the shop's price and its deal. */
 export function ListingTile({ listing, currencyCode }: Readonly<{ listing: Listing; currencyCode: string }>) {
   const theme = useTheme();
   const price = listingPrice(listing.offers);
@@ -33,6 +34,7 @@ export function ListingTile({ listing, currencyCode }: Readonly<{ listing: Listi
         {listing.product.title}
       </Text>
       {price ? <Price price={price} currencyCode={currencyCode} /> : null}
+      <DealBadges deals={listing.deals} />
     </Pressable>
   );
 }

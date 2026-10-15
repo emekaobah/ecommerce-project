@@ -1,7 +1,14 @@
-import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import type { ComputeActionContext, MedusaContainer } from "@medusajs/framework/types"
+import {
+  ApplicationMethodTargetType,
+  ComputedActions,
+  ContainerRegistrationKeys,
+  MedusaError,
+  Modules,
+} from "@medusajs/framework/utils"
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
 import { ProductStatus } from "@mercurjs/types"
+import type { ShopDeal } from "@oja/domain"
 import { attributionOf, type Attribution } from "./enrichment"
 import { perishableProductIds } from "./perishable"
 import { liveSellerIds } from "./onboarding"
@@ -54,11 +61,16 @@ export type ListingProductDetail = ListingProduct & {
   perishable: boolean
 }
 
+/** One of the shop's automatic promotions that applies to the listing's product (#6), for its badge. */
+export type ListingDeal = ShopDeal & { promotion_id: string }
+
 export type Listing<P extends ListingProduct = ListingProduct> = {
   seller: ListingSeller
   product: P
   /** One per variant the shop sells, each at the shop's own price. */
   offers: ListingOffer[]
+  /** The shop's own automatic promotions that apply to the product; never another shop's. */
+  deals: ListingDeal[]
   /** Days until the shop ships: the slowest of its offers, else the shop's default; null when neither is set. */
   leadtime_to_ship: number | null
 }
@@ -327,7 +339,11 @@ function toListingSeller(seller: SellerRow): ListingSeller {
   }
 }
 
-function toListing<P extends ListingProduct>(group: Pick<ListingGroup, "seller" | "offers">, product: P): Listing<P> {
+function toListing<P extends ListingProduct>(
+  group: Pick<ListingGroup, "seller" | "offers">,
+  product: P,
+  deals: ListingDeal[]
+): Listing<P> {
   const { seller, offers } = group
   return {
     seller: toListingSeller(seller),
@@ -343,7 +359,128 @@ function toListing<P extends ListingProduct>(group: Pick<ListingGroup, "seller" 
       },
     })),
     leadtime_to_ship: leadtimeToShip(group),
+    deals,
   }
+}
+
+type AutomaticPromotion = {
+  id: string
+  code: string
+  type: string
+  seller?: { id: string } | null
+  application_method?: {
+    type: ShopDeal["type"]
+    value: number | string
+    currency_code: string | null
+    allocation: ShopDeal["allocation"]
+    target_type: string
+  } | null
+}
+type DealProduct = {
+  id: string
+  collection_id: string | null
+  type_id: string | null
+  categories?: { id: string }[] | null
+  tags?: { id: string }[] | null
+}
+
+const dealKey = (sellerId: string, productId: string) => `${sellerId}:${productId}`
+
+/**
+ * Each listing's deals, by `dealKey`: its shop's running automatic promotions that would take
+ * something off one of the product's offers in a cart of its own. A promotion that depends on
+ * the buyer (a customer group) or on the rest of the cart gets no badge.
+ */
+async function dealsOf(
+  scope: MedusaContainer,
+  region: Region,
+  filters: Pick<ListingFilters, "salesChannelIds">,
+  groups: Pick<ListingGroup, "seller" | "productId" | "offers">[]
+): Promise<Map<string, ListingDeal[]>> {
+  const deals = new Map<string, ListingDeal[]>()
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "promotion",
+    fields: [
+      "id",
+      "code",
+      "type",
+      "seller.id",
+      "application_method.type",
+      "application_method.value",
+      "application_method.currency_code",
+      "application_method.allocation",
+      "application_method.target_type",
+    ],
+    filters: { is_automatic: true, status: "active", type: "standard" },
+  })
+  const sellerIds = new Set(groups.map((g) => g.seller.id))
+  const promotions = (data as unknown as AutomaticPromotion[]).filter(
+    (p) =>
+      p.seller &&
+      sellerIds.has(p.seller.id) &&
+      p.application_method &&
+      p.application_method.target_type !== ApplicationMethodTargetType.SHIPPING_METHODS &&
+      (!p.application_method.currency_code || p.application_method.currency_code === region.currency_code)
+  )
+  const withDeals = groups.filter((g) => promotions.some((p) => p.seller!.id === g.seller.id))
+  if (!withDeals.length) return deals
+
+  const { data: productRows } = await query.graph({
+    entity: "product",
+    fields: ["id", "collection_id", "type_id", "categories.id", "tags.id"],
+    filters: { id: [...new Set(withDeals.map((g) => g.productId))] },
+  })
+  const products = new Map((productRows as unknown as DealProduct[]).map((p) => [p.id, p]))
+  const promotionModule = scope.resolve(Modules.PROMOTION)
+  await Promise.all(
+    withDeals.map(async (group) => {
+      const product = products.get(group.productId)
+      if (!product) return
+      const context = {
+        currency_code: region.currency_code,
+        region_id: region.id,
+        region: { id: region.id },
+        sales_channel_id: filters.salesChannelIds[0],
+        shipping_address: { country_code: region.countries[0] },
+        items: group.offers.map((offer) => {
+          const amount = Number(offer.calculated_price.calculated_amount)
+          return {
+            id: offer.id,
+            quantity: 1,
+            subtotal: amount,
+            original_total: amount,
+            is_discountable: true,
+            product_id: product.id,
+            variant_id: offer.variant_id,
+            metadata: { offer_id: offer.id },
+            product: {
+              id: product.id,
+              collection_id: product.collection_id,
+              type_id: product.type_id,
+              categories: product.categories ?? [],
+              tags: product.tags ?? [],
+            },
+          }
+        }),
+        shipping_methods: [],
+      }
+      const actions = await promotionModule.computeActions([], context as unknown as ComputeActionContext)
+      const applied = new Set(actions.filter((a) => a.action === ComputedActions.ADD_ITEM_ADJUSTMENT).map((a) => a.code))
+      const own = promotions.filter((p) => p.seller!.id === group.seller.id && applied.has(p.code))
+      deals.set(
+        dealKey(group.seller.id, group.productId),
+        own.map((p) => ({
+          promotion_id: p.id,
+          type: p.application_method!.type,
+          value: Number(p.application_method!.value),
+          allocation: p.application_method!.allocation,
+          currency_code: p.application_method!.currency_code ?? region.currency_code,
+        }))
+      )
+    })
+  )
+  return deals
 }
 
 /**
@@ -368,8 +505,11 @@ export async function listListings(
     filters: { id: [...new Set(pageGroups.map((g) => g.productId))] },
   })
   const products = new Map((data as ListingProduct[]).map((p) => [p.id, p]))
+  const deals = await dealsOf(scope, region, filters, pageGroups)
   return {
-    listings: pageGroups.map((g) => toListing(g, products.get(g.productId)!)),
+    listings: pageGroups.map((g) =>
+      toListing(g, products.get(g.productId)!, deals.get(dealKey(g.seller.id, g.productId)) ?? [])
+    ),
     count: groups.length,
   }
 }
@@ -412,23 +552,28 @@ export async function retrieveListing(
   const p = product as unknown as ProductDetailRow
   const attributeValues = (withAttributes as { product_attribute_values?: AttributeValueRow[] } | undefined)
     ?.product_attribute_values
-  const [attribution, perishable] = await Promise.all([
+  const [attribution, perishable, deals] = await Promise.all([
     attributionOf(scope, p.id),
     perishableProductIds(scope, [p.id]),
+    dealsOf(scope, region, filters, [group]),
   ])
-  return toListing(group, {
-    id: p.id,
-    title: p.title,
-    handle: p.handle,
-    thumbnail: p.thumbnail ?? null,
-    subtitle: p.subtitle ?? null,
-    description: p.description ?? null,
-    weight: p.weight == null ? null : Number(p.weight),
-    images: (p.images ?? []).map(({ id, url }) => ({ id, url })),
-    attributes: attributesOf(attributeValues ?? []),
-    attribution,
-    perishable: perishable.has(p.id),
-  })
+  return toListing(
+    group,
+    {
+      id: p.id,
+      title: p.title,
+      handle: p.handle,
+      thumbnail: p.thumbnail ?? null,
+      subtitle: p.subtitle ?? null,
+      description: p.description ?? null,
+      weight: p.weight == null ? null : Number(p.weight),
+      images: (p.images ?? []).map(({ id, url }) => ({ id, url })),
+      attributes: attributesOf(attributeValues ?? []),
+      attribution,
+      perishable: perishable.has(p.id),
+    },
+    deals.get(dealKey(group.seller.id, group.productId)) ?? []
+  )
 }
 
 type AttributeValueRow = { name: string; attribute?: { id: string; name: string; rank: number | null } | null }

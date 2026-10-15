@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
+import { dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
 
 let nextId = 0
 const offer = (calculated_amount: number, original_amount = calculated_amount) => ({
@@ -87,5 +87,21 @@ describe("groupByShop", () => {
 
   test("is empty for no results", () => {
     expect(groupByShop([])).toEqual([])
+  })
+})
+
+// A listing's badge for its shop's automatic promotion (#6): only ever that shop's own deal.
+describe("dealLabel", () => {
+  test("says a percentage off at the shop", () => {
+    expect(dealLabel({ type: "percentage", value: 10, allocation: "each", currency_code: "ngn" })).toBe("10% off at this shop")
+  })
+
+  test("says an amount off each item, or off what is bought from the shop", () => {
+    expect(dealLabel({ type: "fixed", value: 500, allocation: "each", currency_code: "ngn" }, "en-NG")).toBe(
+      "₦500.00 off each at this shop"
+    )
+    expect(dealLabel({ type: "fixed", value: 1000, allocation: "across", currency_code: "ngn" }, "en-NG")).toBe(
+      "₦1,000.00 off at this shop"
+    )
   })
 })

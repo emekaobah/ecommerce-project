@@ -19,9 +19,11 @@ import {
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
 import type { PaystackSessionData } from "../modules/paystack/service"
 import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData } from "../modules/shipbubble"
+import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-promotions"
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
 import { offerLinePrice } from "./cart-lines"
+import { discountsByCode } from "./discount-funding"
 import {
   collectionPlacesOf,
   collectionPointsOf,
@@ -31,6 +33,7 @@ import {
   type CollectionPlace,
 } from "./collection-point"
 import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
+import { promoCodeProblem, type CodedPromotion } from "./promotions"
 import { closedShopError } from "./shop-hours"
 
 // Checkout of a multi-shop cart (#16): the buyer's address, each shop's delivery, then a
@@ -108,6 +111,19 @@ export type CheckoutSellerGroup = CartSellerGroup & {
 /** Who the buyer is when nothing is delivered: a name and a phone, for the shop to hand the order to. */
 export type CheckoutContact = { first_name: string; last_name: string; phone: string }
 
+/**
+ * A promotion discounting the cart (#6): a code the buyer applied, or an automatic one. A shop's
+ * own (`seller` set) discounts only that shop's items; the operator's (`seller` null) any.
+ */
+export type CheckoutPromotion = {
+  code: string
+  /** Applied by itself, not by a code the buyer entered, so it can't be removed. */
+  automatic: boolean
+  seller: CartSeller | null
+  /** What it takes off the cart, VAT included. */
+  amount: number
+}
+
 export type Checkout = {
   cart_id: string
   currency_code: string
@@ -119,7 +135,11 @@ export type Checkout = {
   sellers: CheckoutSellerGroup[]
   item_subtotal: number
   shipping_total: number
-  /** What the buyer pays: prices are VAT-inclusive, so items plus delivery. */
+  /** The promotions discounting the cart, each line's in its `discounts`. */
+  promotions: CheckoutPromotion[]
+  /** What promotions take off the cart, VAT included. */
+  discount_total: number
+  /** What the buyer pays: prices are VAT-inclusive, so items plus delivery, less discounts. */
   total: number
   /**
    * Every item's shop is taking orders and either delivers to the address or is collected (with
@@ -145,6 +165,11 @@ export type CheckoutPrepared = { checkout: Checkout; price_changes: CheckoutPric
 export type CheckoutPaymentStart = {
   payment: CheckoutPayment | null
   price_changes: CheckoutPriceChange[]
+  /**
+   * The cart's discounts changed since the buyer last saw them (#6): a code expired or was used
+   * up, or no longer applies to what is in the cart. No payment is started; `checkout` has them now.
+   */
+  discount_changed: boolean
   checkout: Checkout
 }
 
@@ -156,6 +181,8 @@ type CartRow = {
   currency_code: string
   total: number | string
   shipping_total: number | string
+  discount_total: number | string
+  promotions?: { code: string | null }[] | null
   metadata: Record<string, unknown> | null
   shipping_address: (CheckoutAddress & { id: string }) | null
   billing_address: Partial<CheckoutContact> | null
@@ -166,6 +193,8 @@ type CartRow = {
         name: string
         amount: number | string
         data: Record<string, unknown> | null
+        tax_lines?: { rate: number | string }[] | null
+        adjustments?: { code: string | null; amount: number | string; is_tax_inclusive: boolean | null }[] | null
       }[]
     | null
   payment_collection?: {
@@ -200,6 +229,8 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
       "currency_code",
       "total",
       "shipping_total",
+      "discount_total",
+      "promotions.code",
       "metadata",
       ...ADDRESS_FIELDS.map((f) => `shipping_address.${f}`),
       "billing_address.first_name",
@@ -210,6 +241,10 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
       "shipping_methods.name",
       "shipping_methods.amount",
       "shipping_methods.data",
+      "shipping_methods.tax_lines.rate",
+      "shipping_methods.adjustments.code",
+      "shipping_methods.adjustments.amount",
+      "shipping_methods.adjustments.is_tax_inclusive",
       "payment_collection.id",
       "payment_collection.payment_sessions.provider_id",
       "payment_collection.payment_sessions.data",
@@ -389,6 +424,7 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
   })
   const contact = contactOf(cart.billing_address)
   const allCollected = sellers.length > 0 && sellers.every((g) => g.method === "pickup")
+  const promotions = await cartPromotions(scope, cart, sellers)
   return {
     cart_id: cart.id,
     currency_code: cart.currency_code,
@@ -401,6 +437,8 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
     // The shops' own prices, VAT included; Medusa's `item_subtotal` excludes the VAT.
     item_subtotal: grouped.item_subtotal,
     shipping_total: Number(cart.shipping_total),
+    promotions,
+    discount_total: Number(cart.discount_total ?? 0),
     total: Number(cart.total),
     ready_to_pay:
       (allCollected ? !!contact : !!address) &&
@@ -409,6 +447,30 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
       sellers.every((g) => g.seller && (g.method === "pickup" || g.shipping) && g.shop_status?.orderable),
     order_group_id: (groups[0] as { id: string } | undefined)?.id ?? null,
   }
+}
+
+/** The promotions discounting the cart, with what each takes off it: its lines' and deliveries' discounts. */
+async function cartPromotions(scope: MedusaContainer, cart: CartRow, sellers: CartSellerGroup[]): Promise<CheckoutPromotion[]> {
+  const amounts = new Map<string, number>()
+  const add = (code: string, amount: number) => amounts.set(code, (amounts.get(code) ?? 0) + amount)
+  for (const discount of sellers.flatMap((g) => g.items.flatMap((i) => i.discounts))) add(discount.code, discount.amount)
+  for (const method of cart.shipping_methods ?? []) {
+    for (const discount of discountsByCode(method)) add(discount.code, discount.amount)
+  }
+  if (!amounts.size) return []
+  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
+    entity: "promotion",
+    fields: ["code", "is_automatic", "seller.id", "seller.name", "seller.handle"],
+    filters: { code: [...amounts.keys()] },
+  })
+  const promotions = new Map(
+    (data as unknown as { code: string; is_automatic: boolean; seller?: CartSeller | null }[]).map((p) => [p.code, p])
+  )
+  return [...amounts].map(([code, amount]) => {
+    const promotion = promotions.get(code)
+    const seller = promotion?.seller ? { id: promotion.seller.id, name: promotion.seller.name, handle: promotion.seller.handle } : null
+    return { code, automatic: !!promotion?.is_automatic, seller, amount }
+  })
 }
 
 const contactOf = (address: Partial<CheckoutContact> | null): CheckoutContact | null =>
@@ -645,6 +707,7 @@ export async function prepareCheckout(
       },
     })
     await setShopMethods(scope, await buyersCart(scope, cartId, customerId), { receiverCode: null, pickup: collecting })
+    await applyShopPromotions(scope, cartId)
     return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
   }
 
@@ -670,6 +733,7 @@ export async function prepareCheckout(
     receiverCode: addressCodeOf(address)!,
     pickup: collecting,
   })
+  await applyShopPromotions(scope, cartId)
   return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
 }
 
@@ -691,6 +755,7 @@ export async function chooseDelivery(
   await addSellerShippingMethodToCartWorkflow(scope).run({
     input: { cart_id: cartId, options: [{ id: delivery.shipping_option_id, data: { ...delivery.data, quote: choice } }] },
   })
+  await applyShopPromotions(scope, cartId)
   return retrieveCheckout(scope, cartId, customerId)
 }
 
@@ -732,6 +797,8 @@ export async function startCheckoutPayment(
   // The cart may have changed since its address was set, and shops change prices.
   const priceChanges = await repriceLines(scope, cartId)
   await dropEmptyShopDeliveries(scope, cart)
+  // Promotions are worked out on what the cart holds now: a code may have expired or been used up.
+  await applyShopPromotions(scope, cartId)
   const checkout = await retrieveCheckout(scope, cartId, customerId)
   // A shop in a closed exception or paused takes no orders until it reopens (ADR 0004).
   const closed = checkout.sellers.find((g) => g.seller && g.shop_status && !g.shop_status.orderable)
@@ -742,7 +809,11 @@ export async function startCheckoutPayment(
   if (!checkout.ready_to_pay) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Choose how each shop's order reaches you before paying")
   }
-  if (priceChanges.length) return { payment: null, price_changes: priceChanges, checkout }
+  if (priceChanges.length) return { payment: null, price_changes: priceChanges, discount_changed: false, checkout }
+  // What the buyer last saw was worked out at the end of the last change checkout made.
+  if (checkout.discount_total !== Number(cart.discount_total ?? 0)) {
+    return { payment: null, price_changes: [], discount_changed: true, checkout }
+  }
 
   let paymentCollectionId = cart.payment_collection?.id
   if (!paymentCollectionId) {
@@ -762,6 +833,111 @@ export async function startCheckoutPayment(
   return {
     payment: { provider_id: PAYSTACK_PROVIDER_ID, reference: data.reference, authorization_url: data.authorization_url },
     price_changes: [],
+    discount_changed: false,
     checkout,
   }
+}
+
+/** Works the cart's promotions out again, shop by shop (#6); returns the codes left on it and those used up. */
+async function applyShopPromotions(scope: MedusaContainer, cartId: string, promoCodes?: string[]) {
+  const { result } = await applyShopPromotionsWorkflow(scope).run({ input: { cart_id: cartId, promo_codes: promoCodes } })
+  return result
+}
+
+/** The codes the buyer entered on the cart: automatic promotions apply by themselves. */
+async function enteredCodes(scope: MedusaContainer, cart: CartRow): Promise<string[]> {
+  const codes = (cart.promotions ?? []).flatMap((p) => (p.code ? [p.code] : []))
+  if (!codes.length) return []
+  const { data } = await scope
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({ entity: "promotion", fields: ["code", "is_automatic"], filters: { code: codes } })
+  return (data as unknown as { code: string; is_automatic: boolean }[]).filter((p) => !p.is_automatic).map((p) => p.code)
+}
+
+type CodeLookup = CodedPromotion & { id: string; is_automatic: boolean; seller?: { name: string } | null }
+
+/** The promotion a buyer's code names, ignoring case, or none. */
+async function promotionByCode(scope: MedusaContainer, code: string): Promise<CodeLookup | null> {
+  // `%`, `_` and `\` are pattern characters in ILIKE; a code matches them literally.
+  const pattern = code.replaceAll(/[\\%_]/g, (c) => `\\${c}`)
+  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
+    entity: "promotion",
+    fields: [
+      "id",
+      "code",
+      "is_automatic",
+      "status",
+      "limit",
+      "used",
+      "campaign.starts_at",
+      "campaign.ends_at",
+      "campaign.budget.type",
+      "campaign.budget.limit",
+      "campaign.budget.used",
+      "seller.name",
+    ],
+    filters: { code: { $ilike: pattern } },
+  })
+  const row = data[0] as unknown as CodeLookup | undefined
+  if (!row) return null
+  const budget = row.campaign?.budget
+  return {
+    ...row,
+    limit: row.limit == null ? null : Number(row.limit),
+    used: Number(row.used ?? 0),
+    campaign: row.campaign && {
+      ...row.campaign,
+      budget: budget ? { ...budget, limit: budget.limit == null ? null : Number(budget.limit), used: Number(budget.used ?? 0) } : null,
+    },
+  }
+}
+
+/** Why a code took nothing off the cart: used up, a shop's code for none of its items, or nothing it covers. */
+function notAppliedReason(promotion: CodeLookup, usedUp: string[]): string {
+  if (usedUp.includes(promotion.code)) return `"${promotion.code}" has been used up.`
+  if (promotion.seller) {
+    return `"${promotion.code}" is ${promotion.seller.name}'s code: it only takes money off their items, and none in your cart qualify.`
+  }
+  return `"${promotion.code}" doesn't apply to the items in your cart.`
+}
+
+/**
+ * Applies a promo code to the buyer's cart (#6), refused (400) with why the buyer can't use it:
+ * not a code, expired, not on yet, used up, or not for anything in the cart. A shop's code takes
+ * money off that shop's items only.
+ */
+export async function applyPromoCode(
+  scope: MedusaContainer,
+  { cartId, customerId, code }: { cartId: string; customerId: string; code: string }
+): Promise<Checkout> {
+  const cart = await buyersCart(scope, cartId, customerId)
+  notCompleted(cart)
+  const typed = code.trim()
+  const promotion = await promotionByCode(scope, typed)
+  const problem = promoCodeProblem(promotion, typed, new Date())
+  if (problem || !promotion) throw new MedusaError(MedusaError.Types.INVALID_DATA, problem!)
+
+  const entered = await enteredCodes(scope, cart)
+  if (!promotion.is_automatic && !entered.includes(promotion.code)) {
+    const { codes, used_up } = await applyShopPromotions(scope, cartId, [...entered, promotion.code])
+    if (!codes.includes(promotion.code)) {
+      // Back to the codes it had: a code that takes nothing off isn't kept.
+      await applyShopPromotions(scope, cartId, entered)
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, notAppliedReason(promotion, used_up))
+    }
+  }
+  return retrieveCheckout(scope, cartId, customerId)
+}
+
+/** Takes a promo code the buyer entered off their cart. */
+export async function removePromoCode(
+  scope: MedusaContainer,
+  { cartId, customerId, code }: { cartId: string; customerId: string; code: string }
+): Promise<Checkout> {
+  const cart = await buyersCart(scope, cartId, customerId)
+  notCompleted(cart)
+  const entered = await enteredCodes(scope, cart)
+  const remaining = entered.filter((c) => c.toLowerCase() !== code.trim().toLowerCase())
+  if (remaining.length !== entered.length) await applyShopPromotions(scope, cartId, remaining)
+  return retrieveCheckout(scope, cartId, customerId)
 }

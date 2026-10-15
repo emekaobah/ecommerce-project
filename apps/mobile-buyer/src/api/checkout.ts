@@ -17,6 +17,7 @@ async function fetchCheckout(cartId: string) {
 
 export type Checkout = Awaited<ReturnType<typeof fetchCheckout>>;
 export type CheckoutSellerGroup = Checkout['sellers'][number];
+export type CheckoutPromotion = Checkout['promotions'][number];
 
 /**
  * The cart as checkout shows it. `waitForOrder` polls until Paystack's webhook has confirmed
@@ -82,9 +83,38 @@ export function useChooseDelivery(cartId: string) {
 }
 
 /**
+ * Applies a promo code (#6). A code the buyer can't use is refused with why (expired, used up,
+ * not for anything in the cart), as the error's message.
+ */
+export function useApplyPromoCode(cartId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const { checkout } = await storeClient.store.carts.$id.checkout.promoCodes.mutate({ $id: cartId, code });
+      return checkout;
+    },
+    onSuccess: (checkout) => queryClient.setQueryData(checkoutKeys.detail(cartId), checkout),
+  });
+}
+
+/** Takes a promo code the buyer entered off the cart. */
+export function useRemovePromoCode(cartId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const { checkout } = await storeClient.store.carts.$id.checkout.promoCodes.$code.delete({ $id: cartId, $code: code });
+      return checkout;
+    },
+    onSuccess: (checkout) => queryClient.setQueryData(checkoutKeys.detail(cartId), checkout),
+  });
+}
+
+/**
  * Starts a Paystack payment; each call starts a fresh one, so it is also the retry. The backend
- * reprices the cart first: when a shop's price changed, `payment` is null and `price_changes`
- * says what changed, for the buyer to see before paying the new total.
+ * reprices the cart and works its promotions out again first: when a shop's price changed,
+ * `payment` is null and `price_changes` says what changed; when its discounts changed (a code
+ * expired or was used up), `payment` is null and `discount_changed` is set. Either way the buyer
+ * sees the new total before paying it.
  */
 export function useStartPayment(cartId: string) {
   const queryClient = useQueryClient();

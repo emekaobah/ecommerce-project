@@ -8,17 +8,28 @@ describe("payoutOf", () => {
   const refund = (amount: number) => ({ amount: -amount, reference: "refund", reference_id: "ref" })
 
   it("pays the goods the buyer paid for, less 10%; Oja keeps the delivery fee", () => {
-    expect(payoutOf({ transactions: [capture(6500)], delivery: 1500 })).toEqual({
+    expect(payoutOf({ transactions: [capture(6500)], delivery: 1500, ojaDiscount: 0 })).toEqual({
       paid: 6500,
       refunded: 0,
       delivery: 1500,
+      oja_discount: 0,
+      commission: 500,
+      amount: 4500,
+    })
+  })
+
+  it("adds back the discounts Oja funds, so its promotions don't cost the shop", () => {
+    // ₦5,000 of goods, ₦500 off them on Oja: the shop is paid as if the buyer paid in full.
+    expect(payoutOf({ transactions: [capture(6000)], delivery: 1500, ojaDiscount: 500 })).toMatchObject({
+      paid: 6000,
+      oja_discount: 500,
       commission: 500,
       amount: 4500,
     })
   })
 
   it("takes refunds off before the commission, so Oja's 10% is only of what the buyer kept", () => {
-    expect(payoutOf({ transactions: [capture(6500), refund(2000)], delivery: 1500 })).toMatchObject({
+    expect(payoutOf({ transactions: [capture(6500), refund(2000)], delivery: 1500, ojaDiscount: 0 })).toMatchObject({
       refunded: 2000,
       commission: 300,
       amount: 2700,
@@ -26,11 +37,11 @@ describe("payoutOf", () => {
   })
 
   it("rounds the commission to the kobo", () => {
-    expect(payoutOf({ transactions: [capture(1000.05)], delivery: 0 })).toMatchObject({ commission: 100.01, amount: 900.04 })
+    expect(payoutOf({ transactions: [capture(1000.05)], delivery: 0, ojaDiscount: 0 })).toMatchObject({ commission: 100.01, amount: 900.04 })
   })
 
   it("pays nothing when everything was refunded", () => {
-    expect(payoutOf({ transactions: [capture(6500), refund(6500)], delivery: 1500 })).toMatchObject({
+    expect(payoutOf({ transactions: [capture(6500), refund(6500)], delivery: 1500, ojaDiscount: 0 })).toMatchObject({
       commission: 0,
       amount: 0,
     })
@@ -38,7 +49,7 @@ describe("payoutOf", () => {
 
   it("ignores transactions that are neither captures nor refunds", () => {
     expect(
-      payoutOf({ transactions: [capture(2000), { amount: 50, reference: "credit_line", reference_id: "x" }], delivery: 0 })
+      payoutOf({ transactions: [capture(2000), { amount: 50, reference: "credit_line", reference_id: "x" }], delivery: 0, ojaDiscount: 0 })
     ).toMatchObject({ paid: 2000, amount: 1800 })
   })
 })
