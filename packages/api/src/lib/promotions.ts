@@ -42,43 +42,63 @@ export function shopAdjustments({
 }): ShopAdjustments {
   const result: ShopAdjustments = { items: [], shipping: [], codes: [], used_up: [] }
   const discounted = new Map<string, number>()
-  const add = (list: string[], code: string) => {
-    if (!list.includes(code)) list.push(code)
-  }
   for (const { seller_id, actions } of passes) {
     for (const action of actions) {
       const owner = owners.get(action.code)
-      if (!owner || owner.seller_id !== seller_id) continue
-      if (action.action === ComputedActions.ADD_ITEM_ADJUSTMENT) {
-        const already = discounted.get(action.item_id) ?? 0
-        const amount = Math.min(Number(action.amount), (caps.get(action.item_id) ?? 0) - already)
-        if (amount <= 0) continue
-        discounted.set(action.item_id, already + amount)
-        result.items.push({
-          code: action.code,
-          promotion_id: owner.id,
-          item_id: action.item_id,
-          amount,
-          is_tax_inclusive: !!action.is_tax_inclusive,
-        })
-        add(result.codes, action.code)
-      } else if (action.action === ComputedActions.ADD_SHIPPING_METHOD_ADJUSTMENT && seller_id === null) {
-        result.shipping.push({
-          code: action.code,
-          promotion_id: owner.id,
-          shipping_method_id: action.shipping_method_id,
-          amount: Number(action.amount),
-        })
-        add(result.codes, action.code)
-      } else if (
-        action.action === ComputedActions.PROMOTION_LIMIT_EXCEEDED ||
-        action.action === ComputedActions.CAMPAIGN_BUDGET_EXCEEDED
-      ) {
-        add(result.used_up, action.code)
-      }
+      if (owner?.seller_id === seller_id) keepAction(result, { action, owner, operatorPass: seller_id === null, caps, discounted })
     }
   }
   return result
+}
+
+const addOnce = (list: string[], code: string) => {
+  if (!list.includes(code)) list.push(code)
+}
+
+/** Adds one of a pass's own actions to the cart's adjustments: `discounted` is what each item has had taken off so far. */
+function keepAction(
+  result: ShopAdjustments,
+  {
+    action,
+    owner,
+    operatorPass,
+    caps,
+    discounted,
+  }: {
+    action: ComputeActions
+    owner: PromotionOwner
+    operatorPass: boolean
+    caps: Map<string, number>
+    discounted: Map<string, number>
+  }
+) {
+  if (action.action === ComputedActions.ADD_ITEM_ADJUSTMENT) {
+    const already = discounted.get(action.item_id) ?? 0
+    const amount = Math.min(Number(action.amount), (caps.get(action.item_id) ?? 0) - already)
+    if (amount <= 0) return
+    discounted.set(action.item_id, already + amount)
+    result.items.push({
+      code: action.code,
+      promotion_id: owner.id,
+      item_id: action.item_id,
+      amount,
+      is_tax_inclusive: !!action.is_tax_inclusive,
+    })
+    addOnce(result.codes, action.code)
+  } else if (action.action === ComputedActions.ADD_SHIPPING_METHOD_ADJUSTMENT && operatorPass) {
+    result.shipping.push({
+      code: action.code,
+      promotion_id: owner.id,
+      shipping_method_id: action.shipping_method_id,
+      amount: Number(action.amount),
+    })
+    addOnce(result.codes, action.code)
+  } else if (
+    action.action === ComputedActions.PROMOTION_LIMIT_EXCEEDED ||
+    action.action === ComputedActions.CAMPAIGN_BUDGET_EXCEEDED
+  ) {
+    addOnce(result.used_up, action.code)
+  }
 }
 
 /** A promotion as a buyer's code finds it, with what decides whether it can be used now. */

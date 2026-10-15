@@ -892,6 +892,15 @@ async function promotionByCode(scope: MedusaContainer, code: string): Promise<Co
   }
 }
 
+/** Why a code took nothing off the cart: used up, a shop's code for none of its items, or nothing it covers. */
+function notAppliedReason(promotion: CodeLookup, usedUp: string[]): string {
+  if (usedUp.includes(promotion.code)) return `"${promotion.code}" has been used up.`
+  if (promotion.seller) {
+    return `"${promotion.code}" is ${promotion.seller.name}'s code: it only takes money off their items, and none in your cart qualify.`
+  }
+  return `"${promotion.code}" doesn't apply to the items in your cart.`
+}
+
 /**
  * Applies a promo code to the buyer's cart (#6), refused (400) with why the buyer can't use it:
  * not a code, expired, not on yet, used up, or not for anything in the cart. A shop's code takes
@@ -914,12 +923,7 @@ export async function applyPromoCode(
     if (!codes.includes(promotion.code)) {
       // Back to the codes it had: a code that takes nothing off isn't kept.
       await applyShopPromotions(scope, cartId, entered)
-      const reason = used_up.includes(promotion.code)
-        ? `"${promotion.code}" has been used up.`
-        : promotion.seller
-          ? `"${promotion.code}" is ${promotion.seller.name}'s code: it only takes money off their items, and none in your cart qualify.`
-          : `"${promotion.code}" doesn't apply to the items in your cart.`
-      throw new MedusaError(MedusaError.Types.INVALID_DATA, reason)
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, notAppliedReason(promotion, used_up))
     }
   }
   return retrieveCheckout(scope, cartId, customerId)

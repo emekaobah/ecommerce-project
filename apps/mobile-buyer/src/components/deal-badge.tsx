@@ -22,14 +22,17 @@ export function DealBadge({ deal }: Readonly<{ deal: ShopDeal }>) {
 }
 
 /** The listing's first deal, or (`all`) each of them; nothing when it has none. */
-export function DealBadges({ deals, all = false }: Readonly<{ deals: ShopDeal[]; all?: boolean }>) {
+export function DealBadges({
+  deals,
+  all = false,
+}: Readonly<{ deals: (ShopDeal & { promotion_id: string })[]; all?: boolean }>) {
   const theme = useTheme();
   const shown = all ? deals : deals.slice(0, 1);
   if (!shown.length) return null;
   return (
     <View style={[styles.row, { gap: theme.space.xs }]}>
-      {shown.map((deal, i) => (
-        <DealBadge key={i} deal={deal} />
+      {shown.map((deal) => (
+        <DealBadge key={deal.promotion_id} deal={deal} />
       ))}
     </View>
   );
