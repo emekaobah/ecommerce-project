@@ -67,7 +67,8 @@ export function OrdersScreen() {
         renderItem={({ item }) => (
           <ListRow
             title={`#${item.display_id} · ${formatMoney(orderValue(item), item.currency_code)}`}
-            subtitle={itemsSummary(item.items)}
+            // The counter's list says how long each order is held (#32).
+            subtitle={[itemsSummary(item.items), readyOnly ? item.fulfilment.collect_by?.label : null].filter(Boolean).join(' · ')}
             trailing={<FulfilmentChip fulfilment={item.fulfilment} now={now} />}
             onPress={() => router.push({ pathname: '/orders/[id]', params: { id: item.id } })}
           />

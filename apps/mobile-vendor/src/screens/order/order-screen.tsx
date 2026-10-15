@@ -80,6 +80,7 @@ const STATE_NOTES: { [S in OrderFulfilment['state']]?: string } = {
   in_transit: 'In transit to the buyer.',
   delivered: 'Delivered to the buyer.',
   ready_for_pickup: 'Ready at the counter. The buyer collects it with the code in their app.',
+  not_collected: "Not collected in time. You're paid for its fresh items; the rest was refunded and is back in stock.",
 };
 
 /** A pickup order's states before it is packed, when staff are told the buyer collects it. */
@@ -92,6 +93,9 @@ function stateNote(fulfilment: OrderFulfilment): string | null {
   }
   if (state === 'packed' && fulfilment.shipment?.cancelled) {
     return 'Shipbubble cancelled the courier booking. Book a new label to send it.';
+  }
+  if (state === 'ready_for_pickup' && fulfilment.collect_by) {
+    return `${STATE_NOTES.ready_for_pickup} ${fulfilment.collect_by.label}, or it is Not collected.`;
   }
   if (state === 'collected' && fulfilment.collection) {
     const { staff, collected_by } = fulfilment.collection;

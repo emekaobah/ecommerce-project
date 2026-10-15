@@ -84,7 +84,7 @@ function ShopOrder({ groupId, order }: Readonly<{ groupId: string; order: Seller
           <View style={styles.fill}>
             <Text numberOfLines={2}>{item.product_title ?? 'Item'}</Text>
             <Text variant="caption" tone="secondary">
-              {[item.variant_title, quantityLabel(item)].filter(Boolean).join(' · ')}
+              {[item.variant_title, quantityLabel(item, order.fulfilment.state)].filter(Boolean).join(' · ')}
             </Text>
           </View>
           <Text>{formatMoney(item.total, order.currency_code)}</Text>
@@ -122,17 +122,28 @@ function Tracking({ order }: Readonly<{ order: SellerOrder }>) {
 
 /**
  * A pickup order's collection (#12): where and when to collect it, and once it is Ready for
- * pickup the code to show at the counter, with its QR code. Whoever shows the code collects it.
+ * pickup the code to show at the counter, with its QR code, and when to collect it by (#32).
+ * Whoever shows the code collects it. Once the hold has expired the order says so instead.
  */
 function Collection({ order, pickup }: Readonly<{ order: SellerOrder; pickup: NonNullable<SellerOrder['pickup']> }>) {
   const theme = useTheme();
-  const collected = order.fulfilment.state === 'collected';
+  const { state, collect_by } = order.fulfilment;
+  if (state === 'not_collected') {
+    return (
+      <View style={{ gap: theme.space.sm, padding: theme.space.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }}>
+        <Text variant="label">Not collected in time</Text>
+        <Text tone="secondary">The code no longer works. Fresh items aren&apos;t refunded; the rest is refunded to you.</Text>
+      </View>
+    );
+  }
+  const collected = state === 'collected';
   return (
     <View style={{ gap: theme.space.md, padding: theme.space.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }}>
       <Text variant="label">{collected ? 'Collected in store' : 'Collect in store'}</Text>
       {pickup.code ? (
         <>
           <PickupCode code={pickup.code} />
+          {collect_by ? <Text variant="label">{collect_by.label}</Text> : null}
           <Text tone="secondary">Show this code at the counter. Whoever has it can collect the whole order.</Text>
         </>
       ) : null}
@@ -141,8 +152,12 @@ function Collection({ order, pickup }: Readonly<{ order: SellerOrder; pickup: No
   );
 }
 
-/** How many are coming, and how many the shop didn't have (#22); the order's refund chip says where that money is. */
-function quantityLabel(item: SellerOrder['items'][number]) {
+/**
+ * How many are coming, and how many the shop didn't have (#22); the order's refund chip says
+ * where that money is. A line taken off an order not collected in time (#32) was refunded.
+ */
+function quantityLabel(item: SellerOrder['items'][number], state: SellerOrder['fulfilment']['state']) {
+  if (!item.quantity && state === 'not_collected') return 'Refunded';
   if (!item.unavailable_quantity) return `Qty ${item.quantity}`;
   if (!item.quantity) return 'Unavailable';
   return `Qty ${item.quantity} · ${item.unavailable_quantity} unavailable`;
