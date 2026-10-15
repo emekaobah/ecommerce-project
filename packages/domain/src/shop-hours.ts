@@ -143,6 +143,28 @@ function* openIntervalsFrom(hours: ShopHours, from: number): Generator<Interval>
   }
 }
 
+/**
+ * When the shop closes on the `n`th open day after the one `after` falls on: the counter of
+ * holds measured in open days (#32). An open day is a local calendar day the shop opens on;
+ * days closed by its hours, an exception or a pause don't count, nor does `after`'s own day.
+ * The day ends when its last open stretch does. Null while the shop is paused with no resume
+ * date before then (the clock is frozen), or when it doesn't open again within the horizon.
+ */
+export function closeOfOpenDay(hours: ShopHours, after: Date, n: number): Date | null {
+  const { time_zone } = hours
+  const frozenFrom = Math.min(...hours.pauses.filter((p) => !p.ends_at).map((p) => Date.parse(p.starts_at)))
+  let count = 0
+  for (let date = addDays(dateIn(after.getTime(), time_zone), 1); ; date = addDays(date, 1)) {
+    const start = instantOf(date, "00:00", time_zone)
+    if (start >= frozenFrom || start - after.getTime() > HORIZON_MS) return null
+    const open = openIntervals(hours, start, instantOf(date, "24:00", time_zone))
+    if (open.length && ++count === n) {
+      const closes = open.at(-1)!.end
+      return closes >= frozenFrom ? null : new Date(closes)
+    }
+  }
+}
+
 /** When the shop next opens: the instant itself while open; null when it doesn't reopen (an unresumed pause, no hours). */
 export function nextOpening(hours: ShopHours, at: Date): Date | null {
   const first = openIntervalsFrom(hours, at.getTime()).next()
@@ -284,6 +306,18 @@ export function shopStatusLabel(status: ShopStatus, now: Date, timeZone: string)
     return `Closed until ${sameDay ? timeLabel(instant, timeZone) : dayLabel(instant, timeZone, { weekday: "short", day: "numeric", month: "short" })}`
   }
   return `Closed · opens ${openingLabel(at, now, timeZone)}`
+}
+
+/**
+ * "6pm Thu 15 Oct": when a shop closes (ISO 8601 `closesAt`), in the region's timezone. A
+ * closing at midnight is the end of the day before ("midnight Thu 15 Oct").
+ */
+export function closingLabel(closesAt: string, timeZone: string): string {
+  const instant = Date.parse(closesAt)
+  const midnight = timeLabel(instant, timeZone) === "12am"
+  // A minute earlier is still the day that is closing.
+  const day = dayLabel(midnight ? instant - 60 * 1000 : instant, timeZone, { weekday: "short", day: "numeric", month: "short" })
+  return `${midnight ? "midnight" : timeLabel(instant, timeZone)} ${day}`
 }
 
 /** "9:30pm" (today), "8am Tue", "8am Tue 13 Oct": when a closed shop opens (ISO 8601 `opensAt`), in the region's timezone. */

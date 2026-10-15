@@ -50,6 +50,9 @@ const PICKUP_STEPS: Step[] = [
   { label: "Collected", states: ["collected"] },
 ]
 
+/** A pickup order whose hold expired (#32) ends there instead of at Collected. */
+const NOT_COLLECTED_STEPS: Step[] = [...PICKUP_STEPS.slice(0, -1), { label: "Not collected", states: ["not_collected"] }]
+
 const STEPS: Record<FulfilmentMethod, Record<Audience, Step[]>> = {
   delivery: {
     buyer: [
@@ -77,11 +80,11 @@ const STEPS: Record<FulfilmentMethod, Record<Audience, Step[]>> = {
 }
 
 /** Where each path ends, every step done. */
-const FINAL = new Set<FulfilmentState>(["delivered", "collected"])
+const FINAL = new Set<FulfilmentState>(["delivered", "collected", "not_collected"])
 
 /**
  * The order's steps for the buyer or staff along its method's path: done up to the one it is at,
- * which is current (done, once delivered or collected), each done step with when the order got
+ * which is current (done, once delivered, collected or not collected), each done step with when the order got
  * there. A rejected order has none.
  */
 export function fulfilmentTimeline(
@@ -93,7 +96,7 @@ export function fulfilmentTimeline(
   }: { method: FulfilmentMethod; state: FulfilmentState; placed_at: string; reached: Reached },
   audience: Audience,
 ): TimelineStep[] {
-  const steps = STEPS[method][audience]
+  const steps = state === "not_collected" ? [...START[audience], ...NOT_COLLECTED_STEPS] : STEPS[method][audience]
   const current = steps.findIndex((s) => s.states.includes(state))
   if (current < 0) return []
   const timeOf = ({ states }: Step) =>

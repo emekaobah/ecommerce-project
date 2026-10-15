@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { checkPickupCode, isPickupCodeFormat, openingHoursLines } from "./pickup"
+import { checkPickupCode, collectBy, collectByLabel, isPickupCodeFormat, openingHoursLines } from "./pickup"
+import type { ShopHours } from "./shop-hours"
 
 const now = new Date("2026-10-11T12:00:00.000Z")
 const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString()
@@ -79,5 +80,72 @@ describe("isPickupCodeFormat", () => {
     expect(isPickupCodeFormat("12345")).toBe(false)
     expect(isPickupCodeFormat("1234567")).toBe(false)
     expect(isPickupCodeFormat("12a456")).toBe(false)
+  })
+})
+
+describe("collectBy", () => {
+  // Weekdays 08:00–18:00, Saturday 09:00–14:00, closed Sunday, in Lagos (UTC+1). Friday 9 October 2026.
+  const weekdays = [{ opens: "08:00", closes: "18:00" }]
+  const HOURS: ShopHours = {
+    time_zone: "Africa/Lagos",
+    weekly: { mon: weekdays, tue: weekdays, wed: weekdays, thu: weekdays, fri: weekdays, sat: [{ opens: "09:00", closes: "14:00" }], sun: [] },
+    exceptions: [],
+    pauses: [],
+  }
+  const lagos = (local: string) => new Date(`${local}+01:00`).toISOString()
+  const readyAt = lagos("2026-10-09T10:00:00")
+  const DRY = [{ perishable: false }]
+  const FRESH = [{ perishable: true }]
+  const closedOn = (date: string) => ({ starts_on: date, ends_on: date, closed: true, periods: [], note: null })
+
+  test("a non-perishable order is held until closing on the 5th open day after Ready, the Ready day and Sunday not counting", () => {
+    // Saturday, Monday, Tuesday, Wednesday, then Thursday.
+    expect(collectBy(readyAt, HOURS, DRY)).toBe(lagos("2026-10-15T18:00:00"))
+  })
+
+  test("a perishable order is held until closing on the next open day after Ready", () => {
+    expect(collectBy(readyAt, HOURS, FRESH)).toBe(lagos("2026-10-10T14:00:00"))
+  })
+
+  test("a mixed order is held as long as its fresh items, the shorter of the two", () => {
+    expect(collectBy(readyAt, HOURS, [{ perishable: false }, { perishable: true }])).toBe(lagos("2026-10-10T14:00:00"))
+  })
+
+  test("an order ready after closing still doesn't count its Ready day", () => {
+    expect(collectBy(lagos("2026-10-10T20:00:00"), HOURS, FRESH)).toBe(lagos("2026-10-12T18:00:00"))
+  })
+
+  test("a day closed by an exception doesn't count, and a day of special hours ends when they do", () => {
+    const hours = { ...HOURS, exceptions: [closedOn("2026-10-13")] }
+    expect(collectBy(readyAt, hours, DRY)).toBe(lagos("2026-10-16T18:00:00"))
+    const sundayOpening = { ...HOURS, exceptions: [{ ...closedOn("2026-10-11"), closed: false, periods: [{ opens: "10:00", closes: "12:00" }] }] }
+    expect(collectBy(lagos("2026-10-10T09:30:00"), sundayOpening, FRESH)).toBe(lagos("2026-10-11T12:00:00"))
+  })
+
+  test("a day the shop is paused all day doesn't count; one paused for part of it does", () => {
+    const allMonday = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: lagos("2026-10-13T08:00:00") }] }
+    expect(collectBy(readyAt, allMonday, DRY)).toBe(lagos("2026-10-16T18:00:00"))
+    const mondayMorning = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: lagos("2026-10-12T11:00:00") }] }
+    expect(collectBy(readyAt, mondayMorning, DRY)).toBe(lagos("2026-10-15T18:00:00"))
+  })
+
+  test("is frozen while the shop is paused with no resume date before the hold ends", () => {
+    const paused = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: null }] }
+    expect(collectBy(readyAt, paused, DRY)).toBeNull()
+    // A perishable hold already ended on the Saturday.
+    expect(collectBy(readyAt, paused, FRESH)).toBe(lagos("2026-10-10T14:00:00"))
+    const lastAfternoon = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-15T15:00:00"), ends_at: null }] }
+    expect(collectBy(readyAt, lastAfternoon, DRY)).toBeNull()
+  })
+})
+
+describe("collectByLabel", () => {
+  test("names the closing time and day in the shop's timezone", () => {
+    expect(collectByLabel("2026-10-15T17:00:00.000Z", "Africa/Lagos")).toBe("Collect by 6pm Thu 15 Oct")
+    expect(collectByLabel("2026-10-10T12:30:00.000Z", "Africa/Lagos")).toBe("Collect by 1:30pm Sat 10 Oct")
+  })
+
+  test("calls a midnight closing the end of the day before, not the start of the next", () => {
+    expect(collectByLabel("2026-10-15T23:00:00.000Z", "Africa/Lagos")).toBe("Collect by midnight Thu 15 Oct")
   })
 })

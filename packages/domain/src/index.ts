@@ -63,13 +63,17 @@ export type {
 } from "./fulfilment"
 export {
   checkPickupCode,
+  collectBy,
+  collectByLabel,
   isPickupCodeFormat,
   openingHoursLines,
   PERISHABLE_PICKUP_NOTE,
   PICKUP_CODE_ATTEMPTS,
   PICKUP_CODE_LENGTH,
   PICKUP_CODE_WINDOW_MS,
+  PERISHABLE_HOLD_OPEN_DAYS,
   PICKUP_HOLD_NOTICE,
+  PICKUP_HOLD_OPEN_DAYS,
 } from "./pickup"
 export type { PickupCodeCheck, PickupCodeState } from "./pickup"
 export { dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
@@ -99,6 +103,8 @@ export type {
 export type { AcceptTimeLeft } from "./accept-deadline"
 export {
   afterOpenTime,
+  closeOfOpenDay,
+  closingLabel,
   hoursExceptionErrors,
   isOpenAt,
   isOrderable,

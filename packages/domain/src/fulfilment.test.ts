@@ -344,11 +344,33 @@ describe("the pickup path", () => {
     const collected: Fulfilment = { method: "pickup", state: "collected", collection: { actor, at, collectedBy: "Ada" } }
     expect(transition(collected, collect).ok).toBe(false)
   })
+
+  test("a ready order whose hold has expired is Not collected", () => {
+    expect(transition({ method: "pickup", state: "ready_for_pickup" }, { source: "system", type: "pickup_hold_expired", at })).toEqual({
+      ok: true,
+      fulfilment: { method: "pickup", state: "not_collected" },
+    })
+  })
+
+  test("Not collected is final: the code no longer collects it", () => {
+    const notCollected = { method: "pickup", state: "not_collected" } as const
+    expect(transition(notCollected, collect)).toEqual({
+      ok: false,
+      error: { code: "forbidden_transition", from: "not_collected", trigger: { source: "staff", type: "collect" } },
+    })
+    expect(transition(notCollected, { source: "system", type: "pickup_hold_expired", at }).ok).toBe(false)
+  })
+
+  test("a hold expiring is refused on a delivery order", () => {
+    const packed = { method: "delivery", state: "packed" } as const
+    // @ts-expect-error the types keep the pickup hold to pickup orders
+    expect(transition(packed, { source: "system", type: "pickup_hold_expired", at }).ok).toBe(false)
+  })
 })
 
 /**
  * Every state of each method against every trigger. The expected next states below are
- * written out by hand from the spec (docs/design.md, issues #8 and #12), not read from
+ * written out by hand from the spec (docs/design.md, issues #8, #12 and #32), not read from
  * the implementation, so a transition added or removed by mistake fails here.
  */
 describe("transition table", () => {
@@ -376,6 +398,7 @@ describe("transition table", () => {
       partially_available: { method: "pickup", state: "partially_available" },
       ready_for_pickup: { method: "pickup", state: "ready_for_pickup" },
       collected: { method: "pickup", state: "collected", collection },
+      not_collected: { method: "pickup", state: "not_collected" },
     },
   }
 
@@ -395,6 +418,7 @@ describe("transition table", () => {
     { source: "provider", type: "delivered", at },
     { source: "provider", type: "cancelled", at },
     { source: "system", type: "accept_deadline_passed", at },
+    { source: "system", type: "pickup_hold_expired", at },
   ]
 
   type Moves = Partial<Record<FulfilmentState, Record<string, FulfilmentState>>>
@@ -454,8 +478,9 @@ describe("transition table", () => {
         "staff:resume_picking": "picking",
         "staff:mark_packed": "ready_for_pickup",
       },
-      ready_for_pickup: { "staff:collect": "collected" },
+      ready_for_pickup: { "staff:collect": "collected", "system:pickup_hold_expired": "not_collected" },
       collected: {},
+      not_collected: {},
     },
   }
 

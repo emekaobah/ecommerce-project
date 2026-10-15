@@ -7,13 +7,14 @@
  *
  *   new → accepted → picking → ┬─ delivery: packed → label_booked → courier_confirmed
  *                              │      → handed_to_courier → in_transit → delivered
- *                              └─ pickup:   ready_for_pickup → collected
+ *                              └─ pickup:   ready_for_pickup → collected (or not_collected)
  *
  * Branches: new → rejected (seller declines, or the 24h accept deadline
  * passes); picking ⇄ partially_available → packed (or ready_for_pickup);
  * label_booked or courier_confirmed → packed when the shipment provider
  * cancels (rebook); handed_to_courier → delivered when the provider never
- * reported transit.
+ * reported transit; ready_for_pickup → not_collected when the pickup hold
+ * expires (#32), which is final.
  *
  * Every trigger names its source: a `staff` action (who and when), a
  * shipment-`provider` event, or a `system` event. Provider events are generic
@@ -80,6 +81,8 @@ export type PickupFulfilment = { method: "pickup" } & (
   | SharedState
   | { state: "ready_for_pickup" }
   | { state: "collected"; collection: Collection }
+  /** The pickup hold expired before anyone collected it (#32): final, the code no longer works. */
+  | { state: "not_collected" }
 )
 
 export type Fulfilment = DeliveryFulfilment | PickupFulfilment
@@ -106,7 +109,7 @@ export type ProviderEventType =
   | "delivered"
   | "cancelled"
 
-export type SystemEventType = "accept_deadline_passed"
+export type SystemEventType = "accept_deadline_passed" | "pickup_hold_expired"
 
 /** An action taken by seller staff in the app; `actor` is the member id. */
 export type StaffAction<T extends Exclude<StaffActionType, "collect"> = Exclude<StaffActionType, "collect">> = {
@@ -120,10 +123,13 @@ export type CollectAction = { source: "staff"; type: "collect"; actor: string; a
 /** An event reported by the shipment provider. */
 export type ProviderEvent = { source: "provider"; type: ProviderEventType; at: string }
 /** An event raised by the platform itself, such as a scheduled job. */
-export type SystemEvent = { source: "system"; type: SystemEventType; at: string }
+export type SystemEvent<T extends SystemEventType = SystemEventType> = { source: "system"; type: T; at: string }
 
-/** What can happen to a delivery order: never a pickup code. */
-export type DeliveryTrigger = StaffAction<SharedStaffActionType | "confirm_handover"> | ProviderEvent | SystemEvent
+/** What can happen to a delivery order: never a pickup code or hold. */
+export type DeliveryTrigger =
+  | StaffAction<SharedStaffActionType | "confirm_handover">
+  | ProviderEvent
+  | SystemEvent<"accept_deadline_passed">
 /** What can happen to a pickup order: never a label or a courier. */
 export type PickupTrigger = StaffAction<SharedStaffActionType> | CollectAction | SystemEvent
 
@@ -227,6 +233,7 @@ const STEPS: { [S in FulfilmentState]: Step<S> } = {
   in_transit: ({ handover }, trigger) =>
     isProvider(trigger, "delivered") ? { method: "delivery", state: "delivered", handover } : undefined,
   ready_for_pickup: (_, trigger) => {
+    if (isSystem(trigger, "pickup_hold_expired")) return { method: "pickup", state: "not_collected" }
     if (trigger.source !== "staff" || trigger.type !== "collect") return undefined
     const { actor, at, collectedBy } = trigger
     return { method: "pickup", state: "collected", collection: { actor, at, collectedBy } }
@@ -234,6 +241,7 @@ const STEPS: { [S in FulfilmentState]: Step<S> } = {
   rejected: done,
   delivered: done,
   collected: done,
+  not_collected: done,
 }
 
 /** Packing ends picking: a delivery order waits for its label, a pickup order is ready at the counter. */

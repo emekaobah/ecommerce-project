@@ -3,7 +3,7 @@
  * counter checks it, and what the buyer is told at checkout.
  */
 
-import { WEEKDAYS, type OpenPeriod, type Weekday, type WeeklyHours } from "./shop-hours"
+import { closeOfOpenDay, closingLabel, WEEKDAYS, type OpenPeriod, type ShopHours, type Weekday, type WeeklyHours } from "./shop-hours"
 
 /** A pickup code is this many digits, shown in the buyer's order and as a QR code of them. */
 export const PICKUP_CODE_LENGTH = 6
@@ -13,6 +13,23 @@ export const PICKUP_CODE_WINDOW_MS = 15 * 60 * 1000
 
 /** What the buyer is told before choosing pickup, and on the order. */
 export const PICKUP_HOLD_NOTICE = "Collect within 5 open days; fresh items aren't refunded if not collected."
+/** How many open days after Ready a pickup order is held (#32); one with fresh items, until the next open day's closing. */
+export const PICKUP_HOLD_OPEN_DAYS = 5
+export const PERISHABLE_HOLD_OPEN_DAYS = 1
+
+/**
+ * When a pickup order ready since `readyAt` (ISO 8601) must be collected by, as ISO 8601: closing
+ * time on the 5th open day after Ready, or on the next one when any of its `lines` is perishable
+ * (a mixed order takes the shorter hold). Null while the shop is paused with no resume date.
+ */
+export function collectBy(readyAt: string, hours: ShopHours, lines: { perishable: boolean }[]): string | null {
+  const days = lines.some((l) => l.perishable) ? PERISHABLE_HOLD_OPEN_DAYS : PICKUP_HOLD_OPEN_DAYS
+  return closeOfOpenDay(hours, new Date(readyAt), days)?.toISOString() ?? null
+}
+
+/** "Collect by 6pm Thu 15 Oct": what the buyer's order and the shop's ready list say of the hold, in the shop's timezone. */
+export const collectByLabel = (collectBy: string, timeZone: string) => `Collect by ${closingLabel(collectBy, timeZone)}`
+
 /** Why a shop with fresh items switched to pickup at checkout (`perishable_too_slow`, #69). */
 export const PERISHABLE_PICKUP_NOTE = "No courier can get fresh items to you in time — collect in store"
 
