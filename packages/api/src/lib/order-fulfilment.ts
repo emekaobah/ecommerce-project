@@ -1,5 +1,7 @@
 import {
   acceptDeadline,
+  collectBy,
+  collectByLabel,
   fulfilmentTimeline,
   newFulfilment,
   type Fulfilment,
@@ -16,6 +18,7 @@ import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../m
 import type OrderFulfilment from "../modules/order-fulfilment/models/order-fulfilment"
 import type OrderRefund from "../modules/order-fulfilment/models/order-refund"
 import type { OrderMoney } from "./order-refund"
+import { perishableLinesOf } from "./perishable"
 import { shopHoursOf } from "./shop-hours"
 import type { OrderTransaction } from "./shop-order"
 
@@ -48,6 +51,13 @@ export const ORDER_REJECTED = "order_fulfilment.rejected"
 export const ORDER_PACKED = "order_fulfilment.packed"
 /** Emitted when a pickup order is handed over at the counter, and so may be paid out (#12), with `{ id }` (the order). */
 export const ORDER_COLLECTED = "order_fulfilment.collected"
+/**
+ * Emitted when a pickup order's hold expires uncollected (#32), with `{ id, amount }`: the
+ * order, and what removing its non-perishable lines took off its total (which the buyer is refunded).
+ */
+export const ORDER_NOT_COLLECTED = "order_fulfilment.not_collected"
+/** The note on the order edit and refund that remove a Not collected order's non-perishable lines (#32). */
+export const NOT_COLLECTED_NOTE = "Not collected in time"
 /** Emitted once when a new order nears its accept deadline unaccepted, with `{ id }` (the order). */
 export const ORDER_ACCEPT_DEADLINE_NEAR = "order_fulfilment.accept_deadline_near"
 /** Emitted when staff book a courier label for a packed order, with `{ id }` (the order). */
@@ -150,6 +160,13 @@ export type FulfilmentView = {
    * was placed (ADR 0004); also null while the shop is paused with no time set to reopen.
    */
   accept_by: string | null
+  /**
+   * Only while the order is Ready for pickup (#32): when its hold ends, at closing time on the
+   * shop's 5th open day after Ready (the next one for an order with perishable lines), as ISO
+   * 8601 and as "Collect by 6pm Thu 15 Oct" in the shop's timezone. Null while the shop is
+   * paused with no time set to reopen.
+   */
+  collect_by: { at: string; label: string } | null
   rejected_by: "seller" | "accept_deadline" | null
   reject_reason: string | null
   /** The courier label last booked for the order; `cancelled` once Shipbubble cancelled it, to rebook. */
@@ -178,8 +195,26 @@ function collectionOf(fulfilment: Fulfilment) {
   return "collection" in fulfilment ? fulfilment.collection : null
 }
 
-/** `names`: members' names by id, for who handed the order over; `audience`: whose steps the timeline shows. */
-export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
+/**
+ * `names`: members' names by id, for who handed the order over; `audience`: whose steps the
+ * timeline shows; `lines`: the order's lines, whose perishability sets a pickup order's hold
+ * (no collect-by time without them).
+ */
+export type FulfilmentViewOptions = {
+  names?: Map<string, string>
+  audience?: "buyer" | "staff"
+  lines?: { perishable: boolean }[]
+}
+
+/**
+ * When a Ready for pickup order must be collected by (#32), as ISO 8601: `collectBy` from when
+ * it became ready, in its shop's hours. Null for an order not ready, a shop without hours, or a
+ * shop paused with no time set to reopen.
+ */
+export function collectByOf(record: FulfilmentRecord | undefined, hours: ShopHours | null, lines: { perishable: boolean }[]) {
+  const readyAt = record?.fulfilment.state === "ready_for_pickup" ? record.reached?.ready_for_pickup : undefined
+  return readyAt && hours ? collectBy(readyAt, hours, lines) : null
+}
 
 /** The order a fulfilment view is of: when it was placed, and how it was to reach its buyer. */
 export type PlacedOrder = { placed_at: Date | string; method: FulfilmentMethod }
@@ -192,17 +227,19 @@ export function fulfilmentView(
   record: FulfilmentRecord | undefined,
   order: PlacedOrder,
   hours: ShopHours | null,
-  { names = new Map<string, string>(), audience = "staff" }: FulfilmentViewOptions = {}
+  { names = new Map<string, string>(), audience = "staff", lines }: FulfilmentViewOptions = {}
 ): FulfilmentView {
   const fulfilment = record?.fulfilment ?? newFulfilment(order.method)
   const shipment = record?.shipment
   const handover = handoverOf(fulfilment)
   const collection = collectionOf(fulfilment)
   const placed_at = new Date(order.placed_at).toISOString()
+  const collectAt = lines ? collectByOf(record, hours, lines) : null
   return {
     method: fulfilment.method,
     state: fulfilment.state,
     accept_by: fulfilment.state === "new" ? acceptDeadline(placed_at, hours) : null,
+    collect_by: collectAt && hours ? { at: collectAt, label: collectByLabel(collectAt, hours.time_zone) } : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
     reject_reason: record?.reject_reason ?? null,
     shipment: shipment
@@ -311,9 +348,10 @@ export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise
     filters: { id: orderIds },
   })
   const orders = data as unknown as (OrderWithMethods & { id: string; created_at: Date | string; seller?: { id: string } | null })[]
-  const [records, hours] = await Promise.all([
+  const [records, hours, lines] = await Promise.all([
     fulfilmentsOf(scope, orderIds),
     shopHoursOf(scope, orders.flatMap((o) => (o.seller ? [o.seller.id] : []))),
+    perishableLinesOf(scope, orderIds),
   ])
   const names = await handoverNames(scope, records.values())
   return new Map(
@@ -323,7 +361,7 @@ export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise
         records.get(o.id),
         { placed_at: o.created_at, method: methodOfOrder(o) },
         (o.seller && hours.get(o.seller.id)) || null,
-        { names }
+        { names, lines: lines.get(o.id) ?? [] }
       ),
     ])
   )

@@ -74,6 +74,39 @@ export async function perishableProductIds(scope: Scope, productIds: string[]): 
   return new Set([...standing].flatMap(([id, s]) => (s.perishable ? [id] : [])))
 }
 
+/** An order line as the pickup hold weighs it (#32): how many are left on the order, what they cost, and whether they're perishable. */
+export type PerishableLine = { id: string; quantity: number; total: number; perishable: boolean }
+
+/**
+ * Each order's lines still on it (an order edit can leave a line at none), with their products'
+ * live standing, by order id.
+ */
+export async function perishableLinesOf(scope: Scope, orderIds: string[]): Promise<Map<string, PerishableLine[]>> {
+  if (!orderIds.length) return new Map()
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "order",
+    // The order module works out its lines' totals only when the order's total is asked for.
+    fields: ["id", "total", "items.id", "items.product_id", "items.detail.quantity", "items.total"],
+    filters: { id: orderIds },
+  })
+  type Item = { id: string; product_id?: string | null; total?: unknown; detail?: { quantity: unknown } | null }
+  const orders = data as unknown as { id: string; items?: (Item | null)[] | null }[]
+  const items = orders.flatMap((o) => (o.items ?? []).flatMap((i) => (i ? [i] : [])))
+  const perishable = await perishableProductIds(scope, items.flatMap((i) => (i.product_id ? [i.product_id] : [])))
+  return new Map(
+    orders.map((o) => [
+      o.id,
+      (o.items ?? []).flatMap((i) => {
+        // An order line's quantity is on its detail (the order item), which an order edit changes.
+        const quantity = Number(i?.detail?.quantity ?? 0)
+        if (!i || quantity <= 0) return []
+        return [{ id: i.id, quantity, total: Number(i.total ?? 0), perishable: !!i.product_id && perishable.has(i.product_id) }]
+      }),
+    ])
+  )
+}
+
 /** A product's standing, or not found. */
 export async function productPerishable(scope: Scope, productId: string): Promise<ProductPerishable> {
   const standing = (await productsPerishable(scope, [productId])).get(productId)

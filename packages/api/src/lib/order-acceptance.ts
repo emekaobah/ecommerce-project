@@ -44,8 +44,8 @@ async function refundRejected(scope: Scope, orderId: string, actor: string | und
   }
 }
 
-/** Each waiting order's shop's hours, which its accept deadline counts in (ADR 0004); null for a shop without them. */
-async function hoursOfOrders(scope: Scope, rows: FulfilmentRecord[], now: Date) {
+/** Each order's shop's hours, which its clocks count in (ADR 0004); null for a shop without them. */
+export async function hoursOfOrders(scope: Scope, rows: FulfilmentRecord[], now: Date) {
   const sellers = await sellersOfOrders(scope, rows.map((r) => r.order_id))
   const hours = await shopHoursOf(scope, [...sellers.values()], now)
   return (row: FulfilmentRecord) => hours.get(sellers.get(row.order_id) ?? "") ?? null

@@ -14,6 +14,7 @@ import {
   type Picks,
   type PlacedOrder,
 } from "./order-fulfilment"
+import { perishableLinesOf, type PerishableLine } from "./perishable"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
 
@@ -67,8 +68,13 @@ export type BuyerOrder = {
  */
 export type BuyerFulfilmentView = Omit<FulfilmentView, "handover" | "collection">
 
-function buyerFulfilment(record: FulfilmentRecord | undefined, order: PlacedOrder, hours: ShopHours | null): BuyerFulfilmentView {
-  const { handover: _staffOnly, collection: _alsoStaffOnly, ...view } = fulfilmentView(record, order, hours, { audience: "buyer" })
+function buyerFulfilment(
+  record: FulfilmentRecord | undefined,
+  order: PlacedOrder,
+  hours: ShopHours | null,
+  lines: PerishableLine[]
+): BuyerFulfilmentView {
+  const { handover: _staffOnly, collection: _alsoStaffOnly, ...view } = fulfilmentView(record, order, hours, { audience: "buyer", lines })
   return view
 }
 
@@ -203,7 +209,11 @@ async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Pro
     buyerReviews(scope, customerId),
   ])
   const sellerIds = (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : []))
-  const [hours, places] = await Promise.all([shopHoursOf(scope, sellerIds), collectionPlacesOf(scope, sellerIds)])
+  const [hours, places, lines] = await Promise.all([
+    shopHoursOf(scope, sellerIds),
+    collectionPlacesOf(scope, sellerIds),
+    perishableLinesOf(scope, ids),
+  ])
   const refundsOf = (orderId: string) => refunds.filter((r) => r.order_id === orderId)
   return new Map(
     (data as any[]).map((o) => {
@@ -213,7 +223,7 @@ async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Pro
         o.id,
         {
           ...buyerOrder(o, record?.removed ?? {}),
-          fulfilment: buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o) }, shopHours),
+          fulfilment: buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o) }, shopHours, lines.get(o.id) ?? []),
           refund: buyerRefund(refundsOf(o.id)),
           pickup: buyerPickup(record, places.get(o.seller?.id)),
           // An order without a fulfilment row yet is New.
