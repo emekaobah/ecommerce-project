@@ -189,9 +189,10 @@ export default async function seedDemoData({ container }: ExecArgs) {
 }
 
 /**
- * Oja's flat commission (#29) as Mercur's global rate, so the vendor panel shows it on each
- * order: of each line as the buyer paid it, tax included, and never of delivery, as payouts
- * work it out (`payoutOf`). Mercur seeds the rate at 0%.
+ * Oja's flat commission (#29) as Mercur's global rate, so the admin panel's commission lines
+ * match it on each order as placed: of each line as the buyer paid it, tax included, and never
+ * of delivery, as payouts work it out (`payoutOf`). Shops see only the payout's (#23). Mercur
+ * seeds the rate at 0%.
  */
 async function seedCommission(container: MedusaContainer) {
   const { data } = await container
