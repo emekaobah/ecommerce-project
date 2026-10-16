@@ -31,6 +31,6 @@ Facts that shaped the decision (checked 2026-10-09):
 
 - The vendor panel's Payouts page (Mercur's) lists a shop's payouts. Each order page shows its payout through our `GET /vendor/orders/:id/payout`: what the buyer paid, delivery, refunds, commission, the payout, anything taken back, and where it is. Like `/vendor/payouts`, it needs `payout:read`.
 - Mercur's commission lines don't follow refunds made without an order edit, but payouts don't read them. After such a refund, the order page shows Mercur's commission as the order was placed beside the payout's, which is what the shop is charged.
-- A refund is taken off what the shop is paid for goods: a refund of the delivery fee, which Oja keeps, is borne by the shop.
+- A refund records what it covers: items or delivery (#22). Shops refund only items, so the vendor refund route always records items, and a refund of items is taken off what the shop is paid for goods. Only Oja's staff refund delivery (`POST /admin/orders/:id/delivery-refund`), at most the delivery fee less what was refunded of it already. Oja keeps the delivery fee, so it bears a refund of it: `payoutOf` takes it off Oja's delivery share, never off the shop's payout, and the payout doesn't wait for it to settle.
 - Paying one transfer per order costs a Paystack transfer fee per order.
 - A discount lowers what was captured, so the shop bears it, unless Oja funds it: ADR 0010 (#6) adds those back.
