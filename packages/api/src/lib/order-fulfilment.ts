@@ -1,5 +1,6 @@
 import {
   acceptDeadline,
+  collectBy,
   fulfilmentTimeline,
   newFulfilment,
   type Fulfilment,
@@ -12,6 +13,7 @@ import {
 import type { InferTypeOf, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { isPickupMethod } from "./collection-point"
+import { perishableProductIds } from "./perishable"
 import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../modules/order-fulfilment"
 import type OrderFulfilment from "../modules/order-fulfilment/models/order-fulfilment"
 import type OrderRefund from "../modules/order-fulfilment/models/order-refund"
@@ -164,9 +166,76 @@ export type FulfilmentView = {
    * the code and when, and the name the collector gave.
    */
   collection: { staff: { name: string | null; at: string }; collected_by: string } | null
+  /**
+   * While a pickup order is Ready for pickup: when its hold ends (#32), closing time on the 5th
+   * of the shop's open days after Ready (the next one for an order with perishable lines), and
+   * the region's timezone to show it in. Null otherwise, and while the shop is paused with no
+   * resume date (the hold's clock is frozen).
+   */
+  collect_by: CollectBy | null
   /** The order's steps as staff (or its buyer) see them, done up to where it is. */
   timeline: TimelineStep[]
 }
+
+/** When a pickup order's hold ends (ISO 8601), and the region's timezone. */
+export type CollectBy = { at: string; time_zone: string }
+
+/**
+ * When the order's hold ends, while it is Ready for pickup, counted in the shop's `hours` from
+ * when it became Ready; its `lines` (those still on it) set how long. Null without either.
+ */
+export function collectByOf(
+  record: Pick<FulfilmentRecord, "state" | "reached"> | undefined,
+  hours: ShopHours | null,
+  lines: { perishable: boolean }[] | undefined
+): CollectBy | null {
+  const readyAt = record?.reached?.ready_for_pickup
+  if (record?.state !== "ready_for_pickup" || !readyAt || !hours || !lines) return null
+  const at = collectBy(hours, readyAt, lines)
+  return at ? { at, time_zone: hours.time_zone } : null
+}
+
+/** Why the order's non-perishable lines were refunded. */
+export const NOT_COLLECTED_NOTE = "Not collected in time"
+
+/** An order line as the order graph gives it: its quantity now is on its detail, which an order edit changes. */
+export type OrderLineRow = {
+  id: string
+  product_id?: string | null
+  quantity?: unknown
+  detail?: { quantity?: unknown } | null
+} | null
+
+/** A line still on an order, and whether it is perishable (#69). */
+export type HoldLine = { id: string; quantity: number; perishable: boolean }
+
+/** The order graph fields `holdLinesOf` reads. */
+export const HOLD_LINE_FIELDS = ["items.id", "items.product_id", "items.quantity", "items.detail.quantity"]
+
+/** Each order's lines still on it, with whether each is perishable, which sets the order's hold. */
+export async function holdLinesOf(
+  scope: Scope,
+  orders: { id: string; items?: OrderLineRow[] | null }[]
+): Promise<Map<string, HoldLine[]>> {
+  const rows = orders.map((o) => ({ id: o.id, items: (o.items ?? []).flatMap((i) => (i ? [i] : [])) }))
+  const perishable = await perishableProductIds(
+    scope,
+    rows.flatMap((o) => o.items.flatMap((i) => (i.product_id ? [i.product_id] : [])))
+  )
+  return new Map(
+    rows.map((o) => [
+      o.id,
+      o.items
+        .map((i) => ({
+          id: i.id,
+          quantity: Number(i.detail?.quantity ?? i.quantity ?? 0),
+          perishable: !!i.product_id && perishable.has(i.product_id),
+        }))
+        .filter((l) => l.quantity > 0),
+    ])
+  )
+}
+
 
 /** The handover's halves as the order records them, in whichever state it is. */
 function handoverOf(fulfilment: Fulfilment) {
@@ -181,8 +250,11 @@ function collectionOf(fulfilment: Fulfilment) {
 /** `names`: members' names by id, for who handed the order over; `audience`: whose steps the timeline shows. */
 export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
 
-/** The order a fulfilment view is of: when it was placed, and how it was to reach its buyer. */
-export type PlacedOrder = { placed_at: Date | string; method: FulfilmentMethod }
+/**
+ * The order a fulfilment view is of: when it was placed, how it was to reach its buyer, and the
+ * lines still on it, which set a pickup order's hold (left out, no hold is counted).
+ */
+export type PlacedOrder = { placed_at: Date | string; method: FulfilmentMethod; lines?: HoldLine[] }
 
 /**
  * `order`: an order without a row yet is New, by the method it was placed with. `hours`: the
@@ -204,6 +276,7 @@ export function fulfilmentView(
     state: fulfilment.state,
     accept_by: fulfilment.state === "new" ? acceptDeadline(placed_at, hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
+    collect_by: collectByOf(record, hours, order.lines),
     reject_reason: record?.reject_reason ?? null,
     shipment: shipment
       ? {
@@ -307,13 +380,15 @@ export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "order",
-    fields: ["id", "created_at", "seller.id", ...METHOD_FIELDS],
+    fields: ["id", "created_at", "seller.id", ...METHOD_FIELDS, ...HOLD_LINE_FIELDS],
     filters: { id: orderIds },
   })
-  const orders = data as unknown as (OrderWithMethods & { id: string; created_at: Date | string; seller?: { id: string } | null })[]
-  const [records, hours] = await Promise.all([
+  type Row = OrderWithMethods & { id: string; created_at: Date | string; seller?: { id: string } | null; items?: OrderLineRow[] | null }
+  const orders = data as unknown as Row[]
+  const [records, hours, lines] = await Promise.all([
     fulfilmentsOf(scope, orderIds),
     shopHoursOf(scope, orders.flatMap((o) => (o.seller ? [o.seller.id] : []))),
+    holdLinesOf(scope, orders),
   ])
   const names = await handoverNames(scope, records.values())
   return new Map(
@@ -321,7 +396,7 @@ export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise
       o.id,
       fulfilmentView(
         records.get(o.id),
-        { placed_at: o.created_at, method: methodOfOrder(o) },
+        { placed_at: o.created_at, method: methodOfOrder(o), lines: lines.get(o.id) },
         (o.seller && hours.get(o.seller.id)) || null,
         { names }
       ),
