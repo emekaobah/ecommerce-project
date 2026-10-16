@@ -10,7 +10,7 @@ type VendorCreatePaymentRefund = { amount?: number; refund_reason_id?: string; n
 /**
  * A shop refunds from the web vendor panel. In place of Mercur's route, which refunds the
  * whole checkout's payment: a shop refunds only its own order's share of it (#20), recorded
- * against its order. Mercur's middleware still validates the body and the fields.
+ * against its order as a refund of items. Mercur's middleware still validates the body and the fields.
  */
 export const POST = async (req: VendorRequest<VendorCreatePaymentRefund>, res: MedusaResponse) => {
   const sellerId = req.seller_context?.seller_id ?? ""
@@ -20,7 +20,10 @@ export const POST = async (req: VendorRequest<VendorCreatePaymentRefund>, res: M
   if (!orderId || orderId === paymentId) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `Payment with id: ${paymentId} was not found`)
   }
-  await refundOrderShareWorkflow(req.scope).run({ input: { order_id: orderId, created_by: sellerId, ...req.validatedBody } })
+  // A shop refunds only items: the delivery fee is Oja's to refund (#22).
+  await refundOrderShareWorkflow(req.scope).run({
+    input: { ...req.validatedBody, order_id: orderId, created_by: sellerId, covers: "items" },
+  })
   const payment = await refetchPayment(req.scope, paymentId, req.queryConfig.fields)
   res.status(200).json({ payment })
 }

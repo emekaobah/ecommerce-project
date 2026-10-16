@@ -41,6 +41,7 @@ import { StoreGetOrderHistory } from "./store/order-history/validators";
 import { StoreGetPublishedReviews } from "./store/reviews/validators";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
+import { AdminRefundDelivery } from "./admin/orders/[id]/delivery-refund/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
 import { reportServerErrors } from "./report-server-errors";
@@ -275,6 +276,12 @@ export default defineMiddlewares({
             method: ["POST"],
             matcher: "/admin/products/:id/perishable",
             middlewares: [validateAndTransformBody(AdminOverrideProductPerishable)],
+        },
+        // Refunds of delivery (#22): Oja's staff alone, since Oja keeps the delivery fee.
+        {
+            method: ["POST"],
+            matcher: "/admin/orders/:id/delivery-refund",
+            middlewares: [validateAndTransformBody(AdminRefundDelivery)],
         },
         // A shop's onboarding checklist, pickup address and bank account (#26).
         ...vendorOnboardingMiddlewares,

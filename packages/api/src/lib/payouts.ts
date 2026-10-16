@@ -153,9 +153,11 @@ type PaidOrder = {
   seller?: { id: string; payout_account?: { id: string } | null } | null
   /** What Oja funds of the discounts on what the buyer kept (`ojaFundedDiscount`). */
   oja_discount: number
+  /** Medusa's refunds of the order that were of its delivery fee, which Oja bears (#22). */
+  delivery_refunds: string[]
 }
 
-type PaidOrderRow = Omit<PaidOrder, "oja_discount"> & {
+type PaidOrderRow = Omit<PaidOrder, "oja_discount" | "delivery_refunds"> & {
   items?:
     | {
         id: string
@@ -197,7 +199,11 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
     filters: { id: orderIds },
   })
   const orders = data as unknown as PaidOrderRow[]
-  const [records, shares] = await Promise.all([fulfilmentsOf(scope, orderIds), ojaSharesOf(scope, orderIds)])
+  const [records, shares, deliveryRefunds] = await Promise.all([
+    fulfilmentsOf(scope, orderIds),
+    ojaSharesOf(scope, orderIds),
+    fulfilmentService(scope).listOrderRefunds({ order_id: orderIds, covers: "delivery" }),
+  ])
   return orders.map(({ items, ...order }) => {
     const removed = records.get(order.id)?.removed ?? {}
     const lines = (items ?? []).map((i) => ({
@@ -210,17 +216,33 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
         promotion_id: a.promotion_id,
       })),
     }))
-    return { ...order, oja_discount: ojaFundedDiscount(lines, shares.get(order.id) ?? new Map()) }
+    return {
+      ...order,
+      oja_discount: ojaFundedDiscount(lines, shares.get(order.id) ?? new Map()),
+      delivery_refunds: deliveryRefunds.flatMap((r) => (r.order_id === order.id && r.refund_id ? [r.refund_id] : [])),
+    }
   })
 }
 
 const breakdownOf = (order: PaidOrder, delivery = Number(order.shipping_total ?? 0)) =>
-  payoutOf({ transactions: order.transactions ?? [], delivery, ojaDiscount: order.oja_discount })
+  payoutOf({
+    transactions: order.transactions ?? [],
+    delivery,
+    ojaDiscount: order.oja_discount,
+    deliveryRefunds: order.delivery_refunds,
+  })
 
-/** Orders with a refund Paystack hasn't settled, which wait for it before they are paid out. */
+/**
+ * Orders with a refund of items Paystack hasn't settled, which wait for it before they are paid
+ * out. A refund of delivery doesn't change the payout (#22), so it holds nothing up.
+ */
 export async function withUnsettledRefunds(scope: Scope, orderIds: string[]): Promise<Set<string>> {
   if (!orderIds.length) return new Set()
-  const rows = await fulfilmentService(scope).listOrderRefunds({ order_id: orderIds, status: UNSETTLED_REFUND_STATUSES })
+  const rows = await fulfilmentService(scope).listOrderRefunds({
+    order_id: orderIds,
+    covers: "items",
+    status: UNSETTLED_REFUND_STATUSES,
+  })
   return new Set(rows.map((r) => r.order_id!))
 }
 

@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
+import { adminHeaders } from "../helpers/auth"
 import { flagUnmatchedRefunds } from "../../src/lib/refund-check"
 import { payOutDeliveredOrders } from "../../src/lib/pay-out-orders"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../../src/modules/shop-bank-account"
@@ -211,6 +212,77 @@ medusaIntegrationTestRunner({
         const third = await deliveredOrder()
         await payOutDeliveredOrders(getContainer())
         expect(transferFor(third.orderId)).toMatchObject({ amount: lessCommission(GROCERY_GOODS) })
+      })
+    })
+
+    // A refund says what it is of (#22): a shop refunds items; only Oja's staff refund delivery,
+    // which Oja keeps, so a refund of it never comes off the shop's payout.
+    describe("refunds of items and of delivery", () => {
+      const status = (request: Promise<unknown>) =>
+        request.then(
+          () => 200,
+          (e: any) => e.response?.status
+        )
+      const refundsOf = async (orderId: string) =>
+        (await fulfilmentService(getContainer()).listOrderRefunds({ order_id: orderId }, { order: { created_at: "ASC" } })).map(
+          (r) => ({ amount: Number(r.amount), covers: r.covers })
+        )
+      const refundDelivery = async (orderId: string, body: { amount?: number } = {}) =>
+        api.post(`/admin/orders/${orderId}/delivery-refund`, body, await adminHeaders(getContainer(), api))
+
+      it("records a shop's refund from the vendor panel as a refund of items", async () => {
+        const { cartId } = await buyer.paidCheckout()
+        const orderId = await buyer.shopOrderId(GROCERY, cartId)
+        const paymentId = (await buyer.paymentOf(cartId)).id
+
+        await api.post(`/vendor/payments/${paymentId}/refund`, { amount: RICE.price }, await buyer.owner(GROCERY))
+
+        expect(await refundsOf(orderId)).toEqual([{ amount: RICE.price, covers: "items" }])
+      })
+
+      it("lets Oja's staff refund delivery, up to the delivery fee less what was refunded of it already", async () => {
+        const { orderId } = await bookedOrder()
+
+        expect(await status(refundDelivery(orderId, { amount: BEST_VALUE_FEE + 1 }))).toBe(400)
+        await refundDelivery(orderId, { amount: 500 })
+        // Left out, the amount is what is left of the delivery fee.
+        await refundDelivery(orderId)
+        expect(await status(refundDelivery(orderId, { amount: 1 }))).toBe(400)
+
+        expect(await refundsOf(orderId)).toEqual([
+          { amount: 500, covers: "delivery" },
+          { amount: BEST_VALUE_FEE - 500, covers: "delivery" },
+        ])
+      })
+
+      it("doesn't let a shop refund delivery", async () => {
+        const { orderId } = await bookedOrder()
+
+        expect(await status(api.post(`/admin/orders/${orderId}/delivery-refund`, {}, await buyer.owner(GROCERY)))).toBe(401)
+      })
+
+      it("pays the shop in full for its goods when delivery was refunded, without waiting for that refund", async () => {
+        const { orderId } = await deliveredOrder()
+        await refundDelivery(orderId)
+
+        expect(await orderPayout(orderId)).toMatchObject({ state: "due", refunded: 0, amount: lessCommission(GROCERY_GOODS) / 100 })
+        await payOutDeliveredOrders(getContainer())
+
+        expect(transferFor(orderId)).toMatchObject({ amount: lessCommission(GROCERY_GOODS) })
+        expect(await orderPayout(orderId)).toMatchObject({ refunded: 0, amount: lessCommission(GROCERY_GOODS) / 100 })
+      })
+
+      it("takes nothing back from the shop for a delivery refund made after its payout", async () => {
+        const first = await deliveredOrder()
+        await payOutDeliveredOrders(getContainer())
+        await refundDelivery(first.orderId)
+        await settleRefunds(first.reference, "processed")
+        await eventually(() => refundStatuses(first.orderId), (s) => s.every((x) => x === "processed"))
+        const second = await deliveredOrder()
+
+        await payOutDeliveredOrders(getContainer())
+
+        expect(transferFor(second.orderId)).toMatchObject({ amount: lessCommission(GROCERY_GOODS) })
       })
     })
 
