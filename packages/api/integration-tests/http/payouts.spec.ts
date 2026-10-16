@@ -308,16 +308,16 @@ medusaIntegrationTestRunner({
     })
 
     describe("the vendor panel", () => {
-      it("shows each order's commission: 10% of its goods, never of delivery", async () => {
-        const { cartId } = await buyer.paidCheckout()
-        const orderId = await buyer.shopOrderId(GROCERY, cartId)
+      it("shows an order's commission only in its payout, never Mercur's commission lines, which don't follow refunds", async () => {
+        const { orderId } = await bookedOrder()
 
-        const lines = await eventually(
-          async () => (await api.get(`/vendor/orders/${orderId}/commission-lines`, await buyer.owner(GROCERY))).data.commission_lines as any[],
-          (l) => l.length > 0
+        const status = await api.get(`/vendor/orders/${orderId}/commission-lines`, await buyer.owner(GROCERY)).then(
+          () => 200,
+          (e: any) => e.response?.status
         )
 
-        expect(lines.reduce((sum, l) => sum + Number(l.amount), 0)).toBeCloseTo(GROCERY_GOODS / 10, 2)
+        expect(status).toBe(403)
+        expect(await orderPayout(orderId)).toMatchObject({ commission: GROCERY_GOODS / 10, commission_percent: 10 })
       })
 
       it("shows an order's payout before it is due: what it will be, and that it waits for delivery", async () => {
