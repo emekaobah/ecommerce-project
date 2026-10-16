@@ -21,7 +21,7 @@ export const COMMISSION_PERCENT = 10
 export type OrderPayout = {
   /** What was captured for the order: its share of its checkout's payment. */
   paid: number
-  /** What has been refunded of it since. */
+  /** What has been refunded of its items since. A refund of delivery is Oja's, and isn't counted. */
   refunded: number
   /** What the buyer paid for delivery, which Oja keeps: it pays the courier from its own wallet. */
   delivery: number
@@ -36,22 +36,27 @@ export type OrderPayout = {
  * What the shop is owed for an order: what the buyer kept (the order's own captures less its
  * refunds), less the delivery fee, plus the discounts Oja funds on it (`ojaFundedDiscount`),
  * less 10% of that. A shop's own discounts stay off its payout. An order edit (#22) doesn't
- * change what was captured, only what is refunded, so it is counted once. Paystack's fees are Oja's.
+ * change what was captured, only what is refunded, so it is counted once. A refund of delivery
+ * (#22) comes out of the delivery fee Oja keeps, so it never lowers the payout. Paystack's fees are Oja's.
  */
 export function payoutOf({
   transactions,
   delivery,
   ojaDiscount,
+  deliveryRefunds = [],
 }: {
   transactions: OrderTransaction[]
   delivery: number
   ojaDiscount: number
+  /** Medusa's refunds that were of the delivery fee rather than items (`order_refund.covers`). */
+  deliveryRefunds?: string[]
 }): OrderPayout {
-  const sum = (reference: string) =>
-    transactions.filter((t) => t.reference === reference).reduce((total, t) => total + toSubunit(Number(t.amount)), 0)
-  const paid = sum("capture")
+  const ofDelivery = new Set(deliveryRefunds)
+  const sum = (counted: (t: OrderTransaction) => boolean) =>
+    transactions.filter(counted).reduce((total, t) => total + toSubunit(Number(t.amount)), 0)
+  const paid = sum((t) => t.reference === "capture")
   // Refund transactions are negative.
-  const refunded = Math.abs(sum("refund"))
+  const refunded = Math.abs(sum((t) => t.reference === "refund" && !ofDelivery.has(t.reference_id ?? "")))
   const goods = Math.max(0, paid - refunded - toSubunit(delivery)) + toSubunit(ojaDiscount)
   const commission = Math.round((goods * COMMISSION_PERCENT) / 100)
   return {
