@@ -1,6 +1,8 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { Modules } from "@medusajs/framework/utils"
 import { openingHoursLines, PERISHABLE_PICKUP_NOTE, PICKUP_HOLD_NOTICE } from "@oja/domain"
 import { payOutDeliveredOrders } from "../../src/lib/pay-out-orders"
+import { expirePickupHolds } from "../../src/lib/pickup-hold"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_PERISHABLE_CATEGORIES, SEED_PRODUCTS } from "../../src/scripts/seed-data"
@@ -173,7 +175,7 @@ medusaIntegrationTestRunner({
       await buyer.postWebhook(paystack.chargeSuccess(data.payment.reference))
       const groupId = await buyer.orderGroupOf(cartId)
       await buyer.capturedWithin(cartId)
-      return { groupId, orderOf: (shop: Shop) => buyer.shopOrderId(shop, cartId) }
+      return { groupId, reference: data.payment.reference as string, orderOf: (shop: Shop) => buyer.shopOrderId(shop, cartId) }
     }
     const vendorOrder = async (shop: Shop, orderId: string) =>
       (await api.get(`/vendor/orders/${orderId}`, await owner(shop))).data.order
@@ -345,14 +347,17 @@ medusaIntegrationTestRunner({
 
       const post = async (shop: Shop, path: string, body = {}, as?: unknown) =>
         api.post(`/vendor/orders/${path}`, body, as ?? (await owner(shop)))
-      /** Ada's order from the grocery, to collect in store, and its order group. */
-      const pickupOrder = async () => {
+      /** Ada's order from the grocery (two bags of rice, and any `fresh` tomatoes), to collect in store, and its order group. */
+      const pickupOrder = async ({ fresh = 0 } = {}) => {
         const cartId = await adasCart()
+        if (fresh) {
+          await api.post(`/store/carts/${cartId}/line-items`, { offer_id: await offerId(GROCERY, TOMATOES.title), quantity: fresh }, ada())
+        }
         await prepare(cartId, { shipping_address: ADDRESS, pickup: [await sellerId(GROCERY)] })
-        const { groupId, orderOf } = await pay(cartId)
+        const { groupId, reference, orderOf } = await pay(cartId)
         const orderId = await orderOf(GROCERY)
         await eventually(() => vendorOrder(GROCERY, orderId), (o) => o.fulfilment?.state === "new")
-        return { orderId, groupId, gadgetsOrderId: await orderOf(GADGETS) }
+        return { orderId, groupId, reference, gadgetsOrderId: await orderOf(GADGETS) }
       }
       const packed = async (orderId: string, shop = GROCERY) => {
         await post(shop, `${orderId}/accept`)
@@ -517,6 +522,121 @@ medusaIntegrationTestRunner({
         await packed(orderId)
 
         expect(await status(post(GROCERY, `${orderId}/book-label`))).toBe(400)
+      })
+
+      describe("when nobody collects it (#32)", () => {
+        const DAY_MS = 24 * 60 * 60 * 1000
+        const lagosDate = (instant: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date(instant))
+        /** Midnight in Lagos `days` after the day of `instant`: when a shop open round the clock closes on that day's eve. */
+        const lagosMidnightAfter = (instant: string, days: number) =>
+          new Date(Date.parse(`${lagosDate(instant)}T00:00:00+01:00`) + days * DAY_MS).toISOString()
+        const readyAt = async (orderId: string) =>
+          (await vendorOrder(GROCERY, orderId)).fulfilment.timeline.find((s: any) => s.label === "Ready for pickup").at as string
+        /** The order's lines as it was placed. */
+        const linesOf = async (orderId: string) => {
+          const { data } = await buyer.query().graph({ entity: "order", fields: ["items.id", "items.product_title"], filters: { id: orderId } })
+          return (data[0].items ?? []) as { id: string; product_title: string }[]
+        }
+        /** The stock reserved for each of these lines, by product title; a line taken off the order has none. */
+        const reservedOf = async (items: { id: string; product_title: string }[]) => {
+          const reservations = await getContainer()
+            .resolve(Modules.INVENTORY)
+            .listReservationItems({ line_item_id: items.map((i) => i.id) })
+          return Object.fromEntries(
+            items.map((i) => [
+              i.product_title,
+              reservations.filter((r) => r.line_item_id === i.id).reduce((sum, r) => sum + Number(r.quantity), 0),
+            ])
+          )
+        }
+        const settleRefunds = async (reference: string) => {
+          for (const refund of paystack.refundsOf(reference).filter((r) => r.status === "pending")) {
+            paystack.settleRefund(refund.id, "processed")
+            await buyer.postWebhook(paystack.refundEvent(refund.id))
+          }
+        }
+        const payoutOf = async (orderId: string) => (await api.get(`/vendor/orders/${orderId}/payout`, await owner(GROCERY))).data.payout
+        /** The hold-expiry job, run long after any hold has ended. */
+        const longAfter = (instant: string) => expirePickupHolds(getContainer(), new Date(Date.parse(instant) + 30 * DAY_MS))
+
+        it("shows the buyer and the shop when to collect by: closing on the 5th open day after Ready", async () => {
+          const { orderId, groupId } = await pickupOrder()
+          await packed(orderId)
+          const ready = await readyAt(orderId)
+
+          // Open round the clock, so each open day closes at midnight.
+          const collectBy = { at: lagosMidnightAfter(ready, 6), time_zone: "Africa/Lagos" }
+          expect((await adasOrder(groupId, orderId)).fulfilment.collect_by).toEqual(collectBy)
+          expect((await vendorOrder(GROCERY, orderId)).fulfilment.collect_by).toEqual(collectBy)
+        })
+
+        it("holds an order with fresh items only until closing on the next open day", async () => {
+          const { orderId, groupId } = await pickupOrder({ fresh: 1 })
+          await packed(orderId)
+
+          expect((await adasOrder(groupId, orderId)).fulfilment.collect_by.at).toBe(lagosMidnightAfter(await readyAt(orderId), 2))
+        })
+
+        it("leaves an order whose hold hasn't ended ready for pickup", async () => {
+          const { orderId } = await pickupOrder()
+          await packed(orderId)
+
+          await expirePickupHolds(getContainer(), new Date(Date.parse(lagosMidnightAfter(await readyAt(orderId), 6)) - 60 * 1000))
+
+          expect((await vendorOrder(GROCERY, orderId)).fulfilment.state).toBe("ready_for_pickup")
+        })
+
+        it("moves an expired order to Not collected, refunding it in full and returning its stock, with no payout", async () => {
+          const { orderId, groupId, reference } = await pickupOrder()
+          await packed(orderId)
+          const { code } = (await adasOrder(groupId, orderId)).pickup
+          const lines = await linesOf(orderId)
+          expect(await reservedOf(lines)).toEqual({ [RICE.title]: 2 })
+
+          await longAfter(await readyAt(orderId))
+
+          const fulfilment = await vendorOrder(GROCERY, orderId).then((o) => o.fulfilment)
+          expect(fulfilment).toMatchObject({ method: "pickup", state: "not_collected", collect_by: null })
+          expect(fulfilment.timeline.at(-1)).toMatchObject({ label: "Not collected", status: "done" })
+          expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([kobo(2 * RICE.price)])
+          expect(await reservedOf(lines)).toEqual({ [RICE.title]: 0 })
+          const adas = await adasOrder(groupId, orderId)
+          expect(adas.fulfilment.state).toBe("not_collected")
+          expect(adas.refund).toMatchObject({ amount: 2 * RICE.price })
+          expect(adas.pickup.code).toBeNull()
+          await settleRefunds(reference)
+          expect((await payoutOf(orderId)).state).toBe("not_due")
+          // Final: the code no longer works, and the job leaves it be.
+          expect(await status(collect(orderId, code))).toBe(400)
+          await longAfter(await readyAt(orderId))
+          expect(paystack.refundsOf(reference)).toHaveLength(1)
+        })
+
+        it("keeps the fresh items for the shop, unrefunded and their stock not returned, and pays them out less 10%", async () => {
+          const { orderId, groupId, reference } = await pickupOrder({ fresh: 1 })
+          await packed(orderId)
+          const lines = await linesOf(orderId)
+
+          await longAfter(await readyAt(orderId))
+
+          expect((await vendorOrder(GROCERY, orderId)).fulfilment.state).toBe("not_collected")
+          // The rice is refunded and its stock returned; the tomatoes are neither.
+          expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([kobo(2 * RICE.price)])
+          expect(await reservedOf(lines)).toEqual({ [RICE.title]: 0, [TOMATOES.title]: 1 })
+          expect((await adasOrder(groupId, orderId)).refund).toMatchObject({ amount: 2 * RICE.price })
+          await settleRefunds(reference)
+          expect(await eventually(() => payoutOf(orderId), (p) => p.state !== "waiting_for_refund")).toMatchObject({
+            state: "due",
+            paid: 2 * RICE.price + TOMATOES.price,
+            refunded: 2 * RICE.price,
+            delivery: 0,
+            commission: TOMATOES.price / 10,
+            amount: TOMATOES.price - TOMATOES.price / 10,
+          })
+          await payOutDeliveredOrders(getContainer())
+          const transfer = paystack.transfers().find((t) => t.reference === `payout_${orderId}`.toLowerCase())
+          expect(transfer).toMatchObject({ amount: kobo(TOMATOES.price) - Math.round(kobo(TOMATOES.price) / 10) })
+        })
       })
     })
 

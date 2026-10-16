@@ -19,6 +19,8 @@ export type TransitionFulfilmentInput = {
   reject_reason?: string
   /** The courier shipment the order now has, when the trigger books or cancels one. */
   shipment?: Shipment
+  /** For an order Not collected (#32): whether the shop is paid for the perishable lines it keeps. */
+  payout_eligible?: boolean
 }
 
 type Compensation = { created?: string; previous?: FulfilmentRecord }
@@ -63,13 +65,13 @@ export const checkTransitionStep = createStep(
 /**
  * Moves the order's fulfilment on by the trigger, or refuses a trigger its state doesn't allow.
  * Records when the order reached its new state (#25). An order reaching Delivered or Collected,
- * by whichever trigger, may now be paid out; a shipment cancelled back to Packed may be alerted
+ * by whichever trigger, may now be paid out, as may one Not collected with perishable lines kept (#32); a shipment cancelled back to Packed may be alerted
  * about again; a pickup order Ready for pickup is issued its code (#12). A new state emits
  * `order_fulfilment.state_changed` once the workflow succeeds.
  */
 export const transitionFulfilmentStep = createStep(
   "transition-order-fulfilment",
-  async ({ order_id, trigger, reject_reason, shipment }: TransitionFulfilmentInput, { container, eventGroupId }) => {
+  async ({ order_id, trigger, reject_reason, shipment, payout_eligible }: TransitionFulfilmentInput, { container, eventGroupId }) => {
     const service = fulfilmentService(container)
     const { previous, from, placedAt } = await currentFulfilment(container, order_id)
     const fulfilment = nextFulfilment(order_id, from, trigger)
@@ -83,6 +85,7 @@ export const transitionFulfilmentStep = createStep(
       // Nothing leaves Delivered or Collected, so this is the transition that reached it.
       ...(fulfilment.state === "delivered" && { payout_eligible_at: new Date(reached.delivered ?? trigger.at) }),
       ...(fulfilment.state === "collected" && { payout_eligible_at: new Date(reached.collected ?? trigger.at) }),
+      ...(fulfilment.state === "not_collected" && payout_eligible && { payout_eligible_at: new Date(trigger.at) }),
       ...(fulfilment.state === "packed" && { handover_alerted_at: null }),
       ...(fulfilment.state === "ready_for_pickup" && { pickup_code: pickupCode(), pickup_code_attempts: [] }),
     }
