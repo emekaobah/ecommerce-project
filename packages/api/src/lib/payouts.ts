@@ -34,7 +34,7 @@ export type OrderPayout = {
 
 /**
  * What the shop is owed for an order: what the buyer kept (the order's own captures less its
- * refunds), less the delivery fee, plus the discounts Oja funds on it (`ojaFundedDiscount`),
+ * refunds of items), less the delivery fee, plus the discounts Oja funds on it (`ojaFundedDiscount`),
  * less 10% of that. A shop's own discounts stay off its payout. An order edit (#22) doesn't
  * change what was captured, only what is refunded, so it is counted once. A refund of delivery
  * (#22) comes out of the delivery fee Oja keeps, so it never lowers the payout. Paystack's fees are Oja's.
