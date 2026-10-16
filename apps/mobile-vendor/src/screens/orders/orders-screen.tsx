@@ -1,10 +1,10 @@
-import { formatMoney } from '@oja/domain';
+import { collectByLabel, formatMoney } from '@oja/domain';
 import { Button, EmptyState, ErrorState, ListRow, LoadingState, useTheme } from '@oja/ui';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
-import { orderValue, useOrders, useReadyOrders } from '@/api/orders';
+import { orderValue, useOrders, useReadyOrders, type OrderFulfilment } from '@/api/orders';
 import { useCurrentSeller } from '@/api/sellers';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { itemsSummary } from '@/orders/items';
@@ -67,7 +67,7 @@ export function OrdersScreen() {
         renderItem={({ item }) => (
           <ListRow
             title={`#${item.display_id} · ${formatMoney(orderValue(item), item.currency_code)}`}
-            subtitle={itemsSummary(item.items)}
+            subtitle={[itemsSummary(item.items), holdLabel(item.fulfilment, now)].filter(Boolean).join(' · ')}
             trailing={<FulfilmentChip fulfilment={item.fulfilment} now={now} />}
             onPress={() => router.push({ pathname: '/orders/[id]', params: { id: item.id } })}
           />
@@ -88,6 +88,12 @@ export function OrdersScreen() {
       {content()}
     </>
   );
+}
+
+/** When a pickup order waiting at the counter must be collected by (#32); null for any other. */
+function holdLabel(fulfilment: OrderFulfilment, now: Date) {
+  const collectBy = fulfilment.collect_by;
+  return collectBy ? collectByLabel(collectBy.at, now, collectBy.time_zone) : null;
 }
 
 /** Quick-add (#38): scan a product the shop stocks but doesn't sell online yet. */

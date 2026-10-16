@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { formatMoney, historyEntries } from '@oja/domain';
+import { collectByLabel, formatMoney, historyEntries, PICKUP_HOLD_NOTICE } from '@oja/domain';
 import { ErrorState, ListRow, LoadingState, Text, Timeline, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -122,17 +122,28 @@ function Tracking({ order }: Readonly<{ order: SellerOrder }>) {
 
 /**
  * A pickup order's collection (#12): where and when to collect it, and once it is Ready for
- * pickup the code to show at the counter, with its QR code. Whoever shows the code collects it.
+ * pickup the code to show at the counter, with its QR code, and when to collect it by (#32).
+ * Whoever shows the code collects it. Once collected, or not collected in time, it says so.
  */
 function Collection({ order, pickup }: Readonly<{ order: SellerOrder; pickup: NonNullable<SellerOrder['pickup']> }>) {
   const theme = useTheme();
-  const collected = order.fulfilment.state === 'collected';
+  const { state, collect_by } = order.fulfilment;
+  if (state === 'not_collected') {
+    return (
+      <View style={{ gap: theme.space.md, padding: theme.space.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }}>
+        <Text variant="label">Not collected in time</Text>
+        <Text tone="secondary">{PICKUP_HOLD_NOTICE}</Text>
+      </View>
+    );
+  }
+  const collected = state === 'collected';
   return (
     <View style={{ gap: theme.space.md, padding: theme.space.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }}>
       <Text variant="label">{collected ? 'Collected in store' : 'Collect in store'}</Text>
       {pickup.code ? (
         <>
           <PickupCode code={pickup.code} />
+          {collect_by ? <Text variant="label">{collectByLabel(collect_by.at, new Date(), collect_by.time_zone)}</Text> : null}
           <Text tone="secondary">Show this code at the counter. Whoever has it can collect the whole order.</Text>
         </>
       ) : null}

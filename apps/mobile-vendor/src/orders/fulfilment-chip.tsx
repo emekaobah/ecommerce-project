@@ -9,6 +9,7 @@ const TONES: Partial<Record<OrderFulfilment['state'], StatusTone>> = {
   delivered: 'success',
   ready_for_pickup: 'info',
   collected: 'success',
+  not_collected: 'danger',
 };
 
 /** A new order shows the time left to accept it (counted in open hours); any other its state. */
