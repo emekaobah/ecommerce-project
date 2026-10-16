@@ -1,4 +1,4 @@
-import { afterOpenDays, type ShopHours } from "./shop-hours"
+import { afterOpenDays, dateIn, dayLabel, timeLabel, type ShopHours } from "./shop-hours"
 
 /**
  * How long a pickup order waits at the counter (#32, docs/design.md → Pickup, ADR 0004): from
@@ -19,4 +19,15 @@ export const PERISHABLE_HOLD_OPEN_DAYS = 1
 export function collectBy(hours: ShopHours, readyAt: string, lines: { perishable: boolean }[]): string | null {
   const days = lines.some((l) => l.perishable) ? PERISHABLE_HOLD_OPEN_DAYS : PICKUP_HOLD_OPEN_DAYS
   return afterOpenDays(hours, new Date(readyAt), days)?.toISOString() ?? null
+}
+
+/**
+ * "Collect by 6pm, Thu 15 Oct", or "Collect by 6pm today" on the last day: when a pickup order's
+ * hold ends (`collectBy`, ISO 8601), in the region's timezone, as its buyer and the shop's staff read it.
+ */
+export function collectByLabel(collectBy: string, now: Date, timeZone: string): string {
+  const instant = Date.parse(collectBy)
+  const time = timeLabel(instant, timeZone)
+  if (dateIn(instant, timeZone) === dateIn(now.getTime(), timeZone)) return `Collect by ${time} today`
+  return `Collect by ${time}, ${dayLabel(instant, timeZone, { weekday: "short", day: "numeric", month: "short" })}`
 }

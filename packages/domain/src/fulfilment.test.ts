@@ -279,6 +279,7 @@ describe("transition", () => {
 
 describe("the pickup path", () => {
   const collect = { source: "staff", type: "collect", actor, at, collectedBy: "Tunde Bakare" } as const
+  const holdExpired = { source: "system", type: "pickup_hold_expired", at } as const
 
   test("a new pickup order starts New, as a delivery order does", () => {
     expect(newFulfilment("pickup")).toEqual({ method: "pickup", state: "new" })
@@ -344,6 +345,31 @@ describe("the pickup path", () => {
     const collected: Fulfilment = { method: "pickup", state: "collected", collection: { actor, at, collectedBy: "Ada" } }
     expect(transition(collected, collect).ok).toBe(false)
   })
+
+  test("an order whose hold expires uncollected is Not collected (#32)", () => {
+    expect(transition({ method: "pickup", state: "ready_for_pickup" }, holdExpired)).toEqual({
+      ok: true,
+      fulfilment: { method: "pickup", state: "not_collected" },
+    })
+  })
+
+  test("Not collected is final: the code stops working and the hold can't expire again", () => {
+    const notCollected = { method: "pickup", state: "not_collected" } as const
+    expect(transition(notCollected, collect)).toEqual({
+      ok: false,
+      error: { code: "forbidden_transition", from: "not_collected", trigger: { source: "staff", type: "collect" } },
+    })
+    expect(transition(notCollected, holdExpired).ok).toBe(false)
+  })
+
+  test("a hold expires only on an order ready for pickup", () => {
+    for (const state of ["new", "accepted", "picking", "partially_available"] as const) {
+      expect(transition({ method: "pickup", state }, holdExpired).ok).toBe(false)
+    }
+    const collected: Fulfilment = { method: "pickup", state: "collected", collection: { actor, at, collectedBy: "Ada" } }
+    expect(transition(collected, holdExpired).ok).toBe(false)
+    expect(transition({ method: "delivery", state: "packed" }, holdExpired).ok).toBe(false)
+  })
 })
 
 /**
@@ -376,6 +402,7 @@ describe("transition table", () => {
       partially_available: { method: "pickup", state: "partially_available" },
       ready_for_pickup: { method: "pickup", state: "ready_for_pickup" },
       collected: { method: "pickup", state: "collected", collection },
+      not_collected: { method: "pickup", state: "not_collected" },
     },
   }
 
@@ -395,6 +422,7 @@ describe("transition table", () => {
     { source: "provider", type: "delivered", at },
     { source: "provider", type: "cancelled", at },
     { source: "system", type: "accept_deadline_passed", at },
+    { source: "system", type: "pickup_hold_expired", at },
   ]
 
   type Moves = Partial<Record<FulfilmentState, Record<string, FulfilmentState>>>
@@ -454,8 +482,9 @@ describe("transition table", () => {
         "staff:resume_picking": "picking",
         "staff:mark_packed": "ready_for_pickup",
       },
-      ready_for_pickup: { "staff:collect": "collected" },
+      ready_for_pickup: { "staff:collect": "collected", "system:pickup_hold_expired": "not_collected" },
       collected: {},
+      not_collected: {},
     },
   }
 

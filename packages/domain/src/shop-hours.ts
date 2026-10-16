@@ -39,7 +39,7 @@ type Interval = { start: number; end: number }
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /** The local calendar date of an instant, as YYYY-MM-DD. */
-const dateIn = (instant: number, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(instant)
+export const dateIn = (instant: number, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(instant)
 
 /** The date `days` after a YYYY-MM-DD date. */
 const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10)
@@ -277,7 +277,7 @@ export function hoursExceptionErrors(exception: Omit<HoursException, "note"> & {
 }
 
 /** "9:30pm", "8am", "12pm": a local time as buyers read it. */
-function timeLabel(instant: number, timeZone: string): string {
+export function timeLabel(instant: number, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hourCycle: "h23", hour: "numeric", minute: "numeric" }).formatToParts(
     instant
   )
@@ -288,7 +288,7 @@ function timeLabel(instant: number, timeZone: string): string {
   return `${twelve}${minutes}${hour < 12 ? "am" : "pm"}`
 }
 
-const dayLabel = (instant: number, timeZone: string, options: Intl.DateTimeFormatOptions) => {
+export const dayLabel = (instant: number, timeZone: string, options: Intl.DateTimeFormatOptions) => {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone, ...options }).formatToParts(instant)
   const part = (type: string) => parts.find((p) => p.type === type)?.value
   return [part("weekday"), part("day"), part("month")].filter(Boolean).join(" ")
