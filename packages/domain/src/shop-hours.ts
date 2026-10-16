@@ -170,6 +170,30 @@ export function afterOpenTime(hours: ShopHours, from: Date, openTime: number): D
   return null
 }
 
+/**
+ * When the shop closes on the `days`th open day after the day of `from`: the clock of deadlines
+ * counted in open days (ADR 0004). An open day is a calendar day the shop opens on; the day of
+ * `from` doesn't count, nor do days closed by an exception or a pause. Null while the shop is
+ * paused, with no resume date, before that day's closing.
+ */
+export function afterOpenDays(hours: ShopHours, from: Date, days: number): Date | null {
+  const unresumed = Math.min(...hours.pauses.filter((p) => !p.ends_at).map((p) => Date.parse(p.starts_at)))
+  let date = dateIn(from.getTime(), hours.time_zone)
+  let left = days
+  for (let checked = 0; checked < HORIZON_MS / DAY_MS; checked++) {
+    date = addDays(date, 1)
+    const start = instantOf(date, "00:00", hours.time_zone)
+    if (start >= unresumed) return null
+    const open = openIntervals(hours, start, instantOf(date, "24:00", hours.time_zone))
+    if (!open.length) continue
+    left -= 1
+    if (left > 0) continue
+    const closes = open.at(-1)!.end
+    return closes < unresumed ? new Date(closes) : null
+  }
+  return null
+}
+
 /** Whether the shop is open at an instant. */
 export function isOpenAt(hours: ShopHours, at: Date): boolean {
   const t = at.getTime()
