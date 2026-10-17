@@ -10,7 +10,7 @@ import { payoutStatusOf } from "../modules/paystack-payout/service"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account"
 import { ojaFundedDiscount, ojaSharesOf, taxRateOf } from "./discount-funding"
 import { fulfilmentService, fulfilmentsOf, type OrderRefundRecord } from "./order-fulfilment"
-import { owedToBuyerOf, type OrderSummary } from "./order-refund"
+import { owedToBuyerOf, shareLeft, type OrderSummary } from "./order-refund"
 import type { OrderTransaction } from "./shop-order"
 
 // What a shop is paid for an order (#29): Paystack Transfers after delivery, worked out here
@@ -223,9 +223,14 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
   ])
   return orders.map(({ items, summary, ...order }) => {
     const removed = records.get(order.id)?.removed ?? {}
+    const ofOrder = refunds.filter((r) => r.order_id === order.id)
+    // A cancelled order (rejected, or cancelled once accepted, #17) gives the buyer back all of
+    // it: they keep none of its lines, and it owes them whatever of its share isn't refunded
+    // yet, so the shop is paid nothing for it.
+    const cancelled = order.status === "canceled"
     const lines = (items ?? []).map((i) => ({
       quantity: Number(i.quantity),
-      removed: removed[i.id] ?? 0,
+      removed: cancelled ? Number(i.quantity) : (removed[i.id] ?? 0),
       tax_rate: taxRateOf(i.tax_lines),
       adjustments: (i.adjustments ?? []).map((a) => ({
         amount: Number(a.amount),
@@ -236,8 +241,8 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
     return {
       ...order,
       oja_discount: ojaFundedDiscount(lines, shares.get(order.id) ?? new Map()),
-      refunds: refunds.filter((r) => r.order_id === order.id),
-      owed_to_buyer: owedToBuyerOf(summary),
+      refunds: ofOrder,
+      owed_to_buyer: cancelled ? shareLeft({ transactions: order.transactions ?? [], refunds: ofOrder }) : owedToBuyerOf(summary),
     }
   })
 }

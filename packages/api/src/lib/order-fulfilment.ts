@@ -2,6 +2,7 @@ import {
   acceptDeadline,
   fulfilmentTimeline,
   newFulfilment,
+  type Cancellation,
   type Fulfilment,
   type FulfilmentMethod,
   type FulfilmentState,
@@ -42,6 +43,11 @@ export const ORDER_REFUND_PROCESSED = "order_refund.processed"
 export const ORDER_ACCEPTED = "order_fulfilment.accepted"
 /** Emitted when a new order is rejected, by its shop or by the accept deadline, with `{ id, rejected_by }`. */
 export const ORDER_REJECTED = "order_fulfilment.rejected"
+/**
+ * Emitted when an accepted order is cancelled (#17), by its shop or by Oja's team, with
+ * `{ id, amount }`: the order, and all that was left of its share, which its buyer is refunded.
+ */
+export const ORDER_CANCELLED = "order_fulfilment.cancelled"
 /**
  * Emitted when staff pack a picked order, with `{ id }` (the order): a delivery order is then
  * ready for a courier label, a pickup order Ready for pickup with its code issued (#12).
@@ -153,6 +159,11 @@ export type FulfilmentView = {
   accept_by: string | null
   rejected_by: "seller" | "accept_deadline" | null
   reject_reason: string | null
+  /**
+   * An accepted order cancelled (#17): by its shop (`seller`) or by Oja's team (`operator`), why,
+   * the note given, and when (ISO 8601); null unless cancelled. Not who: staff and buyer alike see it.
+   */
+  cancellation: Omit<Cancellation, "actor"> | null
   /** The courier label last booked for the order; `cancelled` once Shipbubble cancelled it, to rebook. */
   shipment: { waybill: string; courier_name: string | null; tracking_url: string; cancelled: boolean } | null
   /**
@@ -186,6 +197,13 @@ function collectionOf(fulfilment: Fulfilment) {
   return "collection" in fulfilment ? fulfilment.collection : null
 }
 
+/** Who cancelled an accepted order, why and when; never which member or operator. */
+function cancellationOf(fulfilment: Fulfilment): FulfilmentView["cancellation"] {
+  if (fulfilment.state !== "cancelled") return null
+  const { by, reason, note, at } = fulfilment.cancellation
+  return { by, reason, note, at }
+}
+
 /** `names`: members' names by id, for who handed the order over; `audience`: whose steps the timeline shows. */
 export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
 
@@ -217,6 +235,7 @@ export function fulfilmentView(
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
     collect_by: collectByOf(record, hours, order.lines),
     reject_reason: record?.reject_reason ?? null,
+    cancellation: cancellationOf(fulfilment),
     shipment: shipment
       ? {
           waybill: shipment.waybill,

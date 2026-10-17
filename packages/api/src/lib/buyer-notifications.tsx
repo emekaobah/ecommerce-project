@@ -6,6 +6,7 @@ import {
   refundByHandPush,
   refundCompletedPush,
   openingLabel,
+  orderCancelledPush,
   orderConfirmedPush,
   PRODUCT_NAME,
   shopStatus,
@@ -18,6 +19,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { ReactElement } from "react"
 import { CheckoutNotPlacedEmail } from "../emails/checkout-not-placed"
 import { DeliveryReceiptEmail } from "../emails/delivery-receipt"
+import { OrderCancelledEmail } from "../emails/order-cancelled"
 import { OrderConfirmationEmail } from "../emails/order-confirmation"
 import type { EmailShopOrder } from "../emails/parts"
 import { RefundByHandEmail } from "../emails/refund-by-hand"
@@ -246,6 +248,35 @@ export async function pushItemsRemoved(
     idempotencyKey: (to) => `buyer-order-items-removed:${orderId}:${at}:${to}`,
     about: `the items removed from order ${orderId}`,
   })
+}
+
+/**
+ * Tells the buyer, by push and email, that an accepted order was cancelled (#17), by its shop or
+ * by Oja's team, why, and what they are refunded: `order_fulfilment.cancelled`'s data. Once per
+ * order, however often it is asked.
+ */
+export async function tellOrderCancelled(scope: Scope, { id: orderId, amount }: { id: string; amount: number }): Promise<void> {
+  const found = await buyerOrder(scope, orderId)
+  const cancellation = found?.order.fulfilment.cancellation
+  if (!found || !cancellation) return
+  const { checkout, order } = found
+  const notice = { display_id: order.display_id, shop: order.seller.name, cancellation, refund: amount, currency_code: order.currency_code }
+  const key = `order-cancelled:${orderId}`
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "order-cancelled",
+      subject: `Your ${PRODUCT_NAME} order #${order.display_id} from ${order.seller.name} was cancelled`,
+      body: <OrderCancelledEmail {...notice} />,
+      key,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-order-cancelled",
+      ...orderCancelledPush(notice),
+      data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+      idempotencyKey: (to) => `buyer-${key}:${to}`,
+      about: `the cancellation of order ${orderId}`,
+    }),
+  ])
 }
 
 /**

@@ -2,14 +2,17 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN } from "@medusajs/framework/utils"
 import type { OwedRefundState } from "@oja/domain"
 import type { RefundCovers } from "../modules/order-fulfilment/models/order-refund"
-import { fulfilmentService } from "./order-fulfilment"
-import { owedToBuyerOf, type OrderSummary } from "./order-refund"
+import { fulfilmentService, fulfilmentsOf } from "./order-fulfilment"
+import { owedToBuyerOf, shareLeft, type OrderSummary } from "./order-refund"
+import type { OrderTransaction } from "./shop-order"
 
 // What an order owes its buyer and hasn't refunded (#16): lines an order edit removed (#22,
-// #32) whose refund Paystack refused, or that was never made. The amount stays derived from
-// Medusa's order summary (`owedToBuyerOf`), less what Oja's team settled by hand
-// (`refund_settlement`) and any refund Paystack made that failed to be recorded on the order.
-// Each refused attempt is an `order_refund` row that `failed`, with Paystack's reason.
+// #32) whose refund Paystack refused, or that was never made, or all that is left of the share
+// of an accepted order that was cancelled (#17). An edit's amount stays derived from Medusa's
+// order summary (`owedToBuyerOf`), less any refund Paystack made that failed to be recorded on
+// the order; a cancelled order's from its captures less its refunds (`shareLeft`). Either is
+// less what Oja's team settled by hand (`refund_settlement`). Each refused attempt is an
+// `order_refund` row that `failed`, with Paystack's reason.
 
 /** Paystack refuses every refund under ₦50; such an amount goes straight to Oja's team. */
 export const PAYSTACK_MIN_REFUND = 50
@@ -61,9 +64,10 @@ export function failedSinceLastMade<R extends { status: string; created_at: Date
 
 /**
  * What the order still owes its buyer and where its refund is; null when it owes nothing. The
- * attempts are its refunds of items that failed since one last went through, or since Oja's
- * team last settled what it owed by hand: refused by Paystack, or accepted and failed later
- * (its money came back, so it is owed again).
+ * attempts are its refunds of what it owes (of its items, or of all of a cancelled order's
+ * share; never of delivery alone, which Oja's staff refund) that failed since one last went
+ * through, or since Oja's team last settled what it owed by hand: refused by Paystack, or
+ * accepted and failed later (its money came back, so it is owed again).
  */
 export function owedRefund({
   owed,
@@ -79,7 +83,7 @@ export function owedRefund({
   if (amount <= 0) return null
   const lastSettled = Math.max(-Infinity, ...settlements.map(recordedAt))
   const failed = failedSinceLastMade(
-    refunds.filter((r) => r.covers === "items"),
+    refunds.filter((r) => r.covers !== "delivery"),
     lastSettled
   )
   const latest = failed.at(-1)
@@ -98,14 +102,20 @@ export function isDue(owed: OwedRefund, now: Date): boolean {
 
 type Scope = Pick<MedusaContainer, "resolve">
 
-/** An order's owed refund, and the order's currency. */
-export type OrderOwedRefund = OwedRefund & { order_id: string; currency_code: string }
+/**
+ * What an owed refund is a refund of: lines an order edit removed (`items`), or all that is left
+ * of a cancelled order's share (`all`, #17).
+ */
+export type OwedCovers = Extract<RefundCovers, "items" | "all">
+
+/** An order's owed refund, the order's currency, and what the refund is of. */
+export type OrderOwedRefund = OwedRefund & { order_id: string; currency_code: string; covers: OwedCovers }
 
 type OrderRow = {
   id: string
   currency_code: string
   summary?: OrderSummary
-  transactions?: { reference?: string | null; reference_id?: string | null }[] | null
+  transactions?: OrderTransaction[] | null
 }
 
 /**
@@ -123,24 +133,30 @@ function unrecordedRefunds(order: OrderRow, refunds: { refund_id: string | null;
 export async function owedRefundsOf(scope: Scope, orderIds: string[]): Promise<Map<string, OrderOwedRefund>> {
   if (!orderIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [{ data }, refunds, settlements] = await Promise.all([
+  const [{ data }, refunds, settlements, fulfilments] = await Promise.all([
     query.graph({
       entity: "order",
-      fields: ["id", "currency_code", "summary", "transactions.reference", "transactions.reference_id"],
+      fields: ["id", "currency_code", "summary", "transactions.amount", "transactions.reference", "transactions.reference_id"],
       filters: { id: orderIds },
     }),
     fulfilmentService(scope).listOrderRefunds({ order_id: orderIds }),
     fulfilmentService(scope).listRefundSettlements({ order_id: orderIds }),
+    fulfilmentsOf(scope, orderIds),
   ])
   const owed = new Map<string, OrderOwedRefund>()
   for (const order of data as unknown as OrderRow[]) {
     const ofOrder = refunds.filter((r) => r.order_id === order.id)
+    const cancelled = fulfilments.get(order.id)?.state === "cancelled"
+    const covers: OwedCovers = cancelled ? "all" : "items"
+    const amount = cancelled
+      ? shareLeft({ transactions: (order.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) })), refunds: ofOrder })
+      : MathBN.convert(MathBN.sub(owedToBuyerOf(order.summary), unrecordedRefunds(order, ofOrder))).toNumber()
     const found = owedRefund({
-      owed: MathBN.convert(MathBN.sub(owedToBuyerOf(order.summary), unrecordedRefunds(order, ofOrder))).toNumber(),
+      owed: amount,
       settlements: settlements.filter((s) => s.order_id === order.id),
       refunds: ofOrder,
     })
-    if (found) owed.set(order.id, { ...found, order_id: order.id, currency_code: order.currency_code })
+    if (found) owed.set(order.id, { ...found, order_id: order.id, currency_code: order.currency_code, covers })
   }
   return owed
 }
@@ -151,15 +167,19 @@ export async function owedRefundOf(scope: Scope, orderId: string): Promise<Order
 }
 
 /**
- * Every order that owes its buyer a refund. Only an order edit leaves an order owing its
- * buyer (#22, #32), so only orders with a confirmed edit are worked out.
+ * Every order that owes its buyer a refund. Only an order edit (#22, #32) or cancelling an
+ * accepted order (#17) leaves an order owing its buyer, so only orders with a confirmed edit,
+ * and cancelled orders, are worked out.
  */
 export async function allOwedRefunds(scope: Scope): Promise<OrderOwedRefund[]> {
-  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
-    entity: "order_change",
-    fields: ["order_id"],
-    filters: { change_type: "edit", status: "confirmed" },
-  })
-  const ids = [...new Set((data as unknown as { order_id: string }[]).map((c) => c.order_id))]
+  const [{ data }, cancelled] = await Promise.all([
+    scope.resolve(ContainerRegistrationKeys.QUERY).graph({
+      entity: "order_change",
+      fields: ["order_id"],
+      filters: { change_type: "edit", status: "confirmed" },
+    }),
+    fulfilmentService(scope).listOrderFulfilments({ state: "cancelled" }, { select: ["order_id"] }),
+  ])
+  const ids = [...new Set([...(data as unknown as { order_id: string }[]), ...cancelled].map((c) => c.order_id))]
   return [...(await owedRefundsOf(scope, ids)).values()]
 }

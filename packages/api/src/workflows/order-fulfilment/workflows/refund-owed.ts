@@ -50,9 +50,9 @@ function refuseStaffRetry(orderId: string, owed: OrderOwedRefund | null, inProgr
 }
 
 /**
- * Tries to refund what the order owes its buyer, as a refund of items. A payment Paystack
- * refuses is recorded as a failed order refund of what was left unrefunded, with Paystack's
- * reason: an attempt (#16), and the order still owes it. Any other failure is no attempt: it
+ * Tries to refund what the order owes its buyer: as a refund of items, or of all of a cancelled
+ * order's share (#17). A payment Paystack refuses is recorded as a failed order refund of what
+ * was left unrefunded, with Paystack's reason: an attempt (#16), and the order still owes it. Any other failure is no attempt: it
  * fails the step, and what Paystack made before it stands. Nothing is asked of Paystack under
  * its ₦50 minimum.
  */
@@ -68,7 +68,7 @@ const refundOwedStep = createStep("refund-owed", async (input: RefundOwedInput, 
   try {
     const refunds = await refundOrderShare(container, {
       order_id: orderId,
-      covers: "items",
+      covers: owed.covers,
       amount: owed.amount,
       created_by: input.created_by,
       note: input.note,
@@ -84,14 +84,14 @@ const refundOwedStep = createStep("refund-owed", async (input: RefundOwedInput, 
   }
 })
 
-/** Records a refund Paystack refused: a failed order refund of items with its reason, which no Medusa refund backs. */
+/** Records a refund Paystack refused: a failed order refund of what was owed with its reason, which no Medusa refund backs. */
 async function recordRefusal(scope: Scope, owed: OrderOwedRefund, amount: number, reason: string) {
   const [payment] = await paymentsOfOrder(scope, owed.order_id)
   await fulfilmentService(scope).createOrderRefunds({
     order_id: owed.order_id,
     payment_id: payment?.id ?? null,
     amount,
-    covers: "items",
+    covers: owed.covers,
     currency_code: owed.currency_code,
     transaction_reference: (payment?.data as PaymentData | undefined)?.reference ?? "",
     status: "failed",

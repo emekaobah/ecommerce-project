@@ -15,7 +15,8 @@ export type VendorRemoveUnavailableResponse = VendorOrderFulfilmentResponse & {
 /**
  * Staff remove the items marked unavailable from the order (#22): the order is edited, the
  * buyer refunded exactly what the items cost, and the order goes back from Partially
- * available to Picking. Refused with nothing marked, or when nothing would be left to send.
+ * available to Picking. Refused with nothing marked, and, with the code `cancel_instead`, when
+ * every item is marked unavailable: the app offers to cancel the order instead (#17).
  */
 export const POST = async (req: VendorRequest, res: MedusaResponse<VendorRemoveUnavailableResponse>) => {
   const orderId = await shopsOwnOrder(req)
