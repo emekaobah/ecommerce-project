@@ -113,8 +113,8 @@ function merge(intervals: Interval[]): Interval[] {
   return merged
 }
 
-/** When the shop is open between two instants, as sorted, separate intervals clipped to them. */
-function openIntervals(hours: ShopHours, from: number, to: number): Interval[] {
+/** When the shop's hours (weekly, or an exception's) keep it open between two instants, pauses aside: sorted, separate, clipped. */
+function scheduledIntervals(hours: ShopHours, from: number, to: number): Interval[] {
   const intervals: Interval[] = []
   // A day either side covers periods that start before `from` or timezones far from UTC.
   const last = addDays(dateIn(to, hours.time_zone), 1)
@@ -124,11 +124,14 @@ function openIntervals(hours: ShopHours, from: number, to: number): Interval[] {
     }
   }
   intervals.sort((a, b) => a.start - b.start)
-  const clipped = merge(intervals)
+  return merge(intervals)
     .map((i) => ({ start: Math.max(i.start, from), end: Math.min(i.end, to) }))
     .filter((i) => i.start < i.end)
-  return without(clipped, pauseIntervals(hours))
 }
+
+/** When the shop is open between two instants, as sorted, separate intervals clipped to them. */
+const openIntervals = (hours: ShopHours, from: number, to: number): Interval[] =>
+  without(scheduledIntervals(hours, from, to), pauseIntervals(hours))
 
 /** How far ahead the clocks look for the shop to open: a shop closed longer counts as not reopening. */
 const HORIZON_MS = 400 * DAY_MS
@@ -184,11 +187,12 @@ export function afterOpenDays(hours: ShopHours, from: Date, days: number): Date 
     date = addDays(date, 1)
     const start = instantOf(date, "00:00", hours.time_zone)
     if (start >= unresumed) return null
-    const open = openIntervals(hours, start, instantOf(date, "24:00", hours.time_zone))
-    if (!open.length) continue
+    const end = instantOf(date, "24:00", hours.time_zone)
+    if (!openIntervals(hours, start, end).length) continue
     left -= 1
     if (left > 0) continue
-    const closes = open.at(-1)!.end
+    // Closing time is the day's hours', even when a pause covers the end of the day.
+    const closes = scheduledIntervals(hours, start, end).at(-1)!.end
     return closes < unresumed ? new Date(closes) : null
   }
   return null

@@ -76,6 +76,11 @@ describe("collectBy", () => {
     expect(collectBy(pausedMorning, lagos("2026-10-10T12:00:00"), [TOMATOES])).toBe(lagos("2026-10-12T18:00:00"))
   })
 
+  test("ends at the day's closing time even when a pause with a resume date covers the end of that day", () => {
+    const pausedEvening = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T16:00:00"), ends_at: lagos("2026-10-13T10:00:00") }] }
+    expect(collectBy(pausedEvening, lagos("2026-10-10T12:00:00"), [TOMATOES])).toBe(lagos("2026-10-12T18:00:00"))
+  })
+
   test("is frozen while the shop is paused with no resume date", () => {
     const paused = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: null }] }
     expect(collectBy(paused, READY_FRIDAY, [RICE])).toBeNull()
