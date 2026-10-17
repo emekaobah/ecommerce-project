@@ -6,7 +6,8 @@ import type { VendorPauseShopType } from "../validators"
 
 /**
  * Stops taking orders now, until resumed or `until` (ADR 0004). Orders already accepted carry
- * on; New ones keep waiting with their accept clock stopped. Answers the shop's hours.
+ * on; New ones must still be accepted by their deadline, which the pause doesn't move (#18).
+ * Answers the shop's hours.
  */
 export const POST = async (req: VendorRequest<VendorPauseShopType>, res: MedusaResponse<VendorShopHoursResponse>) => {
   const sellerId = sellerOf(req)

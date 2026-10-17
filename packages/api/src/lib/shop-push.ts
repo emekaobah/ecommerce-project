@@ -38,7 +38,7 @@ const KINDS: Record<ShopPushKind, { message: Message; ownersOnly?: true; repeats
   },
   accept_deadline_near: {
     message: (order, now, hours) => {
-      // The reminder comes only while the deadline is set (the shop isn't paused for good).
+      // The reminder comes only while the deadline is set (the shop reopens to finish the clock).
       const deadline = acceptDeadline(new Date(order.created_at).toISOString(), hours) ?? now.toISOString()
       const { label } = acceptTimeLeft(deadline, now)
       return {

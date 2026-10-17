@@ -62,7 +62,7 @@ export async function rejectOverdueOrders(scope: Scope, now = new Date()) {
   const waiting = (await service.listOrderFulfilments({ state: "new" })).map(asFulfilmentRecord)
   const hoursOf = await hoursOfOrders(scope, waiting, now)
   const overdue = waiting.filter((row) => {
-    // No deadline while the shop is paused with no time set to reopen: its clock is stopped.
+    // No deadline only when the shop doesn't reopen to finish the clock.
     const deadline = acceptDeadline(new Date(row.placed_at).toISOString(), hoursOf(row))
     return deadline != null && Date.parse(deadline) <= now.getTime()
   })
