@@ -6,7 +6,7 @@ import { adminHeaders, vendorHeaders } from "../helpers/auth"
 import { buyerCheckout, GADGETS, LANTERN } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
-import { fakeShipbubble } from "../helpers/shipbubble"
+import { COURIERS, fakeShipbubble, LATER_PICKUP_TIME } from "../helpers/shipbubble"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -142,6 +142,58 @@ medusaIntegrationTestRunner({
         expect(prepared.sellers[0].shop_status).toEqual(closed)
         expect(prepared.ready_to_pay).toBe(true)
         expect((await startPayment(cartId)).authorization_url).toEqual(expect.any(String))
+      })
+    })
+
+    describe("delivery estimates (ADR 0004)", () => {
+      const HOUR = 60 * 60 * 1000
+      /** The gadget hub's delivery choices for a lantern, as checkout quotes them. */
+      const quoted = async () => {
+        const cartId = await newCart()
+        await addLantern(cartId)
+        await prepare(cartId)
+        return (await checkout(cartId)).sellers[0]
+      }
+      const etaOf = (group: any, courier: { courier_name: string }) =>
+        group.delivery_choices.find((c: any) => c.courier_name === courier.courier_name).delivery_eta_time as string
+
+      it("count from the shop's next opening when it is outside its hours", async () => {
+        await api.post("/vendor/shop-hours/weekly", { weekly: onlyTheDayAfterTomorrow() }, gadgets)
+
+        const group = await quoted()
+
+        // Couriers are asked to collect on the day it opens, and Shipbubble counts from then.
+        expect(shipbubble.rateRequests().map((r) => r.pickup_date)).toEqual([lagosDate(2)])
+        const collected = Date.parse(`${lagosDate(2)}T${LATER_PICKUP_TIME}+01:00`)
+        expect(Date.parse(etaOf(group, COURIERS.express))).toBe(collected + COURIERS.express.hours * HOUR)
+        expect(Date.parse(group.shipping.delivery_eta_time)).toBe(collected + COURIERS.nextDay.hours * HOUR)
+        expect(group.shipping.delivery_eta_time).toMatch(/\+01:00$/)
+      })
+
+      it("move later by the gap when the courier would collect before the shop opens", async () => {
+        // Open from 10am on the day after tomorrow; the fake's couriers collect at 9am that day.
+        const day = WEEKDAYS[new Date(`${lagosDate(2)}T00:00:00Z`).getUTCDay()]
+        const lateOpening = weekly((d) => (d === day ? [{ opens: "10:00", closes: "18:00" }] : []))
+        await api.post("/vendor/shop-hours/weekly", { weekly: lateOpening }, gadgets)
+
+        const group = await quoted()
+
+        expect(shipbubble.rateRequests().map((r) => r.pickup_date)).toEqual([lagosDate(2)])
+        const opens = Date.parse(lagosInstant(lagosDate(2), "10:00"))
+        expect(Date.parse(etaOf(group, COURIERS.express))).toBe(opens + COURIERS.express.hours * HOUR)
+        expect(etaOf(group, COURIERS.express)).toMatch(/\+01:00$/)
+      })
+
+      it("count from now while the shop is open", async () => {
+        const before = Date.now()
+        const group = await quoted()
+        const after = Date.now()
+
+        expect(shipbubble.rateRequests().map((r) => r.pickup_date)).toEqual([lagosDate(0)])
+        const express = Date.parse(etaOf(group, COURIERS.express))
+        // Shipbubble writes ETAs to the second.
+        expect(express).toBeGreaterThanOrEqual(before - 1000 + COURIERS.express.hours * HOUR)
+        expect(express).toBeLessThanOrEqual(after + COURIERS.express.hours * HOUR)
       })
     })
 

@@ -199,5 +199,42 @@
     },
     "aiDraft": "AI draft",
     "aiDraftHint": "Drafted by AI from the product's photo and data. Check it before approving."
+  },
+  "orderCheckout": {
+    "title": "Checkout #G{{id}}",
+    "loadError": "Could not load the checkout.",
+    "order": "Order",
+    "shop": "Shop",
+    "payment": "Payment",
+    "fulfillment": "Fulfillment",
+    "paid": "Captured",
+    "refunded": "{{amount}} refunded",
+    "sharedPayment": "Paystack payment (whole checkout)",
+    "captured": "Captured",
+    "totalRefunded": "Refunded in total",
+    "reference": "Paystack reference",
+    "hint": "One Paystack transaction pays every order of the checkout. Each order above shows its own share of it.",
+    "paymentStatus": {
+      "not_paid": "Not paid",
+      "awaiting": "Awaiting",
+      "authorized": "Authorized",
+      "partially_authorized": "Partially authorized",
+      "captured": "Captured",
+      "partially_captured": "Partially captured",
+      "partially_refunded": "Partially refunded",
+      "refunded": "Refunded",
+      "canceled": "Canceled",
+      "requires_action": "Requires action"
+    },
+    "fulfillmentStatus": {
+      "not_fulfilled": "Not fulfilled",
+      "partially_fulfilled": "Partially fulfilled",
+      "fulfilled": "Fulfilled",
+      "partially_shipped": "Partially shipped",
+      "shipped": "Shipped",
+      "partially_delivered": "Partially delivered",
+      "delivered": "Delivered",
+      "canceled": "Canceled"
+    }
   }
 }

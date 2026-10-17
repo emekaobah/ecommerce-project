@@ -2,15 +2,17 @@ import { createHash } from "node:crypto"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
-import { arrivesByEndOfNextDay, deliveryChoices, type DeliveryChoice } from "@oja/domain"
+import { arrivesByEndOfNextDay, deliveryChoices, deliveryStartsAt, etaCountedFrom, type DeliveryChoice } from "@oja/domain"
 import {
   ShipbubbleError,
   SHIPBUBBLE_TIMEZONE,
   shipbubbleClient,
   shipbubbleTime,
+  shipbubbleTimeOf,
   shipbubbleToday,
   type ShipbubbleQuote,
 } from "../modules/shipbubble"
+import { shopHoursOf } from "./shop-hours"
 
 // Shipbubble delivery (#23, ADR 0002): validated addresses become Shipbubble address codes,
 // stored in the address's `metadata.shipbubble_address_code`, and a shop's parcel to an address
@@ -428,19 +430,33 @@ export async function quoteDelivery(
   return deliveryChoices(ratesFor(await quoteRates(scope, parcel), { perishable, timeZone }))
 }
 
-/** Every courier's rate for a shop's parcel to an address code. Empty when no courier will take it. */
+/** When the shop's delivery estimates start (ADR 0004): now while it is open, else its next opening. */
+async function deliveryStartOf(scope: MedusaContainer, sellerId: string, now: Date): Promise<Date> {
+  const hours = (await shopHoursOf(scope, [sellerId], now)).get(sellerId) ?? null
+  return deliveryStartsAt(hours, now)
+}
+
+/**
+ * Every courier's rate for a shop's parcel to an address code. Empty when no courier will take
+ * it. Delivery counts from the shop's next opening (ADR 0004): couriers are asked to collect on
+ * the day it opens, and a courier whose collection slot (`pickup_eta_time`) comes before the
+ * opening has its ETA moved later by the gap.
+ */
 export async function quoteRates(
   scope: MedusaContainer,
   { sellerId, receiverCode, lines, currencyCode }: { sellerId: string; receiverCode: number; lines: ParcelLine[]; currencyCode: string }
 ): Promise<ShipbubbleQuote[]> {
-  const senderCode = await senderAddressCode(scope, sellerId)
-  const parcel = await parcelOf(scope, lines)
+  const [senderCode, parcel, startsAt] = await Promise.all([
+    senderAddressCode(scope, sellerId),
+    parcelOf(scope, lines),
+    deliveryStartOf(scope, sellerId, new Date()),
+  ])
   let rates
   try {
     rates = await shipbubbleClient().fetchRates({
       sender_address_code: senderCode,
       reciever_address_code: receiverCode,
-      pickup_date: shipbubbleToday(),
+      pickup_date: shipbubbleToday(startsAt),
       ...parcel,
     })
   } catch (error) {
@@ -460,7 +476,9 @@ export async function quoteRates(
       amount: Number(c.rate_card_amount),
       currency: c.currency.toLowerCase(),
       delivery_eta: c.delivery_eta ?? null,
-      delivery_eta_time: shipbubbleTime(c.delivery_eta_time),
+      delivery_eta_time: shipbubbleTimeOf(
+        etaCountedFrom(shipbubbleTime(c.delivery_eta_time), c.pickup_eta_time ? shipbubbleTime(c.pickup_eta_time) : null, startsAt)
+      ),
       tracking_level: c.tracking_level ?? null,
     }))
 }

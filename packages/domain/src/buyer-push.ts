@@ -3,6 +3,7 @@ import { cancelledBy, cancelReasonText } from "./cancellation"
 import type { Cancellation, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
 import { openingHoursLines } from "./pickup"
+import type { HoldReminder } from "./pickup-hold"
 import type { WeeklyHours } from "./shop-hours"
 
 /**
@@ -56,8 +57,8 @@ const STATE_PUSHES: { [S in FulfilmentState]?: (order: BuyerPushOrder) => BuyerP
     title: `Order #${display_id} delivered`,
     body: `Your order from ${shop} has arrived.`,
   }),
-  // In-store pickup (#12): the code to collect with is only in the app. Collected isn't pushed:
-  // the buyer, or whoever had the code, was at the counter.
+  // In-store pickup (#12): the code to collect with is only in the app. Collected is pushed with
+  // its receipt (`orderCollectedPush`, #33), Not collected with what is refunded (`notCollectedPush`).
   ready_for_pickup: ({ display_id, shop, pickup }) => ({
     title: `Order #${display_id} is ready for pickup`,
     body: [`Your pickup code is in the ${PRODUCT_NAME} app.`, pickup ? collectFrom(shop, pickup) : null].filter(Boolean).join(" "),
@@ -95,6 +96,12 @@ export function orderConfirmedPush({ display_id, shops }: { display_id: number; 
 /** A line the shop removed as unavailable while picking, and how many of it. */
 export type RemovedItem = { title: string; quantity: number }
 
+/** Two lines are named; more are counted, to keep a push short. */
+function namedItems(items: RemovedItem[]) {
+  const units = items.reduce((sum, item) => sum + item.quantity, 0)
+  return items.length <= 2 ? items.map((item) => `${item.quantity} × ${item.title}`).join(" and ") : `${units} of your items`
+}
+
 /**
  * The push telling the buyer a shop removed items it didn't have from their order, and what it
  * refunds for them (#22). Two lines are named; more are counted, to keep the push short.
@@ -112,8 +119,7 @@ export function itemsRemovedPush({
   refund: number
   currency_code: string
 }): BuyerPush {
-  const units = items.reduce((sum, item) => sum + item.quantity, 0)
-  const removed = items.length <= 2 ? items.map((item) => `${item.quantity} × ${item.title}`).join(" and ") : `${units} of your items`
+  const removed = namedItems(items)
   return {
     title: `Items removed from order #${display_id}`,
     body: `${shop} didn't have ${removed}. You'll be refunded ${formatMoney(refund, currency_code)}.`,
@@ -185,4 +191,62 @@ export function refundAccountPush({ display_id, shop, amount, currency_code }: R
     title: "Reminder: your refund needs your bank account",
     body: `Add a bank account to receive your ${refund} refund for order #${display_id}. If you don't within ${days}, our team will contact you.`,
   }
+}
+
+const CODE_IN_APP = `Your pickup code is in the ${PRODUCT_NAME} app.`
+
+/**
+ * The push reminding the buyer to collect a pickup order (#33): half-way through its hold, and on
+ * its last day, saying what happens then. `collect_by` is `collectByLabel`'s; `perishable`
+ * whether fresh items on it stay unrefunded once it isn't collected.
+ */
+export function holdReminderPush({
+  display_id,
+  shop,
+  reminder,
+  collect_by,
+  perishable,
+}: {
+  display_id: number
+  shop: string
+  reminder: HoldReminder
+  collect_by: string
+  perishable: boolean
+}): BuyerPush {
+  if (reminder === "half_way") {
+    return { title: `Order #${display_id} is waiting for you`, body: `${collect_by} from ${shop}. ${CODE_IN_APP}` }
+  }
+  const refunded = perishable ? "or it is refunded instead, except its fresh items" : "or it is refunded instead"
+  return { title: `Last day to collect order #${display_id}`, body: `${collect_by} from ${shop}, ${refunded}. ${CODE_IN_APP}` }
+}
+
+/** The push sent with the receipt of a pickup order the buyer collected (#33). */
+export function orderCollectedPush({ display_id, shop }: { display_id: number; shop: string }): BuyerPush {
+  return { title: `Order #${display_id} collected`, body: `You collected your order from ${shop}. Your receipt is in your email.` }
+}
+
+/**
+ * The push telling the buyer a pickup order wasn't collected before its hold ended (#33, #32):
+ * what they are refunded (its non-perishable lines), and the fresh lines (`kept`) that aren't.
+ * It stands for the refund's own "completed" push, which isn't sent for it.
+ */
+export function notCollectedPush({
+  display_id,
+  shop,
+  refund,
+  currency_code,
+  kept,
+}: {
+  display_id: number
+  shop: string
+  refund: number
+  currency_code: string
+  kept: RemovedItem[]
+}): BuyerPush {
+  const body = [
+    `${shop} held it, but it wasn't collected in time.`,
+    refund > 0 ? `You'll be refunded ${formatMoney(refund, currency_code)}.` : null,
+    kept.length ? `Fresh items aren't refunded: ${namedItems(kept)}.` : null,
+  ]
+  return { title: `Order #${display_id} wasn't collected`, body: body.filter(Boolean).join(" ") }
 }

@@ -4,9 +4,11 @@ import { rejectOverdueOrders } from "../../src/lib/order-acceptance"
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
 import { buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, ORDER_TOTALS, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
-import { keepShopsOpen } from "../helpers/shop-hours"
+import { ALWAYS_OPEN, keepShopsOpen } from "../helpers/shop-hours"
 import { fakePaystack } from "../helpers/paystack"
-import { fakeShipbubble } from "../helpers/shipbubble"
+import { COURIERS, fakeShipbubble, LATER_PICKUP_TIME } from "../helpers/shipbubble"
+import { setWeeklyHours } from "../../src/lib/shop-hours"
+import { WEEKDAYS } from "@oja/domain"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -124,6 +126,35 @@ medusaIntegrationTestRunner({
         expect((await sellerOrder(groupId, grocery)).fulfilment).toMatchObject({ state: "accepted" })
         const listed = (await history()).find((g: any) => g.id === groupId)
         expect(listed.orders.map((o: any) => o.fulfilment.state).sort()).toEqual(["accepted", "new"])
+      })
+
+      it("shows the delivery estimate checkout quoted, counted from when its closed shop opens, which prepares it then", async () => {
+        // The gadget hub opens 8am to 6pm only on the day after tomorrow: closed now (ADR 0004).
+        const lagosDate = (days: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(Date.now() + days * 24 * HOUR)
+        const opensOn = WEEKDAYS[(new Date(`${lagosDate(2)}T00:00:00Z`).getUTCDay() + 6) % 7]
+        const gadgetsId = await buyer.sellerId(GADGETS)
+        const weekly = Object.fromEntries(WEEKDAYS.map((day) => [day, day === opensOn ? [{ opens: "08:00", closes: "18:00" }] : []]))
+        await setWeeklyHours(getContainer(), gadgetsId, weekly as typeof ALWAYS_OPEN)
+        try {
+          const { groupId, gadgets, grocery } = await paidGroup()
+
+          const closed = await sellerOrder(groupId, gadgets)
+          const open = await sellerOrder(groupId, grocery)
+
+          // Couriers collect the morning it opens; best value arrives a day and a bit later.
+          const collected = Date.parse(`${lagosDate(2)}T${LATER_PICKUP_TIME}+01:00`)
+          expect(closed.delivery).toEqual({
+            courier_name: COURIERS.nextDay.courier_name,
+            delivery_eta_time: expect.stringMatching(/\+01:00$/),
+            time_zone: "Africa/Lagos",
+          })
+          expect(Date.parse(closed.delivery.delivery_eta_time)).toBe(collected + COURIERS.nextDay.hours * HOUR)
+          expect(closed.shop_opens).toEqual({ at: new Date(`${lagosDate(2)}T08:00:00+01:00`).toISOString(), time_zone: "Africa/Lagos" })
+          expect(open.delivery).toMatchObject({ courier_name: COURIERS.nextDay.courier_name })
+          expect(open.shop_opens).toBeNull()
+        } finally {
+          await setWeeklyHours(getContainer(), gadgetsId, ALWAYS_OPEN)
+        }
       })
 
       it("shows what the buyer paid for it", async () => {

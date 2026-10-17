@@ -11,6 +11,7 @@ const REQUEST_TIMEOUT_MS = 30_000
  */
 export const SHIPBUBBLE_TIMEZONE = "Africa/Lagos"
 const SHIPBUBBLE_UTC_OFFSET = "+01:00"
+const SHIPBUBBLE_UTC_OFFSET_MS = 60 * 60 * 1000
 
 /** What Shipbubble needs to validate an address; coordinates win over the text when sent. */
 export type ShipbubbleAddressInput = {
@@ -88,6 +89,10 @@ export type ShipbubbleCategory = { category_id: number; category: string }
 
 /** Shipbubble's "yyyy-mm-dd HH:mm:ss" Lagos time as ISO 8601 with its offset. */
 export const shipbubbleTime = (local: string) => `${local.trim().replace(" ", "T")}${SHIPBUBBLE_UTC_OFFSET}`
+
+/** An instant as Shipbubble states times (Lagos has no daylight saving), ISO 8601 with its offset. */
+export const shipbubbleTimeOf = (instant: Date) =>
+  shipbubbleTime(new Date(instant.getTime() + SHIPBUBBLE_UTC_OFFSET_MS).toISOString().slice(0, 19).replace("T", " "))
 
 /** Today's date where Shipbubble works, for `pickup_date`. */
 export const shipbubbleToday = (now = new Date()) =>

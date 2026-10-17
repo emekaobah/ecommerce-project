@@ -16,6 +16,7 @@ Facts that shaped the decision (checked 2026-10-01):
 - Mercur has no weekly hours and only one closure range per seller, with no way to open on a normally closed day.
 - No label is booked before staff accept and pack, so a closed shop can't send anything to the courier. The problems are buyer expectation and the clocks, not courier pickup.
 - The app is in development with no live shops; data can be reseeded.
+- A probe of Shipbubble's live `fetch_rates` (2026-10-17, rates only) accepted every `pickup_date` tried (yesterday, today, tomorrow, three days on) and never refused one. Each courier carries `pickup_eta_time` ("yyyy-mm-dd HH:mm:ss", Lagos), Shipbubble's own collection slot, and its `delivery_eta_time` counts from that slot: asked late on a Saturday for that day or the next, couriers collected Tuesday 8am; asked for Tuesday, Wednesday 8am, with deliveries a day later too.
 
 ## Decision
 
@@ -35,7 +36,7 @@ The module is the **only source of truth**. Mercur's closure fields are unused a
 
 ### Ordering
 
-- **Outside regular weekly hours**: orderable. The shop shows "Closed · opens 8am Mon"; checkout says the order is prepared when the shop opens; delivery estimates count from the next opening.
+- **Outside regular weekly hours**: orderable. The shop shows "Closed · opens 8am Mon"; checkout says the order is prepared when the shop opens; delivery estimates count from the next opening. Shipbubble is always asked for rates with `pickup_date` on the day the shop opens (today while it is open). Each courier comes back with Shipbubble's own collection slot, `pickup_eta_time`, and a `delivery_eta_time` counted from it; a courier whose slot comes before the opening (the shop opens later today, or later in the morning than the slot) has its ETA moved later by that gap, and one without a slot is left as quoted. No preparation time is added.
 - **During an exception or a pause**: visible but not orderable. "Closed until Tue 14 Oct" plus the note; items can't be added to the cart and checkout refuses that shop's lines.
 
 ### Open-hours clocks
@@ -45,7 +46,7 @@ Deadlines measured from an order event count only time the shop is open:
 - Accept deadline: 24 open hours (#20). Reminders on the same clock.
 - Pickup hold: 5 open days; perishable orders until close of the next open day after Ready.
 
-A pause pauses the clock. Accepted orders carry on when a shop pauses; the vendor app warns about waiting New orders before pausing.
+Closed hours and closed exceptions stop both clocks. A pause stops new orders, not the accept clock of orders already waiting when it starts: they are still accepted or auto-rejected at their original deadline, so a shop paused "until I resume" can't hold a buyer's money indefinitely (#18). The pickup hold does freeze during a pause. Accepted orders carry on when a shop pauses; the vendor app warns, before pausing, that waiting New orders must still be accepted or they'll be rejected at their deadline.
 
 ### Where it is managed
 

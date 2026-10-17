@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { collectBy, collectByLabel } from "./pickup-hold"
+import { collectBy, collectByLabel, holdReminderDue } from "./pickup-hold"
 import type { ShopHours } from "./shop-hours"
 
 // Weekdays 08:00–18:00, Saturday 09:00–14:00, closed Sunday, in Lagos (UTC+1). Friday 9 October 2026.
@@ -108,5 +108,55 @@ describe("collectByLabel", () => {
 
   test("keeps the minutes of a closing time off the hour", () => {
     expect(collectByLabel(lagos("2026-10-10T13:30:00"), new Date(READY_FRIDAY), "Africa/Lagos")).toBe("Collect by 1:30pm, Sat 10 Oct")
+  })
+})
+
+describe("holdReminderDue", () => {
+  const due = (at: string, sent: "half_way" | "last_day" | null = null, hours = HOURS, lines = [RICE]) =>
+    holdReminderDue(hours, READY_FRIDAY, lines, new Date(lagos(at)), sent)
+
+  // Open days after Ready on Friday: Saturday, Monday, Tuesday (the middle one), Wednesday, Thursday (the last).
+  test("reminds half-way through the hold: from the middle open day, while the shop is open", () => {
+    expect(due("2026-10-12T10:00:00")).toBeNull()
+    expect(due("2026-10-13T07:30:00")).toBeNull()
+    expect(due("2026-10-13T08:00:00")).toBe("half_way")
+    expect(due("2026-10-13T19:00:00")).toBeNull()
+  })
+
+  test("still reminds half-way the next open day when it wasn't sent, but only once", () => {
+    expect(due("2026-10-14T10:00:00")).toBe("half_way")
+    expect(due("2026-10-14T10:00:00", "half_way")).toBeNull()
+  })
+
+  test("reminds on the last day of the hold, while the shop is open and before it closes", () => {
+    expect(due("2026-10-15T09:00:00", "half_way")).toBe("last_day")
+    expect(due("2026-10-15T07:00:00", "half_way")).toBeNull()
+    expect(due("2026-10-15T18:00:00", "half_way")).toBeNull()
+    expect(due("2026-10-15T09:00:00", "last_day")).toBeNull()
+  })
+
+  test("skips a half-way reminder not sent by the last day: the last day's says it all", () => {
+    expect(due("2026-10-15T09:00:00")).toBe("last_day")
+  })
+
+  test("only reminds a perishable order on its one open day, the last", () => {
+    expect(due("2026-10-09T16:00:00", null, HOURS, [TOMATOES])).toBeNull()
+    expect(due("2026-10-10T09:00:00", null, HOURS, [TOMATOES])).toBe("last_day")
+  })
+
+  test("doesn't remind while the hold's clock is frozen", () => {
+    const paused = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: null }] }
+    expect(due("2026-10-13T10:00:00", null, paused)).toBeNull()
+  })
+
+  test("counts a shop open round the clock as closing at midnight on the last day", () => {
+    const always = { ...HOURS, weekly: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } }
+    const allDay = [{ opens: "00:00", closes: "24:00" }]
+    const open = { ...always, weekly: Object.fromEntries(Object.keys(always.weekly).map((d) => [d, allDay])) as ShopHours["weekly"] }
+    // Saturday to Wednesday: Monday is the middle, Wednesday the last.
+    expect(due("2026-10-11T23:00:00", null, open)).toBeNull()
+    expect(due("2026-10-12T00:30:00", null, open)).toBe("half_way")
+    expect(due("2026-10-14T23:30:00", "half_way", open)).toBe("last_day")
+    expect(due("2026-10-15T00:00:00", "half_way", open)).toBeNull()
   })
 })

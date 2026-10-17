@@ -1,3 +1,4 @@
+import type { OrderDetailDTO } from "@medusajs/framework/types"
 import { getLastPaymentStatus } from "@mercurjs/core/workflows/order-group/utils/aggregate-status"
 
 // A shop sees its own order: never another shop's price, nor what the buyer spent at other
@@ -11,13 +12,23 @@ export type OrderTransaction = { amount: number; reference: string | null; refer
 export const transactionsOf = (order: { transactions?: OrderTransaction[] | null }): OrderTransaction[] =>
   (order.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) }))
 
+/** What Mercur's `getLastPaymentStatus` reads of an order: its currency, and its payment collections' amounts and statuses. */
+export type PaymentStatusInput = {
+  currency_code?: string
+  payment_collections: { status?: string; amount?: number; captured_amount?: number; refunded_amount?: number }[]
+}
+
+/** Mercur's payment status for an order's payment collections. It is typed for a whole order, but reads only these. */
+export const paymentStatusOf = (order: PaymentStatusInput): string => getLastPaymentStatus(order as unknown as OrderDetailDTO)
+
 /** The order's part of its checkout's payment: its total, and what was captured and refunded for it. */
 export type OrderShare = { total: number; transactions: OrderTransaction[] }
 
 type Refund = { id: string; amount?: number; [key: string]: unknown }
 type Capture = { id: string; amount?: number; [key: string]: unknown }
 export type Payment = { id: string; amount?: number; captures?: Capture[]; refunds?: Refund[]; [key: string]: unknown }
-type PaymentCollection = {
+export type PaymentCollection = {
+  status?: string
   amount?: number
   authorized_amount?: number
   captured_amount?: number
@@ -115,7 +126,7 @@ function paymentView(payment: Payment, scale: (amount: number | undefined) => nu
  * from the order's own transactions; the rest is scaled by that share. Mercur splits a
  * checkout under one payment collection.
  */
-function paymentShare(collection: PaymentCollection, share: OrderShare): ShopPaymentCollection {
+export function paymentShare(collection: PaymentCollection, share: OrderShare): ShopPaymentCollection {
   const own = ownMoney(share)
   const scale = collection.captured_amount
     ? scaleTo(own.captured, collection.captured_amount)
@@ -129,6 +140,15 @@ function paymentShare(collection: PaymentCollection, share: OrderShare): ShopPay
     refunded_amount: own.refunded,
     payments: (collection.payments ?? []).map((payment) => paymentView(payment, scale, own)),
   }
+}
+
+/**
+ * The order's own payment status: Mercur's, worked out from its share of the checkout's payment
+ * rather than the whole of it, so an order refunded in full reads Refunded beside one captured.
+ */
+export function ownPaymentStatus(order: Pick<VendorOrder, "currency_code">, collections: PaymentCollection[], share: OrderShare) {
+  const payment_collections = collections.map((collection) => paymentShare(collection, share))
+  return paymentStatusOf({ currency_code: order.currency_code, payment_collections })
 }
 
 /** A checkout's payment as a shop in it may see it: the shop's order's share (see `paymentShare`). */
@@ -158,8 +178,9 @@ export function shopOrderView(order: VendorOrder, share: OrderShare): ShopOrder 
   const view: ShopOrder = { ...rest }
   if (rest.items) view.items = rest.items.map((line) => ownLinePrice(line, rest.currency_code))
   if (collections) {
-    view.payment_collections = collections.map((collection) => paymentShare(collection, share))
-    view.payment_status = getLastPaymentStatus(view as never)
+    const payment_collections = collections.map((collection) => paymentShare(collection, share))
+    view.payment_collections = payment_collections
+    view.payment_status = paymentStatusOf({ currency_code: rest.currency_code, payment_collections })
   }
   return view
 }

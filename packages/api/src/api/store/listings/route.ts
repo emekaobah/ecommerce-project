@@ -1,10 +1,14 @@
 import type { MedusaResponse, MedusaStoreRequest } from "@medusajs/framework/http"
 import { listListings, type Listing } from "../../../lib/listings"
+import { deliveringToOf } from "./delivering-to"
 import type { StoreGetListingsParamsType } from "./validators"
 
 export type StoreListingsResponse = { listings: Listing[]; count: number; offset: number; limit: number }
 
-/** The buyer's feed: one listing per shop and product, visible in the region. */
+/**
+ * The buyer's feed: one listing per shop and product, visible in the region, nearest first from
+ * the signed-in buyer's `address_id` when they send one (ADR 0011).
+ */
 export const GET = async (
   req: MedusaStoreRequest<unknown, StoreGetListingsParamsType>,
   res: MedusaResponse<StoreListingsResponse>
@@ -19,6 +23,7 @@ export const GET = async (
       categoryId: category_id,
       sellerId: seller_id,
       excludeProductId: exclude_product_id,
+      deliveringTo: await deliveringToOf(req),
     },
     { limit, offset }
   )

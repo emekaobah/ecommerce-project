@@ -78,7 +78,8 @@ export {
   PICKUP_HOLD_NOTICE,
 } from "./pickup"
 export type { PickupCodeCheck, PickupCodeState } from "./pickup"
-export { collectBy, collectByLabel, PERISHABLE_HOLD_OPEN_DAYS, PICKUP_HOLD_OPEN_DAYS } from "./pickup-hold"
+export { collectBy, collectByLabel, HOLD_REMINDERS, holdReminderDue, PERISHABLE_HOLD_OPEN_DAYS, PICKUP_HOLD_OPEN_DAYS } from "./pickup-hold"
+export type { HoldReminder } from "./pickup-hold"
 export { dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
 export type { DisplayPrice, ListingPrice, PricedOffer, ShopDeal, ShopGroup } from "./listing"
 export { currentShop, shopChoice } from "./shop-choice"
@@ -122,15 +123,18 @@ export {
   weeklyHoursErrors,
 } from "./shop-hours"
 export type { HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
-export { deliveryChoices, deliveryEstimate } from "./delivery"
-export type { DeliveryChoice, DeliveryRate, DeliveryTag } from "./delivery"
+export { deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
+export type { DeliveryChoice, DeliveryRate, DeliveryTag, OrderDelivery } from "./delivery"
 export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from "./perishable"
 export { pushTarget } from "./push"
 export type { PushTarget } from "./push"
 export {
   buyerStatusPush,
+  holdReminderPush,
   itemsRemovedPush,
+  notCollectedPush,
   orderCancelledPush,
+  orderCollectedPush,
   orderConfirmedPush,
   preparedWhenOpen,
   refundAccountPush,
@@ -146,3 +150,4 @@ export { photoUploadSize, quickAddForm } from "./quick-add"
 export { canReview, ratingSummary, reviewAction, reviewerName, reviewForm, reviewStatus, reviewTitle } from "./review"
 export type { OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
 export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAddFormValue } from "./quick-add"
+export { DISTANCE_BANDS_KM, deliveringTo, distanceBand, distanceKm, distanceLabel, roundedDistanceKm } from "./distance"
