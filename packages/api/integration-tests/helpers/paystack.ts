@@ -158,8 +158,8 @@ export function fakePaystack(port: number) {
     if (!found) return refused(404, "Refund not found")
     if (found.status !== "needs-attention") return refused(400, "Refund does not need attention")
     const details = body.refund_account_details ?? {}
-    const bank = BANKS.find((b) => String(b.id) === String(details.bank_id))
-    if (!bank || !/^\d{10}$/.test(details.account_number ?? "") || details.currency !== found.currency) {
+    const known = BANKS.some((b) => String(b.id) === String(details.bank_id))
+    if (!known || !/^\d{10}$/.test(details.account_number ?? "") || details.currency !== found.currency) {
       return refused(400, "Invalid refund account details")
     }
     retries.push({ refund_id: found.id, ...details })

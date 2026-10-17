@@ -128,5 +128,5 @@ export const giveBackCodeUsesStep = createStep(
  */
 export const codeCheckoutLocksStep = createStep("code-checkout-locks", async ({ order_id }: { order_id: string }, { container }) => {
   const checkout = await checkoutOf(container, order_id)
-  return new StepResponse(checkout ? [checkout.cart_id, ...Object.keys(checkout.shared)].sort() : [`order-codes:${order_id}`])
+  return new StepResponse(checkout ? [checkout.cart_id, ...Object.keys(checkout.shared)].sort((a, b) => a.localeCompare(b)) : [`order-codes:${order_id}`])
 })
