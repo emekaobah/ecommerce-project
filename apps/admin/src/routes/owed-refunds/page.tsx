@@ -152,7 +152,7 @@ function SettleDrawer({ owed, onClose, onSettled }: Readonly<{ owed: OwedRefund;
   const [method, setMethod] = useState<Method>("bank_transfer")
   const [note, setNote] = useState("")
   const settle = useMutation({
-    mutationFn: async () => client.admin.owedRefunds.$id.settle.mutate({ $id: owed.order_id, method, note: note.trim() }),
+    mutationFn: () => client.admin.owedRefunds.$id.settle.mutate({ $id: owed.order_id, method, note: note.trim() }),
     onSuccess: () => {
       toast.success(t("owedRefunds.settled"))
       onSettled()

@@ -7,6 +7,7 @@ import { isDue, owedRefundOf, PAYSTACK_MIN_REFUND, type OrderOwedRefund } from "
 import type { SettlementMethod } from "../../../modules/order-fulfilment/models/refund-settlement"
 import { UNSETTLED_REFUND_STATUSES } from "../../../modules/paystack/client"
 import { refundOrderShare, RefundRefusedError } from "../steps/refund-order-share"
+import type { PaymentData } from "../steps/refund-payment"
 import { refundLockKeys } from "./refund-order-share"
 
 type Scope = Pick<MedusaContainer, "resolve">
@@ -92,7 +93,7 @@ async function recordRefusal(scope: Scope, owed: OrderOwedRefund, amount: number
     amount,
     covers: "items",
     currency_code: owed.currency_code,
-    transaction_reference: String(payment?.data?.reference ?? ""),
+    transaction_reference: (payment?.data as PaymentData | undefined)?.reference ?? "",
     status: "failed",
     failure_reason: reason,
   })

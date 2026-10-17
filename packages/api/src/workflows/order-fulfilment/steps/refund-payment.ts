@@ -4,7 +4,7 @@ import { fulfilmentService, type OrderRefundRecord } from "../../../lib/order-fu
 import type { RefundCovers } from "../../../modules/order-fulfilment/models/order-refund"
 import type { PaystackRefund } from "../../../modules/paystack/client"
 
-type PaymentData = { reference?: string; refund?: PaystackRefund }
+export type PaymentData = { reference?: string; refund?: PaystackRefund }
 
 export type RefundPaymentInput = {
   payment_id: string
