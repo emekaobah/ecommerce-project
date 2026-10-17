@@ -1,6 +1,9 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { formatMoney } from "@oja/domain"
+import { NO_ACCOUNT_REASON } from "../../src/lib/owed-refunds"
+import { followUpRefundAccounts } from "../../src/lib/refund-accounts"
 import seedDemoData from "../../src/scripts/seed"
+import { adminHeaders } from "../helpers/auth"
 import { statusOf } from "../helpers/checkout-suite"
 import { buyerCheckout, eventually, GROCERY, ORDER_TOTALS } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -30,6 +33,10 @@ process.env.RESEND_API_URL = resend.apiUrl
 process.env.RESEND_FROM = "Oja <orders@oja.test>"
 
 const ADA = "ada@oja.test"
+const HOUR = 60 * 60 * 1000
+const DAY = 24 * HOUR
+/** A moment `ms` after `start`, when the follow-up job runs. */
+const after = (start: number, ms: number) => new Date(start + ms)
 
 // A refund Paystack can't return to the buyer's card needs their bank account (#13): the buyer
 // is asked for one, Paystack retries the refund to it, and its webhooks carry on from there.
@@ -66,6 +73,13 @@ medusaIntegrationTestRunner({
     const accountEmailsToAda = (count = 1) =>
       eventually(async () => resend.sentTo(ADA).filter((e) => e.subject.includes("bank account")), (sent) => sent.length >= count)
 
+    /** The grocery's order as Ada sees it in her order history. */
+    const adasOrder = async (cartId: string, orderId: string) => {
+      const groupId = await buyer.orderGroupOf(cartId)
+      const { order_group } = (await api.get(`/store/order-history/${groupId}`, buyer.ada())).data
+      return order_group.orders.find((o: any) => o.id === orderId)
+    }
+
     /** The order refund recorded for a Paystack refund. */
     const orderRefundOf = async (paystackRefundId: number) => {
       const { data } = await buyer.query().graph({
@@ -97,7 +111,7 @@ medusaIntegrationTestRunner({
     describe("a refund that needs attention", () => {
       it("asks Ada for her bank account by push and email, opening the refund's screen", async () => {
         const device = await registerAda()
-        const { orderId, refundId } = await refundNeedingAccount()
+        const { cartId, orderId, refundId } = await refundNeedingAccount()
         const amount = formatMoney(ORDER_TOTALS.get(GROCERY)!, "ngn")
 
         const [push] = await accountPushesTo(device)
@@ -120,6 +134,99 @@ medusaIntegrationTestRunner({
           order: { id: orderId, display_id: expect.any(Number), shop: GROCERY.name },
           account: null,
         })
+        // Her order offers to add the account too.
+        expect(await adasOrder(cartId, orderId)).toMatchObject({
+          refund: { amount: ORDER_TOTALS.get(GROCERY), status: "needs-attention" },
+          refund_needing_account: refundId,
+        })
+      })
+    })
+
+    describe("the follow-up job", () => {
+      // Every refund still waiting is followed up, earlier tests' too: only this refund's count.
+      const reminderPushesTo = (token: string, refundId: string) =>
+        expo.sentTo(token).filter((m: any) => String(m.title ?? "").startsWith("Reminder") && m.data?.refund_id === refundId)
+      const reminderEmailsToAda = (refundId: string) =>
+        resend.sentTo(ADA).filter((e) => e.subject.startsWith("Reminder") && e.html?.includes(`/refund/${refundId}`))
+      /** The admin's notifications about a refund to send by hand for the order. */
+      const adminNoticesAbout = async (displayId: number) => {
+        const { data } = await buyer.query().graph({ entity: "notification", fields: ["data"], filters: { channel: "feed" } })
+        return data.filter((n: any) => n.data?.title === `Refund for order #${displayId} to send by hand`)
+      }
+      const owedRefundOf = async (orderId: string) =>
+        ((await api.get("/admin/owed-refunds", await adminHeaders(getContainer(), api))).data.owed_refunds as any[]).find(
+          (o) => o.order_id === orderId
+        )
+
+      it("reminds Ada by push and email after a day, and again after 3, once each", async () => {
+        const device = await registerAda()
+        const { paystackRefundId, refundId } = await refundNeedingAccount()
+        const since = new Date((await orderRefundOf(paystackRefundId)).needs_attention_at).getTime()
+
+        await followUpRefundAccounts(getContainer(), after(since, 23 * HOUR))
+        expect(reminderPushesTo(device, refundId)).toEqual([])
+
+        await followUpRefundAccounts(getContainer(), after(since, DAY + HOUR))
+        await followUpRefundAccounts(getContainer(), after(since, DAY + 2 * HOUR))
+        const [first] = await eventually(async () => reminderPushesTo(device, refundId), (sent) => sent.length >= 1)
+        expect(first.body).toContain("within 6 days")
+        expect(await eventually(async () => reminderEmailsToAda(refundId), (sent) => sent.length >= 1)).toHaveLength(1)
+
+        await followUpRefundAccounts(getContainer(), after(since, 3 * DAY + HOUR))
+        await followUpRefundAccounts(getContainer(), after(since, 3 * DAY + 2 * HOUR))
+        const reminders = await eventually(async () => reminderPushesTo(device, refundId), (sent) => sent.length >= 2)
+        expect(reminders.map((m: any) => m.body)).toEqual([expect.stringContaining("within 6 days"), expect.stringContaining("within 4 days")])
+        expect(await eventually(async () => reminderEmailsToAda(refundId), (sent) => sent.length >= 2)).toHaveLength(2)
+        expect((await orderRefundOf(paystackRefundId)).handed_over_at).toBeNull()
+      })
+
+      it("hands it to Oja's team after 7 days: owed by hand, the admin notified and Ada told, once", async () => {
+        const device = await registerAda()
+        const { cartId, orderId, paystackRefundId, refundId } = await refundNeedingAccount()
+        const since = new Date((await orderRefundOf(paystackRefundId)).needs_attention_at).getTime()
+
+        await followUpRefundAccounts(getContainer(), after(since, 7 * DAY + HOUR))
+        await followUpRefundAccounts(getContainer(), after(since, 7 * DAY + 2 * HOUR))
+
+        const owed = await owedRefundOf(orderId)
+        expect(owed).toMatchObject({ amount: ORDER_TOTALS.get(GROCERY), attempts: 0, last_error: NO_ACCOUNT_REASON, state: "manual" })
+        expect(await adminNoticesAbout(owed.display_id)).toHaveLength(1)
+        const [push] = await eventually(
+          async () => expo.sentTo(device).filter((m: any) => String(m.body ?? "").startsWith("Our team is sending") && m.data?.order_id === orderId),
+          (sent) => sent.length >= 1
+        )
+        expect(push.data).toMatchObject({ order_id: orderId })
+        // Ada can no longer add an account, and her order says the team is sending it.
+        const { refund } = (await api.get(`/store/refunds/${refundId}`, buyer.ada())).data
+        expect(refund).toMatchObject({ needs_account: false, handed_over: true })
+        expect(await statusOf(api.post(`/store/refunds/${refundId}/retry`, { bank_code: "058", account_number: "0123456789" }, buyer.ada()))).toBe(409)
+        expect(await adasOrder(cartId, orderId)).toMatchObject({
+          refund: null,
+          refund_needing_account: null,
+          owed_refund: { amount: ORDER_TOTALS.get(GROCERY), state: "manual" },
+        })
+
+        // Marked settled once the team has sent it.
+        await api.post(`/admin/owed-refunds/${orderId}/settle`, { method: "bank_transfer", note: "Sent to her GTB account" }, await adminHeaders(getContainer(), api))
+        expect(await owedRefundOf(orderId)).toBeUndefined()
+        await followUpRefundAccounts(getContainer(), after(since, 8 * DAY))
+        expect(await adminNoticesAbout(owed.display_id)).toHaveLength(1)
+      })
+
+      it("leaves a refund handed over owing nothing once Paystack settles it, retried from its dashboard", async () => {
+        const { orderId, paystackRefundId } = await refundNeedingAccount()
+        const since = new Date((await orderRefundOf(paystackRefundId)).needs_attention_at).getTime()
+        await followUpRefundAccounts(getContainer(), after(since, 7 * DAY + HOUR))
+        expect(await owedRefundOf(orderId)).toMatchObject({ state: "manual" })
+
+        paystack.settleRefund(paystackRefundId, "processed")
+        await buyer.postWebhook(paystack.refundEvent(paystackRefundId))
+        await eventually(
+          () => orderRefundOf(paystackRefundId),
+          (r) => r?.status === "processed"
+        )
+
+        expect(await owedRefundOf(orderId)).toBeUndefined()
       })
     })
 

@@ -2,8 +2,11 @@ import type { ILockingModule, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { PaystackRequestError, type PaystackRefundStatus } from "../modules/paystack/client"
 import { askForRefundAccount } from "./buyer-notifications"
+import { errorMessage } from "./errors"
 import { accountRefused, lookupsLimited, requirePaystack } from "./onboarding"
 import { fulfilmentService, type OrderRefundRecord } from "./order-fulfilment"
+import { needsAccount } from "./owed-refunds"
+import { handOverOwedRefundsOf } from "./refund-retry"
 
 // A refund Paystack couldn't return to the buyer's card needs their bank account (#13). The
 // buyer is asked for one in the app, which Paystack resolves to its holder's name for them to
@@ -14,6 +17,28 @@ type Scope = Pick<MedusaContainer, "resolve">
 
 /** The lock every refund of the order takes (`refundLockKeys`), so a retry and a hand-over don't race. */
 const refundLockKey = (orderId: string) => `order-refund:${orderId}`
+
+const DAY = 24 * 60 * 60 * 1000
+
+/** The days after a refund first needs attention that the buyer is reminded, then handed to Oja's team. */
+export const REFUND_ACCOUNT_REMINDER_DAYS = [1, 3]
+export const REFUND_ACCOUNT_HAND_OVER_DAYS = 7
+
+/** What follows up a refund still waiting for the buyer's account: a reminder, or handing it to Oja's team. */
+export type RefundAccountFollowUp = { reminder: { nth: number; days_left: number } } | "hand_over"
+
+/**
+ * What is due `now` for a refund that has needed the buyer's bank account since `since`: the
+ * latest reminder reached (1 or 3 days on), then after 7 days the hand-over to Oja's team;
+ * nothing during the first day.
+ */
+export function refundAccountFollowUp(since: Date, now: Date): RefundAccountFollowUp | null {
+  const days = (now.getTime() - since.getTime()) / DAY
+  if (days >= REFUND_ACCOUNT_HAND_OVER_DAYS) return "hand_over"
+  const nth = REFUND_ACCOUNT_REMINDER_DAYS.filter((d) => days >= d).length
+  if (!nth) return null
+  return { reminder: { nth, days_left: REFUND_ACCOUNT_HAND_OVER_DAYS - REFUND_ACCOUNT_REMINDER_DAYS[nth - 1]! } }
+}
 
 /** A refund of one of the buyer's orders, as the app's refund screen shows it. */
 export type BuyerRefundAccount = {
@@ -32,9 +57,6 @@ export type BuyerRefundAccount = {
 
 type OrderRow = { id: string; display_id: number; customer_id?: string | null; seller?: { name?: string | null } | null }
 
-/** A refund that needs the buyer's account, and Oja's team hasn't taken over. */
-export const needsAccount = (refund: Pick<OrderRefundRecord, "status" | "handed_over_at">) =>
-  refund.status === "needs-attention" && !refund.handed_over_at
 
 /** The buyer's refund and its order; not found when it isn't a refund of one of their orders. */
 export async function buyerRefundOf(scope: Scope, customerId: string, refundId: string): Promise<{ refund: OrderRefundRecord; order: OrderRow }> {
@@ -175,6 +197,43 @@ export async function retryRefundToAccount(
     })
   })
   return buyerRefundAccountView(scope, customerId, refundId)
+}
+
+/**
+ * Hands a refund the buyer gave no bank account for to Oja's team (#13), under the order's
+ * refund lock so a retry the buyer sends meanwhile wins. It joins what the order owes its buyer
+ * by hand (#16's Owed refunds): the admin is notified and the buyer told the team is sending it.
+ */
+async function handOverUnanswered(scope: Scope, refundId: string, orderId: string, now: Date): Promise<void> {
+  await scope.resolve<ILockingModule>(Modules.LOCKING).execute(refundLockKey(orderId), async () => {
+    const [refund] = await fulfilmentService(scope).listOrderRefunds({ id: refundId })
+    if (refund && needsAccount(refund)) await fulfilmentService(scope).updateOrderRefunds({ id: refundId, handed_over_at: now })
+  })
+  await handOverOwedRefundsOf(scope, [orderId])
+}
+
+/**
+ * The follow-up job (#13): reminds the buyer of each refund still waiting for their bank
+ * account after 1 and 3 days, by push and email, once each, and after 7 days hands it to Oja's
+ * team. A refund that can't be followed up is logged, and the others still are.
+ */
+export async function followUpRefundAccounts(scope: Scope, now = new Date()): Promise<void> {
+  const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  const waiting = await fulfilmentService(scope).listOrderRefunds({
+    status: "needs-attention",
+    handed_over_at: null,
+    order_id: { $ne: null },
+    needs_attention_at: { $ne: null },
+  })
+  for (const refund of waiting) {
+    const due = refundAccountFollowUp(new Date(refund.needs_attention_at!), now)
+    try {
+      if (due === "hand_over") await handOverUnanswered(scope, refund.id, refund.order_id!, now)
+      else if (due) await askForRefundAccount(scope, refund.id, due.reminder)
+    } catch (error) {
+      logger.warn(`Following up refund ${refund.id}, which needs the buyer's bank account, failed: ${errorMessage(error)}`)
+    }
+  }
 }
 
 /**
