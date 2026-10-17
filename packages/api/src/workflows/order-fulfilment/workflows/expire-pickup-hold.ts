@@ -48,6 +48,7 @@ export const expirePickupHoldWorkflow = createWorkflow("expire-pickup-hold", (in
     amount: edited ?? 0,
     refunded: plan.refunded,
     kept: plan.kept,
+    perishable_kept: plan.perishable_kept,
   }))
   emitEventStep({ eventName: ORDER_NOT_COLLECTED, data: event }).config({ name: "emit-not-collected" })
   releaseLockStep({ key: lock })

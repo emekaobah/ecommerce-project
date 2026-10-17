@@ -6,7 +6,7 @@ import { ORDER_COLLECTED, ORDER_NOT_COLLECTED, ORDER_PICKUP_HOLD_REMINDER, type 
 type PickupEvent =
   | { id: string }
   | { id: string; reminder: HoldReminder; at: string }
-  | { id: string; amount: number; refunded: Picks; kept: Picks }
+  | { id: string; amount: number; refunded: Picks; kept: Picks; perishable_kept: boolean }
 
 /**
  * Tells the buyer of a pickup order (#33), by email and push: their receipt once collected, a
