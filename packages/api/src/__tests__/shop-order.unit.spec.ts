@@ -1,5 +1,5 @@
 import { numbersIn } from "../../integration-tests/helpers/numbers"
-import { shopOrderView, shopPaymentView } from "../lib/shop-order"
+import { ownPaymentStatus, shopOrderView, shopPaymentView } from "../lib/shop-order"
 
 // One Paystack payment of ₦42,800 paid for a checkout split into a ₦30,500 and a ₦12,300 order.
 const collection = () => ({
@@ -83,6 +83,24 @@ describe("shopOrderView: the payment", () => {
 
   it("leaves an order without a payment alone", () => {
     expect(shopOrderView({ id: "order_2", items: [] }, share)).toEqual({ id: "order_2", items: [] })
+  })
+})
+
+describe("ownPaymentStatus", () => {
+  // The ₦30,500 order was refunded in full; the checkout's payment reads partially refunded.
+  const refunded = { ...collection(), refunded_amount: 30500 }
+
+  it("reads an order refunded in full Refunded, and the checkout's other order Captured", () => {
+    const other = {
+      total: 30500,
+      transactions: [
+        { amount: 30500, reference: "capture", reference_id: "capt_2" },
+        { amount: -30500, reference: "refund", reference_id: "ref_2" },
+      ],
+    }
+
+    expect(ownPaymentStatus({ currency_code: "ngn" }, [refunded], other)).toBe("refunded")
+    expect(ownPaymentStatus({ currency_code: "ngn" }, [refunded], share)).toBe("captured")
   })
 })
 

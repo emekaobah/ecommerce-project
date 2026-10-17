@@ -58,6 +58,7 @@ import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validato
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
 import { reportServerErrors } from "./report-server-errors";
+import { showEachOrderItsOwnPaymentStatus } from "./admin/own-payment-status";
 
 export default defineMiddlewares({
     // The API's own failures go to Sentry before Medusa answers them (#19).
@@ -341,6 +342,9 @@ export default defineMiddlewares({
             matcher: "/admin/orders/:id/cancel",
             middlewares: [validateAndTransformBody(AdminCancelOrder)],
         },
+        // Each order of a checkout split across shops shows its own payment status (#14).
+        { method: ["GET"], matcher: "/admin/orders*", middlewares: [showEachOrderItsOwnPaymentStatus] },
+        { method: ["GET"], matcher: "/admin/order-groups*", middlewares: [showEachOrderItsOwnPaymentStatus] },
         // Oja's staff settle by hand a refund Paystack can't make (#16).
         {
             method: ["POST"],
