@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules } from "@medusajs/framework/utils"
+import { refundUnclaimedPayments } from "../../src/lib/order-acceptance"
 import seedDemoData from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
 import { buyerCheckout, eventually, GADGETS, GROCERY, RICE, TOTAL, type Shop } from "../helpers/checkout"
@@ -20,6 +21,8 @@ process.env.PAYSTACK_SECRET_KEY = paystack.secretKey
 process.env.PAYSTACK_API_URL = paystack.apiUrl
 process.env.SHIPBUBBLE_API_KEY = shipbubble.apiKey
 process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
+
+const HOUR = 60 * 60 * 1000
 
 let codes = 0
 /** A promo code no other test uses: codes are unique across the marketplace. */
@@ -182,6 +185,28 @@ medusaIntegrationTestRunner({
         } finally {
           await restore()
         }
+      })
+
+      it("is refunded once: not again by the job for payments no order claims, nor placed by the webhook sent again", async () => {
+        const cartId = await preparedCart(ada)
+        const { reference } = await ada.startPayment(cartId)
+        paystack.pay(reference)
+        const restore = await setStock(GROCERY, RICE.title, 1)
+        const webhook = paystack.chargeSuccess(reference)
+        try {
+          await ada.postWebhook(webhook)
+          await notPlaced(ada, cartId)
+        } finally {
+          await restore()
+        }
+
+        // Stock is back, but the payment was refunded: the cart isn't placed on it.
+        await ada.postWebhook(webhook)
+        await new Promise((resolve) => setTimeout(resolve, 8000))
+        await refundUnclaimedPayments(getContainer(), new Date(Date.now() + HOUR))
+
+        expect(paystack.refundsOf(reference)).toHaveLength(1)
+        expect(await ada.ordersOfCart(cartId)).toEqual([])
       })
 
       it("lets the buyer pay the fixed cart's new total, and places it", async () => {

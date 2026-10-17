@@ -1,6 +1,6 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { deleteLineItemsWorkflow, updateLineItemInCartWorkflow } from "@medusajs/medusa/core-flows"
+import { deleteLineItemsWorkflow, deletePaymentSessionsWorkflow, updateLineItemInCartWorkflow } from "@medusajs/medusa/core-flows"
 import type { NotPlacedChange, NotPlacedReason } from "@oja/domain"
 import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-promotions"
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
@@ -58,9 +58,11 @@ const item = (line: CartItem, seller: string | null) => ({
 })
 
 /**
- * Fixes a cart that was refunded because it failed to become orders: lines whose offer is gone
- * are removed, sold-out lines cut to what is left (removed when none is), deliveries whose
- * option is gone taken off, and codes used up dropped. Returns what changed, and the causes.
+ * Fixes a cart that was refunded because it failed to become orders: its payment sessions are
+ * deleted, so nothing completes it on the refunded payment (Paystack sending the webhook again),
+ * lines whose offer is gone are removed, sold-out lines cut to what is left (removed when none
+ * is), deliveries whose option is gone taken off, and codes used up dropped. Returns what
+ * changed, and the causes.
  */
 export async function fixUnplacedCart(
   scope: Scope,
@@ -69,6 +71,7 @@ export async function fixUnplacedCart(
   const container = scope as MedusaContainer
   const changes: NotPlacedChange[] = []
   const causes = new Set<NotPlacedReason>()
+  await deleteCartSessions(scope, cartId)
   const { sellers } = await retrieveCartBySeller(container, cartId)
 
   const removed: string[] = []
@@ -109,6 +112,18 @@ export async function fixUnplacedCart(
     causes.add("code_used_up")
   }
   return { changes, causes }
+}
+
+/** Deletes the cart's payment sessions: the buyer pays the fixed cart with a new one. */
+async function deleteCartSessions(scope: Scope, cartId: string) {
+  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
+    entity: "cart",
+    fields: ["payment_collection.payment_sessions.id"],
+    filters: { id: cartId },
+  })
+  const cart = data[0] as { payment_collection?: { payment_sessions?: { id: string }[] | null } | null } | undefined
+  const ids = (cart?.payment_collection?.payment_sessions ?? []).map((s) => s.id)
+  if (ids.length) await deletePaymentSessionsWorkflow(scope as MedusaContainer).run({ input: { ids } })
 }
 
 /** Takes off the cart each delivery whose shipping option is gone; returns the shops they were for (null when unknown). */
