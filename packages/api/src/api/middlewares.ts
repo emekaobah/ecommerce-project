@@ -41,6 +41,7 @@ import { vendorReadyForPickupMiddlewares } from "./vendor/ready-for-pickup/middl
 import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
+import { vendorPriceListMiddlewares } from "./vendor/price-lists/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
 import { StoreRefundAccount } from "./store/refunds/validators";
 import { StoreGetPublishedReviews } from "./store/reviews/validators";
@@ -280,6 +281,8 @@ export default defineMiddlewares({
         { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
         { method: ["POST"], matcher: "/vendor/promotions", middlewares: [shopsDontDiscountDelivery] },
         { method: ["POST"], matcher: "/vendor/promotions/:id", middlewares: [shopsDontDiscountDelivery] },
+        // A shop's sale prices apply to its own offers only, not other shops' of the same product (#10).
+        ...vendorPriceListMiddlewares,
         // A member's device registers for their shops' pushes (#27); Mercur authenticates the member.
         { method: ["POST"], matcher: "/vendor/push-tokens", middlewares: [validateAndTransformBody(PushTokenBody)] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },
