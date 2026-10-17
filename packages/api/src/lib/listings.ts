@@ -101,8 +101,11 @@ type Region = { id: string; currency_code: string; countries: string[] }
 type SellerRow = Omit<Shop, "area" | "shop_status" | "distance_km"> & {
   address?: { country_code: string | null; city: string | null; metadata?: Record<string, unknown> | null } | null
   shop_status: ShopStatusView
-  /** Straight-line kilometres from the buyer's delivery address to the shop's pickup pin; null without either. */
-  distance: number | null
+  /**
+   * Straight-line kilometres from the buyer's delivery address to the shop's pickup pin, unrounded
+   * for ranking (buyers see `distance_km`, rounded); null without either.
+   */
+  exact_km: number | null
 }
 /** Mercur's calculated price; the pricing module's fields beyond `ListingPrice` pass through untyped. */
 type CalculatedOfferPrice = ListingPrice & { is_calculated_price_tax_inclusive?: boolean } & Record<string, unknown>
@@ -156,7 +159,7 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
     ],
     filters: { id: ids },
   })
-  const serving = (data as unknown as Omit<SellerRow, "shop_status" | "distance">[]).filter((s) => {
+  const serving = (data as unknown as Omit<SellerRow, "shop_status" | "exact_km">[]).filter((s) => {
     const country = s.address?.country_code?.toLowerCase()
     return !!country && region.countries.includes(country)
   })
@@ -165,8 +168,8 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
   return new Map(
     serving.map((s) => {
       const pickup = pinOf(s.address)
-      const distance = from && pickup ? distanceKm(from, pickup) : null
-      return [s.id, { ...s, shop_status: statuses.get(s.id)!, distance }]
+      const exact_km = from && pickup ? distanceKm(from, pickup) : null
+      return [s.id, { ...s, shop_status: statuses.get(s.id)!, exact_km }]
     })
   )
 }
@@ -340,7 +343,7 @@ function relevance(title: string, words: string[]): number {
 function orderListings(groups: ListingGroup[], search: string | undefined) {
   const words = searchWords(search)
   const ranked = groups.map((group, index) => {
-    const km = group.seller.distance ?? Number.POSITIVE_INFINITY
+    const km = group.seller.exact_km ?? Number.POSITIVE_INFINITY
     return {
       group,
       index,
@@ -365,7 +368,7 @@ function toListingSeller(seller: SellerRow): ListingSeller {
     area: seller.address?.city ?? null,
     default_leadtime_to_ship: seller.default_leadtime_to_ship,
     shop_status: seller.shop_status,
-    distance_km: seller.distance == null ? null : roundedDistanceKm(seller.distance),
+    distance_km: seller.exact_km == null ? null : roundedDistanceKm(seller.exact_km),
   }
 }
 
