@@ -84,6 +84,7 @@ medusaIntegrationTestRunner({
           shipment: null,
           handover: null,
           collection: null,
+          collect_by: null,
           timeline: expect.arrayContaining([{ label: "Placed", status: "current", at: new Date(order.created_at).toISOString() }]),
         })
       })
@@ -147,6 +148,7 @@ medusaIntegrationTestRunner({
           shipment: null,
           handover: null,
           collection: null,
+          collect_by: null,
           // A rejected order's status says why; it has no steps to show.
           timeline: [],
         })
