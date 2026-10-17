@@ -7,7 +7,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { cartKeys } from '@/api/cart';
 import { useCheckout, useOrderGroup } from '@/api/checkout';
-import { useCartSession } from '@/cart/cart-provider';
+import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
 
 /** How long to wait for Paystack's webhook before telling the buyer it's taking a while. */
 const CONFIRMATION_WAIT_MS = 60_000;
@@ -21,10 +21,10 @@ export function ConfirmationScreen() {
   const checkout = useCheckout(cartId, { waitForOrder: true });
   const orderGroupId = checkout.data?.order_group_id;
   const slow = useElapsed(CONFIRMATION_WAIT_MS);
-  const { cartId: appCartId, forgetCart } = useCartSession();
+  const { forgetCart } = useCartSession();
   const queryClient = useQueryClient();
-  // A shop paid for on its own (#11) had a cart of its own: the app's cart keeps the other shops.
-  const paidAppCart = cartId === appCartId;
+  // A shop paid for on its own (#11) had a shop cart: the app's cart keeps the other shops.
+  const paidAppCart = useIsAppCart(cartId);
 
   // The cart is now orders: the next thing added starts a new one.
   useEffect(() => {

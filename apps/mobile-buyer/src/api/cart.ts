@@ -82,6 +82,14 @@ export function useMoveShopToOwnCart(cartId: string) {
   });
 }
 
+/**
+ * The buyer went back from a shop cart's checkout without paying (#11): its items and codes
+ * return to the app's cart, and its Paystack page no longer places an order.
+ */
+export async function moveShopCartBack(cartId: string, shopCartId: string) {
+  await storeClient.store.carts.$id.shopCart.back.mutate({ $id: cartId, shop_cart_id: shopCartId });
+}
+
 /** Sets a line's quantity; 0 removes it. */
 export function useSetCartItemQuantity(cartId: string) {
   const onSettled = useRefetchCartAfterWrite();

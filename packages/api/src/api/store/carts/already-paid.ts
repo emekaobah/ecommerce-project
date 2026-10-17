@@ -6,11 +6,12 @@ import { CheckoutAlreadyPaidError } from "../../../lib/checkout"
  * transaction is already paid: its order is on the way. Answered here: Medusa's error handler
  * swaps a conflict's message for a generic one.
  */
-export async function answeringAlreadyPaid(res: MedusaResponse, step: () => Promise<void>) {
+export async function answeringAlreadyPaid<Body>(res: MedusaResponse<Body>, step: () => Promise<void>) {
   try {
     await step()
   } catch (error) {
     if (!CheckoutAlreadyPaidError.is(error)) throw error
-    res.status(409).json({ message: error.message })
+    // The route types its success body; a refusal is answered in Medusa's error shape.
+    res.status(409).json({ message: error.message } as never)
   }
 }
