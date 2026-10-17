@@ -44,6 +44,7 @@ import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
 import { StoreRefundAccount } from "./store/refunds/validators";
 import { StoreGetPublishedReviews } from "./store/reviews/validators";
+import { adminVariantPriceMiddlewares } from "./admin/products/no-variant-prices";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { AdminRefundDelivery } from "./admin/orders/[id]/delivery-refund/validators";
@@ -297,6 +298,8 @@ export default defineMiddlewares({
         },
         // A shop's own product list, imported as offers and proposals, and its private cost prices (#37).
         ...vendorOfferImportMiddlewares,
+        // A variant's prices belong to its shops' offers: the operator's product routes can't write them (#15).
+        ...adminVariantPriceMiddlewares,
         // Perishable flags (#69): the operator's alone, so there are no vendor routes for them.
         {
             method: ["POST"],
