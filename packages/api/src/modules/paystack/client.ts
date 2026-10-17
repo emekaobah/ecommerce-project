@@ -83,11 +83,15 @@ export type PaystackRecipient = {
   details: { account_number: string; account_name: string | null; bank_code: string; bank_name: string }
 }
 
-/** A request Paystack refused; `status` is the HTTP status (422 when it can't resolve an account). */
+/**
+ * A request Paystack refused; `status` is the HTTP status (422 when it can't resolve an
+ * account), and `reason` Paystack's own message, such as "Insufficient balance".
+ */
 export class PaystackRequestError extends MedusaError {
   constructor(
     readonly status: number,
-    message: string
+    message: string,
+    readonly reason = message
   ) {
     super(MedusaError.Types.UNEXPECTED_STATE, message)
   }
@@ -132,7 +136,8 @@ export class PaystackClient {
     if (!res.ok || !envelope?.status) {
       throw new PaystackRequestError(
         res.status,
-        `Paystack ${method} ${path} failed (${res.status}): ${envelope?.message ?? "no response"}`
+        `Paystack ${method} ${path} failed (${res.status}): ${envelope?.message ?? "no response"}`,
+        envelope?.message ?? "No response"
       )
     }
     return envelope.data

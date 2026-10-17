@@ -1,5 +1,8 @@
-import { MathBN } from "@medusajs/framework/utils"
+import type { MedusaContainer } from "@medusajs/framework/types"
+import { ContainerRegistrationKeys, MathBN } from "@medusajs/framework/utils"
 import type { RefundCovers } from "../modules/order-fulfilment/models/order-refund"
+import { fulfilmentService } from "./order-fulfilment"
+import { owedToBuyerOf, type OrderSummary } from "./order-refund"
 
 // What an order owes its buyer and hasn't refunded (#16): lines an order edit removed (#22,
 // #32) whose refund Paystack refused, or that was never made. The amount stays derived from
@@ -77,4 +80,43 @@ export function owedRefund({
 /** Whether the retry job tries the owed refund at `now`. */
 export function isDue(owed: OwedRefund, now: Date): boolean {
   return owed.state === "retrying" && (!owed.next_attempt_at || owed.next_attempt_at.getTime() <= now.getTime())
+}
+
+type Scope = Pick<MedusaContainer, "resolve">
+
+/** An order's owed refund, and the order's currency. */
+export type OrderOwedRefund = OwedRefund & { order_id: string; currency_code: string }
+
+/** Each order's owed refund (`owedRefund`); an order owing its buyer nothing is left out. */
+export async function owedRefundsOf(scope: Scope, orderIds: string[]): Promise<Map<string, OrderOwedRefund>> {
+  if (!orderIds.length) return new Map()
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const [{ data }, refunds] = await Promise.all([
+    query.graph({ entity: "order", fields: ["id", "currency_code", "summary"], filters: { id: orderIds } }),
+    fulfilmentService(scope).listOrderRefunds({ order_id: orderIds }),
+  ])
+  const owed = new Map<string, OrderOwedRefund>()
+  for (const order of data as unknown as { id: string; currency_code: string; summary?: OrderSummary }[]) {
+    const found = owedRefund({
+      owed: owedToBuyerOf(order.summary),
+      settled: 0,
+      refunds: refunds.filter((r) => r.order_id === order.id),
+    })
+    if (found) owed.set(order.id, { ...found, order_id: order.id, currency_code: order.currency_code })
+  }
+  return owed
+}
+
+/**
+ * Every order that owes its buyer a refund. Only an order edit leaves an order owing its
+ * buyer (#22, #32), so only orders with a confirmed edit are worked out.
+ */
+export async function allOwedRefunds(scope: Scope): Promise<OrderOwedRefund[]> {
+  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
+    entity: "order_change",
+    fields: ["order_id"],
+    filters: { change_type: "edit", status: "confirmed" },
+  })
+  const ids = [...new Set((data as unknown as { order_id: string }[]).map((c) => c.order_id))]
+  return [...(await owedRefundsOf(scope, ids)).values()]
 }

@@ -38,6 +38,12 @@ const OrderRefund = model
     /** Paystack's id for the refund, to fetch its status by. */
     paystack_refund_id: model.text().nullable(),
     status: model.enum([...PAYSTACK_REFUND_STATUSES]).default("pending"),
+    /**
+     * Why Paystack refused the refund (#16), such as "Insufficient balance". Such a refund was
+     * never made: it is `failed` from the start, with no Medusa refund or Paystack refund id,
+     * and counts as an attempt at what the order still owes its buyer (`lib/owed-refunds`).
+     */
+    failure_reason: model.text().nullable(),
   })
   .indexes([{ on: ["order_id"] }, { on: ["transaction_reference"] }])
 
