@@ -12,7 +12,8 @@ import type { OrderTransaction } from "./shop-order"
 // order summary (`owedToBuyerOf`), less any refund Paystack made that failed to be recorded on
 // the order; a cancelled order's from its captures less its refunds (`shareLeft`). Either is
 // less what Oja's team settled by hand (`refund_settlement`). Each refused attempt is an
-// `order_refund` row that `failed`, with Paystack's reason.
+// `order_refund` row that `failed`, with Paystack's reason. A refund that needed the buyer's
+// bank account and was handed to Oja's team (#13) is owed too, by hand.
 
 /** Paystack refuses every refund under ₦50; such an amount goes straight to Oja's team. */
 export const PAYSTACK_MIN_REFUND = 50
@@ -45,7 +46,22 @@ export type RefundAttemptRow = {
   status: string
   created_at: Date | string
   failure_reason?: string | null
+  amount?: unknown
+  handed_over_at?: Date | string | null
 }
+
+/** Why a refund that needed the buyer's bank account was handed to Oja's team (#13). */
+export const NO_ACCOUNT_REASON = "The buyer gave no bank account in 7 days"
+
+/**
+ * A refund that needed the buyer's bank account and was handed to Oja's team (#13): Paystack
+ * still holds it (it counts as refunded on the order), and Oja's team owes it to the buyer by
+ * hand until Paystack settles it or the team marks it settled.
+ */
+const handedOver = (r: RefundAttemptRow) => !!r.handed_over_at && r.status === "needs-attention"
+
+/** A refund that needs the buyer's bank account (#13), and Oja's team hasn't taken over. */
+export const needsAccount = (r: Pick<RefundAttemptRow, "status" | "handed_over_at">) => r.status === "needs-attention" && !r.handed_over_at
 
 /** A settlement by hand (`refund_settlement`), as much of it as an owed refund reads. */
 export type SettlementRow = { amount: number; created_at: Date | string }
@@ -78,8 +94,10 @@ export function owedRefund({
   settlements: SettlementRow[]
   refunds: RefundAttemptRow[]
 }): OwedRefund | null {
-  const settled = settlements.reduce((sum, s) => MathBN.convert(MathBN.add(sum, s.amount)).toNumber(), 0)
-  const amount = MathBN.convert(MathBN.sub(owed, settled)).toNumber()
+  const total = (amounts: unknown[]) => amounts.reduce<number>((sum, a) => MathBN.convert(MathBN.add(sum, Number(a))).toNumber(), 0)
+  const settled = total(settlements.map((s) => s.amount))
+  const byHand = total(refunds.filter(handedOver).map((r) => r.amount ?? 0))
+  const amount = MathBN.convert(MathBN.sub(MathBN.add(owed, byHand), settled)).toNumber()
   if (amount <= 0) return null
   const lastSettled = Math.max(-Infinity, ...settlements.map(recordedAt))
   const failed = failedSinceLastMade(
@@ -87,8 +105,8 @@ export function owedRefund({
     lastSettled
   )
   const latest = failed.at(-1)
-  const base = { amount, attempts: failed.length, last_error: latest?.failure_reason ?? null }
-  if (amount < PAYSTACK_MIN_REFUND || failed.length > OWED_REFUND_BACKOFF_MS.length) {
+  const base = { amount, attempts: failed.length, last_error: latest?.failure_reason ?? (byHand > 0 ? NO_ACCOUNT_REASON : null) }
+  if (byHand > 0 || amount < PAYSTACK_MIN_REFUND || failed.length > OWED_REFUND_BACKOFF_MS.length) {
     return { ...base, state: "manual", next_attempt_at: null }
   }
   const wait = latest ? OWED_REFUND_BACKOFF_MS[failed.length - 1] : undefined
@@ -167,19 +185,26 @@ export async function owedRefundOf(scope: Scope, orderId: string): Promise<Order
 }
 
 /**
- * Every order that owes its buyer a refund. Only an order edit (#22, #32) or cancelling an
- * accepted order (#17) leaves an order owing its buyer, so only orders with a confirmed edit,
- * and cancelled orders, are worked out.
+ * Every order that owes its buyer a refund. Only an order edit (#22, #32), cancelling an
+ * accepted order (#17), or a refund handed to Oja's team when the buyer gave no bank account
+ * (#13) leaves an order owing its buyer, so only orders with a confirmed edit, cancelled
+ * orders, and orders with such a refund are worked out.
  */
 export async function allOwedRefunds(scope: Scope): Promise<OrderOwedRefund[]> {
-  const [{ data }, cancelled] = await Promise.all([
+  const [{ data }, cancelled, handedOver] = await Promise.all([
     scope.resolve(ContainerRegistrationKeys.QUERY).graph({
       entity: "order_change",
       fields: ["order_id"],
       filters: { change_type: "edit", status: "confirmed" },
     }),
     fulfilmentService(scope).listOrderFulfilments({ state: "cancelled" }, { select: ["order_id"] }),
+    fulfilmentService(scope).listOrderRefunds({ status: "needs-attention", handed_over_at: { $ne: null } }, { select: ["order_id"] }),
   ])
-  const ids = [...new Set([...(data as unknown as { order_id: string }[]), ...cancelled].map((c) => c.order_id))]
+  const ids = [
+    ...new Set([
+      ...[...(data as unknown as { order_id: string }[]), ...cancelled].map((c) => c.order_id),
+      ...handedOver.flatMap((r) => (r.order_id ? [r.order_id] : [])),
+    ]),
+  ]
   return [...(await owedRefundsOf(scope, ids)).values()]
 }

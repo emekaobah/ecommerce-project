@@ -2,7 +2,7 @@ import type { IOrderModuleService, IPaymentModuleService } from "@medusajs/frame
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { emitEventStep } from "@medusajs/medusa/core-flows"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
-import { fulfilmentService, ORDER_REFUND_PROCESSED, type OrderRefundRecord } from "../../../lib/order-fulfilment"
+import { fulfilmentService, ORDER_REFUND_NEEDS_ATTENTION, ORDER_REFUND_PROCESSED, type OrderRefundRecord } from "../../../lib/order-fulfilment"
 import { paystackClient } from "../../../modules/paystack"
 import { UNSETTLED_REFUND_STATUSES, type PaystackRefundStatus } from "../../../modules/paystack/client"
 
@@ -37,15 +37,23 @@ const fetchRefundChangesStep = createStep("fetch-order-refund-changes", async ({
   return new StepResponse(changes)
 })
 
+/** A refund that now needs attention records when (#13): the buyer's reminders count from then. */
 const updateRefundStatusesStep = createStep(
   "update-order-refund-statuses",
   async (changes: Change[], { container }) => {
-    if (changes.length) await fulfilmentService(container).updateOrderRefunds(changes.map((c) => ({ id: c.id, status: c.to })))
+    const now = new Date()
+    if (changes.length) {
+      await fulfilmentService(container).updateOrderRefunds(
+        changes.map((c) => ({ id: c.id, status: c.to, ...(c.to === "needs-attention" && { needs_attention_at: now }) }))
+      )
+    }
     return new StepResponse(undefined, changes)
   },
   async (changes: Change[] | undefined, { container }) => {
     if (changes?.length) {
-      await fulfilmentService(container).updateOrderRefunds(changes.map((c) => ({ id: c.id, status: c.from })))
+      await fulfilmentService(container).updateOrderRefunds(
+        changes.map((c) => ({ id: c.id, status: c.from, needs_attention_at: c.row.needs_attention_at }))
+      )
     }
   }
 )
@@ -79,7 +87,8 @@ const unrecordFailedRefundsStep = createStep("unrecord-failed-order-refunds", as
  * Brings the order refunds of a Paystack transaction up to date. Paystack's `refund.*`
  * webhooks name the transaction but not the refund, so each unsettled refund is fetched by
  * its id. An order's refund that reaches processed emits `order_refund.processed`, once: a
- * settled refund isn't fetched again, however often Paystack repeats the webhook.
+ * settled refund isn't fetched again, however often Paystack repeats the webhook. A refund
+ * that moves to needs-attention emits `order_refund.needs_attention`, each time it does (#13).
  */
 export const syncOrderRefundsWorkflow = createWorkflow("sync-order-refunds", (input: { transaction_reference: string }) => {
   const changes = fetchRefundChangesStep(input)
@@ -89,5 +98,9 @@ export const syncOrderRefundsWorkflow = createWorkflow("sync-order-refunds", (in
     changes.filter((c) => c.to === "processed" && c.row.order_id).map((c) => ({ id: c.id }))
   )
   emitEventStep({ eventName: ORDER_REFUND_PROCESSED, data: processed })
+  const needsAttention = transform({ changes }, ({ changes }) =>
+    changes.filter((c) => c.to === "needs-attention").map((c) => ({ id: c.id }))
+  )
+  emitEventStep({ eventName: ORDER_REFUND_NEEDS_ATTENTION, data: needsAttention }).config({ name: "emit-order-refund-needs-attention" })
   return new WorkflowResponse(changes)
 })

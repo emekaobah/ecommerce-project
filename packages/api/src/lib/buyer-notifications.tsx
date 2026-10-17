@@ -3,6 +3,8 @@ import {
   buyerStatusPush,
   itemsRemovedPush,
   notPlacedPush,
+  appIdentity,
+  refundAccountPush,
   refundByHandPush,
   refundCompletedPush,
   openingLabel,
@@ -11,6 +13,7 @@ import {
   PRODUCT_NAME,
   shopStatus,
   type FulfilmentState,
+  type RefundAccountReminder,
   type RefundNotice,
   type StoredAddress,
 } from "@oja/domain"
@@ -22,6 +25,7 @@ import { DeliveryReceiptEmail } from "../emails/delivery-receipt"
 import { OrderCancelledEmail } from "../emails/order-cancelled"
 import { OrderConfirmationEmail } from "../emails/order-confirmation"
 import type { EmailShopOrder } from "../emails/parts"
+import { RefundAccountEmail } from "../emails/refund-account"
 import { RefundByHandEmail } from "../emails/refund-by-hand"
 import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
@@ -325,6 +329,47 @@ export async function pushRefundCompleted(scope: Scope, refundId: string): Promi
     idempotencyKey: (to) => `buyer-refund-completed:${refund.id}:${to}`,
     about: `the refund ${refund.id}`,
   })
+}
+
+/** The buyer app's screen for a refund, where they add the bank account it needs (#13). */
+export const refundScreen = (refundId: string) => `/refund/${refundId}`
+
+/** The order refund, and the buyer's order it refunds; null for a refund of no order, or a buyer gone. */
+async function refundOfBuyerOrder(scope: Scope, refundId: string) {
+  const [refund] = await fulfilmentService(scope).listOrderRefunds({ id: refundId })
+  const found = refund?.order_id ? await buyerOrder(scope, refund.order_id) : null
+  return refund && found ? { refund, ...found } : null
+}
+
+/**
+ * Asks the buyer, by push and email, for a bank account to receive a refund Paystack couldn't
+ * return to their card (#13), or reminds them. Each opens the refund's screen in the app. Once
+ * per refund each time it needs attention, and once per reminder.
+ */
+export async function askForRefundAccount(scope: Scope, refundId: string, reminder?: RefundAccountReminder & { nth: number }): Promise<void> {
+  const found = await refundOfBuyerOrder(scope, refundId)
+  if (!found) return
+  const { refund, checkout, order } = found
+  const notice: RefundNotice = { display_id: order.display_id, shop: order.seller.name, amount: Number(refund.amount), currency_code: refund.currency_code }
+  const since = refund.needs_attention_at ? new Date(refund.needs_attention_at).toISOString() : ""
+  const key = `refund-account${reminder ? `-reminder-${reminder.nth}` : ""}:${refund.id}:${since}`
+  const url = refundScreen(refund.id)
+  const push = refundAccountPush(notice, reminder)
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "refund-account",
+      subject: reminder ? `Reminder: add a bank account for your ${PRODUCT_NAME} refund` : `Add a bank account for your ${PRODUCT_NAME} refund`,
+      body: <RefundAccountEmail refund={notice} link={`${appIdentity("buyer").scheme}:/${url}`} reminder={reminder} />,
+      key,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-refund-account",
+      ...push,
+      data: { url, order_group_id: checkout.group.id, order_id: order.id, refund_id: refund.id },
+      idempotencyKey: (to) => `buyer-${key}:${to}`,
+      about: `the bank account refund ${refund.id} needs`,
+    }),
+  ])
 }
 
 /** The buyer app's checkout for a cart, which a push about a cart that wasn't placed opens. */

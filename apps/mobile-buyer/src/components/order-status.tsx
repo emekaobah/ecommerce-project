@@ -1,5 +1,6 @@
 import { formatMoney, orderStatus, owedRefundStatus, refundStatus } from '@oja/domain';
-import { StatusChip, Text, useTheme } from '@oja/ui';
+import { Button, StatusChip, Text, useTheme } from '@oja/ui';
+import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import type { SellerOrder } from '@/api/orders';
@@ -40,6 +41,13 @@ export function OrderStatusDetails({ order }: Readonly<{ order: SellerOrder }>) 
         </Text>
       ) : null}
       {owed?.note ? <Text tone="secondary">{`${owed.note}.`}</Text> : null}
+      {order.refund_needing_account ? (
+        <Button
+          label="Add a bank account"
+          variant="secondary"
+          onPress={() => router.push(`/refund/${order.refund_needing_account}`)}
+        />
+      ) : null}
     </View>
   );
 }

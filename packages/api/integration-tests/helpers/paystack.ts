@@ -24,6 +24,9 @@ type Refund = {
   createdAt: string
 }
 
+/** A refund retried to the buyer's bank account (POST /refund/retry_with_customer_details/:id). */
+type RefundRetry = { refund_id: number; currency: string; account_number: string; bank_id: string | number }
+
 type Transfer = {
   id: number
   transfer_code: string
@@ -69,12 +72,14 @@ type Recipient = {
  * daily lookups (`limitResolves`), and creates transfer recipients for accounts it resolves. It
  * queues transfers to those recipients, which a test settles (`settleTransfer`) and signs
  * `transfer.*` webhooks for, and lists refunds by date, including any a test made by hand
- * (`refundByHand`).
+ * (`refundByHand`). A refund a test moved to `needs-attention` can be retried to a bank
+ * account at one of `BANKS` (`retries`), and is then processing again.
  */
 export function fakePaystack(port: number) {
   const secretKey = `sk_test_${randomUUID().replaceAll("-", "")}`
   const transactions = new Map<string, Transaction>()
   const refunds = new Map<number, Refund>()
+  const retries: RefundRetry[] = []
   let refundError: string | undefined
   const unknownAccounts = new Set<string>()
   let resolveLimited = false
@@ -144,6 +149,22 @@ export function fakePaystack(port: number) {
     // As Paystack test mode does, even for a partial refund.
     refunded.status = "reversal-pending"
     return ok("Refund has been queued for processing", queued)
+  }
+
+  /** Paystack retries a refund that needs attention to the buyer's bank account: it is processing again. */
+  const retryRefund = async (req: IncomingMessage, id: string) => {
+    const body = await readBody(req)
+    const found = refunds.get(Number(id))
+    if (!found) return refused(404, "Refund not found")
+    if (found.status !== "needs-attention") return refused(400, "Refund does not need attention")
+    const details = body.refund_account_details ?? {}
+    const bank = BANKS.find((b) => String(b.id) === String(details.bank_id))
+    if (!bank || !/^\d{10}$/.test(details.account_number ?? "") || details.currency !== found.currency) {
+      return refused(400, "Invalid refund account details")
+    }
+    retries.push({ refund_id: found.id, ...details })
+    found.status = "processing"
+    return ok("Refund retried and has been queued for processing", found)
   }
 
   const fetchRefund = (id: string) => {
@@ -235,6 +256,7 @@ export function fakePaystack(port: number) {
     ["GET", /^\/transaction\/verify\/(.+)$/, (_, reference) => verify(reference)],
     ["POST", /^\/refund$/, createRefund],
     ["GET", /^\/refund\/(\d+)$/, (_, id) => fetchRefund(id)],
+    ["POST", /^\/refund\/retry_with_customer_details\/(\d+)$/, retryRefund],
     ["GET", /^\/refund\?/, listRefunds],
     ["POST", /^\/transfer$/, createTransfer],
     ["GET", /^\/transfer\/verify\/(.+)$/, (_, reference) => verifyTransfer(reference)],
@@ -309,6 +331,8 @@ export function fakePaystack(port: number) {
     settleRefund: (id: number, status: RefundStatus) => {
       refund(id).status = status
     },
+    /** Each refund retried to a bank account, oldest first, with the details it was sent. */
+    retries: () => [...retries],
     /** Every refund from now on is turned down with this message (e.g. "Insufficient balance"), until cleared. */
     refuseRefunds: (message: string | undefined) => {
       refundError = message

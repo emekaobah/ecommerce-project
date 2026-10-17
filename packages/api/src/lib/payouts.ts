@@ -258,7 +258,8 @@ const breakdownOf = (order: PaidOrder, delivery = Number(order.shipping_total ??
 
 /**
  * Orders with a refund of items Paystack hasn't settled, which wait for it before they are paid
- * out. A refund of delivery doesn't change the payout (#22), so it holds nothing up.
+ * out. A refund of delivery doesn't change the payout (#22), so it holds nothing up, and nor
+ * does one handed to Oja's team to send by hand (#13): it counts as refunded already.
  */
 export async function withUnsettledRefunds(scope: Scope, orderIds: string[]): Promise<Set<string>> {
   if (!orderIds.length) return new Set()
@@ -266,6 +267,7 @@ export async function withUnsettledRefunds(scope: Scope, orderIds: string[]): Pr
     order_id: orderIds,
     covers: "items",
     status: UNSETTLED_REFUND_STATUSES,
+    handed_over_at: null,
   })
   return new Set(rows.map((r) => r.order_id!))
 }

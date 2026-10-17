@@ -50,11 +50,11 @@ const REFUNDS: Record<RefundStatus, StatusView> = {
   processed: { label: "Refunded", tone: "success", note: null },
   // The accept-deadline job refunds it again (#20).
   failed: { label: "Refund delayed", tone: "warning", note: "It didn't go through, so we're trying again." },
-  // Paystack needs the buyer's bank account to retry it; until #72 an operator does that.
+  // Paystack needs the buyer's bank account to retry it (#13); after 7 days Oja's team sends it.
   "needs-attention": {
     label: "Refund delayed",
     tone: "warning",
-    note: "Your bank couldn't take it back to your card. We'll contact you to finish it.",
+    note: "Your bank couldn't take it back to your card. Add a bank account to receive it.",
   },
 }
 

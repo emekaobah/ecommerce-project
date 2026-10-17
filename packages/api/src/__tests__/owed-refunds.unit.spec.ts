@@ -1,4 +1,4 @@
-import { isDue, owedRefund } from "../lib/owed-refunds"
+import { isDue, NO_ACCOUNT_REASON, owedRefund } from "../lib/owed-refunds"
 
 // What an order owes its buyer and hasn't refunded is retried with backoff, and handled by
 // Oja's team once Paystack can't make it (#16).
@@ -78,5 +78,26 @@ describe("owedRefund", () => {
       last_error: null,
       next_attempt_at: at(5 * MINUTE),
     })
+  })
+
+  // #13: a refund that needed the buyer's bank account for 7 days, of anything.
+  it("owes a refund handed to Oja's team by hand, with what else the order owes, until settled or Paystack settles it", () => {
+    const handedOver = (status = "needs-attention") => ({
+      covers: "all" as const,
+      status,
+      amount: 9000,
+      created_at: at(0),
+      handed_over_at: at(7 * 24 * HOUR),
+    })
+    expect(owedRefund({ owed: 0, settlements: [], refunds: [handedOver()] })).toMatchObject({
+      amount: 9000,
+      attempts: 0,
+      last_error: NO_ACCOUNT_REASON,
+      state: "manual",
+      next_attempt_at: null,
+    })
+    expect(owedRefund({ owed: 2500, settlements: [], refunds: [handedOver()] })).toMatchObject({ amount: 11500, state: "manual" })
+    expect(owedRefund({ owed: 0, settlements: [{ amount: 9000, created_at: at(8 * 24 * HOUR) }], refunds: [handedOver()] })).toBeNull()
+    expect(owedRefund({ owed: 0, settlements: [], refunds: [handedOver("processed")] })).toBeNull()
   })
 })
