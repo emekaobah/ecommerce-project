@@ -20,14 +20,14 @@ export type OrderMoney = {
 }
 
 /** The order graph's `summary`, of which only what the order owes either way is read. */
-export type OrderSummary = { pending_difference?: unknown } | null | undefined
+export type OrderSummary = { pending_difference?: unknown } | null
 
 /**
  * What the order owes its buyer and hasn't refunded: its pending difference when negative. An
  * order edit that removes lines (#22, #32) leaves the order owing what they cost, until a
  * refund of items pays it off.
  */
-export function owedToBuyerOf(summary: OrderSummary): number {
+export function owedToBuyerOf(summary?: OrderSummary): number {
   return MathBN.convert(MathBN.max(MathBN.mult(Number(summary?.pending_difference ?? 0), -1), 0)).toNumber()
 }
 

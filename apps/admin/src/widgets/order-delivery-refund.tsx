@@ -47,7 +47,7 @@ const OrderDeliveryRefundWidget = ({ data }: { data?: { id: string; updated_at?:
   }
   const { currency_code: currency, left } = refundable
   const requested = amount.trim() === "" ? undefined : Number(amount)
-  const invalid = requested !== undefined && (!(requested > 0) || requested > left)
+  const invalid = requested !== undefined && (!Number.isFinite(requested) || requested <= 0 || requested > left)
 
   return (
     <Container className="divide-y p-0">
