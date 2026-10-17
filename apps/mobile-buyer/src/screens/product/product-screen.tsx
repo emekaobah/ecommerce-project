@@ -1,5 +1,14 @@
 import { useAuth } from '@clerk/expo';
-import { deliveryEstimate, formatMoney, formatWeight, isSaved, listingPrice, offerPrice, shipsIn } from '@oja/domain';
+import {
+  deliveryEstimate,
+  distanceLabel,
+  formatMoney,
+  formatWeight,
+  isSaved,
+  listingPrice,
+  offerPrice,
+  shipsIn,
+} from '@oja/domain';
 import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -137,6 +146,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
       <DealBadges deals={listing.deals} all />
       <View style={[styles.shopRow, { gap: theme.space.xs }]}>
         <Button label={seller.name} variant="link" onPress={() => openShop(seller)} style={styles.inlineLink} />
+        {seller.distance_km == null ? null : <Text tone="secondary">· {distanceLabel(seller.distance_km)}</Text>}
         <DeliveryTime listing={listing} currencyCode={currencyCode} />
       </View>
       <ShopRating sellerId={seller.id} />

@@ -291,24 +291,26 @@ medusaIntegrationTestRunner({
         expect(paidOnOrder(accepted)).toEqual({ captured: ORDER_TOTALS.get(GROCERY), refunded: 0 })
       })
 
-      it("counts only the shop's open time: a pause stops the clock (ADR 0004)", async () => {
-        const { gadgets } = await paidOrders()
+      it("rejects and refunds an order waiting when the shop paused until further notice at its original deadline (#18)", async () => {
+        const { reference, gadgets, grocery } = await paidOrders()
+        await accept(GROCERY, grocery)
         const placedAt = Date.parse((await shopOrder(GADGETS, gadgets)).created_at)
-        // The gadget hub was paused for ten hours, an hour after the order came in.
+        // The gadget hub paused an hour after the order came in, and never resumed.
         const shopHours = getContainer().resolve<ShopHoursModuleService>(SHOP_HOURS_MODULE)
         const pause = await shopHours.createShopPauses({
           seller_id: await buyer.sellerId(GADGETS),
           starts_at: new Date(placedAt + HOUR),
-          ends_at: new Date(placedAt + 11 * HOUR),
+          ends_at: null,
         })
 
         try {
-          expect((await shopOrder(GADGETS, gadgets)).fulfilment.accept_by).toBe(new Date(placedAt + 34 * HOUR).toISOString())
-          await rejectOverdueOrders(getContainer(), new Date(placedAt + 24 * HOUR + 1000))
+          expect((await shopOrder(GADGETS, gadgets)).fulfilment.accept_by).toBe(new Date(placedAt + 24 * HOUR).toISOString())
+          await rejectOverdueOrders(getContainer(), new Date(placedAt + 23 * HOUR))
           expect((await shopOrder(GADGETS, gadgets)).fulfilment.state).toBe("new")
 
-          await rejectOverdueOrders(getContainer(), new Date(placedAt + 34 * HOUR + 1000))
+          await rejectOverdueOrders(getContainer(), new Date(placedAt + 24 * HOUR + 1000))
           expect((await shopOrder(GADGETS, gadgets)).fulfilment).toMatchObject({ state: "rejected", rejected_by: "accept_deadline" })
+          expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([ORDER_TOTALS.get(GADGETS)! * 100])
         } finally {
           await shopHours.deleteShopPauses(pause.id)
         }

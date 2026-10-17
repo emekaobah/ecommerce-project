@@ -1,5 +1,7 @@
 import { skipToken, useQuery } from '@tanstack/react-query';
 
+import { useDeliveringToId } from '@/delivering-to/delivering-to-provider';
+
 import { storeClient } from './client';
 import { isNotFound } from './errors';
 
@@ -12,16 +14,25 @@ type ListFilters = {
   limit?: number;
 };
 
+/** The buyer's saved address shops are measured from (#43); none for a guest or without one. */
+type Near = { addressId: string | null };
+
 export const listingKeys = {
   all: ['listings'] as const,
-  list: (regionId: string, filters: ListFilters = {}) => [...listingKeys.all, 'list', { regionId, ...filters }] as const,
+  list: (regionId: string, filters: ListFilters & Near) => [...listingKeys.all, 'list', { regionId, ...filters }] as const,
   detail: (regionId: string, sellerId: string, productId: string) =>
     [...listingKeys.all, 'detail', { regionId, sellerId, productId }] as const,
 };
 
-function fetchListings(regionId: string, { search, categoryId, sellerId, excludeProductId, limit }: ListFilters) {
+const near = (addressId: string | null) => (addressId ? { address_id: addressId } : {});
+
+function fetchListings(
+  regionId: string,
+  { search, categoryId, sellerId, excludeProductId, limit, addressId }: ListFilters & Near
+) {
   return storeClient.store.listings.query({
     region_id: regionId,
+    ...near(addressId),
     ...(search ? { q: search } : {}),
     ...(categoryId ? { category_id: categoryId } : {}),
     ...(sellerId ? { seller_id: sellerId } : {}),
@@ -30,11 +41,12 @@ function fetchListings(regionId: string, { search, categoryId, sellerId, exclude
   });
 }
 
-async function fetchListing(regionId: string, sellerId: string, productId: string) {
+async function fetchListing(regionId: string, sellerId: string, productId: string, addressId: string | null) {
   const { listing } = await storeClient.store.listings.$sellerId.$productId.query({
     $sellerId: sellerId,
     $productId: productId,
     region_id: regionId,
+    ...near(addressId),
   });
   return listing;
 }
@@ -43,13 +55,17 @@ export type Listing = Awaited<ReturnType<typeof fetchListings>>['listings'][numb
 export type ListingDetail = Awaited<ReturnType<typeof fetchListing>>;
 
 /**
- * Shop listings visible in the region, in the backend's order (best match, then fastest shop;
- * never by price): the feed, search and category results, or one shop's.
+ * Shop listings visible in the region, in the backend's order (best match, then nearest and
+ * fastest shop from the address the buyer delivers to; never by price): the feed, search and
+ * category results, or one shop's. Waits until it is known which address that is.
  */
 export function useListings(regionId: string | undefined, filters: ListFilters = {}) {
+  const addressId = useDeliveringToId();
+  const measured = { ...filters, addressId: addressId ?? null };
   return useQuery({
-    queryKey: listingKeys.list(regionId ?? '', filters),
-    queryFn: regionId ? async () => (await fetchListings(regionId, filters)).listings : skipToken,
+    queryKey: listingKeys.list(regionId ?? '', measured),
+    queryFn:
+      regionId && addressId !== undefined ? async () => (await fetchListings(regionId, measured)).listings : skipToken,
   });
 }
 
@@ -82,11 +98,13 @@ export function useDeliveryEstimate(
   });
 }
 
-/** One shop's listing of a product, for the product page. */
+/** One shop's listing of a product, for the product page, with how far the shop is. */
 export function useListing(regionId: string | undefined, sellerId: string, productId: string) {
+  const addressId = useDeliveringToId();
   return useQuery({
-    queryKey: listingKeys.detail(regionId ?? '', sellerId, productId),
-    queryFn: regionId ? () => fetchListing(regionId, sellerId, productId) : skipToken,
+    queryKey: [...listingKeys.detail(regionId ?? '', sellerId, productId), { addressId }] as const,
+    queryFn:
+      regionId && addressId !== undefined ? () => fetchListing(regionId, sellerId, productId, addressId) : skipToken,
     // The shop stopped selling it.
     retry: (failures, error) => !isNotFound(error) && failures < 1,
   });

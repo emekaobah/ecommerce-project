@@ -52,6 +52,7 @@ import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { ShopStatusBadge } from '@/components/shop-status';
 import { env } from '@/config/env';
+import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
 import { useRegion } from '@/region/region-provider';
 
 import { PromoCodes } from './promo-codes';
@@ -158,6 +159,11 @@ function CheckoutForm({
   const { userId } = useAuth();
   const customer = useCustomer(userId);
   const saved = useSavedAddresses(userId);
+  // Checkout starts on the address Home and Search deliver to (#43); until that is known, the
+  // saved addresses count as loading.
+  const { address: deliveringTo } = useDeliveringTo();
+  const startingFrom = deliveringTo === undefined ? undefined : saved.data;
+  const picked = deliveringTo?.id ?? null;
   const prepare = usePrepareCheckout(cartId);
   const saveToAddressBook = useSaveAddress(countryCode);
 
@@ -176,8 +182,9 @@ function CheckoutForm({
     addressStep({
       cartAddress: checkout.shipping_address,
       readyToPay: checkout.ready_to_pay,
-      saved: saved.data,
+      saved: startingFrom,
       savedFailed: !!saved.error,
+      picked,
       countryCode,
     });
 
@@ -216,7 +223,8 @@ function CheckoutForm({
   const chooseAddress = useCallback(() => setBuyerStep('choosing'), []);
   useAutomaticQuotes({
     step,
-    saved: saved.data,
+    saved: startingFrom,
+    picked,
     countryCode,
     cartAddress,
     checkout,
@@ -562,7 +570,8 @@ function PayBar({
 }
 
 /**
- * The quotes checkout asks for by itself. It starts with the buyer's default address, once.
+ * The quotes checkout asks for by itself. It starts with the address the buyer delivers to
+ * (picked on Home or Search, else their default), once.
  * A cart changed since its delivery was quoted (a shop added, a quantity changed) has a shop
  * without rates, so it is quoted again at the cart's address, once. A shop that can't deliver
  * isn't missing rates. If either fails, the buyer
@@ -571,6 +580,7 @@ function PayBar({
 function useAutomaticQuotes({
   step,
   saved,
+  picked,
   countryCode,
   cartAddress,
   checkout,
@@ -581,6 +591,8 @@ function useAutomaticQuotes({
 }: {
   step: AddressStep;
   saved: SavedAddressRecord[] | undefined;
+  /** The saved address picked to deliver to on Home or Search (#43). */
+  picked: string | null;
   countryCode: string;
   cartAddress: PinnedDeliveryAddress | null;
   checkout: Checkout;
@@ -593,11 +605,11 @@ function useAutomaticQuotes({
 }) {
   const preselecting = useRef(false);
   useEffect(() => {
-    const preselected = step === 'starting' && saved && !everyCollected ? preselectedAddress(saved, countryCode) : null;
+    const preselected = step === 'starting' && saved && !everyCollected ? preselectedAddress(saved, countryCode, picked) : null;
     if (!preselected || preselecting.current) return;
     preselecting.current = true;
     prepare.mutate({ shippingAddress: preselected.address, pickup }, { onError: onFailed });
-  }, [step, saved, countryCode, everyCollected, pickup, prepare, onFailed]);
+  }, [step, saved, picked, countryCode, everyCollected, pickup, prepare, onFailed]);
 
   // A shop that can't deliver its order (perishables no courier brings in time, #69) says why
   // instead of being quoted again; a shop collected from needs no rates.

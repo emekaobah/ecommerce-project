@@ -173,7 +173,7 @@ export type FulfilmentView = {
   state: FulfilmentState
   /**
    * ISO 8601; only while the order waits to be accepted. 24 of the shop's open hours after it
-   * was placed (ADR 0004); also null while the shop is paused with no time set to reopen.
+   * was placed (ADR 0004); a pause that starts after it was placed doesn't stop the clock (#18).
    */
   accept_by: string | null
   rejected_by: "seller" | "accept_deadline" | null
