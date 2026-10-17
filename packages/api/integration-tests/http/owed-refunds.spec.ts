@@ -1,11 +1,14 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { formatMoney } from "@oja/domain"
 import { retryOwedRefunds } from "../../src/lib/refund-retry"
 import seedDemoData from "../../src/scripts/seed"
 import { refundOrderShareWorkflow } from "../../src/workflows/order-fulfilment/workflows/refund-order-share"
 import { adminHeaders } from "../helpers/auth"
-import { buyerCheckout, GROCERY, RICE, type Shop } from "../helpers/checkout"
+import { buyerCheckout, eventually, GROCERY, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
+import { fakeExpoPush, pushToken } from "../helpers/expo-push"
 import { fakePaystack } from "../helpers/paystack"
+import { fakeResend } from "../helpers/resend"
 import { fakeShipbubble } from "../helpers/shipbubble"
 
 jest.setTimeout(5 * 60 * 1000)
@@ -14,12 +17,19 @@ const clerk = fakeClerk()
 // A port per test process, so each fake can be named in the config before it is listening.
 const paystack = fakePaystack(36000 + (process.pid % 1000))
 const shipbubble = fakeShipbubble(37000 + (process.pid % 1000))
+const expo = fakeExpoPush(38000 + (process.pid % 1000))
+const resend = fakeResend(39000 + (process.pid % 1000))
 // Set before the runner loads medusa-config, which registers each provider only when its key is set.
 process.env.CLERK_JWT_KEY = clerk.jwtKey
 process.env.PAYSTACK_SECRET_KEY = paystack.secretKey
 process.env.PAYSTACK_API_URL = paystack.apiUrl
 process.env.SHIPBUBBLE_API_KEY = shipbubble.apiKey
 process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
+process.env.EXPO_ACCESS_TOKEN = expo.accessToken
+process.env.EXPO_PUSH_API_URL = expo.apiUrl
+process.env.RESEND_API_KEY = resend.apiKey
+process.env.RESEND_API_URL = resend.apiUrl
+process.env.RESEND_FROM = "Oja <orders@oja.test>"
 
 const ADA = "ada@oja.test"
 const BALANCE = "Insufficient balance"
@@ -27,6 +37,8 @@ const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
 /** A moment `ms` after `start`, when the retry job runs. */
 const after = (start: number, ms: number) => new Date(start + ms)
+/** When the retry job runs to make the first, second and third retries of a refund first refused at `start`. */
+const RETRIES = [6 * MINUTE, 2 * HOUR, 9 * HOUR]
 
 // A refund Paystack refuses is owed to the buyer until it is made: retried with backoff, then
 // handed to Oja's team, who can retry it or mark it settled by hand (#16).
@@ -42,12 +54,14 @@ medusaIntegrationTestRunner({
       )
 
     beforeAll(async () => {
-      await Promise.all([paystack.start(), shipbubble.start()])
+      await Promise.all([paystack.start(), shipbubble.start(), expo.start(), resend.start()])
       await seedDemoData({ container: getContainer(), args: [] } as any)
     })
-    afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
+    afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop(), resend.stop()]))
     beforeEach(async () => {
       paystack.refuseRefunds(undefined)
+      expo.reset()
+      resend.reset()
       await buyer.load()
     })
 
@@ -56,6 +70,43 @@ medusaIntegrationTestRunner({
     const admin = () => adminHeaders(getContainer(), api)
     const owedRefunds = async () => (await api.get("/admin/owed-refunds", await admin())).data.owed_refunds as any[]
     const owedRefundOf = async (orderId: string) => (await owedRefunds()).find((o) => o.order_id === orderId)
+    const retryAll = async (start: number, times: number[]) => {
+      for (const ms of times) await retryOwedRefunds(getContainer(), after(start, ms))
+    }
+
+    /** Ada's device registers for pushes, as the buyer app does once she's signed in. */
+    const registerAda = async () => {
+      const token = pushToken()
+      await api.post("/store/push-tokens", { token }, buyer.ada())
+      return token
+    }
+    /** The pushes a device has had about a refund sent by hand, once at least `count` have arrived. */
+    const refundPushesTo = (token: string, count = 1) =>
+      eventually(
+        async () => expo.sentTo(token).filter((m: any) => String(m.body ?? "").startsWith("Our team is sending")),
+        (sent) => sent.length >= count
+      )
+    /** The emails Ada has had about a refund sent by hand, once at least `count` have arrived. */
+    const refundEmailsToAda = (count = 1) =>
+      eventually(async () => resend.sentTo(ADA).filter((e) => e.subject.includes("refund")), (sent) => sent.length >= count)
+    /** The admin's notifications about a refund to send by hand for the order. */
+    const adminNoticesAbout = async (displayId: number) => {
+      const { data } = await buyer.query().graph({ entity: "notification", fields: ["data"], filters: { channel: "feed" } })
+      return data.filter((n: any) => n.data?.title === `Refund for order #${displayId} to send by hand`)
+    }
+    /** The grocery's order as Ada sees it in her order history. */
+    const adasOrder = async (cartId: string, orderId: string) => {
+      const groupId = await buyer.orderGroupOf(cartId)
+      const { order_group } = (await api.get(`/store/order-history/${groupId}`, buyer.ada())).data
+      return order_group.orders.find((o: any) => o.id === orderId)
+    }
+    /** Paystack processes the transaction's pending refunds, and its webhook says so. */
+    const settleRefunds = async (reference: string) => {
+      for (const refund of paystack.refundsOf(reference).filter((r) => r.status === "pending")) {
+        paystack.settleRefund(refund.id, "processed")
+        await buyer.postWebhook(paystack.refundEvent(refund.id))
+      }
+    }
 
     /** Ada's paid checkout; the grocery removes one of its two bags of rice, and Paystack refuses the refund. */
     const refusedRefund = async () => {
@@ -114,6 +165,51 @@ medusaIntegrationTestRunner({
         expect(paystack.refundsOf(reference)).toHaveLength(1)
       })
 
+      it("hands it to Oja's team after the third retry fails: the admin is notified, and Ada told by push and email", async () => {
+        const device = await registerAda()
+        const { orderId, reference } = await refusedRefund()
+        const start = Date.now()
+
+        await retryAll(start, RETRIES)
+
+        const owed = await owedRefundOf(orderId)
+        expect(owed).toMatchObject({ attempts: 4, last_error: BALANCE, state: "manual", next_attempt_at: null })
+        expect(await adminNoticesAbout(owed.display_id)).toHaveLength(1)
+        const [push] = await refundPushesTo(device)
+        expect(push).toMatchObject({
+          title: `Refund for order #${owed.display_id}`,
+          body: `Our team is sending your ${formatMoney(RICE.price, "ngn")} refund for your order from ${GROCERY.name}.`,
+          data: { order_id: orderId },
+        })
+        const [email] = await refundEmailsToAda()
+        expect(email.html).toContain(`Our team is sending your ${formatMoney(RICE.price, "ngn")} refund`)
+
+        // No more retries, and Ada and the admin are told once.
+        paystack.refuseRefunds(undefined)
+        await retryOwedRefunds(getContainer(), after(start, 48 * HOUR))
+        expect(paystack.refundsOf(reference)).toEqual([])
+        expect(await adminNoticesAbout(owed.display_id)).toHaveLength(1)
+        expect(await refundPushesTo(device)).toHaveLength(1)
+      })
+
+      it("hands an amount under Paystack's ₦50 minimum straight to Oja's team, without asking Paystack", async () => {
+        const device = await registerAda()
+        const { orderId, reference } = await refusedRefund()
+        paystack.refuseRefunds(undefined)
+        // The shop refunds all but ₦30 of the bag itself.
+        await refundOrderShareWorkflow(getContainer()).run({ input: { order_id: orderId, amount: RICE.price - 30 } })
+        await settleRefunds(reference)
+
+        await retryOwedRefunds(getContainer(), after(Date.now(), MINUTE))
+
+        expect(paystack.refundsOf(reference)).toHaveLength(1)
+        const owed = await owedRefundOf(orderId)
+        expect(owed).toMatchObject({ amount: 30, attempts: 0, state: "manual" })
+        expect(await adminNoticesAbout(owed.display_id)).toHaveLength(1)
+        const [push] = await refundPushesTo(device)
+        expect(push.body).toContain(`Our team is sending your ${formatMoney(30, "ngn")} refund`)
+      })
+
       it("leaves an order alone while a refund of it is still in Paystack's hands", async () => {
         const { orderId, reference } = await refusedRefund()
         paystack.refuseRefunds(undefined)
@@ -123,6 +219,22 @@ medusaIntegrationTestRunner({
 
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([100 * 100])
         expect(await owedRefundOf(orderId)).toMatchObject({ amount: RICE.price - 100, state: "retrying" })
+      })
+    })
+
+    describe("Ada's order", () => {
+      it("shows the refund pending while it is retried, that Oja's team is sending it, and nothing once refunded", async () => {
+        const { cartId, orderId } = await refusedRefund()
+
+        // The refused attempt was never made, so it isn't a refund that failed.
+        expect(await adasOrder(cartId, orderId)).toMatchObject({ owed_refund: { amount: RICE.price, state: "retrying" }, refund: null })
+
+        await retryAll(Date.now(), RETRIES)
+        expect((await adasOrder(cartId, orderId)).owed_refund).toEqual({ amount: RICE.price, state: "manual" })
+
+        paystack.refuseRefunds(undefined)
+        await api.post(`/admin/owed-refunds/${orderId}/retry`, {}, await admin())
+        expect(await adasOrder(cartId, orderId)).toMatchObject({ owed_refund: null, refund: { amount: RICE.price, status: "pending" } })
       })
     })
 

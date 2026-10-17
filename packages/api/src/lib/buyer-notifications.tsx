@@ -2,6 +2,7 @@ import {
   addressLines,
   buyerStatusPush,
   itemsRemovedPush,
+  refundByHandPush,
   refundCompletedPush,
   openingLabel,
   orderConfirmedPush,
@@ -16,6 +17,7 @@ import type { ReactElement } from "react"
 import { DeliveryReceiptEmail } from "../emails/delivery-receipt"
 import { OrderConfirmationEmail } from "../emails/order-confirmation"
 import type { EmailShopOrder } from "../emails/parts"
+import { RefundByHandEmail } from "../emails/refund-by-hand"
 import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
@@ -240,6 +242,33 @@ export async function pushItemsRemoved(
     idempotencyKey: (to) => `buyer-order-items-removed:${orderId}:${at}:${to}`,
     about: `the items removed from order ${orderId}`,
   })
+}
+
+/**
+ * Tells the buyer, by push and email, that Oja's team is sending a refund of their order by
+ * hand (#16): Paystack can't make it. Once per order and amount, however often it is asked.
+ */
+export async function tellRefundByHand(scope: Scope, { order_id: orderId, amount }: { order_id: string; amount: number }): Promise<void> {
+  const found = await buyerOrder(scope, orderId)
+  if (!found) return
+  const { checkout, order } = found
+  const details = { display_id: order.display_id, shop: order.seller.name, amount, currency_code: order.currency_code }
+  const key = `refund-by-hand:${orderId}:${amount}`
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "refund-by-hand",
+      subject: `Your ${PRODUCT_NAME} refund for order #${order.display_id}`,
+      body: <RefundByHandEmail display_id={order.display_id} shop={order.seller.name} currency={order.currency_code} amount={amount} />,
+      key,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-refund-by-hand",
+      ...refundByHandPush(details),
+      data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+      idempotencyKey: (to) => `buyer-${key}:${to}`,
+      about: `the refund owed on order ${orderId}`,
+    }),
+  ])
 }
 
 /** Pushes the buyer that a refund of their order has completed: Paystack processed it. */
