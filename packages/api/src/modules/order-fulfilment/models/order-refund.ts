@@ -44,6 +44,25 @@ const OrderRefund = model
      * and counts as an attempt at what the order still owes its buyer (`lib/owed-refunds`).
      */
     failure_reason: model.text().nullable(),
+    /**
+     * When Paystack last said the refund needs attention (#13): it couldn't return the money to
+     * the buyer's card and needs their bank account. The buyer is asked for one, reminded after
+     * 1 and 3 days, and after 7 the refund is handed to Oja's team (`handed_over_at`).
+     */
+    needs_attention_at: model.dateTime().nullable(),
+    /**
+     * When a refund that needed attention was handed to Oja's team to send by hand (#13): the
+     * buyer gave no bank account in 7 days. It still counts as refunded (Paystack holds the
+     * money), but it no longer holds up the order's payout or retries, and the order owes it to
+     * its buyer by hand (`lib/owed-refunds`).
+     */
+    handed_over_at: model.dateTime().nullable(),
+    /**
+     * The bank the buyer had the refund retried to (#13), and the account number's last 4
+     * digits, for support. The account number itself is never stored: it goes to Paystack only.
+     */
+    account_bank_name: model.text().nullable(),
+    account_last4: model.text().nullable(),
   })
   .indexes([{ on: ["order_id"] }, { on: ["transaction_reference"] }])
 

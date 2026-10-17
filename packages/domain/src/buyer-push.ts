@@ -140,3 +140,25 @@ export function refundByHandPush({ display_id, shop, amount, currency_code }: Re
     body: `Our team is sending your ${formatMoney(amount, currency_code)} refund for your order from ${shop}.`,
   }
 }
+
+/** A reminder that a refund still needs the buyer's bank account: how many days before Oja's team takes it over. */
+export type RefundAccountReminder = { days_left: number }
+
+/**
+ * The push asking the buyer for a bank account to receive a refund (#13): Paystack couldn't
+ * return it to their card. A reminder says how long they have before Oja's team takes it over.
+ */
+export function refundAccountPush({ display_id, shop, amount, currency_code }: RefundNotice, reminder?: RefundAccountReminder): BuyerPush {
+  const refund = formatMoney(amount, currency_code)
+  if (!reminder) {
+    return {
+      title: "Your refund needs your bank account",
+      body: `Your bank couldn't take the ${refund} refund for order #${display_id} from ${shop} back to your card. Add a bank account to receive it.`,
+    }
+  }
+  const days = reminder.days_left === 1 ? "1 day" : `${reminder.days_left} days`
+  return {
+    title: "Reminder: your refund needs your bank account",
+    body: `Add a bank account to receive your ${refund} refund for order #${display_id}. If you don't within ${days}, our team will contact you.`,
+  }
+}

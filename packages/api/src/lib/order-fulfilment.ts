@@ -38,6 +38,11 @@ export const ORDER_STATE_CHANGED = "order_fulfilment.state_changed"
 export const ORDER_ITEMS_REMOVED = "order_fulfilment.items_removed"
 /** Emitted when Paystack has processed an order's refund, so the money has reached the buyer, with `{ id }` (the order refund). */
 export const ORDER_REFUND_PROCESSED = "order_refund.processed"
+/**
+ * Emitted when Paystack says a refund needs attention (#13), with `{ id }` (the order refund):
+ * it couldn't return the money to the card, and needs the buyer's bank account to retry.
+ */
+export const ORDER_REFUND_NEEDS_ATTENTION = "order_refund.needs_attention"
 /** Emitted when staff accept a new order, with `{ id }` (the order). */
 export const ORDER_ACCEPTED = "order_fulfilment.accepted"
 /** Emitted when a new order is rejected, by its shop or by the accept deadline, with `{ id, rejected_by }`. */

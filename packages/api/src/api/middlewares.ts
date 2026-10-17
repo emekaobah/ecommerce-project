@@ -40,6 +40,7 @@ import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
+import { StoreRefundAccount } from "./store/refunds/validators";
 import { StoreGetPublishedReviews } from "./store/reviews/validators";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
@@ -174,6 +175,18 @@ export default defineMiddlewares({
             method: ["GET"],
             matcher: "/store/order-history/:id",
             middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
+        // A refund that needs the buyer's bank account (#13): theirs only.
+        { matcher: "/store/refunds/*", middlewares: [authenticate("customer", ["session", "bearer"])] },
+        {
+            method: ["POST"],
+            matcher: "/store/refunds/:id/resolve-account",
+            middlewares: [validateAndTransformBody(StoreRefundAccount)],
+        },
+        {
+            method: ["POST"],
+            matcher: "/store/refunds/:id/retry",
+            middlewares: [validateAndTransformBody(StoreRefundAccount)],
         },
         // Address lookup through the backend's Google key, for signed-in buyers only (ADR 0002, #40).
         {

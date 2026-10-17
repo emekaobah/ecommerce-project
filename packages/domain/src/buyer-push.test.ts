@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { buyerStatusPush, itemsRemovedPush, orderConfirmedPush, refundByHandPush, refundCompletedPush } from "./buyer-push"
+import {
+  buyerStatusPush,
+  itemsRemovedPush,
+  orderConfirmedPush,
+  refundAccountPush,
+  refundByHandPush,
+  refundCompletedPush,
+} from "./buyer-push"
 import { formatMoney } from "./money"
 import type { FulfilmentState } from "./fulfilment"
 
@@ -151,5 +158,24 @@ describe("refundByHandPush", () => {
       title: "Refund for order #42",
       body: `Our team is sending your ${formatMoney(30, "ngn")} refund for your order from Mama Put Groceries.`,
     })
+  })
+})
+
+describe("refundAccountPush", () => {
+  const refund = { display_id: 42, shop: "Mama Put Groceries", amount: 14500, currency_code: "ngn" }
+
+  test("asks the buyer for a bank account to receive the refund their card couldn't take", () => {
+    expect(refundAccountPush(refund)).toEqual({
+      title: "Your refund needs your bank account",
+      body: `Your bank couldn't take the ${formatMoney(14500, "ngn")} refund for order #42 from Mama Put Groceries back to your card. Add a bank account to receive it.`,
+    })
+  })
+
+  test("reminds them, saying when Oja's team takes it over", () => {
+    expect(refundAccountPush(refund, { days_left: 6 })).toEqual({
+      title: "Reminder: your refund needs your bank account",
+      body: `Add a bank account to receive your ${formatMoney(14500, "ngn")} refund for order #42. If you don't within 6 days, our team will contact you.`,
+    })
+    expect(refundAccountPush(refund, { days_left: 1 }).body).toContain("within 1 day,")
   })
 })

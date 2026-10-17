@@ -142,7 +142,7 @@ export async function banksFor(currencyCode: string): Promise<{ code: string; na
   return [...byCode.values()].sort((a, b) => a.name.localeCompare(b.name))
 }
 
-function requirePaystack() {
+export function requirePaystack() {
   const paystack = paystackClient()
   if (!paystack) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Bank accounts can't be checked yet: Paystack isn't set up")
@@ -151,14 +151,14 @@ function requirePaystack() {
 }
 
 /** Paystack refused the account, not our request: anything but our key being wrong or a rate limit. */
-const accountRefused = (error: unknown) =>
+export const accountRefused = (error: unknown) =>
   error instanceof PaystackRequestError &&
   error.status >= 400 &&
   error.status < 500 &&
   ![401, 403, 429].includes(error.status)
 
 /** Paystack is limiting bank lookups (test mode allows 3 a day): nothing is wrong with the account. */
-const lookupsLimited = (error: unknown) => error instanceof PaystackRequestError && error.status === 429
+export const lookupsLimited = (error: unknown) => error instanceof PaystackRequestError && error.status === 429
 
 /** The one currency the shop trades and is paid in. */
 export async function currencyOf(scope: MedusaContainer, sellerId: string): Promise<string> {
