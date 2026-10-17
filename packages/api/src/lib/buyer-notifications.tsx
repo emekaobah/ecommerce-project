@@ -9,8 +9,6 @@ import {
   PRODUCT_NAME,
   shopStatus,
   type FulfilmentState,
-  type NotPlaced,
-  type NotPlacedChange,
   type StoredAddress,
 } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
@@ -27,6 +25,7 @@ import { sendEmail } from "./email"
 import { fulfilmentService, fulfilmentsOf, type Picks } from "./order-fulfilment"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
+import type { StoredNotPlaced } from "./unplaced-checkout"
 
 // What buyers are told about their orders (#5): a confirmation once their checkout is paid and
 // a receipt once a shop's order is delivered, each by email and push, and a push as each shop's
@@ -275,7 +274,7 @@ export type CartNotPlaced = {
   cart_id: string
   customer_id: string | null
   email: string | null
-  not_placed: NotPlaced & { currency_code: string; changes: NotPlacedChange[]; refund_id: string }
+  not_placed: StoredNotPlaced
 }
 
 /**
