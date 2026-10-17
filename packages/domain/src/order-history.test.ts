@@ -78,11 +78,11 @@ describe("refundStatus", () => {
     expect(refundStatus({ amount: 12300, status: "failed" })?.note).toBe("It didn't go through, so we're trying again.")
   })
 
-  test("a refund Paystack couldn't return to the card waits for the buyer's bank details (#72)", () => {
+  test("a refund Paystack couldn't return to the card waits for the buyer's bank account (#13)", () => {
     expect(refundStatus({ amount: 12300, status: "needs-attention" })).toEqual({
       label: "Refund delayed",
       tone: "warning",
-      note: "Your bank couldn't take it back to your card. We'll contact you to finish it.",
+      note: "Your bank couldn't take it back to your card. Add a bank account to receive it.",
     })
   })
 })
