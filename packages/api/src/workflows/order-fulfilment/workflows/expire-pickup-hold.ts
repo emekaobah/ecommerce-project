@@ -1,5 +1,6 @@
-import { releaseLockStep } from "@medusajs/medusa/core-flows"
+import { emitEventStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import { WorkflowResponse, createWorkflow, transform, when } from "@medusajs/framework/workflows-sdk"
+import { ORDER_NOT_COLLECTED } from "../../../lib/order-fulfilment"
 import { NOT_COLLECTED_NOTE } from "../../../lib/pickup-hold"
 import { planHoldExpiryStep } from "../steps/expire-pickup-hold"
 import { transitionFulfilmentStep } from "../steps/transition-fulfilment"
@@ -16,7 +17,8 @@ const SYSTEM_ACTOR = "system"
  * returned, and the shop is paid for them (the order is payout-eligible only while any remain).
  *
  * Refunding the buyer is separate (`refundOrderEdit`), as for items removed while picking.
- * The response carries what the edit took off the order's total, which is the refund.
+ * The response carries what the edit took off the order's total, which is the refund; so does
+ * `order_fulfilment.not_collected`, which tells the buyer and the shop (#33).
  */
 export const expirePickupHoldWorkflow = createWorkflow("expire-pickup-hold", (input: { order_id: string }) => {
   const lock = lockOrderFulfilment(input, 120)
@@ -41,6 +43,13 @@ export const expirePickupHoldWorkflow = createWorkflow("expire-pickup-hold", (in
       payout_eligible: plan.perishable_kept,
     }))
   )
+  const event = transform({ input, plan, edited }, ({ input, plan, edited }) => ({
+    id: input.order_id,
+    amount: edited ?? 0,
+    refunded: plan.refunded,
+    kept: plan.kept,
+  }))
+  emitEventStep({ eventName: ORDER_NOT_COLLECTED, data: event }).config({ name: "emit-not-collected" })
   releaseLockStep({ key: lock })
   return new WorkflowResponse(
     transform({ fulfilment, edited }, ({ fulfilment, edited }) => ({ fulfilment, removed_amount: edited ?? 0 }))
