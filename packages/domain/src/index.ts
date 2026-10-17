@@ -34,7 +34,8 @@ export { appIdentity, PRODUCT_NAME } from "./app-identity"
 export type { AppIdentity } from "./app-identity"
 export { selectRegion } from "./region"
 export { CANCEL_REASONS, canCancel, newFulfilment, transition } from "./fulfilment"
-export { CANCEL_REASON_LABELS, cancelReasonText } from "./cancellation"
+export { CANCEL_REASON_LABELS, cancelReasonText, cancelRequest } from "./cancellation"
+export type { CancelForm } from "./cancellation"
 export type {
   CancelAction,
   Cancellation,
