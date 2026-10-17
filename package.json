@@ -105,5 +105,9 @@
   "workspaces": [
     "packages/*",
     "apps/*"
-  ]
+  ],
+  "patchedDependencies": {
+    "@mercurjs/admin@2.3.5": "patches/@mercurjs%2Fadmin@2.3.5.patch",
+    "@mercurjs/vendor@2.3.5": "patches/@mercurjs%2Fvendor@2.3.5.patch"
+  }
 }
