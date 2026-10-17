@@ -1,9 +1,10 @@
 import { PRODUCT_NAME } from '@oja/domain';
 import { EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
-import { FlatList, StyleSheet } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useListings } from '@/api/listings';
+import { DeliveringToPicker } from '@/components/delivering-to-picker';
 import { ListingRow } from '@/components/listing-row';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useRegion } from '@/region/region-provider';
@@ -45,6 +46,9 @@ export function HomeScreen() {
       <Text variant="title" style={{ marginVertical: theme.space.md }}>
         {PRODUCT_NAME}
       </Text>
+      <View style={{ marginBottom: theme.space.md }}>
+        <DeliveringToPicker />
+      </View>
       {content()}
     </SafeAreaView>
   );

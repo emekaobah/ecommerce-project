@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCategories } from '@/api/categories';
 import { useListings } from '@/api/listings';
+import { DeliveringToPicker } from '@/components/delivering-to-picker';
 import { ShopResults } from '@/components/shop-results';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { openCategory } from '@/navigation';
@@ -21,6 +22,7 @@ export function SearchScreen() {
     <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={{ paddingHorizontal: theme.space.md, paddingVertical: theme.space.md, gap: theme.space.md }}>
         <Text variant="title">Search</Text>
+        <DeliveringToPicker />
         <View
           style={[
             styles.field,

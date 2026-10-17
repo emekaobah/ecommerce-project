@@ -1,7 +1,7 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { estimateDelivery, regionTimeZone, type DeliveryEstimate } from "../../../../../../lib/delivery"
 import { retrieveListing } from "../../../../../../lib/listings"
-import type { StoreGetListingParamsType } from "../../../validators"
+import type { StoreGetDeliveryEstimateParamsType } from "../../../validators"
 
 export type StoreDeliveryEstimateResponse = { estimate: DeliveryEstimate | null }
 
@@ -11,7 +11,7 @@ export type StoreDeliveryEstimateResponse = { estimate: DeliveryEstimate | null 
  * buyer without a saved address, whose page shows the shop's dispatch time instead.
  */
 export const GET = async (
-  req: AuthenticatedMedusaRequest<unknown, StoreGetListingParamsType>,
+  req: AuthenticatedMedusaRequest<unknown, StoreGetDeliveryEstimateParamsType>,
   res: MedusaResponse<StoreDeliveryEstimateResponse>
 ) => {
   const customerId = req.auth_context?.actor_type === "customer" ? req.auth_context.actor_id : null
