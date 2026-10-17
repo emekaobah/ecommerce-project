@@ -107,7 +107,7 @@ medusaIntegrationTestRunner({
       it("is only for the signed-in buyer's own cart, and a shop with items in it beside others", async () => {
         const cartId = await buyer.adasCart()
         const grocery = await buyer.sellerId(GROCERY)
-        const move = (id: string, sellerId: string, as = buyer.ada()) =>
+        const move = (id: string, sellerId: string, as: { headers: Record<string, string> } = buyer.ada()) =>
           status(api.post(`/store/carts/${id}/shop-checkout`, { seller_id: sellerId }, as))
 
         expect(await move(cartId, grocery, { headers: buyer.headers() })).toBe(401)

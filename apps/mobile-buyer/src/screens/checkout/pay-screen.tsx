@@ -25,7 +25,7 @@ export function PayScreen() {
     if (outcome === 'paid') {
       router.replace({ pathname: '/checkout/confirmation', params: { cartId } });
     } else {
-      router.dismissTo({ pathname: '/checkout', params: { payment: outcome } });
+      router.dismissTo({ pathname: '/checkout', params: { cartId, payment: outcome } });
     }
   };
 

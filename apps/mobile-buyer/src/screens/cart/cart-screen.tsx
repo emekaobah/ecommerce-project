@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 import { Pressable, SectionList, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useCart, useSetCartItemQuantity, type Cart, type CartItem } from '@/api/cart';
+import { useCart, usePayShopOnly, useSetCartItemQuantity, type Cart, type CartItem } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
 import { useCartSession } from '@/cart/cart-provider';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
@@ -61,11 +61,24 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
   // The floating tab bar overlays the screen; its height is in the bottom inset.
   const { bottom } = useSafeAreaInsets();
   const setQuantity = useSetCartItemQuantity(cartId);
+  const payShopOnly = usePayShopOnly(cartId);
   const pendingItemId = setQuantity.isPending ? setQuantity.variables?.itemId : undefined;
   const currency = cart.currency_code;
   const sections = cart.sellers.map((group) => ({ key: group.seller?.id ?? 'unavailable', group, data: group.items }));
   // Checkout is protected; a guest goes through the sign-in modal first (ADR 0001).
   const checkout = () => router.push(isSignedIn ? '/checkout' : '/sign-in');
+  // With several shops in the cart, one shop's items can be paid for on their own (#11): they
+  // move to a cart of their own, checked out like any other; the rest stays in this cart.
+  const paysShopByShop = cart.sellers.length > 1;
+  const checkoutShop = (sellerId: string) => {
+    if (!isSignedIn) {
+      router.push('/sign-in');
+      return;
+    }
+    payShopOnly.mutate(sellerId, {
+      onSuccess: (shopCart) => router.push({ pathname: '/checkout', params: { cartId: shopCart.id } }),
+    });
+  };
 
   return (
     <>
@@ -94,9 +107,20 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
           />
         )}
         renderSectionFooter={({ section: { group } }) => (
-          <View style={[styles.spread, { paddingVertical: theme.space.sm }]}>
-            <Text tone="secondary">{group.seller ? `${group.seller.name} subtotal` : 'Subtotal'}</Text>
-            <Text variant="label">{formatMoney(group.item_subtotal, currency)}</Text>
+          <View style={{ paddingVertical: theme.space.sm, gap: theme.space.sm }}>
+            <View style={styles.spread}>
+              <Text tone="secondary">{group.seller ? `${group.seller.name} subtotal` : 'Subtotal'}</Text>
+              <Text variant="label">{formatMoney(group.item_subtotal, currency)}</Text>
+            </View>
+            {paysShopByShop && group.seller ? (
+              <Button
+                label="Pay for this shop only"
+                variant="secondary"
+                loading={payShopOnly.isPending && payShopOnly.variables === group.seller.id}
+                disabled={payShopOnly.isPending || !group.shop_status?.orderable}
+                onPress={() => checkoutShop(group.seller!.id)}
+              />
+            ) : null}
           </View>
         )}
       />
@@ -111,6 +135,11 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
         {setQuantity.error ? (
           <Text tone="secondary" accessibilityLiveRegion="polite">
             Couldn't update your cart: {setQuantity.error.message}
+          </Text>
+        ) : null}
+        {payShopOnly.error ? (
+          <Text tone="secondary" accessibilityLiveRegion="polite">
+            Couldn&apos;t check out that shop on its own: {payShopOnly.error.message}
           </Text>
         ) : null}
         <Text tone="secondary">Delivery is chosen for each shop at checkout.</Text>

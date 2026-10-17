@@ -21,15 +21,17 @@ export function ConfirmationScreen() {
   const checkout = useCheckout(cartId, { waitForOrder: true });
   const orderGroupId = checkout.data?.order_group_id;
   const slow = useElapsed(CONFIRMATION_WAIT_MS);
-  const { forgetCart } = useCartSession();
+  const { cartId: appCartId, forgetCart } = useCartSession();
   const queryClient = useQueryClient();
+  // A shop paid for on its own (#11) had a cart of its own: the app's cart keeps the other shops.
+  const paidAppCart = cartId === appCartId;
 
   // The cart is now orders: the next thing added starts a new one.
   useEffect(() => {
     if (!orderGroupId) return;
-    forgetCart();
+    if (paidAppCart) forgetCart();
     void queryClient.invalidateQueries({ queryKey: cartKeys.all });
-  }, [orderGroupId, forgetCart, queryClient]);
+  }, [orderGroupId, paidAppCart, forgetCart, queryClient]);
 
   const header = <Stack.Screen options={{ title: orderGroupId ? 'Order placed' : 'Confirming payment', headerBackVisible: false }} />;
 
@@ -45,7 +47,7 @@ export function ConfirmationScreen() {
     <>
       {header}
       {slow ? (
-        <StillConfirming onCheckAgain={() => void checkout.refetch()} />
+        <StillConfirming cartId={cartId} onCheckAgain={() => void checkout.refetch()} />
       ) : (
         <LoadingState label="Confirming your payment with Paystack" />
       )}
@@ -57,7 +59,7 @@ export function ConfirmationScreen() {
  * Paystack is slow to confirm, or the buyer didn't finish paying. Waiting stays the default:
  * paying again could charge twice if the first payment went through.
  */
-function StillConfirming({ onCheckAgain }: Readonly<{ onCheckAgain: () => void }>) {
+function StillConfirming({ cartId, onCheckAgain }: Readonly<{ cartId: string; onCheckAgain: () => void }>) {
   const theme = useTheme();
   return (
     <View style={[styles.fill, styles.centered, { padding: theme.space.lg, gap: theme.space.md }]}>
@@ -69,7 +71,8 @@ function StillConfirming({ onCheckAgain }: Readonly<{ onCheckAgain: () => void }
         it&apos;s confirmed. If you didn&apos;t finish paying, go back to checkout and pay again.
       </Text>
       <Button label="Check again" onPress={onCheckAgain} />
-      <Button label="Back to checkout" variant="secondary" onPress={() => router.dismissTo('/checkout')} />
+      <Button label="Back to checkout" variant="secondary" onPress={() => router.dismissTo({ pathname: '/checkout', params: { cartId } })}
+      />
     </View>
   );
 }
