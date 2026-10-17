@@ -1,4 +1,4 @@
-import { cancelReasonText } from "./cancellation"
+import { cancelledBy, cancelReasonText } from "./cancellation"
 import type { Cancellation, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
 
@@ -87,7 +87,7 @@ export function owedRefundStatus(owed: OwedRefundView | null, currencyCode: stri
 export function orderStatus({ fulfilment }: { fulfilment: OrderFulfilmentView }): StatusView {
   if (fulfilment.state === "cancelled") {
     const { cancellation } = fulfilment
-    const label = cancellation?.by === "operator" ? "Cancelled" : "Cancelled by the shop"
+    const label = `Cancelled by ${cancelledBy(cancellation?.by ?? "seller")}`
     return { label, tone: "danger", note: cancellation ? cancelReasonText(cancellation) : null }
   }
   if (fulfilment.state !== "rejected") return { ...STATES[fulfilment.state], note: null }

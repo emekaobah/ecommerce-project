@@ -1,5 +1,5 @@
 import { PRODUCT_NAME } from "./app-identity"
-import { cancelReasonText } from "./cancellation"
+import { cancelledBy, cancelReasonText } from "./cancellation"
 import type { Cancellation, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
 import { openingHoursLines } from "./pickup"
@@ -137,7 +137,8 @@ export function orderCancelledPush({
   refund: number
   currency_code: string
 }): BuyerPush {
-  const who = cancellation.by === "operator" ? `We cancelled your order from ${shop}` : `${shop} cancelled your order`
+  const from = cancellation.by === "operator" ? ` from ${shop}` : ""
+  const who = `${cancelledBy(cancellation.by, shop)} cancelled your order${from}`
   const refunded = refund > 0 ? ` You'll be refunded ${formatMoney(refund, currency_code)}.` : ""
   return { title: `Order #${display_id} cancelled`, body: `${who}: ${cancelReasonText(cancellation)}.${refunded}` }
 }

@@ -38,7 +38,7 @@ describe("orderStatus", () => {
   test("an order Oja's team cancelled says why, in the note they wrote", () => {
     const cancellation = { by: "operator", reason: "other", note: "The shop has closed" } as const
     expect(orderStatus({ fulfilment: { ...placed, state: "cancelled", cancellation } })).toEqual({
-      label: "Cancelled",
+      label: "Cancelled by Oja's team",
       tone: "danger",
       note: "The shop has closed",
     })

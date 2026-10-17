@@ -67,9 +67,12 @@ export type FulfilmentMethod = "delivery" | "pickup"
 export const CANCEL_REASONS = ["items_unavailable", "cannot_fulfil", "buyer_asked", "other"] as const
 export type CancelReason = (typeof CANCEL_REASONS)[number]
 
+/** Why staff cancel an order (#17): a reason, and a note saying more, required for `other`. */
+export type CancelRequest = { reason: CancelReason; note?: string }
+
 /**
  * An accepted order cancelled (#17): by its shop (`seller`) or by Oja's team (`operator`), the
- * member or user who did, when (ISO 8601), why, and the note given (required for `other`).
+ * member or user who did, when (ISO 8601), why, and the note given (none: null).
  */
 export type Cancellation = { by: "seller" | "operator"; actor: string; at: string; reason: CancelReason; note: string | null }
 
@@ -142,13 +145,11 @@ export type SystemEvent = { source: "system"; type: SystemEventType; at: string 
  * An accepted order cancelled (#17), by the shop's staff (owners and managers) or by Oja's
  * operators, with its reason; `note` says more, and is required for `other`.
  */
-export type CancelAction = {
+export type CancelAction = CancelRequest & {
   source: "staff" | "operator"
   type: "cancel"
   actor: string
   at: string
-  reason: CancelReason
-  note?: string | null
 }
 
 /** What can happen to a delivery order: never a pickup code. */

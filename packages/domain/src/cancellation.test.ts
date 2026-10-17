@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { CANCEL_REASON_LABELS, cancelReasonText, cancelRequest } from "./cancellation"
+import { CANCEL_REASON_LABELS, cancelledBy, cancelReasonText, cancelRequest } from "./cancellation"
 import { CANCEL_REASONS } from "./fulfilment"
 
 describe("cancel reasons", () => {
@@ -26,6 +26,18 @@ describe("cancelReasonText", () => {
     expect(cancelReasonText({ reason: "items_unavailable", note: "The rice is sold out" })).toBe(
       "Items unavailable: The rice is sold out"
     )
+  })
+})
+
+describe("cancelledBy", () => {
+  test("is Oja's team for an operator", () => {
+    expect(cancelledBy("operator")).toBe("Oja's team")
+    expect(cancelledBy("operator", "Mama Put Groceries")).toBe("Oja's team")
+  })
+
+  test("is the shop, by name when given", () => {
+    expect(cancelledBy("seller")).toBe("the shop")
+    expect(cancelledBy("seller", "Mama Put Groceries")).toBe("Mama Put Groceries")
   })
 })
 

@@ -158,7 +158,7 @@ describe("orderCancelledPush", () => {
   test("says it was Oja's team that cancelled it, with their note", () => {
     const cancellation = { by: "operator", reason: "other", note: "The shop has closed" } as const
     expect(orderCancelledPush({ ...order, cancellation }).body).toBe(
-      `We cancelled your order from Mama Put Groceries: The shop has closed. You'll be refunded ${formatMoney(14500, "ngn")}.`
+      `Oja's team cancelled your order from Mama Put Groceries: The shop has closed. You'll be refunded ${formatMoney(14500, "ngn")}.`
     )
   })
 
