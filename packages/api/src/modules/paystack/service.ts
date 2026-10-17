@@ -177,9 +177,13 @@ export class PaystackPaymentProviderService extends AbstractPaymentProvider<Pays
   private statusOf(session: PaystackSessionData, transaction: PaystackTransaction): PaymentSessionStatus {
     if (transaction.status === "failed") return PaymentSessionStatus.ERROR
     if (!PAID.has(transaction.status)) return PaymentSessionStatus.PENDING
-    const paidInFull = transaction.amount === session.amount && transaction.currency === session.currency
-    return paidInFull ? PaymentSessionStatus.AUTHORIZED : PaymentSessionStatus.ERROR
+    return paidInFull(session, transaction) ? PaymentSessionStatus.AUTHORIZED : PaymentSessionStatus.ERROR
   }
+}
+
+/** Whether Paystack took exactly what a session started, in its currency. */
+export function paidInFull(session: Pick<PaystackSessionData, "amount" | "currency">, transaction: PaystackTransaction) {
+  return transaction.amount === session.amount && transaction.currency === session.currency
 }
 
 /** Transactions the buyer paid: refunds turn them `reversal-pending`, then `reversed`. */

@@ -14,6 +14,8 @@ import {
   type DeliveryTag,
   type FulfilmentMethod,
   type LinePrice,
+  type NotPlacedChange,
+  type NotPlacedReason,
   type PriceChange,
 } from "@oja/domain"
 import { PAYSTACK_PROVIDER_ID, paystackClient } from "../modules/paystack"
@@ -36,6 +38,7 @@ import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePl
 import { promoCodeProblem, type CodedPromotion } from "./promotions"
 import { unshareCode } from "./shared-codes"
 import { closedShopError } from "./shop-hours"
+import { NOT_PLACED_KEY, type StoredNotPlaced } from "./unplaced-checkout"
 
 // Checkout of a multi-shop cart (#16): the buyer's address, each shop's delivery, then a
 // Paystack payment for the lot. Paystack's webhook completes the cart into an order group
@@ -149,7 +152,14 @@ export type Checkout = {
   ready_to_pay: boolean
   /** Set once payment is confirmed and the cart has become orders. */
   order_group_id: string | null
+  /**
+   * Set when the buyer paid but the cart failed to become orders (#38): it was refunded in full
+   * (`amount`), and fixed (`changes`) for the buyer to pay the new total. Cleared once they pay again.
+   */
+  not_placed: CheckoutNotPlaced | null
 }
+
+export type CheckoutNotPlaced = { reason: NotPlacedReason; amount: number; changes: NotPlacedChange[] }
 
 export type CheckoutPayment = { provider_id: string; reference: string; authorization_url: string }
 
@@ -452,7 +462,15 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
       sellers.length > 0 &&
       sellers.every((g) => g.seller && (g.method === "pickup" || g.shipping) && g.shop_status?.orderable),
     order_group_id: (groups[0] as { id: string } | undefined)?.id ?? null,
+    not_placed: cart.completed_at ? null : notPlacedOf(cart),
   }
+}
+
+/** Why the paid cart wasn't placed, as the cart keeps it; null when it was, or hasn't been paid. */
+function notPlacedOf(cart: Pick<CartRow, "metadata">): CheckoutNotPlaced | null {
+  const stored = cart.metadata?.[NOT_PLACED_KEY] as StoredNotPlaced | null | undefined
+  if (!stored || typeof stored !== "object" || typeof stored.reason !== "string") return null
+  return { reason: stored.reason, amount: Number(stored.amount), changes: Array.isArray(stored.changes) ? stored.changes : [] }
 }
 
 /** The promotions discounting the cart, with what each takes off it: its lines' and deliveries' discounts. */

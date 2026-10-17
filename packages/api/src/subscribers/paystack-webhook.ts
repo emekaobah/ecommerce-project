@@ -2,6 +2,7 @@ import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { refundUnclaimedTransactionWorkflow } from "../workflows/order-fulfilment/workflows/refund-unclaimed-transaction"
 import { syncOrderRefundsWorkflow } from "../workflows/order-fulfilment/workflows/sync-order-refunds"
 import { syncPayoutTransfer } from "../lib/payouts"
+import { placeOrRefundPaidSession } from "../lib/unplaced-checkout"
 
 type WebhookReceived = {
   provider: string
@@ -13,8 +14,10 @@ type WebhookReceived = {
  * and each event is only a cue: Paystack's API is asked for the facts):
  * - `refund.*` (pending, processing, processed, failed, needs-attention) update the order
  *   refunds of the transaction they name.
- * - `charge.success` for a payment session that no longer exists is a payment no order can
- *   claim, refunded in full. Mercur places the order for a live session.
+ * - `charge.success` for a payment session that no longer exists, or for a different amount or
+ *   currency than its session started, is a payment no order can claim, refunded in full.
+ *   Mercur places the order for a live session; once it has, the cart is checked, and a paid
+ *   cart that didn't become orders is tried again, then refunded (#38).
  * - `transfer.*` (success, failed, reversed) update the order payout the transfer pays (#29):
  *   Paystack sends an account's every webhook to this one URL.
  */
@@ -30,7 +33,8 @@ export default async function paystackWebhookHandler({ event, container }: Subsc
     await syncPayoutTransfer(container, data.reference)
   }
   if (name === "charge.success" && data.reference) {
-    await refundUnclaimedTransactionWorkflow(container).run({ input: { reference: data.reference } })
+    const { result } = await refundUnclaimedTransactionWorkflow(container).run({ input: { reference: data.reference } })
+    if (result.live_session_id) await placeOrRefundPaidSession(container, result.live_session_id)
   }
 }
 
