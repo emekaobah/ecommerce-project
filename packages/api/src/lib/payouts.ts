@@ -9,7 +9,8 @@ import { fromSubunit, toSubunit, UNSETTLED_REFUND_STATUSES } from "../modules/pa
 import { payoutStatusOf } from "../modules/paystack-payout/service"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account"
 import { ojaFundedDiscount, ojaSharesOf, taxRateOf } from "./discount-funding"
-import { fulfilmentService, fulfilmentsOf } from "./order-fulfilment"
+import { fulfilmentService, fulfilmentsOf, type OrderRefundRecord } from "./order-fulfilment"
+import { owedToBuyerOf, type OrderSummary } from "./order-refund"
 import type { OrderTransaction } from "./shop-order"
 
 // What a shop is paid for an order (#29): Paystack Transfers after delivery, worked out here
@@ -21,7 +22,11 @@ export const COMMISSION_PERCENT = 10
 export type OrderPayout = {
   /** What was captured for the order: its share of its checkout's payment. */
   paid: number
-  /** What has been refunded of its items since. A refund of delivery is Oja's, and isn't counted. */
+  /**
+   * What has been refunded of its items since, and what the order still owes its buyer for
+   * lines an order edit removed (#22, #32) whose refund failed or hasn't been made. A refund of
+   * delivery is Oja's, and isn't counted.
+   */
   refunded: number
   /** What the buyer paid for delivery, which Oja keeps: it pays the courier from its own wallet. */
   delivery: number
@@ -33,30 +38,38 @@ export type OrderPayout = {
 }
 
 /**
- * What the shop is owed for an order: what the buyer kept (the order's own captures less its
- * refunds of items), less the delivery fee, plus the discounts Oja funds on it (`ojaFundedDiscount`),
- * less 10% of that. A shop's own discounts stay off its payout. An order edit (#22) doesn't
- * change what was captured, only what is refunded, so it is counted once. A refund of delivery
- * (#22) comes out of the delivery fee Oja keeps, so it never lowers the payout. Paystack's fees are Oja's.
+ * What the shop is owed for an order: what the buyer kept (the order's own captures, less its
+ * refunds of items and what it still owes the buyer), less the delivery fee, plus the discounts
+ * Oja funds on it (`ojaFundedDiscount`), less 10% of that. A shop's own discounts stay off its
+ * payout. Paystack's fees are Oja's.
+ *
+ * An order edit (#22, #32) doesn't change what was captured: the lines it removed are owed to
+ * the buyer until refunded, then refunded. Either way they come off once, so the shop is never
+ * paid for them, whether their refund failed or never ran. A refund of delivery (#22) comes out
+ * of the delivery fee Oja keeps, so it never lowers the payout.
  */
 export function payoutOf({
   transactions,
+  refunds = [],
+  owedToBuyer = 0,
   delivery,
   ojaDiscount,
-  deliveryRefunds = [],
 }: {
   transactions: OrderTransaction[]
+  /** The order's refunds (`order_refund`): what each of Medusa's refunds of it covers. */
+  refunds?: Pick<OrderRefundRecord, "refund_id" | "covers">[]
+  /** What the order owes its buyer and hasn't refunded (`owedToBuyerOf`). */
+  owedToBuyer?: number
   delivery: number
   ojaDiscount: number
-  /** Medusa's refunds that were of the delivery fee rather than items (`order_refund.covers`). */
-  deliveryRefunds?: string[]
 }): OrderPayout {
-  const ofDelivery = new Set(deliveryRefunds)
+  const covers = new Map(refunds.flatMap((r) => (r.refund_id ? [[r.refund_id, r.covers] as const] : [])))
   const sum = (counted: (t: OrderTransaction) => boolean) =>
     transactions.filter(counted).reduce((total, t) => total + toSubunit(Number(t.amount)), 0)
   const paid = sum((t) => t.reference === "capture")
   // Refund transactions are negative.
-  const refunded = Math.abs(sum((t) => t.reference === "refund" && !ofDelivery.has(t.reference_id ?? "")))
+  const ofItems = Math.abs(sum((t) => t.reference === "refund" && covers.get(t.reference_id ?? "") !== "delivery"))
+  const refunded = ofItems + toSubunit(owedToBuyer)
   const goods = Math.max(0, paid - refunded - toSubunit(delivery)) + toSubunit(ojaDiscount)
   const commission = Math.round((goods * COMMISSION_PERCENT) / 100)
   return {
@@ -153,11 +166,14 @@ type PaidOrder = {
   seller?: { id: string; payout_account?: { id: string } | null } | null
   /** What Oja funds of the discounts on what the buyer kept (`ojaFundedDiscount`). */
   oja_discount: number
-  /** Medusa's refunds of the order that were of its delivery fee, which Oja bears (#22). */
-  delivery_refunds: string[]
+  /** The order's refunds, each of its items or of its delivery fee, which Oja bears (#22). */
+  refunds: OrderRefundRecord[]
+  /** What the order owes its buyer and hasn't refunded: lines an order edit removed (#22, #32). */
+  owed_to_buyer: number
 }
 
-type PaidOrderRow = Omit<PaidOrder, "oja_discount" | "delivery_refunds"> & {
+type PaidOrderRow = Omit<PaidOrder, "oja_discount" | "refunds" | "owed_to_buyer"> & {
+  summary?: OrderSummary
   items?:
     | {
         id: string
@@ -184,6 +200,7 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
       "currency_code",
       "status",
       "shipping_total",
+      "summary",
       "transactions.amount",
       "transactions.reference",
       "transactions.reference_id",
@@ -199,12 +216,12 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
     filters: { id: orderIds },
   })
   const orders = data as unknown as PaidOrderRow[]
-  const [records, shares, deliveryRefunds] = await Promise.all([
+  const [records, shares, refunds] = await Promise.all([
     fulfilmentsOf(scope, orderIds),
     ojaSharesOf(scope, orderIds),
-    fulfilmentService(scope).listOrderRefunds({ order_id: orderIds, covers: "delivery" }),
+    fulfilmentService(scope).listOrderRefunds({ order_id: orderIds }),
   ])
-  return orders.map(({ items, ...order }) => {
+  return orders.map(({ items, summary, ...order }) => {
     const removed = records.get(order.id)?.removed ?? {}
     const lines = (items ?? []).map((i) => ({
       quantity: Number(i.quantity),
@@ -219,7 +236,8 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
     return {
       ...order,
       oja_discount: ojaFundedDiscount(lines, shares.get(order.id) ?? new Map()),
-      delivery_refunds: deliveryRefunds.flatMap((r) => (r.order_id === order.id && r.refund_id ? [r.refund_id] : [])),
+      refunds: refunds.filter((r) => r.order_id === order.id),
+      owed_to_buyer: owedToBuyerOf(summary),
     }
   })
 }
@@ -227,9 +245,10 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
 const breakdownOf = (order: PaidOrder, delivery = Number(order.shipping_total ?? 0)) =>
   payoutOf({
     transactions: order.transactions ?? [],
+    refunds: order.refunds,
+    owedToBuyer: order.owed_to_buyer,
     delivery,
     ojaDiscount: order.oja_discount,
-    deliveryRefunds: order.delivery_refunds,
   })
 
 /**

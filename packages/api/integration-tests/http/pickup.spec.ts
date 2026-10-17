@@ -1,8 +1,10 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules } from "@medusajs/framework/utils"
 import { openingHoursLines, PERISHABLE_PICKUP_NOTE, PICKUP_HOLD_NOTICE } from "@oja/domain"
+import { fulfilmentService } from "../../src/lib/order-fulfilment"
 import { payOutDeliveredOrders } from "../../src/lib/pay-out-orders"
 import { expirePickupHolds } from "../../src/lib/pickup-hold-expiry"
+import { expirePickupHoldWorkflow } from "../../src/workflows/order-fulfilment/workflows/expire-pickup-hold"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_PERISHABLE_CATEGORIES, SEED_PRODUCTS } from "../../src/scripts/seed-data"
@@ -636,6 +638,63 @@ medusaIntegrationTestRunner({
           await payOutDeliveredOrders(getContainer())
           const transfer = paystack.transfers().find((t) => t.reference === `payout_${orderId}`.toLowerCase())
           expect(transfer).toMatchObject({ amount: kobo(TOMATOES.price) - Math.round(kobo(TOMATOES.price) / 10) })
+        })
+
+        /** Pays out the fresh items' order, and expects the shop paid for the tomatoes alone, less 10%. */
+        const paysOnlyTheTomatoes = async (orderId: string) => {
+          expect(await payoutOf(orderId)).toMatchObject({
+            state: "due",
+            refunded: 2 * RICE.price,
+            amount: TOMATOES.price - TOMATOES.price / 10,
+          })
+          await payOutDeliveredOrders(getContainer())
+          const transfer = paystack.transfers().find((t) => t.reference === `payout_${orderId}`.toLowerCase())
+          expect(transfer).toMatchObject({ amount: kobo(TOMATOES.price) - Math.round(kobo(TOMATOES.price) / 10) })
+        }
+
+        it("never pays the shop for the rice when Paystack turns its refund down", async () => {
+          const { orderId, groupId, reference } = await pickupOrder({ fresh: 1 })
+          await packed(orderId)
+
+          paystack.refuseRefunds("Insufficient balance")
+          try {
+            await longAfter(await readyAt(orderId))
+          } finally {
+            paystack.refuseRefunds(undefined)
+          }
+
+          expect((await vendorOrder(GROCERY, orderId)).fulfilment.state).toBe("not_collected")
+          expect(paystack.refundsOf(reference)).toEqual([])
+          expect((await adasOrder(groupId, orderId)).refund).toBeNull()
+          await paysOnlyTheTomatoes(orderId)
+        })
+
+        it("never pays the shop for the rice when its refund never ran", async () => {
+          const { orderId, reference } = await pickupOrder({ fresh: 1 })
+          await packed(orderId)
+
+          // The order is Not collected, then the process stops before the refund is made.
+          await expirePickupHoldWorkflow(getContainer()).run({ input: { order_id: orderId } })
+
+          expect(paystack.refundsOf(reference)).toEqual([])
+          await paysOnlyTheTomatoes(orderId)
+        })
+
+        it("never pays the shop for the rice when Paystack fails its refund later", async () => {
+          const { orderId, reference } = await pickupOrder({ fresh: 1 })
+          await packed(orderId)
+          await longAfter(await readyAt(orderId))
+
+          for (const refund of paystack.refundsOf(reference)) {
+            paystack.settleRefund(refund.id, "failed")
+            await buyer.postWebhook(paystack.refundEvent(refund.id))
+          }
+          await eventually(
+            () => fulfilmentService(getContainer()).listOrderRefunds({ order_id: orderId }),
+            (rows) => rows.every((r) => r.status === "failed")
+          )
+
+          await paysOnlyTheTomatoes(orderId)
         })
       })
     })
