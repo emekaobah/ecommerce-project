@@ -120,6 +120,8 @@ export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from ".
 export { pushTarget } from "./push"
 export type { PushTarget } from "./push"
 export { buyerStatusPush, itemsRemovedPush, orderConfirmedPush, preparedWhenOpen, refundCompletedPush } from "./buyer-push"
+export { notPlacedChangeMessage, notPlacedMessage, notPlacedPush } from "./not-placed"
+export type { NotPlaced, NotPlacedChange, NotPlacedReason } from "./not-placed"
 export type { BuyerPush, BuyerPushOrder, BuyerPushPickup, ConfirmedShop, RemovedItem } from "./buyer-push"
 export { pickProgress, scanBarcode } from "./picking"
 export type { PickLine, PickProgress, ScanResult } from "./picking"
