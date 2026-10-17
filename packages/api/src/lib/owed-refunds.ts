@@ -1,5 +1,6 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN } from "@medusajs/framework/utils"
+import type { OwedRefundState } from "@oja/domain"
 import type { RefundCovers } from "../modules/order-fulfilment/models/order-refund"
 import { fulfilmentService } from "./order-fulfilment"
 import { owedToBuyerOf, type OrderSummary } from "./order-refund"
@@ -22,12 +23,6 @@ const HOUR = 60 * MINUTE
  * refund is handed to Oja's team.
  */
 export const OWED_REFUND_BACKOFF_MS = [5 * MINUTE, HOUR, 6 * HOUR]
-
-/**
- * Where an owed refund is: `retrying` while the retry job still tries it, `manual` once Oja's
- * team sends it themselves (Paystack can't make it, or every retry failed).
- */
-export type OwedRefundState = "retrying" | "manual"
 
 export type OwedRefund = {
   /** What is still owed: the order's owed amount less what was settled by hand. */

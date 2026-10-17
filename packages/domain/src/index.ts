@@ -93,6 +93,7 @@ export type {
   HistoryEntry,
   OrderFulfilmentView,
   OrderRefundView,
+  OwedRefundState,
   OwedRefundView,
   RefundStatus,
   StatusTone,

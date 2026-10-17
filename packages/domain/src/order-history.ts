@@ -61,10 +61,13 @@ export function refundStatus(refund: OrderRefundView | null): StatusView | null 
 }
 
 /**
- * A refund the order owes its buyer and hasn't made (#16): Paystack refused it, so it is being
- * retried, or Oja's team is sending it by hand (`manual`).
+ * Where a refund an order owes its buyer is (#16): `retrying` while the retry job still tries
+ * it, `manual` once Oja's team sends it themselves (Paystack can't make it, or every retry failed).
  */
-export type OwedRefundView = { amount: number; state: "retrying" | "manual" }
+export type OwedRefundState = "retrying" | "manual"
+
+/** A refund the order owes its buyer and hasn't made (#16), and where it is. */
+export type OwedRefundView = { amount: number; state: OwedRefundState }
 
 /** Where a refund the order still owes is, as its buyer reads it; null while it owes none. */
 export function owedRefundStatus(owed: OwedRefundView | null, currencyCode: string): StatusView | null {
