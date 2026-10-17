@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { completeCartWithSplitOrdersWorkflow } from "@mercurjs/core/workflows"
 import type { NotPlaced, NotPlacedChange, NotPlacedReason } from "@oja/domain"
 import { refundUnclaimedPaymentWorkflow } from "../workflows/order-fulfilment/workflows/refund-unclaimed-payment"
+import { tellCartNotPlaced } from "./buyer-notifications"
 import { errorMessage } from "./errors"
 import type { OrderRefundRecord } from "./order-fulfilment"
 import { fixUnplacedCart } from "./unplaced-cart"
@@ -115,7 +116,7 @@ export async function refundUnplacedPayment(scope: Scope, paymentId: string) {
 /** Which reason a cart gives when fixing it found more than one thing wrong. */
 const REASONS: NotPlacedReason[] = ["code_used_up", "sold_out", "unavailable", "delivery"]
 
-/** Fixes the cart and keeps why it wasn't placed on it, for checkout to show. */
+/** Fixes the cart, keeps why it wasn't placed on it for checkout to show, and tells the buyer. */
 async function recordNotPlaced(scope: Scope, cartId: string, refund: OrderRefundRecord) {
   const { changes, causes } = await fixUnplacedCart(scope, cartId)
   const notPlaced: StoredNotPlaced = {
@@ -126,6 +127,7 @@ async function recordNotPlaced(scope: Scope, cartId: string, refund: OrderRefund
     refund_id: refund.id,
   }
   const carts = scope.resolve(Modules.CART)
-  const cart = await carts.retrieveCart(cartId, { select: ["id", "metadata"] })
+  const cart = await carts.retrieveCart(cartId, { select: ["id", "metadata", "customer_id", "email"] })
   await carts.updateCarts(cartId, { metadata: { ...cart.metadata, [NOT_PLACED_KEY]: notPlaced } })
+  await tellCartNotPlaced(scope, { cart_id: cartId, customer_id: cart.customer_id ?? null, email: cart.email ?? null, not_placed: notPlaced })
 }

@@ -5,9 +5,12 @@ import seedDemoData from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
 import { buyerCheckout, eventually, GADGETS, GROCERY, RICE, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
+import { fakeExpoPush, pushToken } from "../helpers/expo-push"
 import { fakePaystack } from "../helpers/paystack"
+import { fakeResend } from "../helpers/resend"
 import { fakeShipbubble } from "../helpers/shipbubble"
 import { keepShopsOpen } from "../helpers/shop-hours"
+import { formatMoney, PRODUCT_NAME } from "@oja/domain"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -15,12 +18,19 @@ const clerk = fakeClerk()
 // A port per test process, so each fake can be named in the config before it is listening.
 const paystack = fakePaystack(33000 + (process.pid % 1000))
 const shipbubble = fakeShipbubble(34000 + (process.pid % 1000))
+const expo = fakeExpoPush(35000 + (process.pid % 1000))
+const resend = fakeResend(36000 + (process.pid % 1000))
 // Set before the runner loads medusa-config, which registers each provider only when its key is set.
 process.env.CLERK_JWT_KEY = clerk.jwtKey
 process.env.PAYSTACK_SECRET_KEY = paystack.secretKey
 process.env.PAYSTACK_API_URL = paystack.apiUrl
 process.env.SHIPBUBBLE_API_KEY = shipbubble.apiKey
 process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
+process.env.EXPO_ACCESS_TOKEN = expo.accessToken
+process.env.EXPO_PUSH_API_URL = expo.apiUrl
+process.env.RESEND_API_KEY = resend.apiKey
+process.env.RESEND_API_URL = resend.apiUrl
+process.env.RESEND_FROM = "Oja <orders@oja.test>"
 
 const HOUR = 60 * 60 * 1000
 
@@ -39,13 +49,15 @@ medusaIntegrationTestRunner({
     let admin: { headers: Record<string, string> }
 
     beforeAll(async () => {
-      await Promise.all([paystack.start(), shipbubble.start()])
+      await Promise.all([paystack.start(), shipbubble.start(), expo.start(), resend.start()])
       await seedDemoData({ container: getContainer(), args: [] } as any)
       await keepShopsOpen(getContainer(), [GADGETS, GROCERY])
     })
-    afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
+    afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop(), resend.stop()]))
     beforeEach(async () => {
       shipbubble.reset()
+      expo.reset()
+      resend.reset()
       await Promise.all([ada.load(), bola.load()])
       admin = await adminHeaders(getContainer(), api)
     })
@@ -207,6 +219,34 @@ medusaIntegrationTestRunner({
 
         expect(paystack.refundsOf(reference)).toHaveLength(1)
         expect(await ada.ordersOfCart(cartId)).toEqual([])
+      })
+
+      it("tells the buyer by push and email why it wasn't placed and what was refunded", async () => {
+        const device = pushToken()
+        await api.post("/store/push-tokens", { token: device }, ada.ada())
+        const cartId = await preparedCart(ada)
+        const { reference } = await ada.startPayment(cartId)
+        paystack.pay(reference)
+        const restore = await setStock(GROCERY, RICE.title, 1)
+        try {
+          await ada.postWebhook(paystack.chargeSuccess(reference))
+          await notPlaced(ada, cartId)
+        } finally {
+          await restore()
+        }
+
+        const refunded = `You've been refunded ${formatMoney(TOTAL, "ngn")}.`
+        const [push] = await eventually(async () => expo.sentTo(device), (sent) => sent.length > 0)
+        expect(push).toMatchObject({
+          title: "Your order wasn't placed",
+          body: `An item sold out while you paid. ${refunded}`,
+          data: { url: `/checkout?cartId=${cartId}`, cart_id: cartId },
+        })
+        const [email] = await eventually(async () => resend.sentTo("ada@oja.test"), (sent) => sent.length > 0)
+        expect(email.subject).toBe(`Your ${PRODUCT_NAME} order wasn't placed: you've been refunded`)
+        expect(email.text).toContain(`An item sold out while you paid. ${refunded}`)
+        expect(email.text).toContain("can take a few days to reach your card")
+        expect(email.text).toContain(`${RICE.title} from ${GROCERY.name}: only 1 left, so you now have 1 (was 2).`)
       })
 
       it("lets the buyer pay the fixed cart's new total, and places it", async () => {

@@ -2,17 +2,21 @@ import {
   addressLines,
   buyerStatusPush,
   itemsRemovedPush,
+  notPlacedPush,
   refundCompletedPush,
   openingLabel,
   orderConfirmedPush,
   PRODUCT_NAME,
   shopStatus,
   type FulfilmentState,
+  type NotPlaced,
+  type NotPlacedChange,
   type StoredAddress,
 } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { ReactElement } from "react"
+import { CheckoutNotPlacedEmail } from "../emails/checkout-not-placed"
 import { DeliveryReceiptEmail } from "../emails/delivery-receipt"
 import { OrderConfirmationEmail } from "../emails/order-confirmation"
 import type { EmailShopOrder } from "../emails/parts"
@@ -261,4 +265,41 @@ export async function pushRefundCompleted(scope: Scope, refundId: string): Promi
     idempotencyKey: (to) => `buyer-refund-completed:${refund.id}:${to}`,
     about: `the refund ${refund.id}`,
   })
+}
+
+/** The buyer app's checkout for a cart, which a push about a cart that wasn't placed opens. */
+const checkoutScreen = (cartId: string) => `/checkout?cartId=${cartId}`
+
+/** A paid cart that failed to become orders (#38), as the buyer is told about it. */
+export type CartNotPlaced = {
+  cart_id: string
+  customer_id: string | null
+  email: string | null
+  not_placed: NotPlaced & { currency_code: string; changes: NotPlacedChange[]; refund_id: string }
+}
+
+/**
+ * Tells the buyer, by email and on each of their devices, that their paid cart failed to become
+ * orders (#38): why, what they were refunded (it can take a few days to reach the card), and
+ * what changed in the cart for them to pay again.
+ */
+export async function tellCartNotPlaced(scope: Scope, { cart_id, customer_id, email, not_placed }: CartNotPlaced): Promise<void> {
+  const { currency_code: currency, changes, refund_id } = not_placed
+  const push = notPlacedPush(not_placed, currency)
+  await Promise.all([
+    emailBuyer(scope, email, {
+      template: "checkout-not-placed",
+      subject: `Your ${PRODUCT_NAME} order wasn't placed: you've been refunded`,
+      body: <CheckoutNotPlacedEmail not_placed={not_placed} currency={currency} changes={changes} />,
+      key: `checkout-not-placed:${refund_id}`,
+    }),
+    customer_id &&
+      pushToDevices(scope, await buyerDevices(scope, customer_id), {
+        template: "buyer-checkout-not-placed",
+        ...push,
+        data: { url: checkoutScreen(cart_id), cart_id },
+        idempotencyKey: (to) => `buyer-checkout-not-placed:${refund_id}:${to}`,
+        about: `cart ${cart_id} not being placed`,
+      }),
+  ])
 }
