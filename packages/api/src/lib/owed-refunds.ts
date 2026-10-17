@@ -6,8 +6,9 @@ import { owedToBuyerOf, type OrderSummary } from "./order-refund"
 
 // What an order owes its buyer and hasn't refunded (#16): lines an order edit removed (#22,
 // #32) whose refund Paystack refused, or that was never made. The amount stays derived from
-// Medusa's order summary (`owedToBuyerOf`), less what Oja's team settled by hand. Each refused
-// attempt is an `order_refund` row that `failed`, with Paystack's reason.
+// Medusa's order summary (`owedToBuyerOf`), less what Oja's team settled by hand
+// (`refund_settlement`). Each refused attempt is an `order_refund` row that `failed`, with
+// Paystack's reason.
 
 /** Paystack refuses every refund under ₦50; such an amount goes straight to Oja's team. */
 export const PAYSTACK_MIN_REFUND = 50
@@ -91,15 +92,18 @@ export type OrderOwedRefund = OwedRefund & { order_id: string; currency_code: st
 export async function owedRefundsOf(scope: Scope, orderIds: string[]): Promise<Map<string, OrderOwedRefund>> {
   if (!orderIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [{ data }, refunds] = await Promise.all([
+  const [{ data }, refunds, settlements] = await Promise.all([
     query.graph({ entity: "order", fields: ["id", "currency_code", "summary"], filters: { id: orderIds } }),
     fulfilmentService(scope).listOrderRefunds({ order_id: orderIds }),
+    fulfilmentService(scope).listRefundSettlements({ order_id: orderIds }),
   ])
   const owed = new Map<string, OrderOwedRefund>()
   for (const order of data as unknown as { id: string; currency_code: string; summary?: OrderSummary }[]) {
     const found = owedRefund({
       owed: owedToBuyerOf(order.summary),
-      settled: 0,
+      settled: settlements
+        .filter((s) => s.order_id === order.id)
+        .reduce((sum, s) => MathBN.convert(MathBN.add(sum, s.amount)).toNumber(), 0),
       refunds: refunds.filter((r) => r.order_id === order.id),
     })
     if (found) owed.set(order.id, { ...found, order_id: order.id, currency_code: order.currency_code })

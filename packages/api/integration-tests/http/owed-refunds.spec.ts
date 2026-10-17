@@ -222,6 +222,56 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("Oja's staff", () => {
+      const settle = async (orderId: string, body: unknown) => api.post(`/admin/owed-refunds/${orderId}/settle`, body, await admin())
+
+      it("mark one settled by hand: it is no longer retried or shown, and still comes off the shop's payout", async () => {
+        const { cartId, orderId, reference } = await refusedRefund()
+        const payout = async () => (await api.get(`/vendor/orders/${orderId}/payout`, await buyer.owner(GROCERY))).data.payout
+        const before = await payout()
+
+        const { data } = await settle(orderId, { method: "bank_transfer", note: "Sent from the GTB account, ref 1234" })
+
+        expect(data.settlement).toMatchObject({
+          order_id: orderId,
+          amount: RICE.price,
+          method: "bank_transfer",
+          note: "Sent from the GTB account, ref 1234",
+          settled_by: expect.any(String),
+        })
+        expect(await owedRefundOf(orderId)).toBeUndefined()
+        expect((await adasOrder(cartId, orderId)).owed_refund).toBeNull()
+        paystack.refuseRefunds(undefined)
+        await retryAll(Date.now(), [HOUR, 24 * HOUR])
+        expect(paystack.refundsOf(reference)).toEqual([])
+        expect(await payout()).toEqual(before)
+        expect(before).toMatchObject({ refunded: RICE.price })
+      })
+
+      it("retry one now, whatever its backoff", async () => {
+        const { orderId, reference } = await refusedRefund()
+        paystack.refuseRefunds(undefined)
+
+        const { data } = await api.post(`/admin/owed-refunds/${orderId}/retry`, {}, await admin())
+
+        expect(data).toMatchObject({ refunds: [expect.objectContaining({ amount: RICE.price, covers: "items" })], owed_refund: null })
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([RICE.price * 100])
+      })
+
+      it("can't settle or retry an order that owes nothing, or settle without saying how", async () => {
+        const { orderId } = await refusedRefund()
+        const { cartId } = await buyer.paidCheckout()
+        const owesNothing = await buyer.shopOrderId(GROCERY, cartId)
+
+        expect(await status(settle(orderId, { method: "store_credit", note: "Credit" }))).toBe(400)
+        expect(await status(settle(orderId, { method: "other" }))).toBe(400)
+        expect(await status(settle(owesNothing, { method: "other", note: "Paid in cash" }))).toBe(404)
+        expect(await status(api.post(`/admin/owed-refunds/${owesNothing}/retry`, {}, await admin()))).toBe(404)
+        expect(await status(settle(orderId, {}))).toBe(400)
+        expect(await owedRefundOf(orderId)).toMatchObject({ amount: RICE.price })
+      })
+    })
+
     describe("Ada's order", () => {
       it("shows the refund pending while it is retried, that Oja's team is sending it, and nothing once refunded", async () => {
         const { cartId, orderId } = await refusedRefund()

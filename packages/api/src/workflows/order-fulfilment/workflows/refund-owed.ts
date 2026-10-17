@@ -1,9 +1,10 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import { errorMessage } from "../../../lib/errors"
 import { fulfilmentService, paymentsOfOrder, type OrderRefundRecord } from "../../../lib/order-fulfilment"
 import { isDue, owedRefundsOf, PAYSTACK_MIN_REFUND, type OrderOwedRefund } from "../../../lib/owed-refunds"
+import type { SettlementMethod } from "../../../modules/order-fulfilment/models/refund-settlement"
 import { PaystackRequestError, UNSETTLED_REFUND_STATUSES } from "../../../modules/paystack/client"
 import { refundOrderShare } from "../steps/refund-order-share"
 import { refundLockKeys } from "./refund-order-share"
@@ -77,6 +78,41 @@ async function recordRefusal(container: Parameters<typeof owedRefundsOf>[0], owe
     failure_reason: reason,
   })
 }
+
+export type SettleOwedRefundInput = {
+  order_id: string
+  method: SettlementMethod
+  note: string
+  /** The operator that settled it. */
+  settled_by: string
+}
+
+/** Records that Oja's team settled all the order still owes its buyer by hand. Refused when it owes nothing. */
+const settleOwedRefundStep = createStep("settle-owed-refund", async (input: SettleOwedRefundInput, { container }) => {
+  const owed = await owedOf(container, input.order_id)
+  if (!owed) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order ${input.order_id} owes its buyer no refund`)
+  const settlement = await fulfilmentService(container).createRefundSettlements({
+    ...input,
+    amount: owed.amount,
+    currency_code: owed.currency_code,
+  })
+  return new StepResponse(settlement, settlement.id)
+}, async (id, { container }) => {
+  if (id) await fulfilmentService(container).deleteRefundSettlements(id)
+})
+
+/**
+ * Oja's staff mark what an order owes its buyer settled by hand (#16), by bank transfer say,
+ * holding the order's refund lock so no retry races it. It is no longer retried, and still
+ * comes off the shop's payout: the order summary still owes it.
+ */
+export const settleOwedRefundWorkflow = createWorkflow("settle-owed-refund", (input: SettleOwedRefundInput) => {
+  const keys = refundLockKeys(input)
+  acquireLockStep({ key: keys, timeout: 10, ttl: 60 })
+  const settlement = settleOwedRefundStep(input)
+  releaseLockStep({ key: keys })
+  return new WorkflowResponse(settlement)
+})
 
 /**
  * Refunds what an order owes its buyer (#16), holding the order's refund lock: after an order
