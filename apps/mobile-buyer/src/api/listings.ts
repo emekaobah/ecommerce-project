@@ -15,16 +15,19 @@ type ListFilters = {
 };
 
 /** The buyer's saved address shops are measured from (#43); none for a guest or without one. */
-type Near = { addressId: string | null };
+export type Near = { addressId: string | null };
 
 export const listingKeys = {
   all: ['listings'] as const,
   list: (regionId: string, filters: ListFilters & Near) => [...listingKeys.all, 'list', { regionId, ...filters }] as const,
-  detail: (regionId: string, sellerId: string, productId: string) =>
-    [...listingKeys.all, 'detail', { regionId, sellerId, productId }] as const,
+  detail: (regionId: string, sellerId: string, productId: string, { addressId }: Near) =>
+    [...listingKeys.all, 'detail', { regionId, sellerId, productId, addressId }] as const,
+  deliveryEstimate: (regionId: string, sellerId: string, productId: string, userId: string | null | undefined) =>
+    [...listingKeys.all, 'delivery-estimate', { regionId, sellerId, productId, userId }] as const,
 };
 
-const near = (addressId: string | null) => (addressId ? { address_id: addressId } : {});
+/** The query parameter a store route measures shops from: the address's id, when there is one. */
+export const near = (addressId: string | null) => (addressId ? { address_id: addressId } : {});
 
 function fetchListings(
   regionId: string,
@@ -81,7 +84,7 @@ export function useDeliveryEstimate(
   userId: string | null | undefined
 ) {
   return useQuery({
-    queryKey: [...listingKeys.detail(regionId ?? '', sellerId, productId), 'delivery-estimate', { userId }] as const,
+    queryKey: listingKeys.deliveryEstimate(regionId ?? '', sellerId, productId, userId),
     queryFn:
       regionId && userId
         ? async () => {
@@ -102,7 +105,7 @@ export function useDeliveryEstimate(
 export function useListing(regionId: string | undefined, sellerId: string, productId: string) {
   const addressId = useDeliveringToId();
   return useQuery({
-    queryKey: [...listingKeys.detail(regionId ?? '', sellerId, productId), { addressId }] as const,
+    queryKey: listingKeys.detail(regionId ?? '', sellerId, productId, { addressId: addressId ?? null }),
     queryFn:
       regionId && addressId !== undefined ? () => fetchListing(regionId, sellerId, productId, addressId) : skipToken,
     // The shop stopped selling it.
