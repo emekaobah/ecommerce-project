@@ -17,6 +17,16 @@
       "weight": "Weight"
     }
   },
+  "deliveryRefund": {
+    "title": "Delivery refund",
+    "loadError": "Could not load the delivery fee.",
+    "fee": "Delivery fee",
+    "left": "Left to refund",
+    "amountLabel": "Amount to refund",
+    "refund": "Refund {{amount}}",
+    "refunded": "Delivery refunded.",
+    "hint": "Oja keeps the delivery fee, so a refund of it never comes off the shop's payout. Shops refund only items."
+  },
   "perishable": {
     "title": "Perishable",
     "loadError": "Could not load whether this is perishable.",
