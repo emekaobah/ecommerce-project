@@ -21,14 +21,16 @@ export type CheckoutPromotion = Checkout['promotions'][number];
 
 /**
  * The cart as checkout shows it. `waitForOrder` polls until Paystack's webhook has confirmed
- * the payment and the cart has become an order group.
+ * the payment and the cart has become an order group, or the cart failed to become orders and
+ * was refunded (`not_placed`, #38).
  */
 export function useCheckout(cartId: string | null | undefined, { waitForOrder = false } = {}) {
   return useQuery({
     queryKey: checkoutKeys.detail(cartId ?? ''),
     queryFn: cartId ? () => fetchCheckout(cartId) : skipToken,
     staleTime: 0,
-    refetchInterval: (query) => (waitForOrder && !query.state.data?.order_group_id ? 2_000 : false),
+    refetchInterval: (query) =>
+      waitForOrder && !query.state.data?.order_group_id && !query.state.data?.not_placed ? 2_000 : false,
   });
 }
 
