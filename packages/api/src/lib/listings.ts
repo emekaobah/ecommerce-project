@@ -590,10 +590,10 @@ function attributesOf(values: AttributeValueRow[]): { name: string; values: stri
   return [...byAttribute.values()].sort((a, b) => a.rank - b.rank).map(({ name, values }) => ({ name, values }))
 }
 
-/** An open shop serving the region, for its page's header, or not found. */
+/** A live shop serving the region, open or closed (ADR 0004), for its page's header, or not found. */
 export async function retrieveShop(scope: MedusaContainer, filters: { regionId: string; sellerId: string }): Promise<Shop> {
   const region = await loadRegion(scope, filters.regionId)
   const seller = (await sellersServing(scope, region, filters.sellerId)).get(filters.sellerId)
-  if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop isn't open in your region")
+  if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop isn't selling in your region")
   return { ...toListingSeller(seller), description: seller.description }
 }
