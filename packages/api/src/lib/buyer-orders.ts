@@ -14,7 +14,7 @@ import {
   type Picks,
   type PlacedOrder,
 } from "./order-fulfilment"
-import { owedRefundsOf, type OwedRefund } from "./owed-refunds"
+import { failedSinceLastMade, owedRefundsOf, type OwedRefund } from "./owed-refunds"
 import { HOLD_LINE_FIELDS, holdLinesOf } from "./pickup-hold"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
@@ -114,10 +114,7 @@ const LEAST_SETTLED: PaystackRefundStatus[] = ["needs-attention", "failed", "pen
  */
 export function buyerRefund(all: RefundRow[]): BuyerRefund | null {
   const rows = all.filter((r) => !r.failure_reason)
-  const time = (r: RefundRow) => new Date(r.created_at).getTime()
-  const lastMade = Math.max(-Infinity, ...rows.filter((r) => r.status !== "failed").map(time))
-  const stillFailed = rows.filter((r) => r.status === "failed" && time(r) > lastMade)
-  const latestFailed = stillFailed.reduce<RefundRow | undefined>((a, r) => (!a || time(r) > time(a) ? r : a), undefined)
+  const latestFailed = failedSinceLastMade(rows).at(-1)
   const counted = [...rows.filter((r) => r.status !== "failed"), ...(latestFailed ? [latestFailed] : [])]
   if (!counted.length) return null
   const statuses = new Set(counted.map((r) => r.status))
