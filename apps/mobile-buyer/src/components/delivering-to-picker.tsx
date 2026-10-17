@@ -8,18 +8,20 @@ import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
 /**
  * "Delivering to" at the top of Home and Search (#43): the saved address shops are measured
  * from, which opens the list to switch it. A guest is asked to sign in, and a buyer without a
- * saved address to add one; until then listings keep their usual order.
+ * saved address to add one, and one whose addresses won't load to retry; until then listings
+ * keep their usual order.
  */
 export function DeliveringToPicker() {
   const theme = useTheme();
-  const { address, saved } = useDeliveringTo();
+  const { address, saved, signedIn, failed, retry } = useDeliveringTo();
 
   const { label, value, onPress } = (() => {
     if (address) {
       return { label: 'Delivering to', value: addressLines(address).place, onPress: openPicker };
     }
     if (address === undefined) return { label: 'Delivering to', value: '…', onPress: undefined };
-    if (!saved) return { label: null, value: 'Sign in to see shops near you', onPress: () => router.push('/sign-in') };
+    if (!signedIn) return { label: null, value: 'Sign in to see shops near you', onPress: () => router.push('/sign-in') };
+    if (failed || !saved) return { label: null, value: "Couldn't load your addresses. Tap to retry", onPress: retry };
     if (!saved.length) return { label: null, value: 'Add a delivery address', onPress: addAddress };
     return { label: null, value: 'Choose a delivery address', onPress: openPicker };
   })();

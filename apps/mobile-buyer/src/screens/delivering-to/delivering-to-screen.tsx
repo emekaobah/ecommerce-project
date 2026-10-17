@@ -1,5 +1,5 @@
 import { addressLines, pinOf } from '@oja/domain';
-import { Button, EmptyState, LoadingState, RadioOption, Text, useTheme } from '@oja/ui';
+import { Button, EmptyState, ErrorState, LoadingState, RadioOption, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
 import { ScrollView } from 'react-native';
 
@@ -13,8 +13,11 @@ const addAddress = () => router.push('/addresses/edit');
  */
 export function DeliveringToScreen() {
   const theme = useTheme();
-  const { address: current, saved, pick } = useDeliveringTo();
+  const { address: current, saved, failed, retry, pick } = useDeliveringTo();
 
+  if (failed) {
+    return <ErrorState title="Couldn't load your addresses" message="Check your connection and try again." onRetry={retry} />;
+  }
   if (!saved) return <LoadingState />;
   if (!saved.length) {
     return (

@@ -13,8 +13,13 @@ type DeliveringToState = {
    * whose addresses won't load), or one with neither a picked nor a default address.
    */
   address: SavedAddressRecord | null | undefined;
-  /** The buyer's saved addresses; undefined for a guest or while they load. */
+  /** The buyer's saved addresses; undefined for a guest, while they load, or when they won't load. */
   saved: SavedAddressRecord[] | undefined;
+  /** Whether a buyer is signed in; false for a guest and until Clerk has loaded. */
+  signedIn: boolean;
+  /** The signed-in buyer's saved addresses won't load; `retry` asks again. */
+  failed: boolean;
+  retry: () => void;
   /** Delivers to another saved address, remembered on the device until changed. */
   pick: (addressId: string) => void;
 };
@@ -61,9 +66,12 @@ export function DeliveringToProvider({ children }: Readonly<{ children: ReactNod
     return addresses.data.find((a) => a.id === id) ?? null;
   }, [isLoaded, userId, addresses.data, addresses.error, pickedId]);
 
+  const failed = !!userId && !!addresses.error;
+  const { refetch } = addresses;
+  const retry = useCallback(() => void refetch(), [refetch]);
   const value = useMemo<DeliveringToState>(
-    () => ({ address, saved: userId ? addresses.data : undefined, pick }),
-    [address, userId, addresses.data, pick]
+    () => ({ address, saved: userId ? addresses.data : undefined, signedIn: isLoaded && !!userId, failed, retry, pick }),
+    [address, userId, isLoaded, addresses.data, failed, retry, pick]
   );
   return <DeliveringToContext.Provider value={value}>{children}</DeliveringToContext.Provider>;
 }
