@@ -16,3 +16,16 @@ export function cancelReasonText({ reason, note }: Pick<Cancellation, "reason" |
   if (reason === "other") return note ?? CANCEL_REASON_LABELS.other
   return note ? `${CANCEL_REASON_LABELS[reason]}: ${note}` : CANCEL_REASON_LABELS[reason]
 }
+
+/** What staff have filled in on the cancel form so far: no reason until they pick one. */
+export type CancelForm = { reason: CancelReason | null; note: string }
+
+/**
+ * The cancel request staff's form makes, or null while it is incomplete: a reason, and for
+ * `other` a note saying what it is. A note is trimmed, and left out when blank.
+ */
+export function cancelRequest({ reason, note }: CancelForm): { reason: CancelReason; note?: string } | null {
+  const trimmed = note.trim()
+  if (!reason || (reason === "other" && !trimmed)) return null
+  return trimmed ? { reason, note: trimmed } : { reason }
+}

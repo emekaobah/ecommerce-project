@@ -1,0 +1,40 @@
+# The shop's owner cancels an accepted order with a reason, and sees its refund (#17). Needs the
+# backend with the seeded shops and a new order for the grocery shop: `bun run --cwd
+# packages/api demo:order` places one. Fulfilment staff don't get the Cancel order button.
+appId: com.emekaobah.oja.vendor
+env:
+  MEMBER_EMAIL: grocery.owner@oja.test
+  MEMBER_PASSWORD: supersecret
+  SHOP: Iya Bisi Foodstuff
+---
+- launchApp
+- runFlow:
+    file: sign-in.yaml
+    env:
+      MEMBER_EMAIL: ${MEMBER_EMAIL}
+      MEMBER_PASSWORD: ${MEMBER_PASSWORD}
+      SHOP: ${SHOP}
+- extendedWaitUntil:
+    visible: ${SHOP}
+    timeout: 15000
+- tapOn: ".*, New · .*"
+# A new order is rejected, not cancelled: Cancel order shows once it is accepted.
+- assertNotVisible: "Cancel order"
+- tapOn: "Accept order"
+- tapOn: "Cancel order"
+# The refund it makes is shown before anything is cancelled.
+- assertVisible: "Refund to the buyer"
+# Other needs a note saying why.
+- tapOn: "Other"
+- assertVisible: "Why are you cancelling?"
+- tapOn:
+    id: "cancel-note"
+- inputText: "Our freezer broke down"
+- hideKeyboard
+- tapOn: "Cancel and refund, .*"
+- extendedWaitUntil:
+    visible: "Order cancelled"
+    timeout: 20000
+- assertVisible: "Refund on its way|Refund pending"
+- tapOn: "Back to orders"
+- assertVisible: ".*, Cancelled"

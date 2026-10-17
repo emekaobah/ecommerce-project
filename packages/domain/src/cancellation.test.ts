@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { CANCEL_REASON_LABELS, cancelReasonText } from "./cancellation"
+import { CANCEL_REASON_LABELS, cancelReasonText, cancelRequest } from "./cancellation"
 import { CANCEL_REASONS } from "./fulfilment"
 
 describe("cancel reasons", () => {
@@ -26,5 +26,30 @@ describe("cancelReasonText", () => {
     expect(cancelReasonText({ reason: "items_unavailable", note: "The rice is sold out" })).toBe(
       "Items unavailable: The rice is sold out"
     )
+  })
+})
+
+describe("cancelRequest", () => {
+  test("is nothing until staff pick a reason", () => {
+    expect(cancelRequest({ reason: null, note: "" })).toBeNull()
+  })
+
+  test("is nothing for another reason until staff say what it is", () => {
+    expect(cancelRequest({ reason: "other", note: "   " })).toBeNull()
+  })
+
+  test("sends another reason with its note, trimmed", () => {
+    expect(cancelRequest({ reason: "other", note: "  Our freezer broke down " })).toEqual({
+      reason: "other",
+      note: "Our freezer broke down",
+    })
+  })
+
+  test("sends a listed reason on its own, leaving out a blank note", () => {
+    expect(cancelRequest({ reason: "buyer_asked", note: " " })).toEqual({ reason: "buyer_asked" })
+    expect(cancelRequest({ reason: "buyer_asked", note: "They called the shop" })).toEqual({
+      reason: "buyer_asked",
+      note: "They called the shop",
+    })
   })
 })

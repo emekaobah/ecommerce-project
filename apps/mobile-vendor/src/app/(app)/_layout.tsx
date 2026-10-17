@@ -25,6 +25,8 @@ export default function AppLayout() {
         name="orders/[id]/reject"
         options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: 'fitToContents' }}
       />
+      {/* Cancelling an accepted order (#17): the reason, then the refund it makes. */}
+      <Stack.Screen name="orders/[id]/cancel" options={{ title: 'Cancel order' }} />
       {/* The pick list and packed screens set their own titles. */}
       <Stack.Screen name="orders/[id]/pick" />
       {/* The scanner fills the screen; Done returns to the pick list. */}

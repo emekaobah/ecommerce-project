@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
 import { formatMoney } from '@oja/domain';
-import { Button, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
+import { Button, ErrorState, ListRow, LoadingState, RadioOption, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -14,7 +14,6 @@ import {
   type BuyerRefund,
   type RefundAccountInput,
 } from '@/api/refunds';
-import { RadioOption } from '@/components/radio-option';
 
 /** A NUBAN account number is 10 digits. */
 const ACCOUNT_LENGTH = 10;

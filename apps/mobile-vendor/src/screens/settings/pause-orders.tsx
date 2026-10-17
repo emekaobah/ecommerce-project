@@ -2,7 +2,8 @@ import { Button, ErrorState, LoadingState, StatusChip, Text, useTheme, type Stat
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
-import { useMayChangeShop, usePauseShop, useResumeShop, useShopHours, type ShopHours } from '@/api/shop-hours';
+import { useMayManageShop } from '@/api/sellers';
+import { usePauseShop, useResumeShop, useShopHours, type ShopHours } from '@/api/shop-hours';
 import { Field } from '@/components/field';
 
 const HOUR = 60 * 60 * 1000;
@@ -44,7 +45,7 @@ function confirmPause(newOrders: number, pause: () => void) {
 export function PauseOrders({ sellerId }: Readonly<{ sellerId: string }>) {
   const theme = useTheme();
   const hours = useShopHours(sellerId);
-  const mayChange = useMayChangeShop(sellerId);
+  const mayChange = useMayManageShop(sellerId);
   const pause = usePauseShop(sellerId);
   const resume = useResumeShop(sellerId);
   const [duration, setDuration] = useState<(typeof DURATIONS)[number]>(DURATIONS[0]);

@@ -22,7 +22,7 @@ import {
   type PinnedDeliveryAddress,
   type PriceChange,
 } from '@oja/domain';
-import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
+import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, RadioOption, StatusChip, Text, useTheme } from '@oja/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -46,7 +46,6 @@ import { AddressCard } from '@/components/address/address-card';
 import { AddressEntry } from '@/components/address/address-entry';
 import { AddressForm } from '@/components/address/address-form';
 import { PickupDetails } from '@/components/pickup';
-import { RadioOption } from '@/components/radio-option';
 import { useAddressDraft } from '@/components/address/use-address-draft';
 import { ToggleRow } from '@/components/toggle-row';
 import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
