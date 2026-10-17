@@ -13,7 +13,8 @@
  * passes); picking ⇄ partially_available → packed (or ready_for_pickup);
  * label_booked or courier_confirmed → packed when the shipment provider
  * cancels (rebook); handed_to_courier → delivered when the provider never
- * reported transit.
+ * reported transit; ready_for_pickup → not_collected when the pickup hold
+ * expires (#32), which is final: no code is taken there.
  *
  * Every trigger names its source: a `staff` action (who and when), a
  * shipment-`provider` event, or a `system` event. Provider events are generic
@@ -80,6 +81,7 @@ export type PickupFulfilment = { method: "pickup" } & (
   | SharedState
   | { state: "ready_for_pickup" }
   | { state: "collected"; collection: Collection }
+  | { state: "not_collected" }
 )
 
 export type Fulfilment = DeliveryFulfilment | PickupFulfilment
@@ -106,7 +108,7 @@ export type ProviderEventType =
   | "delivered"
   | "cancelled"
 
-export type SystemEventType = "accept_deadline_passed"
+export type SystemEventType = "accept_deadline_passed" | "pickup_hold_expired"
 
 /** An action taken by seller staff in the app; `actor` is the member id. */
 export type StaffAction<T extends Exclude<StaffActionType, "collect"> = Exclude<StaffActionType, "collect">> = {
@@ -227,6 +229,7 @@ const STEPS: { [S in FulfilmentState]: Step<S> } = {
   in_transit: ({ handover }, trigger) =>
     isProvider(trigger, "delivered") ? { method: "delivery", state: "delivered", handover } : undefined,
   ready_for_pickup: (_, trigger) => {
+    if (isSystem(trigger, "pickup_hold_expired")) return { method: "pickup", state: "not_collected" }
     if (trigger.source !== "staff" || trigger.type !== "collect") return undefined
     const { actor, at, collectedBy } = trigger
     return { method: "pickup", state: "collected", collection: { actor, at, collectedBy } }
@@ -234,6 +237,7 @@ const STEPS: { [S in FulfilmentState]: Step<S> } = {
   rejected: done,
   delivered: done,
   collected: done,
+  not_collected: done,
 }
 
 /** Packing ends picking: a delivery order waits for its label, a pickup order is ready at the counter. */

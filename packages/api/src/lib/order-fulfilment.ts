@@ -12,6 +12,7 @@ import {
 import type { InferTypeOf, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { isPickupMethod } from "./collection-point"
+import { collectByOf, HOLD_LINE_FIELDS, holdLinesOf, type CollectBy, type HoldLine, type OrderLineRow } from "./pickup-hold"
 import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../modules/order-fulfilment"
 import type OrderFulfilment from "../modules/order-fulfilment/models/order-fulfilment"
 import type OrderRefund from "../modules/order-fulfilment/models/order-refund"
@@ -164,6 +165,13 @@ export type FulfilmentView = {
    * the code and when, and the name the collector gave.
    */
   collection: { staff: { name: string | null; at: string }; collected_by: string } | null
+  /**
+   * While a pickup order is Ready for pickup: when its hold ends (#32), closing time on the 5th
+   * of the shop's open days after Ready (the next one for an order with perishable lines), and
+   * the region's timezone to show it in. Null otherwise, and while the shop is paused with no
+   * resume date (the hold's clock is frozen).
+   */
+  collect_by: CollectBy | null
   /** The order's steps as staff (or its buyer) see them, done up to where it is. */
   timeline: TimelineStep[]
 }
@@ -181,8 +189,11 @@ function collectionOf(fulfilment: Fulfilment) {
 /** `names`: members' names by id, for who handed the order over; `audience`: whose steps the timeline shows. */
 export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
 
-/** The order a fulfilment view is of: when it was placed, and how it was to reach its buyer. */
-export type PlacedOrder = { placed_at: Date | string; method: FulfilmentMethod }
+/**
+ * The order a fulfilment view is of: when it was placed, how it was to reach its buyer, and the
+ * lines still on it, which set a pickup order's hold (left out, no hold is counted).
+ */
+export type PlacedOrder = { placed_at: Date | string; method: FulfilmentMethod; lines?: HoldLine[] }
 
 /**
  * `order`: an order without a row yet is New, by the method it was placed with. `hours`: the
@@ -204,6 +215,7 @@ export function fulfilmentView(
     state: fulfilment.state,
     accept_by: fulfilment.state === "new" ? acceptDeadline(placed_at, hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
+    collect_by: collectByOf(record, hours, order.lines),
     reject_reason: record?.reject_reason ?? null,
     shipment: shipment
       ? {
@@ -307,13 +319,15 @@ export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "order",
-    fields: ["id", "created_at", "seller.id", ...METHOD_FIELDS],
+    fields: ["id", "created_at", "seller.id", ...METHOD_FIELDS, ...HOLD_LINE_FIELDS],
     filters: { id: orderIds },
   })
-  const orders = data as unknown as (OrderWithMethods & { id: string; created_at: Date | string; seller?: { id: string } | null })[]
-  const [records, hours] = await Promise.all([
+  type Row = OrderWithMethods & { id: string; created_at: Date | string; seller?: { id: string } | null; items?: OrderLineRow[] | null }
+  const orders = data as unknown as Row[]
+  const [records, hours, lines] = await Promise.all([
     fulfilmentsOf(scope, orderIds),
     shopHoursOf(scope, orders.flatMap((o) => (o.seller ? [o.seller.id] : []))),
+    holdLinesOf(scope, orders),
   ])
   const names = await handoverNames(scope, records.values())
   return new Map(
@@ -321,7 +335,7 @@ export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise
       o.id,
       fulfilmentView(
         records.get(o.id),
-        { placed_at: o.created_at, method: methodOfOrder(o) },
+        { placed_at: o.created_at, method: methodOfOrder(o), lines: lines.get(o.id) },
         (o.seller && hours.get(o.seller.id)) || null,
         { names }
       ),

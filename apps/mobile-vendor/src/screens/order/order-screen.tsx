@@ -1,4 +1,4 @@
-import { formatMoney } from '@oja/domain';
+import { collectByLabel, formatMoney } from '@oja/domain';
 import { Button, ErrorState, ListRow, LoadingState, Text, Timeline, useTheme } from '@oja/ui';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Linking, ScrollView, View } from 'react-native';
@@ -80,6 +80,7 @@ const STATE_NOTES: { [S in OrderFulfilment['state']]?: string } = {
   in_transit: 'In transit to the buyer.',
   delivered: 'Delivered to the buyer.',
   ready_for_pickup: 'Ready at the counter. The buyer collects it with the code in their app.',
+  not_collected: "Not collected in time. The buyer is refunded all but the fresh items, which are the shop's and paid out.",
 };
 
 /** A pickup order's states before it is packed, when staff are told the buyer collects it. */
@@ -89,6 +90,10 @@ function stateNote(fulfilment: OrderFulfilment): string | null {
   const { state } = fulfilment;
   if (state === 'new' && fulfilment.accept_by) {
     return `Accept by ${new Date(fulfilment.accept_by).toLocaleString()}, or it is rejected and refunded.`;
+  }
+  if (state === 'ready_for_pickup' && fulfilment.collect_by) {
+    const { at, time_zone } = fulfilment.collect_by;
+    return `Ready at the counter. The buyer collects it with the code in their app. ${collectByLabel(at, new Date(), time_zone)}, or it is not collected.`;
   }
   if (state === 'packed' && fulfilment.shipment?.cancelled) {
     return 'Shipbubble cancelled the courier booking. Book a new label to send it.';

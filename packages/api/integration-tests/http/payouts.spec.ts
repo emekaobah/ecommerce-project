@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
+import { adminHeaders } from "../helpers/auth"
 import { flagUnmatchedRefunds } from "../../src/lib/refund-check"
 import { payOutDeliveredOrders } from "../../src/lib/pay-out-orders"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../../src/modules/shop-bank-account"
@@ -68,7 +69,7 @@ medusaIntegrationTestRunner({
       for (const line of pick_list.lines) await post(GROCERY, `${orderId}/pick-list/${line.id}`, { picked: line.quantity })
       await post(GROCERY, `${orderId}/pack`)
       const { data } = await post(GROCERY, `${orderId}/book-label`)
-      return { orderId, reference, waybill: data.fulfilment.shipment.waybill as string }
+      return { orderId, cartId, reference, waybill: data.fulfilment.shipment.waybill as string }
     }
     /** As `bookedOrder`, then handed to the courier and delivered. */
     const deliveredOrder = async () => {
@@ -214,6 +215,109 @@ medusaIntegrationTestRunner({
       })
     })
 
+    // A refund says what it is of (#22): a shop refunds items; only Oja's staff refund delivery,
+    // which Oja keeps, so a refund of it never comes off the shop's payout.
+    describe("refunds of items and of delivery", () => {
+      const status = (request: Promise<unknown>) =>
+        request.then(
+          () => 200,
+          (e: any) => e.response?.status
+        )
+      const refundsOf = async (orderId: string) =>
+        (await fulfilmentService(getContainer()).listOrderRefunds({ order_id: orderId }, { order: { created_at: "ASC" } })).map(
+          (r) => ({ amount: Number(r.amount), covers: r.covers })
+        )
+      const refundDelivery = async (orderId: string, body: { amount?: number } = {}) =>
+        api.post(`/admin/orders/${orderId}/delivery-refund`, body, await adminHeaders(getContainer(), api))
+
+      it("records a shop's refund from the vendor panel as a refund of items", async () => {
+        const { cartId } = await buyer.paidCheckout()
+        const orderId = await buyer.shopOrderId(GROCERY, cartId)
+        const paymentId = (await buyer.paymentOf(cartId)).id
+
+        await api.post(`/vendor/payments/${paymentId}/refund`, { amount: RICE.price }, await buyer.owner(GROCERY))
+
+        expect(await refundsOf(orderId)).toEqual([{ amount: RICE.price, covers: "items" }])
+      })
+
+      it("refunds a shop's items with no amount given, never the delivery fee", async () => {
+        const { orderId, reference, cartId } = await bookedOrder()
+        const paymentId = (await buyer.paymentOf(cartId)).id
+
+        await api.post(`/vendor/payments/${paymentId}/refund`, {}, await buyer.owner(GROCERY))
+
+        expect(await refundsOf(orderId)).toEqual([{ amount: GROCERY_GOODS, covers: "items" }])
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([kobo(GROCERY_GOODS)])
+      })
+
+      it("caps a shop's refunds at its items less their earlier refunds, counting none that failed", async () => {
+        const { orderId, reference, cartId } = await bookedOrder()
+        const paymentId = (await buyer.paymentOf(cartId)).id
+        const refundItems = async (amount: number) =>
+          status(api.post(`/vendor/payments/${paymentId}/refund`, { amount }, await buyer.owner(GROCERY)))
+
+        expect(await refundItems(GROCERY_GOODS + 1)).toBe(400)
+        expect(await refundItems(RICE.price)).toBe(200)
+        await settleRefunds(reference, "failed")
+        await eventually(() => refundStatuses(orderId), (s) => s.every((x) => x === "failed"))
+        expect(await refundItems(GROCERY_GOODS)).toBe(200)
+        expect(await refundItems(1)).toBe(400)
+
+        // Staff can still refund the delivery fee, which the shop's refunds never touched.
+        await refundDelivery(orderId)
+        expect((await refundsOf(orderId)).map((r) => r.covers)).toEqual(["items", "items", "delivery"])
+      })
+
+      it("lets Oja's staff refund delivery, up to the delivery fee less what was refunded of it already", async () => {
+        const { orderId } = await bookedOrder()
+
+        const deliveryLeft = async () =>
+          (await api.get(`/admin/orders/${orderId}/delivery-refund`, await adminHeaders(getContainer(), api))).data.delivery_refund
+        expect(await deliveryLeft()).toEqual({ currency_code: "ngn", delivery_fee: BEST_VALUE_FEE, left: BEST_VALUE_FEE })
+        expect(await status(refundDelivery(orderId, { amount: BEST_VALUE_FEE + 1 }))).toBe(400)
+        expect((await refundDelivery(orderId, { amount: 500 })).data.delivery_refund).toMatchObject({ left: BEST_VALUE_FEE - 500 })
+        expect(await deliveryLeft()).toMatchObject({ left: BEST_VALUE_FEE - 500 })
+        // Left out, the amount is what is left of the delivery fee.
+        await refundDelivery(orderId)
+        expect(await status(refundDelivery(orderId, { amount: 1 }))).toBe(400)
+
+        expect(await refundsOf(orderId)).toEqual([
+          { amount: 500, covers: "delivery" },
+          { amount: BEST_VALUE_FEE - 500, covers: "delivery" },
+        ])
+      })
+
+      it("doesn't let a shop refund delivery", async () => {
+        const { orderId } = await bookedOrder()
+
+        expect(await status(api.post(`/admin/orders/${orderId}/delivery-refund`, {}, await buyer.owner(GROCERY)))).toBe(401)
+      })
+
+      it("pays the shop in full for its goods when delivery was refunded, without waiting for that refund", async () => {
+        const { orderId } = await deliveredOrder()
+        await refundDelivery(orderId)
+
+        expect(await orderPayout(orderId)).toMatchObject({ state: "due", refunded: 0, amount: lessCommission(GROCERY_GOODS) / 100 })
+        await payOutDeliveredOrders(getContainer())
+
+        expect(transferFor(orderId)).toMatchObject({ amount: lessCommission(GROCERY_GOODS) })
+        expect(await orderPayout(orderId)).toMatchObject({ refunded: 0, amount: lessCommission(GROCERY_GOODS) / 100 })
+      })
+
+      it("takes nothing back from the shop for a delivery refund made after its payout", async () => {
+        const first = await deliveredOrder()
+        await payOutDeliveredOrders(getContainer())
+        await refundDelivery(first.orderId)
+        await settleRefunds(first.reference, "processed")
+        await eventually(() => refundStatuses(first.orderId), (s) => s.every((x) => x === "processed"))
+        const second = await deliveredOrder()
+
+        await payOutDeliveredOrders(getContainer())
+
+        expect(transferFor(second.orderId)).toMatchObject({ amount: lessCommission(GROCERY_GOODS) })
+      })
+    })
+
     describe("checking Paystack's refunds", () => {
       it("flags a Paystack refund no order refund records, such as one made by hand, and not Oja's own", async () => {
         const start = new Date(Date.now() - 1000).toISOString()
@@ -236,16 +340,16 @@ medusaIntegrationTestRunner({
     })
 
     describe("the vendor panel", () => {
-      it("shows each order's commission: 10% of its goods, never of delivery", async () => {
-        const { cartId } = await buyer.paidCheckout()
-        const orderId = await buyer.shopOrderId(GROCERY, cartId)
+      it("shows an order's commission only in its payout, never Mercur's commission lines, which don't follow refunds", async () => {
+        const { orderId } = await bookedOrder()
 
-        const lines = await eventually(
-          async () => (await api.get(`/vendor/orders/${orderId}/commission-lines`, await buyer.owner(GROCERY))).data.commission_lines as any[],
-          (l) => l.length > 0
+        const status = await api.get(`/vendor/orders/${orderId}/commission-lines`, await buyer.owner(GROCERY)).then(
+          () => 200,
+          (e: any) => e.response?.status
         )
 
-        expect(lines.reduce((sum, l) => sum + Number(l.amount), 0)).toBeCloseTo(GROCERY_GOODS / 10, 2)
+        expect(status).toBe(403)
+        expect(await orderPayout(orderId)).toMatchObject({ commission: GROCERY_GOODS / 10, commission_percent: 10 })
       })
 
       it("shows an order's payout before it is due: what it will be, and that it waits for delivery", async () => {

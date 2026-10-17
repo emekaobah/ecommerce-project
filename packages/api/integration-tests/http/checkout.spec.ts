@@ -701,16 +701,19 @@ medusaIntegrationTestRunner({
         const paymentId = await paymentIdOf(cartId)
         const owner = await vendorHeaders(api, GADGETS.owner.email, SEED_PASSWORD, await sellerId(GADGETS))
         const share = ORDER_TOTALS.get(GADGETS)!
+        // A shop refunds its goods; the delivery fee is Oja's to refund (#22).
+        const goods = share - BEST_VALUE_FEE
 
-        // The whole checkout's payment isn't the shop's to refund.
+        // Neither the whole checkout's payment nor the shop's delivery fee is the shop's to refund.
         expect(await status(api.post(`/vendor/payments/${paymentId}/refund`, { amount: TOTAL }, owner))).toBe(400)
+        expect(await status(api.post(`/vendor/payments/${paymentId}/refund`, { amount: share }, owner))).toBe(400)
         expect(paystack.refundsOf(reference)).toEqual([])
 
-        const { data } = await api.post(`/vendor/payments/${paymentId}/refund`, { amount: share }, owner)
+        const { data } = await api.post(`/vendor/payments/${paymentId}/refund`, { amount: goods }, owner)
 
-        // Shown as the shop's share, refunded in full; Paystack refunded that share alone (kobo).
-        expect(data.payment.refunds.map((r: any) => r.amount)).toEqual([share])
-        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([share * 100])
+        // Shown against the shop's share; Paystack refunded those goods alone (kobo).
+        expect(data.payment.refunds.map((r: any) => r.amount)).toEqual([goods])
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([goods * 100])
         const grocer = await vendorHeaders(api, GROCERY.owner.email, SEED_PASSWORD, await sellerId(GROCERY))
         const { data: other } = await api.get(`/vendor/payments/${paymentId}`, grocer)
         expect(other.payment.refunds).toEqual([])

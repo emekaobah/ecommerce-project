@@ -39,7 +39,7 @@ type Interval = { start: number; end: number }
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /** The local calendar date of an instant, as YYYY-MM-DD. */
-const dateIn = (instant: number, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(instant)
+export const dateIn = (instant: number, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(instant)
 
 /** The date `days` after a YYYY-MM-DD date. */
 const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10)
@@ -113,8 +113,8 @@ function merge(intervals: Interval[]): Interval[] {
   return merged
 }
 
-/** When the shop is open between two instants, as sorted, separate intervals clipped to them. */
-function openIntervals(hours: ShopHours, from: number, to: number): Interval[] {
+/** When the shop's hours (weekly, or an exception's) keep it open between two instants, pauses aside: sorted, separate, clipped. */
+function scheduledIntervals(hours: ShopHours, from: number, to: number): Interval[] {
   const intervals: Interval[] = []
   // A day either side covers periods that start before `from` or timezones far from UTC.
   const last = addDays(dateIn(to, hours.time_zone), 1)
@@ -124,11 +124,14 @@ function openIntervals(hours: ShopHours, from: number, to: number): Interval[] {
     }
   }
   intervals.sort((a, b) => a.start - b.start)
-  const clipped = merge(intervals)
+  return merge(intervals)
     .map((i) => ({ start: Math.max(i.start, from), end: Math.min(i.end, to) }))
     .filter((i) => i.start < i.end)
-  return without(clipped, pauseIntervals(hours))
 }
+
+/** When the shop is open between two instants, as sorted, separate intervals clipped to them. */
+const openIntervals = (hours: ShopHours, from: number, to: number): Interval[] =>
+  without(scheduledIntervals(hours, from, to), pauseIntervals(hours))
 
 /** How far ahead the clocks look for the shop to open: a shop closed longer counts as not reopening. */
 const HORIZON_MS = 400 * DAY_MS
@@ -166,6 +169,31 @@ export function afterOpenTime(hours: ShopHours, from: Date, openTime: number): D
     const length = interval.end - interval.start
     if (left <= length) return new Date(interval.start + left)
     left -= length
+  }
+  return null
+}
+
+/**
+ * When the shop closes on the `days`th open day after the day of `from`: the clock of deadlines
+ * counted in open days (ADR 0004). An open day is a calendar day the shop opens on; the day of
+ * `from` doesn't count, nor do days closed by an exception or a pause. Null while the shop is
+ * paused, with no resume date, before that day's closing.
+ */
+export function afterOpenDays(hours: ShopHours, from: Date, days: number): Date | null {
+  const unresumed = Math.min(...hours.pauses.filter((p) => !p.ends_at).map((p) => Date.parse(p.starts_at)))
+  let date = dateIn(from.getTime(), hours.time_zone)
+  let left = days
+  for (let checked = 0; checked < HORIZON_MS / DAY_MS; checked++) {
+    date = addDays(date, 1)
+    const start = instantOf(date, "00:00", hours.time_zone)
+    if (start >= unresumed) return null
+    const end = instantOf(date, "24:00", hours.time_zone)
+    if (!openIntervals(hours, start, end).length) continue
+    left -= 1
+    if (left > 0) continue
+    // Closing time is the day's hours', even when a pause covers the end of the day.
+    const closes = scheduledIntervals(hours, start, end).at(-1)!.end
+    return closes < unresumed ? new Date(closes) : null
   }
   return null
 }
@@ -253,7 +281,7 @@ export function hoursExceptionErrors(exception: Omit<HoursException, "note"> & {
 }
 
 /** "9:30pm", "8am", "12pm": a local time as buyers read it. */
-function timeLabel(instant: number, timeZone: string): string {
+export function timeLabel(instant: number, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hourCycle: "h23", hour: "numeric", minute: "numeric" }).formatToParts(
     instant
   )
@@ -264,7 +292,7 @@ function timeLabel(instant: number, timeZone: string): string {
   return `${twelve}${minutes}${hour < 12 ? "am" : "pm"}`
 }
 
-const dayLabel = (instant: number, timeZone: string, options: Intl.DateTimeFormatOptions) => {
+export const dayLabel = (instant: number, timeZone: string, options: Intl.DateTimeFormatOptions) => {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone, ...options }).formatToParts(instant)
   const part = (type: string) => parts.find((p) => p.type === type)?.value
   return [part("weekday"), part("day"), part("month")].filter(Boolean).join(" ")

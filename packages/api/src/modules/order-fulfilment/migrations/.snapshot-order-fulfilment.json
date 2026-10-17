@@ -630,6 +630,26 @@
           "enumItems": [],
           "mappedType": "decimal"
         },
+        "covers": {
+          "name": "covers",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "'items'",
+          "comment": null,
+          "enumItems": [
+            "items",
+            "delivery",
+            "all"
+          ],
+          "mappedType": "enum"
+        },
         "currency_code": {
           "name": "currency_code",
           "type": "text",

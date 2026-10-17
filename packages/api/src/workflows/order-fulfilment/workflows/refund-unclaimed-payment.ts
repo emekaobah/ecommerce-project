@@ -32,6 +32,7 @@ const refundUnclaimedPaymentStep = createStep(
       amount: left,
       currency_code: payment.currency_code,
       order_id: null,
+      covers: "all",
       earlier_refund_ids: (payment.refunds ?? []).map((r) => r.id),
       note: "Paid, but no order was placed",
     })

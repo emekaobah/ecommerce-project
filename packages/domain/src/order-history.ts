@@ -32,6 +32,8 @@ const STATES: Record<Exclude<FulfilmentState, "rejected">, Omit<StatusView, "not
   // Ready is the buyer's cue to come for it.
   ready_for_pickup: { label: "Ready for pickup", tone: "success" },
   collected: { label: "Collected", tone: "success" },
+  // The hold expired (#32): the shop kept what was fresh, the rest is refunded.
+  not_collected: { label: "Not collected", tone: "danger" },
 }
 
 /** Paystack's refund statuses (`order_refund.status`). */

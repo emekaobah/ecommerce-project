@@ -2,6 +2,13 @@ import { model } from "@medusajs/framework/utils"
 import { PAYSTACK_REFUND_STATUSES } from "../../paystack/client"
 
 /**
+ * What a refund is of: an order's items, its delivery fee, or all of what was paid, items and
+ * delivery together (a rejected order's share, or a payment no order claims).
+ */
+export const REFUND_COVERS = ["items", "delivery", "all"] as const
+export type RefundCovers = (typeof REFUND_COVERS)[number]
+
+/**
  * A refund of an order's share of its payment, and Paystack's word on it (#20). Also a whole
  * Paystack transaction no order claims (a page the buyer had replaced, or a checkout that
  * never became orders), refunded with no order: `order_id` is then null. Paystack
@@ -18,6 +25,13 @@ const OrderRefund = model
     /** Medusa's refund on the payment. Gone once the refund failed: it no longer counts as refunded. */
     refund_id: model.text().unique().nullable(),
     amount: model.bigNumber(),
+    /**
+     * What the refund is of (#22): the order's items, which comes off its shop's payout, or its
+     * delivery fee, which Oja keeps and so bears the refund of. Only Oja's staff refund delivery.
+     * A refund of all is of an order nobody is paid for. The default is for rows made before
+     * refunds said what they cover; each refund made now says.
+     */
+    covers: model.enum([...REFUND_COVERS]).default("items"),
     currency_code: model.text(),
     /** The Paystack transaction refunded, which Paystack's `refund.*` webhooks name. */
     transaction_reference: model.text(),

@@ -47,6 +47,44 @@ describe("payoutOf", () => {
     })
   })
 
+  it("takes a refund of delivery off Oja's delivery share, never off the shop's payout (#22)", () => {
+    const deliveryRefund = { amount: -1000, reference: "refund", reference_id: "ref_delivery" }
+    expect(
+      payoutOf({
+        transactions: [capture(6500), deliveryRefund],
+        delivery: 1500,
+        ojaDiscount: 0,
+        refunds: [{ refund_id: "ref_delivery", covers: "delivery" }],
+      })
+    ).toEqual({ paid: 6500, refunded: 0, delivery: 1500, oja_discount: 0, commission: 500, amount: 4500 })
+  })
+
+  it("still takes refunds of items off the shop's goods beside a refund of delivery", () => {
+    const deliveryRefund = { amount: -1500, reference: "refund", reference_id: "ref_delivery" }
+    expect(
+      payoutOf({
+        transactions: [capture(6500), refund(2000), deliveryRefund],
+        delivery: 1500,
+        ojaDiscount: 0,
+        refunds: [{ refund_id: "ref_delivery", covers: "delivery" }],
+      })
+    ).toMatchObject({ refunded: 2000, commission: 300, amount: 2700 })
+  })
+
+  it("doesn't pay the shop for lines an order edit removed whose refund hasn't been made (#22, #32)", () => {
+    // ₦2,000 of the goods came off the order, but Paystack turned the refund down: the buyer is still owed it.
+    expect(payoutOf({ transactions: [capture(6500)], delivery: 1500, ojaDiscount: 0, owedToBuyer: 2000 })).toMatchObject({
+      refunded: 2000,
+      commission: 300,
+      amount: 2700,
+    })
+  })
+
+  it("pays the same once the refund of the removed lines is made", () => {
+    const owed = payoutOf({ transactions: [capture(6500)], delivery: 1500, ojaDiscount: 0, owedToBuyer: 2000 })
+    expect(payoutOf({ transactions: [capture(6500), refund(2000)], delivery: 1500, ojaDiscount: 0, owedToBuyer: 0 })).toEqual(owed)
+  })
+
   it("ignores transactions that are neither captures nor refunds", () => {
     expect(
       payoutOf({ transactions: [capture(2000), { amount: 50, reference: "credit_line", reference_id: "x" }], delivery: 0, ojaDiscount: 0 })

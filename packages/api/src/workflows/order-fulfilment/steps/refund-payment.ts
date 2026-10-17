@@ -1,6 +1,7 @@
 import type { IPaymentModuleService, MedusaContainer } from "@medusajs/framework/types"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { fulfilmentService, type OrderRefundRecord } from "../../../lib/order-fulfilment"
+import type { RefundCovers } from "../../../modules/order-fulfilment/models/order-refund"
 import type { PaystackRefund } from "../../../modules/paystack/client"
 
 type PaymentData = { reference?: string; refund?: PaystackRefund }
@@ -11,6 +12,8 @@ export type RefundPaymentInput = {
   currency_code: string
   /** The order refunded; none for a payment no order claims. */
   order_id: string | null
+  /** What the refund is of. */
+  covers: RefundCovers
   /** Medusa's refunds of the payment before this one, to tell the new one apart. */
   earlier_refund_ids: string[]
   created_by?: string
@@ -26,7 +29,7 @@ export async function refundPayment(
   container: Pick<MedusaContainer, "resolve">,
   input: RefundPaymentInput
 ): Promise<{ refund_id: string; recorded: OrderRefundRecord }> {
-  const { payment_id, amount, currency_code, order_id, earlier_refund_ids, created_by, note, refund_reason_id } = input
+  const { payment_id, amount, currency_code, order_id, covers, earlier_refund_ids, created_by, note, refund_reason_id } = input
   const earlier = new Set(earlier_refund_ids)
   const payment = await container
     .resolve<IPaymentModuleService>(Modules.PAYMENT)
@@ -41,6 +44,7 @@ export async function refundPayment(
     payment_id,
     refund_id: refund.id,
     amount,
+    covers,
     currency_code,
     transaction_reference: data.reference ?? "",
     paystack_refund_id: paystack ? String(paystack.id) : null,

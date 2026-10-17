@@ -178,6 +178,28 @@ medusaIntegrationTestRunner({
         expect(data.pick_list.lines.map((l: any) => [l.product_title, l.quantity])).toEqual([[RICE.title, 2]])
       })
 
+      it("never pays the shop for removed items whose refund Paystack turned down: the buyer is still owed them", async () => {
+        const { orderId, reference } = await paidRice()
+        const [rice] = (await startPicking(orderId)).lines
+        await markUnavailable(orderId, rice.id, 1)
+        paystack.refuseRefunds("Insufficient balance")
+        try {
+          const { data } = await removeUnavailable(orderId)
+          expect(data).toMatchObject({ removed_amount: RICE.price, refund: null })
+        } finally {
+          paystack.refuseRefunds(undefined)
+        }
+        expect(paystack.refundsOf(reference)).toEqual([])
+
+        // What the shop will be paid counts the bag as given back, as it would once refunded.
+        expect((await get(`${orderId}/payout`)).payout).toMatchObject({
+          refunded: RICE.price,
+          delivery: BEST_VALUE_FEE,
+          commission: RICE.price / 10,
+          amount: RICE.price - RICE.price / 10,
+        })
+      })
+
       it("refuses to remove every item, and an order with nothing marked", async () => {
         const { orderId, reference } = await paidRice()
         const [rice] = (await startPicking(orderId)).lines

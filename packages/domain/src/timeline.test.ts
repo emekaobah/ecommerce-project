@@ -164,5 +164,16 @@ describe("fulfilmentTimeline", () => {
       expect(timeline.every((s) => s.status === "done")).toBe(true)
       expect(timeline.at(-1)?.at).toBe("2026-10-09T12:00:00.000Z")
     })
+
+    test("ends in Not collected, done, once the hold expired (#32)", () => {
+      const expired = "2026-10-16T17:00:00.000Z"
+      const timeline = fulfilmentTimeline(
+        { method: "pickup", state: "not_collected", placed_at: placedAt, reached: { ...reached, not_collected: expired } },
+        "buyer",
+      )
+      expect(timeline.map((s) => s.label)).toEqual(["Order placed", "Accepted", "Being prepared", "Ready for pickup", "Not collected"])
+      expect(timeline.every((s) => s.status === "done")).toBe(true)
+      expect(timeline.at(-1)?.at).toBe(expired)
+    })
   })
 })
