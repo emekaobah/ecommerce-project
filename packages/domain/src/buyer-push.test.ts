@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { buyerStatusPush, itemsRemovedPush, orderConfirmedPush, refundCompletedPush } from "./buyer-push"
+import { buyerStatusPush, itemsRemovedPush, orderConfirmedPush, refundByHandPush, refundCompletedPush } from "./buyer-push"
 import { formatMoney } from "./money"
 import type { FulfilmentState } from "./fulfilment"
 
@@ -141,6 +141,15 @@ describe("refundCompletedPush", () => {
     expect(refundCompletedPush({ display_id: 42, shop: "Mama Put Groceries", amount: 14500, currency_code: "ngn" })).toEqual({
       title: "Refund for order #42 completed",
       body: `The refund of ${formatMoney(14500, "ngn")} from Mama Put Groceries has completed.`,
+    })
+  })
+})
+
+describe("refundByHandPush", () => {
+  test("tells the buyer Oja's team is sending their refund", () => {
+    expect(refundByHandPush({ display_id: 42, shop: "Mama Put Groceries", amount: 30, currency_code: "ngn" })).toEqual({
+      title: "Refund for order #42",
+      body: `Our team is sending your ${formatMoney(30, "ngn")} refund for your order from Mama Put Groceries.`,
     })
   })
 })

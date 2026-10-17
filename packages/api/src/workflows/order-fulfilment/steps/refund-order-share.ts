@@ -36,47 +36,52 @@ export type RefundOrderShareInput = {
  * (the web vendor panel shows total less net paid as outstanding). What the order owes is for
  * lines an order edit removed, so a refund of delivery never pays it off.
  */
-export const refundOrderShareStep = createStep(
-  "refund-order-share",
-  async ({ order_id, covers, amount, created_by, note, refund_reason_id }: RefundOrderShareInput, { container }) => {
-    const payments = await paymentsOfOrder(container, order_id)
-    const money = await orderMoney(container, order_id, payments)
-    const plan = refundPlan(money, covers === "all" ? amount : await withinWhatIsLeft(container, order_id, covers, amount))
-    const orderModule = container.resolve<IOrderModuleService>(Modules.ORDER)
-    let owed = covers === "delivery" ? MathBN.convert(0) : MathBN.convert(await owedToBuyer(container, order_id))
+export async function refundOrderShare(
+  container: Scope,
+  { order_id, covers, amount, created_by, note, refund_reason_id }: RefundOrderShareInput
+): Promise<OrderRefundRecord[]> {
+  const payments = await paymentsOfOrder(container, order_id)
+  const money = await orderMoney(container, order_id, payments)
+  const plan = refundPlan(money, covers === "all" ? amount : await withinWhatIsLeft(container, order_id, covers, amount))
+  const orderModule = container.resolve<IOrderModuleService>(Modules.ORDER)
+  let owed = covers === "delivery" ? MathBN.convert(0) : MathBN.convert(await owedToBuyer(container, order_id))
 
-    const recorded: OrderRefundRecord[] = []
-    // One payment at a time: a refund Paystack turns down stops the rest, rather than racing them.
-    for (const part of plan) {
-      const refunded = await refundPayment(container, {
-        ...part,
-        currency_code: money.currency_code,
-        order_id,
-        covers,
-        earlier_refund_ids: payments.find((p) => p.id === part.payment_id)?.refunds?.map((r) => r.id) ?? [],
-        created_by,
-        note,
-        refund_reason_id,
-      })
-      await orderModule.addOrderTransactions({
-        order_id,
-        amount: -part.amount,
-        currency_code: money.currency_code,
-        reference: "refund",
-        reference_id: refunded.refund_id,
-      })
-      const credit = MathBN.max(MathBN.sub(part.amount, owed), 0)
-      owed = MathBN.max(MathBN.sub(owed, part.amount), 0)
-      if (MathBN.gt(credit, 0)) {
-        await orderModule.createOrderCreditLines([
-          { order_id, amount: credit, reference: "refund", reference_id: refunded.refund_id },
-        ])
-      }
-      recorded.push(refunded.recorded)
+  const recorded: OrderRefundRecord[] = []
+  // One payment at a time: a refund Paystack turns down stops the rest, rather than racing them.
+  for (const part of plan) {
+    const refunded = await refundPayment(container, {
+      ...part,
+      currency_code: money.currency_code,
+      order_id,
+      covers,
+      earlier_refund_ids: payments.find((p) => p.id === part.payment_id)?.refunds?.map((r) => r.id) ?? [],
+      created_by,
+      note,
+      refund_reason_id,
+    })
+    await orderModule.addOrderTransactions({
+      order_id,
+      amount: -part.amount,
+      currency_code: money.currency_code,
+      reference: "refund",
+      reference_id: refunded.refund_id,
+    })
+    const credit = MathBN.max(MathBN.sub(part.amount, owed), 0)
+    owed = MathBN.max(MathBN.sub(owed, part.amount), 0)
+    if (MathBN.gt(credit, 0)) {
+      await orderModule.createOrderCreditLines([
+        { order_id, amount: credit, reference: "refund", reference_id: refunded.refund_id },
+      ])
     }
-    return new StepResponse(recorded)
+    recorded.push(refunded.recorded)
   }
-)
+  return recorded
+}
+
+/** Refunds the order's share (`refundOrderShare`) as a workflow step. */
+export const refundOrderShareStep = createStep("refund-order-share", async (input: RefundOrderShareInput, { container }) => {
+  return new StepResponse(await refundOrderShare(container, input))
+})
 
 const WHAT_IS_LEFT: Record<Exclude<RefundCovers, "all">, string> = {
   items: "A refund of items can't be more than what was paid for them less what was refunded of them already",
