@@ -846,7 +846,7 @@ async function applyShopPromotions(scope: MedusaContainer, cartId: string, promo
 }
 
 /** The codes the buyer entered on the cart: automatic promotions apply by themselves. */
-async function enteredCodes(scope: MedusaContainer, cart: CartRow): Promise<string[]> {
+export async function enteredCodes(scope: MedusaContainer, cart: CartRow): Promise<string[]> {
   const codes = (cart.promotions ?? []).flatMap((p) => (p.code ? [p.code] : []))
   if (!codes.length) return []
   const { data } = await scope

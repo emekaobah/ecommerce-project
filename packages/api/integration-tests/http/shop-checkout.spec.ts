@@ -1,5 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { Modules } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
+import { adminHeaders } from "../helpers/auth"
 import { buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, RICE, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
@@ -155,6 +157,97 @@ medusaIntegrationTestRunner({
 
         expect(refused.status).toBe(409)
         expect(lines(await cartBySeller(cartId))).toHaveLength(2)
+      })
+    })
+
+    // Discounts follow items (ADR 0010).
+    describe("discounts on the cart", () => {
+      let admin: { headers: Record<string, string> }
+      beforeEach(async () => {
+        admin = await adminHeaders(getContainer(), api)
+      })
+      let codes = 0
+      /** A promo code no other test uses: codes are unique across the marketplace. */
+      const newCode = (prefix: string) => `${prefix}${++codes}`
+      /** 10% off; its uses are counted only with a usage limit set. */
+      const percentOff = (code: string) => ({
+        code,
+        type: "standard",
+        status: "active",
+        limit: 10,
+        is_tax_inclusive: true,
+        application_method: { type: "percentage", target_type: "items", allocation: "across", value: 10 },
+      })
+      const amountOff = (code: string, value: number) => ({
+        code,
+        type: "standard",
+        status: "active",
+        is_tax_inclusive: true,
+        application_method: { type: "fixed", target_type: "items", allocation: "across", value, currency_code: "ngn" },
+      })
+      const shopPromotion = async (shop: Shop, body: Record<string, unknown>) =>
+        (await api.post("/vendor/promotions", body, await buyer.owner(shop))).data.promotion
+      const operatorPromotion = async (body: Record<string, unknown>) =>
+        (await api.post("/admin/promotions", body, admin)).data.promotion
+      const applyCode = (cartId: string, code: string) =>
+        api.post(`/store/carts/${cartId}/checkout/promo-codes`, { code }, buyer.ada())
+      const promotionsOf = async (cartId: string) =>
+        (await buyer.checkout(cartId)).promotions.map((p: any) => [p.code, p.amount])
+      const usesOf = async (promotionId: string) =>
+        Number((await getContainer().resolve(Modules.PROMOTION).retrievePromotion(promotionId)).used ?? 0)
+      /** Ada's cart, with each cart's code applied, split: the grocery's items in a cart of their own. */
+      const splitWith = async (code: string) => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        await applyCode(cartId, code)
+        const shopCart = await payShopOnly(cartId, GROCERY)
+        return { cartId, shopCartId: shopCart.id as string }
+      }
+      const payFor = async (cartId: string) => {
+        await buyer.prepare(cartId)
+        await pay(cartId)
+        return orderGroup(cartId)
+      }
+
+      it("moves a shop's own code with its items, and counts its use once, when that cart is paid", async () => {
+        const code = newCode("GROCER")
+        const promotion = await shopPromotion(GROCERY, percentOff(code))
+
+        const { cartId, shopCartId } = await splitWith(code)
+
+        expect(await promotionsOf(shopCartId)).toEqual([[code, (2 * RICE.price) / 10]])
+        expect(await promotionsOf(cartId)).toEqual([])
+        expect(await usesOf(promotion.id)).toBe(0)
+
+        expect((await payFor(shopCartId)).total).toBe(GROCERY_TOTAL - (2 * RICE.price) / 10)
+        expect(await usesOf(promotion.id)).toBe(1)
+        expect((await payFor(cartId)).total).toBe(GADGETS_TOTAL)
+        expect(await usesOf(promotion.id)).toBe(1)
+      })
+
+      it("keeps an operator's percentage code on both carts, each on its own items, counting a use per payment", async () => {
+        const code = newCode("OJA")
+        const promotion = await operatorPromotion(percentOff(code))
+
+        const { cartId, shopCartId } = await splitWith(code)
+
+        expect(await promotionsOf(shopCartId)).toEqual([[code, (2 * RICE.price) / 10]])
+        expect(await promotionsOf(cartId)).toEqual([[code, LANTERN.price / 10]])
+        expect((await payFor(shopCartId)).total).toBe(GROCERY_TOTAL - (2 * RICE.price) / 10)
+        expect((await payFor(cartId)).total).toBe(GADGETS_TOTAL - LANTERN.price / 10)
+        expect(await usesOf(promotion.id)).toBe(2)
+      })
+
+      it("leaves an operator's fixed amount off the whole cart with the rest, so it is taken off once", async () => {
+        const code = newCode("OJAFIXED")
+        await operatorPromotion(amountOff(code, 1000))
+
+        const { cartId, shopCartId } = await splitWith(code)
+
+        expect(await promotionsOf(shopCartId)).toEqual([])
+        expect(await promotionsOf(cartId)).toEqual([[code, 1000]])
+        expect((await payFor(shopCartId)).total).toBe(GROCERY_TOTAL)
+        expect((await payFor(cartId)).total).toBe(GADGETS_TOTAL - 1000)
       })
     })
   },

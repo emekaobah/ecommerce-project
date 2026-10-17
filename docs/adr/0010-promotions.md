@@ -26,6 +26,10 @@ Facts that shaped the decision (checked 2026-10-14, Mercur 2.3.5 on Medusa 2.20.
 ## Consequences
 
 - **Moving a shop's items to a cart of their own (#11).** Discounts follow items. A shop's discount belongs to its own items, so it moves with them. An operator discount across the whole cart is worked out again on each cart's current items when payment starts, so a fixed amount is never counted twice. A code's usage limit is counted once per payment: Mercur registers a code's use when a paid cart becomes orders.
+  - Built (`moveShopToOwnCart`, decided 2026-10-17): the shop's cart takes each code the buyer entered that discounts one of the moved items. The original cart keeps each code that still discounts something in it. So a shop's code moves, and an operator's percentage code ends up on both carts, each working it out on its own items.
+  - An operator's **fixed amount spread across the whole cart** (`fixed`, `across`) that still discounts the rest stays with the rest only. Both carts working it out would take it off twice. The moved items lose their share of it, and the rest gets the whole amount (up to its items' worth).
+  - A code on both carts counts one use for each cart paid, so two when both are paid. Medusa counts uses only for a promotion with a usage limit. If the code is used up after the first payment, the second checkout says its discount changed (`discount_changed`), as for any used-up code.
+  - Automatic promotions apply to each cart by themselves, like any two checkouts. A code that only discounts delivery stays with the rest, and the buyer enters it again at the shop's checkout.
 - Every cart change works promotions out once for the whole cart and once per shop in it. Carts hold few shops, so this costs a few queries.
 - A cart changed only through Medusa's own routes (not the app's) can show Medusa's cross-shop discounts until checkout's next step. Payment always works them out again first, so they are never paid for.
 - A code whose last qualifying item leaves the cart is dropped, and the buyer enters it again.
