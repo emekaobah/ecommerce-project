@@ -3,13 +3,17 @@ import {
   buyerStatusPush,
   itemsRemovedPush,
   notPlacedPush,
+  appIdentity,
+  refundAccountPush,
   refundByHandPush,
   refundCompletedPush,
   openingLabel,
+  orderCancelledPush,
   orderConfirmedPush,
   PRODUCT_NAME,
   shopStatus,
   type FulfilmentState,
+  type RefundAccountReminder,
   type RefundNotice,
   type StoredAddress,
 } from "@oja/domain"
@@ -18,14 +22,17 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { ReactElement } from "react"
 import { CheckoutNotPlacedEmail } from "../emails/checkout-not-placed"
 import { DeliveryReceiptEmail } from "../emails/delivery-receipt"
+import { OrderCancelledEmail } from "../emails/order-cancelled"
 import { OrderConfirmationEmail } from "../emails/order-confirmation"
 import type { EmailShopOrder } from "../emails/parts"
+import { RefundAccountEmail } from "../emails/refund-account"
 import { RefundByHandEmail } from "../emails/refund-by-hand"
 import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
 import { sendEmail } from "./email"
 import { fulfilmentService, fulfilmentsOf, type Picks } from "./order-fulfilment"
+import { needsAttentionSince } from "./owed-refunds"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
 import type { StoredNotPlaced } from "./unplaced-checkout"
@@ -249,6 +256,35 @@ export async function pushItemsRemoved(
 }
 
 /**
+ * Tells the buyer, by push and email, that an accepted order was cancelled (#17), by its shop or
+ * by Oja's team, why, and what they are refunded: `order_fulfilment.cancelled`'s data. Once per
+ * order, however often it is asked.
+ */
+export async function tellOrderCancelled(scope: Scope, { id: orderId, amount }: { id: string; amount: number }): Promise<void> {
+  const found = await buyerOrder(scope, orderId)
+  const cancellation = found?.order.fulfilment.cancellation
+  if (!found || !cancellation) return
+  const { checkout, order } = found
+  const notice = { display_id: order.display_id, shop: order.seller.name, cancellation, refund: amount, currency_code: order.currency_code }
+  const key = `order-cancelled:${orderId}`
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "order-cancelled",
+      subject: `Your ${PRODUCT_NAME} order #${order.display_id} from ${order.seller.name} was cancelled`,
+      body: <OrderCancelledEmail {...notice} />,
+      key,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-order-cancelled",
+      ...orderCancelledPush(notice),
+      data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+      idempotencyKey: (to) => `buyer-${key}:${to}`,
+      about: `the cancellation of order ${orderId}`,
+    }),
+  ])
+}
+
+/**
  * Tells the buyer, by push and email, that Oja's team is sending a refund of their order by
  * hand (#16): Paystack can't make it. Once per order and amount, however often it is asked.
  */
@@ -294,6 +330,47 @@ export async function pushRefundCompleted(scope: Scope, refundId: string): Promi
     idempotencyKey: (to) => `buyer-refund-completed:${refund.id}:${to}`,
     about: `the refund ${refund.id}`,
   })
+}
+
+/** The buyer app's screen for a refund, where they add the bank account it needs (#13). */
+export const refundScreen = (refundId: string) => `/refund/${refundId}`
+
+/** The order refund, and the buyer's order it refunds; null for a refund of no order, or a buyer gone. */
+async function refundOfBuyerOrder(scope: Scope, refundId: string) {
+  const [refund] = await fulfilmentService(scope).listOrderRefunds({ id: refundId })
+  const found = refund?.order_id ? await buyerOrder(scope, refund.order_id) : null
+  return refund && found ? { refund, ...found } : null
+}
+
+/**
+ * Asks the buyer, by push and email, for a bank account to receive a refund Paystack couldn't
+ * return to their card (#13), or reminds them. Each opens the refund's screen in the app. Once
+ * per refund each time it needs attention, and once per reminder.
+ */
+export async function askForRefundAccount(scope: Scope, refundId: string, reminder?: RefundAccountReminder & { nth: number }): Promise<void> {
+  const found = await refundOfBuyerOrder(scope, refundId)
+  if (!found) return
+  const { refund, checkout, order } = found
+  const notice: RefundNotice = { display_id: order.display_id, shop: order.seller.name, amount: Number(refund.amount), currency_code: refund.currency_code }
+  const kind = reminder ? `refund-account-reminder-${reminder.nth}` : "refund-account"
+  const key = `${kind}:${refund.id}:${needsAttentionSince(refund)}`
+  const url = refundScreen(refund.id)
+  const push = refundAccountPush(notice, reminder)
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "refund-account",
+      subject: reminder ? `Reminder: add a bank account for your ${PRODUCT_NAME} refund` : `Add a bank account for your ${PRODUCT_NAME} refund`,
+      body: <RefundAccountEmail refund={notice} link={`${appIdentity("buyer").scheme}:/${url}`} reminder={reminder} />,
+      key,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-refund-account",
+      ...push,
+      data: { url, order_group_id: checkout.group.id, order_id: order.id, refund_id: refund.id },
+      idempotencyKey: (to) => `buyer-${key}:${to}`,
+      about: `the bank account refund ${refund.id} needs`,
+    }),
+  ])
 }
 
 /** The buyer app's checkout for a cart, which a push about a cart that wasn't placed opens. */

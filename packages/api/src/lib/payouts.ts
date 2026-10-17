@@ -9,9 +9,9 @@ import { fromSubunit, toSubunit, UNSETTLED_REFUND_STATUSES } from "../modules/pa
 import { payoutStatusOf } from "../modules/paystack-payout/service"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account"
 import { ojaFundedDiscount, ojaSharesOf, taxRateOf } from "./discount-funding"
-import { fulfilmentService, fulfilmentsOf, type OrderRefundRecord } from "./order-fulfilment"
-import { owedToBuyerOf, type OrderSummary } from "./order-refund"
-import type { OrderTransaction } from "./shop-order"
+import { fulfilmentService, fulfilmentsOf, givesShareBack, type OrderRefundRecord } from "./order-fulfilment"
+import { owedToBuyerOf, shareLeft, type OrderSummary } from "./order-refund"
+import { transactionsOf, type OrderTransaction } from "./shop-order"
 
 // What a shop is paid for an order (#29): Paystack Transfers after delivery, worked out here
 // rather than from Mercur's commission lines, which an order's refunds don't change.
@@ -222,10 +222,15 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
     fulfilmentService(scope).listOrderRefunds({ order_id: orderIds }),
   ])
   return orders.map(({ items, summary, ...order }) => {
-    const removed = records.get(order.id)?.removed ?? {}
+    const record = records.get(order.id)
+    const removed = record?.removed ?? {}
+    const ofOrder = refunds.filter((r) => r.order_id === order.id)
+    // The buyer of a rejected or cancelled order keeps none of its lines, and is owed whatever
+    // of its share isn't refunded yet, so the shop is paid nothing for it.
+    const givenBack = givesShareBack(record)
     const lines = (items ?? []).map((i) => ({
       quantity: Number(i.quantity),
-      removed: removed[i.id] ?? 0,
+      removed: givenBack ? Number(i.quantity) : (removed[i.id] ?? 0),
       tax_rate: taxRateOf(i.tax_lines),
       adjustments: (i.adjustments ?? []).map((a) => ({
         amount: Number(a.amount),
@@ -236,8 +241,8 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
     return {
       ...order,
       oja_discount: ojaFundedDiscount(lines, shares.get(order.id) ?? new Map()),
-      refunds: refunds.filter((r) => r.order_id === order.id),
-      owed_to_buyer: owedToBuyerOf(summary),
+      refunds: ofOrder,
+      owed_to_buyer: givenBack ? shareLeft({ transactions: transactionsOf(order), refunds: ofOrder }) : owedToBuyerOf(summary),
     }
   })
 }
@@ -253,7 +258,8 @@ const breakdownOf = (order: PaidOrder, delivery = Number(order.shipping_total ??
 
 /**
  * Orders with a refund of items Paystack hasn't settled, which wait for it before they are paid
- * out. A refund of delivery doesn't change the payout (#22), so it holds nothing up.
+ * out. A refund of delivery doesn't change the payout (#22), so it holds nothing up, and nor
+ * does one handed to Oja's team to send by hand (#13): it counts as refunded already.
  */
 export async function withUnsettledRefunds(scope: Scope, orderIds: string[]): Promise<Set<string>> {
   if (!orderIds.length) return new Set()
@@ -261,6 +267,7 @@ export async function withUnsettledRefunds(scope: Scope, orderIds: string[]): Pr
     order_id: orderIds,
     covers: "items",
     status: UNSETTLED_REFUND_STATUSES,
+    handed_over_at: null,
   })
   return new Set(rows.map((r) => r.order_id!))
 }

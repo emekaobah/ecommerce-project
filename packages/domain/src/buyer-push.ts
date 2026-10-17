@@ -1,5 +1,6 @@
 import { PRODUCT_NAME } from "./app-identity"
-import type { FulfilmentState } from "./fulfilment"
+import { cancelledBy, cancelReasonText } from "./cancellation"
+import type { Cancellation, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
 import { openingHoursLines } from "./pickup"
 import type { WeeklyHours } from "./shop-hours"
@@ -119,6 +120,29 @@ export function itemsRemovedPush({
   }
 }
 
+/**
+ * The push telling the buyer an accepted order was cancelled (#17): by its shop or by Oja's
+ * team, why, and what they are refunded (none when nothing was paid for it).
+ */
+export function orderCancelledPush({
+  display_id,
+  shop,
+  cancellation,
+  refund,
+  currency_code,
+}: {
+  display_id: number
+  shop: string
+  cancellation: Pick<Cancellation, "by" | "reason" | "note">
+  refund: number
+  currency_code: string
+}): BuyerPush {
+  const from = cancellation.by === "operator" ? ` from ${shop}` : ""
+  const who = `${cancelledBy(cancellation.by, shop)} cancelled your order${from}`
+  const refunded = refund > 0 ? ` You'll be refunded ${formatMoney(refund, currency_code)}.` : ""
+  return { title: `Order #${display_id} cancelled`, body: `${who}: ${cancelReasonText(cancellation)}.${refunded}` }
+}
+
 /** A refund of one of the buyer's orders, as they are told about it: its order, shop and amount. */
 export type RefundNotice = { display_id: number; shop: string; amount: number; currency_code: string }
 
@@ -138,5 +162,27 @@ export function refundByHandPush({ display_id, shop, amount, currency_code }: Re
   return {
     title: `Refund for order #${display_id}`,
     body: `Our team is sending your ${formatMoney(amount, currency_code)} refund for your order from ${shop}.`,
+  }
+}
+
+/** A reminder that a refund still needs the buyer's bank account: how many days before Oja's team takes it over. */
+export type RefundAccountReminder = { days_left: number }
+
+/**
+ * The push asking the buyer for a bank account to receive a refund (#13): Paystack couldn't
+ * return it to their card. A reminder says how long they have before Oja's team takes it over.
+ */
+export function refundAccountPush({ display_id, shop, amount, currency_code }: RefundNotice, reminder?: RefundAccountReminder): BuyerPush {
+  const refund = formatMoney(amount, currency_code)
+  if (!reminder) {
+    return {
+      title: "Your refund needs your bank account",
+      body: `Your bank couldn't take the ${refund} refund for order #${display_id} from ${shop} back to your card. Add a bank account to receive it.`,
+    }
+  }
+  const days = reminder.days_left === 1 ? "1 day" : `${reminder.days_left} days`
+  return {
+    title: "Reminder: your refund needs your bank account",
+    body: `Add a bank account to receive your ${refund} refund for order #${display_id}. If you don't within ${days}, our team will contact you.`,
   }
 }

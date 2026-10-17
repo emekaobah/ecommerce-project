@@ -2,9 +2,10 @@ import type { MedusaResponse } from "@medusajs/framework/http"
 import type { BuyerRefund } from "../../../../../lib/buyer-orders"
 import { removeUnavailableAndRefund } from "../../../../../lib/order-availability"
 import { pickListOf, type PickList } from "../../../../../lib/order-picking"
-import { fulfilmentResponse, shopsOwnOrder, type VendorOrderFulfilmentResponse, type VendorRequest } from "../../fulfilment"
+import { fulfilmentResponse, type OrderFulfilmentResponse } from "../../../../fulfilment-response"
+import { shopsOwnOrder, type VendorRequest } from "../../fulfilment"
 
-export type VendorRemoveUnavailableResponse = VendorOrderFulfilmentResponse & {
+export type VendorRemoveUnavailableResponse = OrderFulfilmentResponse & {
   pick_list: PickList
   /** What removing the items took off the order's total: the buyer's refund. */
   removed_amount: number
@@ -15,7 +16,8 @@ export type VendorRemoveUnavailableResponse = VendorOrderFulfilmentResponse & {
 /**
  * Staff remove the items marked unavailable from the order (#22): the order is edited, the
  * buyer refunded exactly what the items cost, and the order goes back from Partially
- * available to Picking. Refused with nothing marked, or when nothing would be left to send.
+ * available to Picking. Refused with nothing marked, and, with the code `cancel_instead`, when
+ * every item is marked unavailable: the app offers to cancel the order instead (#17).
  */
 export const POST = async (req: VendorRequest, res: MedusaResponse<VendorRemoveUnavailableResponse>) => {
   const orderId = await shopsOwnOrder(req)

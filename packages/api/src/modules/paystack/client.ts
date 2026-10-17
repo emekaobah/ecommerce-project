@@ -74,7 +74,7 @@ export type PaystackTransfer = {
 }
 
 /** A bank Paystack can resolve accounts at and pay out to (GET /bank). */
-export type PaystackBank = { name: string; code: string; currency: string; type: string; active: boolean }
+export type PaystackBank = { id: number; name: string; code: string; currency: string; type: string; active: boolean }
 
 /** A transfer recipient: who a payout is sent to (POST /transferrecipient). */
 export type PaystackRecipient = {
@@ -134,9 +134,10 @@ export class PaystackClient {
     })
     const envelope = (await res.json().catch(() => null)) as Envelope<T> | null
     if (!res.ok || !envelope?.status) {
+      // The query is left out: a bank lookup's carries the account number, which is never logged.
       throw new PaystackRequestError(
         res.status,
-        `Paystack ${method} ${path} failed (${res.status}): ${envelope?.message ?? "no response"}`,
+        `Paystack ${method} ${path.split("?")[0]} failed (${res.status}): ${envelope?.message ?? "no response"}`,
         envelope?.message ?? "No response"
       )
     }
@@ -164,6 +165,16 @@ export class PaystackClient {
   /** Refunds part of a transaction, or all of it with no amount; `merchant_note` is ours, for matching it later. */
   refund(input: { transaction: string; amount?: number; merchant_note?: string }) {
     return this.request<PaystackRefund>("POST", "/refund", input)
+  }
+
+  /**
+   * Retries a refund that needs attention to the buyer's bank account (#13): `bank_id` is the
+   * bank's id in Paystack's bank list. Paystack queues it again (`processing`).
+   */
+  retryRefund(id: number | string, details: { currency: string; account_number: string; bank_id: number }) {
+    return this.request<PaystackRefund>("POST", `/refund/retry_with_customer_details/${encodeURIComponent(String(id))}`, {
+      refund_account_details: { ...details, bank_id: String(details.bank_id) },
+    })
   }
 
   fetchRefund(id: number | string) {

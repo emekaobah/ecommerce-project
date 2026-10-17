@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { buyerStatusPush, itemsRemovedPush, orderConfirmedPush, refundByHandPush, refundCompletedPush } from "./buyer-push"
+import {
+  buyerStatusPush,
+  itemsRemovedPush,
+  orderCancelledPush,
+  orderConfirmedPush,
+  refundAccountPush,
+  refundByHandPush,
+  refundCompletedPush,
+} from "./buyer-push"
 import { formatMoney } from "./money"
 import type { FulfilmentState } from "./fulfilment"
 
@@ -136,6 +144,32 @@ describe("itemsRemovedPush", () => {
   })
 })
 
+describe("orderCancelledPush", () => {
+  const order = { display_id: 42, shop: "Mama Put Groceries", refund: 14500, currency_code: "ngn" }
+
+  test("tells the buyer the shop cancelled their order, why, and what they are refunded", () => {
+    const cancellation = { by: "seller", reason: "items_unavailable", note: null } as const
+    expect(orderCancelledPush({ ...order, cancellation })).toEqual({
+      title: "Order #42 cancelled",
+      body: `Mama Put Groceries cancelled your order: Items unavailable. You'll be refunded ${formatMoney(14500, "ngn")}.`,
+    })
+  })
+
+  test("says it was Oja's team that cancelled it, with their note", () => {
+    const cancellation = { by: "operator", reason: "other", note: "The shop has closed" } as const
+    expect(orderCancelledPush({ ...order, cancellation }).body).toBe(
+      `Oja's team cancelled your order from Mama Put Groceries: The shop has closed. You'll be refunded ${formatMoney(14500, "ngn")}.`
+    )
+  })
+
+  test("promises no refund when nothing was paid for it", () => {
+    const cancellation = { by: "seller", reason: "buyer_asked", note: null } as const
+    expect(orderCancelledPush({ ...order, refund: 0, cancellation }).body).toBe(
+      "Mama Put Groceries cancelled your order: Buyer asked to cancel."
+    )
+  })
+})
+
 describe("refundCompletedPush", () => {
   test("says the refund from the shop has completed", () => {
     expect(refundCompletedPush({ display_id: 42, shop: "Mama Put Groceries", amount: 14500, currency_code: "ngn" })).toEqual({
@@ -151,5 +185,24 @@ describe("refundByHandPush", () => {
       title: "Refund for order #42",
       body: `Our team is sending your ${formatMoney(30, "ngn")} refund for your order from Mama Put Groceries.`,
     })
+  })
+})
+
+describe("refundAccountPush", () => {
+  const refund = { display_id: 42, shop: "Mama Put Groceries", amount: 14500, currency_code: "ngn" }
+
+  test("asks the buyer for a bank account to receive the refund their card couldn't take", () => {
+    expect(refundAccountPush(refund)).toEqual({
+      title: "Your refund needs your bank account",
+      body: `Your bank couldn't take the ${formatMoney(14500, "ngn")} refund for order #42 from Mama Put Groceries back to your card. Add a bank account to receive it.`,
+    })
+  })
+
+  test("reminds them, saying when Oja's team takes it over", () => {
+    expect(refundAccountPush(refund, { days_left: 6 })).toEqual({
+      title: "Reminder: your refund needs your bank account",
+      body: `Add a bank account to receive your ${formatMoney(14500, "ngn")} refund for order #42. If you don't within 6 days, our team will contact you.`,
+    })
+    expect(refundAccountPush(refund, { days_left: 1 }).body).toContain("within 1 day,")
   })
 })

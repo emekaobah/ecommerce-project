@@ -1,4 +1,4 @@
-import { collectByLabel, formatMoney } from '@oja/domain';
+import { canCancel, cancelledBy, cancelReasonText, collectByLabel, formatMoney } from '@oja/domain';
 import { Button, ErrorState, ListRow, LoadingState, Text, Timeline, useTheme } from '@oja/ui';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Linking, ScrollView, View } from 'react-native';
@@ -12,14 +12,17 @@ import {
   useStartPicking,
   type OrderFulfilment,
 } from '@/api/orders';
+import { useMayManageShop } from '@/api/sellers';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { lineLabel } from '@/orders/items';
 import { useNow } from '@/orders/use-now';
+import { useSession } from '@/session/session-store';
 
 /**
  * One order: its state, the deadline to accept it while it is new, its items, and what staff do
  * next: Accept / Reject while new, then pick and pack, book (or rebook) the courier label, and
- * confirm the handover to the courier. Its timeline shows how far it has got.
+ * confirm the handover to the courier. Owners and managers can cancel it once accepted, until its
+ * courier label is booked (#17). Its timeline shows how far it has got.
  */
 export function OrderScreen() {
   const theme = useTheme();
@@ -51,6 +54,7 @@ export function OrderScreen() {
         </View>
 
         <NextStep orderId={id} fulfilment={fulfilment} />
+        <CancelOrder orderId={id} fulfilment={fulfilment} />
 
         {fulfilment.timeline.length ? <Timeline steps={fulfilment.timeline} /> : null}
       </ScrollView>
@@ -86,26 +90,32 @@ const STATE_NOTES: { [S in OrderFulfilment['state']]?: string } = {
 /** A pickup order's states before it is packed, when staff are told the buyer collects it. */
 const BEFORE_PACKING = new Set<OrderFulfilment['state']>(['new', 'accepted', 'picking', 'partially_available']);
 
+/** The notes that say more of the order than its state: none when the order lacks what they tell. */
+const DETAILED_NOTES: Partial<Record<OrderFulfilment['state'], (fulfilment: OrderFulfilment) => string | null>> = {
+  new: ({ accept_by }) => (accept_by ? `Accept by ${new Date(accept_by).toLocaleString()}, or it is rejected and refunded.` : null),
+  ready_for_pickup: ({ collect_by }) =>
+    collect_by
+      ? `Ready at the counter. The buyer collects it with the code in their app. ${collectByLabel(collect_by.at, new Date(), collect_by.time_zone)}, or it is not collected.`
+      : null,
+  packed: ({ shipment }) => (shipment?.cancelled ? 'Shipbubble cancelled the courier booking. Book a new label to send it.' : null),
+  collected: ({ collection }) =>
+    collection
+      ? `Handed over by ${collection.staff.name ?? 'a staff member'} to ${collection.collected_by} at ${timeOf(collection.staff.at)}.`
+      : null,
+  rejected: ({ rejected_by, reject_reason }) => {
+    const why = rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${reject_reason}.`;
+    return `${why} The buyer's payment for this order is being refunded.`;
+  },
+  cancelled: ({ cancellation }) =>
+    cancellation
+      ? `Cancelled by ${cancelledBy(cancellation.by)}: ${cancelReasonText(cancellation)}. The buyer is refunded all they paid for it.`
+      : null,
+};
+
 function stateNote(fulfilment: OrderFulfilment): string | null {
   const { state } = fulfilment;
-  if (state === 'new' && fulfilment.accept_by) {
-    return `Accept by ${new Date(fulfilment.accept_by).toLocaleString()}, or it is rejected and refunded.`;
-  }
-  if (state === 'ready_for_pickup' && fulfilment.collect_by) {
-    const { at, time_zone } = fulfilment.collect_by;
-    return `Ready at the counter. The buyer collects it with the code in their app. ${collectByLabel(at, new Date(), time_zone)}, or it is not collected.`;
-  }
-  if (state === 'packed' && fulfilment.shipment?.cancelled) {
-    return 'Shipbubble cancelled the courier booking. Book a new label to send it.';
-  }
-  if (state === 'collected' && fulfilment.collection) {
-    const { staff, collected_by } = fulfilment.collection;
-    return `Handed over by ${staff.name ?? 'a staff member'} to ${collected_by} at ${timeOf(staff.at)}.`;
-  }
-  if (state === 'rejected') {
-    const why = fulfilment.rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${fulfilment.reject_reason}.`;
-    return `${why} The buyer's payment for this order is being refunded.`;
-  }
+  const detailed = DETAILED_NOTES[state]?.(fulfilment);
+  if (detailed) return detailed;
   if (fulfilment.method === 'pickup' && BEFORE_PACKING.has(state)) return 'The buyer collects this order in store.';
   return STATE_NOTES[state] ?? null;
 }
@@ -203,6 +213,23 @@ function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilmen
     return <Action label="Handed to courier" mutation={handOver} onPress={() => handOver.mutate()} />;
   }
   return null;
+}
+
+/**
+ * Cancel order (#17), for owners and managers while the order can be cancelled: accepted, and
+ * no courier label booked yet. Fulfilment staff don't see it; the API refuses them anyway.
+ */
+function CancelOrder({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilment: OrderFulfilment }>) {
+  const router = useRouter();
+  const mayManage = useMayManageShop(useSession()?.sellerId);
+  if (!canCancel(fulfilment.state) || !mayManage.data) return null;
+  return (
+    <Button
+      label="Cancel order"
+      variant="secondary"
+      onPress={() => router.push({ pathname: '/orders/[id]/cancel', params: { id: orderId } })}
+    />
+  );
 }
 
 /** A step's one action, with why it last failed above it. */

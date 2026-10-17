@@ -11,6 +11,7 @@ import {
   type SharedStaffActionType,
   type StaffAction,
   type TransitionResult,
+  canCancel,
 } from "./fulfilment"
 
 const at = "2026-09-26T10:00:00.000Z"
@@ -377,9 +378,55 @@ describe("the pickup path", () => {
  * written out by hand from the spec (docs/design.md, issues #8 and #12), not read from
  * the implementation, so a transition added or removed by mistake fails here.
  */
+describe("cancelling an accepted order (#17)", () => {
+  test("records who cancelled it, when, and why, keeping its method", () => {
+    const result = transition(
+      { method: "pickup", state: "partially_available" },
+      { source: "staff", type: "cancel", actor, at, reason: "items_unavailable" }
+    )
+
+    expect(result).toEqual({
+      ok: true,
+      fulfilment: {
+        method: "pickup",
+        state: "cancelled",
+        cancellation: { by: "seller", actor, at, reason: "items_unavailable", note: null },
+      },
+    })
+  })
+
+  test("an operator's cancellation is Oja's, with its note", () => {
+    const result = transition(
+      { method: "delivery", state: "packed" },
+      { source: "operator", type: "cancel", actor: "user_1", at, reason: "other", note: "Shop closed for good" }
+    )
+
+    expect(result.ok && result.fulfilment).toEqual({
+      method: "delivery",
+      state: "cancelled",
+      cancellation: { by: "operator", actor: "user_1", at, reason: "other", note: "Shop closed for good" },
+    })
+  })
+
+  test("is refused once a courier label is booked, and before the order is accepted", () => {
+    const cancel = { source: "staff", type: "cancel", actor, at, reason: "buyer_asked" } as const
+    expect(transition({ method: "delivery", state: "label_booked" }, cancel).ok).toBe(false)
+    expect(transition({ method: "delivery", state: "courier_confirmed", handover: {} }, cancel).ok).toBe(false)
+    expect(transition({ method: "delivery", state: "new" }, cancel).ok).toBe(false)
+  })
+
+  test("canCancel says which states offer it", () => {
+    const offered: FulfilmentState[] = ["accepted", "picking", "partially_available", "packed", "ready_for_pickup"]
+    const refused: FulfilmentState[] = ["new", "rejected", "label_booked", "delivered", "collected", "not_collected", "cancelled"]
+    expect(offered.filter(canCancel)).toEqual(offered)
+    expect(refused.filter(canCancel)).toEqual([])
+  })
+})
+
 describe("transition table", () => {
   const handover = { staff: { actor, at }, pickup: { at } }
   const collection = { actor, at, collectedBy: "Ada Obi" }
+  const cancellation = { by: "seller" as const, actor, at, reason: "items_unavailable" as const, note: null }
   const fixtures: Record<FulfilmentMethod, Partial<Record<FulfilmentState, Fulfilment>>> = {
     delivery: {
       new: { method: "delivery", state: "new" },
@@ -393,6 +440,7 @@ describe("transition table", () => {
       handed_to_courier: { method: "delivery", state: "handed_to_courier", handover },
       in_transit: { method: "delivery", state: "in_transit", handover },
       delivered: { method: "delivery", state: "delivered", handover },
+      cancelled: { method: "delivery", state: "cancelled", cancellation },
     },
     pickup: {
       new: { method: "pickup", state: "new" },
@@ -403,6 +451,7 @@ describe("transition table", () => {
       ready_for_pickup: { method: "pickup", state: "ready_for_pickup" },
       collected: { method: "pickup", state: "collected", collection },
       not_collected: { method: "pickup", state: "not_collected" },
+      cancelled: { method: "pickup", state: "cancelled", cancellation },
     },
   }
 
@@ -423,9 +472,14 @@ describe("transition table", () => {
     { source: "provider", type: "cancelled", at },
     { source: "system", type: "accept_deadline_passed", at },
     { source: "system", type: "pickup_hold_expired", at },
+    { source: "staff", type: "cancel", actor, at, reason: "items_unavailable" },
+    { source: "operator", type: "cancel", actor: "user_1", at, reason: "other", note: "Shop closed for good" },
   ]
 
   type Moves = Partial<Record<FulfilmentState, Record<string, FulfilmentState>>>
+
+  // An accepted order not yet handed on (no courier label booked, not collected) can be cancelled (#17).
+  const cancels = { "staff:cancel": "cancelled", "operator:cancel": "cancelled" } as const
 
   // Both methods share the start.
   const start: Moves = {
@@ -434,8 +488,9 @@ describe("transition table", () => {
       "staff:reject": "rejected",
       "system:accept_deadline_passed": "rejected",
     },
-    accepted: { "staff:start_picking": "picking" },
+    accepted: { "staff:start_picking": "picking", ...cancels },
     rejected: {},
+    cancelled: {},
   }
 
   // Allowed moves as "source:type" -> next state; anything not listed is forbidden.
@@ -446,12 +501,14 @@ describe("transition table", () => {
       picking: {
         "staff:mark_packed": "packed",
         "staff:mark_partially_available": "partially_available",
+        ...cancels,
       },
       partially_available: {
         "staff:resume_picking": "picking",
         "staff:mark_packed": "packed",
+        ...cancels,
       },
-      packed: { "provider:label_created": "label_booked" },
+      packed: { "provider:label_created": "label_booked", ...cancels },
       label_booked: {
         "provider:confirmed": "courier_confirmed",
         // The courier moving the parcel means it confirmed, whether or not that webhook came.
@@ -477,12 +534,15 @@ describe("transition table", () => {
       picking: {
         "staff:mark_packed": "ready_for_pickup",
         "staff:mark_partially_available": "partially_available",
+        ...cancels,
       },
       partially_available: {
         "staff:resume_picking": "picking",
         "staff:mark_packed": "ready_for_pickup",
+        ...cancels,
       },
-      ready_for_pickup: { "staff:collect": "collected", "system:pickup_hold_expired": "not_collected" },
+      // Ready for pickup is a pickup order's Packed: nothing has left the shop yet.
+      ready_for_pickup: { "staff:collect": "collected", "system:pickup_hold_expired": "not_collected", ...cancels },
       collected: {},
       not_collected: {},
     },

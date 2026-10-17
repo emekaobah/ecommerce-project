@@ -2,6 +2,7 @@
 // Errors and traces go to Sentry (#19) when SENTRY_DSN is set; the API's 5xx responses are reported by
 // src/api/report-server-errors.ts, and uncaught exceptions and rejections by the SDK itself.
 import * as Sentry from "@sentry/node"
+import { carriesBankAccount, redactAccountNumbers } from "./src/lib/bank-account-redaction"
 
 export function register() {
   const dsn = process.env.SENTRY_DSN
@@ -22,5 +23,11 @@ export function register() {
       if (name.includes("/checkout") || name.includes("/hooks/payment")) return 1
       return inheritOrSampleWith(0.1)
     },
+    // Bank account numbers go to Paystack only (#13): the bodies that carry one aren't
+    // attached, and one anywhere else (Paystack's lookup URL, say) is blanked.
+    integrations: [Sentry.httpIntegration({ ignoreRequestBody: (url) => carriesBankAccount(url) })],
+    beforeSend: (event) => redactAccountNumbers(event),
+    beforeSendSpan: (span) => redactAccountNumbers(span),
+    beforeBreadcrumb: (breadcrumb) => redactAccountNumbers(breadcrumb),
   })
 }

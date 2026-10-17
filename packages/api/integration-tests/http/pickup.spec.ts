@@ -399,6 +399,25 @@ medusaIntegrationTestRunner({
         expect(JSON.stringify(await vendorOrder(GROCERY, orderId))).not.toContain(after.pickup.code)
       })
 
+      it("still holds a Ready for pickup order's stock, which cancelling it returns, and takes no code after (#17)", async () => {
+        const { orderId, reference } = await pickupOrder()
+        await packed(orderId)
+        const { data: placed } = await buyer.query().graph({ entity: "order", fields: ["items.id"], filters: { id: orderId } })
+        const reservations = () =>
+          getContainer()
+            .resolve(Modules.INVENTORY)
+            .listReservationItems({ line_item_id: (placed[0].items ?? []).map((i: any) => i.id) })
+        // Making it ready books no Medusa fulfilment, which would have taken the reserved stock.
+        expect(await reservations()).toHaveLength(1)
+
+        const { data } = await post(GROCERY, `${orderId}/cancel`, { reason: "cannot_fulfil" })
+
+        expect(data.fulfilment).toMatchObject({ method: "pickup", state: "cancelled" })
+        expect(await reservations()).toEqual([])
+        expect(paystack.refundsOf(reference)).toHaveLength(1)
+        expect(await status(collect(orderId, "000000"))).toBe(400)
+      })
+
       it("pushes the buyer once the order is ready, with the address and hours, the code being in the app", async () => {
         const device = pushToken()
         await api.post("/store/push-tokens", { token: device }, ada())

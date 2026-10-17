@@ -27,6 +27,20 @@
     "refunded": "Delivery refunded.",
     "hint": "Oja keeps the delivery fee, so a refund of it never comes off the shop's payout. Shops refund only items."
   },
+  "orderCancel": {
+    "title": "Cancel order",
+    "hint": "Cancelling refunds the buyer {{amount}}, all that is left of this shop's order, and pays the shop nothing. The checkout's other orders are untouched.",
+    "open": "Cancel order",
+    "reason": "Reason (shown to the buyer)",
+    "note": "Note (optional)",
+    "noteRequired": "Say why",
+    "refund": "The buyer is refunded {{amount}}.",
+    "told": "The buyer is told by push and email why, and what is refunded.",
+    "back": "Back",
+    "confirm": "Cancel and refund {{amount}}",
+    "cancelled": "Order cancelled and refunded.",
+    "cancelledOwed": "Order cancelled. Paystack refused the refund: it is retried under Owed refunds."
+  },
   "owedRefunds": {
     "title": "Owed refunds",
     "description": "Refunds orders owe their buyers that Paystack refused or can't make. Each is retried 5 minutes, an hour and 6 hours after a refusal; after that, or under Paystack's ₦50 minimum, send it by hand and mark it settled.",

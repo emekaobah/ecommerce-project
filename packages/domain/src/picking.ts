@@ -46,16 +46,23 @@ export type PickProgress = {
   unpicked: string[]
   /** Every line is picked in full (nothing waits to be removed), so the order can be packed. */
   done: boolean
+  /**
+   * Every unit is marked unavailable: removing them would leave nothing to send, so staff are
+   * offered to cancel the order instead (#17).
+   */
+  allUnavailable: boolean
 }
 
 export function pickProgress(lines: PickLine[]): PickProgress {
   const sum = (count: (line: PickLine) => number) => lines.reduce((total, line) => total + count(line), 0)
+  const total = sum((line) => line.quantity)
   return {
     picked: sum((line) => Math.min(line.picked, line.quantity)),
-    total: sum((line) => line.quantity),
+    total,
     unavailable: sum((line) => line.unavailable),
     unpicked: lines.filter((line) => line.picked + line.unavailable < line.quantity).map((line) => line.id),
     done: lines.length > 0 && lines.every((line) => line.picked >= line.quantity),
+    allUnavailable: total > 0 && sum((line) => Math.min(line.unavailable, line.quantity)) >= total,
   }
 }
 

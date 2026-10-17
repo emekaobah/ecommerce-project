@@ -2,6 +2,7 @@ import {
   acceptDeadline,
   fulfilmentTimeline,
   newFulfilment,
+  type Cancellation,
   type Fulfilment,
   type FulfilmentMethod,
   type FulfilmentState,
@@ -18,7 +19,7 @@ import type OrderFulfilment from "../modules/order-fulfilment/models/order-fulfi
 import type OrderRefund from "../modules/order-fulfilment/models/order-refund"
 import type { OrderMoney } from "./order-refund"
 import { shopHoursOf } from "./shop-hours"
-import type { OrderTransaction } from "./shop-order"
+import { transactionsOf, type OrderTransaction } from "./shop-order"
 
 // A seller order's fulfilment (docs/design.md, "Order state machine"), and what staff see of it.
 
@@ -38,10 +39,20 @@ export const ORDER_STATE_CHANGED = "order_fulfilment.state_changed"
 export const ORDER_ITEMS_REMOVED = "order_fulfilment.items_removed"
 /** Emitted when Paystack has processed an order's refund, so the money has reached the buyer, with `{ id }` (the order refund). */
 export const ORDER_REFUND_PROCESSED = "order_refund.processed"
+/**
+ * Emitted when Paystack says a refund needs attention (#13), with `{ id }` (the order refund):
+ * it couldn't return the money to the card, and needs the buyer's bank account to retry.
+ */
+export const ORDER_REFUND_NEEDS_ATTENTION = "order_refund.needs_attention"
 /** Emitted when staff accept a new order, with `{ id }` (the order). */
 export const ORDER_ACCEPTED = "order_fulfilment.accepted"
 /** Emitted when a new order is rejected, by its shop or by the accept deadline, with `{ id, rejected_by }`. */
 export const ORDER_REJECTED = "order_fulfilment.rejected"
+/**
+ * Emitted when an accepted order is cancelled (#17), by its shop or by Oja's team, with
+ * `{ id, amount }`: the order, and all that was left of its share, which its buyer is refunded.
+ */
+export const ORDER_CANCELLED = "order_fulfilment.cancelled"
 /**
  * Emitted when staff pack a picked order, with `{ id }` (the order): a delivery order is then
  * ready for a courier label, a pickup order Ready for pickup with its code issued (#12).
@@ -128,6 +139,20 @@ export const asFulfilmentRecord = (row: InferTypeOf<typeof OrderFulfilment>) => 
 export const alertedAt = (row: Pick<FulfilmentRecord, "handover_alerted_at">) =>
   row.handover_alerted_at ? new Date(row.handover_alerted_at).toISOString() : null
 
+/**
+ * Whether the order was cancelled once accepted (#17): its buyer is owed all that is left of its
+ * share, retried like any owed refund (#16). Not a rejected order, whose refund the accept-deadline
+ * job retries (#20).
+ */
+export const cancelledOnceAccepted = (record: Pick<FulfilmentRecord, "state"> | undefined) => record?.state === "cancelled"
+
+/**
+ * Whether the order's buyer gets all of its share back and its shop is paid nothing for it: it
+ * was rejected while New (#20) or cancelled once accepted (#17), Medusa's order `canceled` either way.
+ */
+export const givesShareBack = (record: Pick<FulfilmentRecord, "state"> | undefined) =>
+  record?.state === "rejected" || cancelledOnceAccepted(record)
+
 /** Each order's fulfilment row; an order without one is New. */
 export async function fulfilmentsOf(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentRecord>> {
   if (!orderIds.length) return new Map()
@@ -153,6 +178,11 @@ export type FulfilmentView = {
   accept_by: string | null
   rejected_by: "seller" | "accept_deadline" | null
   reject_reason: string | null
+  /**
+   * An accepted order cancelled (#17): by its shop (`seller`) or by Oja's team (`operator`), why,
+   * the note given, and when (ISO 8601); null unless cancelled. Not who: staff and buyer alike see it.
+   */
+  cancellation: Omit<Cancellation, "actor"> | null
   /** The courier label last booked for the order; `cancelled` once Shipbubble cancelled it, to rebook. */
   shipment: { waybill: string; courier_name: string | null; tracking_url: string; cancelled: boolean } | null
   /**
@@ -186,6 +216,13 @@ function collectionOf(fulfilment: Fulfilment) {
   return "collection" in fulfilment ? fulfilment.collection : null
 }
 
+/** Who cancelled an accepted order, why and when; never which member or operator. */
+function cancellationOf(fulfilment: Fulfilment): FulfilmentView["cancellation"] {
+  if (fulfilment.state !== "cancelled") return null
+  const { by, reason, note, at } = fulfilment.cancellation
+  return { by, reason, note, at }
+}
+
 /** `names`: members' names by id, for who handed the order over; `audience`: whose steps the timeline shows. */
 export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
 
@@ -217,6 +254,7 @@ export function fulfilmentView(
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
     collect_by: collectByOf(record, hours, order.lines),
     reject_reason: record?.reject_reason ?? null,
+    cancellation: cancellationOf(fulfilment),
     shipment: shipment
       ? {
           waybill: shipment.waybill,
@@ -307,7 +345,7 @@ export async function orderMoney(scope: Scope, orderId: string, payments: Paymen
     new Map(payments.flatMap((p) => (p[key] ?? []).map((item) => [item.id, p.id] as const)))
   return {
     currency_code: order.currency_code,
-    transactions: (order.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) })),
+    transactions: transactionsOf(order),
     paymentOfCapture: paymentOf("captures"),
     paymentOfRefund: paymentOf("refunds"),
   }

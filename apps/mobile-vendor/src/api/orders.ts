@@ -1,4 +1,5 @@
-import { pickProgress } from '@oja/domain';
+import { pickProgress, type CancelRequest } from '@oja/domain';
+import { ClientError } from '@oja/api-client';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { vendorClient } from './client';
@@ -8,6 +9,7 @@ export const orderKeys = {
   list: (sellerId: string) => [...orderKeys.all, 'list', { sellerId }] as const,
   detail: (orderId: string) => [...orderKeys.all, 'detail', orderId] as const,
   pickList: (orderId: string) => [...orderKeys.all, 'pick-list', orderId] as const,
+  cancel: (orderId: string) => [...orderKeys.all, 'cancel', orderId] as const,
 };
 
 // The default fields leave out the order total; `+` adds it to them. The buyer's name is who a
@@ -101,6 +103,31 @@ export function useRejectOrder(orderId: string) {
   });
 }
 
+/**
+ * Whether the order can be cancelled now, and what cancelling it would refund its buyer (#17).
+ * Only owners and managers may ask, so only the cancel screen they are offered reads it.
+ */
+export function useCancelPreview(orderId: string) {
+  return useQuery({
+    queryKey: orderKeys.cancel(orderId),
+    queryFn: async () => (await vendorClient.vendor.orders.$id.cancel.query({ $id: orderId })).cancel,
+  });
+}
+
+/**
+ * Cancels an accepted order with the reason its buyer is told (#17), refunding them all that is
+ * left of it. A refund Paystack turns down comes back null: the buyer is still owed it, and it
+ * is retried.
+ */
+export function useCancelOrder(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: CancelRequest) =>
+      vendorClient.vendor.orders.$id.cancel.mutate({ $id: orderId, ...request }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+  });
+}
+
 /** Starts picking an accepted order; staff then work through its pick list. */
 export function useStartPicking(orderId: string) {
   const queryClient = useQueryClient();
@@ -190,9 +217,12 @@ export function useMarkUnavailable(orderId: string) {
   });
 }
 
+/** Removing unavailable items refused because every item is (#17): the order is to be cancelled instead. */
+export const isCancelInstead = (error: unknown) => error instanceof ClientError && error.code === 'cancel_instead';
+
 /**
  * Removes the items marked unavailable from the order and refunds the buyer what they cost;
- * the order goes back to picking.
+ * the order goes back to picking. Refused with `cancel_instead` when every item is unavailable.
  */
 export function useRemoveUnavailable(orderId: string) {
   const queryClient = useQueryClient();

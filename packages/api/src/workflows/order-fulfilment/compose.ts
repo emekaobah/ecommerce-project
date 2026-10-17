@@ -3,14 +3,20 @@ import { confirmOrderEditRequestWorkflow } from "@mercurjs/core/workflows"
 import {
   acquireLockStep,
   beginOrderEditOrderWorkflow,
+  cancelOrdersStep,
+  deleteReservationsByLineItemsStep,
   emitEventStep,
   markOrderFulfillmentAsDeliveredWorkflow,
   orderEditUpdateItemQuantityWorkflow,
+  releaseLockStep,
   requestOrderEditRequestWorkflow,
+  useQueryGraphStep,
 } from "@medusajs/medusa/core-flows"
+import { OrderWorkflowEvents } from "@medusajs/framework/utils"
 import { transform, when, type WorkflowData } from "@medusajs/framework/workflows-sdk"
 import { ORDER_DELIVERED, type FulfilmentRecord } from "../../lib/order-fulfilment"
 import { orderTotalBeforeEditStep, removedByEditStep } from "./steps/edit-order-lines"
+import { codeCheckoutLocksStep, giveBackCodeUsesStep } from "./steps/give-back-code-uses"
 
 // Pieces the order-fulfilment workflows are composed from.
 
@@ -23,6 +29,39 @@ export function lockOrderFulfilment(input: { order_id: string }, ttl = 30) {
   const key = transform({ input }, ({ input }) => `order-fulfilment:${input.order_id}`)
   acquireLockStep({ key, timeout: 5, ttl })
   return key
+}
+
+/**
+ * Takes the locks of every checkout whose orders share a promo code with the order's
+ * (`codeCheckoutLocksStep`), so two of them cancelled at once give a code's use back once.
+ * Returns their keys, for `cancelOrderGivingBackCodes`.
+ */
+export function lockCodeCheckouts(input: { order_id: string }) {
+  const keys = codeCheckoutLocksStep({ order_id: input.order_id })
+  acquireLockStep({ key: keys, timeout: 30, ttl: 60 }).config({ name: "acquire-checkout-locks" })
+  return keys
+}
+
+/**
+ * Cancels the order in Medusa, rejected or cancelled (#17): its stock reservations are released,
+ * the order is cancelled, and each promo code's use goes back once every order it discounted, of
+ * the checkout and of a checkout sharing the code, is cancelled. Releases the checkout locks
+ * (`lockCodeCheckouts`), then emits Medusa's `order.canceled`.
+ */
+export function cancelOrderGivingBackCodes(input: { order_id: string }, checkoutLocks: WorkflowData<string[]>) {
+  const { data: orders } = useQueryGraphStep({
+    entity: "order",
+    fields: ["id", "items.id"],
+    filters: { id: input.order_id },
+  })
+  const lineItemIds = transform({ orders }, ({ orders }) => (orders[0]?.items ?? []).map((item: { id: string } | null) => item!.id))
+  deleteReservationsByLineItemsStep(lineItemIds)
+  cancelOrdersStep({ orderIds: [input.order_id] })
+  giveBackCodeUsesStep({ order_id: input.order_id })
+  releaseLockStep({ key: checkoutLocks }).config({ name: "release-checkout-locks" })
+  emitEventStep({ eventName: OrderWorkflowEvents.CANCELED, data: { id: input.order_id } }).config({
+    name: "emit-order-canceled",
+  })
 }
 
 /** An order edit setting the order's lines to these quantities, made by `actor`: a member, or the system. */

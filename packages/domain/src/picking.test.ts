@@ -60,6 +60,7 @@ describe("pickProgress", () => {
       unavailable: 0,
       unpicked: ["item_rice", "item_lantern"],
       done: false,
+      allUnavailable: false,
     })
   })
 
@@ -70,6 +71,7 @@ describe("pickProgress", () => {
       unavailable: 0,
       unpicked: [],
       done: true,
+      allUnavailable: false,
     })
   })
 
@@ -80,7 +82,14 @@ describe("pickProgress", () => {
       unavailable: 2,
       unpicked: [],
       done: false,
+      allUnavailable: false,
     })
+  })
+
+  test("says when every unit is marked unavailable: nothing would be left to send, so the order is cancelled instead (#17)", () => {
+    expect(pickProgress([{ ...rice, unavailable: 2 }, { ...lantern, unavailable: 1 }]).allUnavailable).toBe(true)
+    expect(pickProgress([{ ...rice, unavailable: 2 }, { ...lantern, picked: 1 }]).allUnavailable).toBe(false)
+    expect(pickProgress([]).allUnavailable).toBe(false)
   })
 
   test("an order with no lines is not done", () => {

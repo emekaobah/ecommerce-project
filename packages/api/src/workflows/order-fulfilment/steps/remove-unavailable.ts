@@ -27,7 +27,7 @@ export const planRemovalStep = createStep("plan-unavailable-removal", async ({ o
   if (left <= 0) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
-      `Every item of order ${order_id} is marked unavailable: there would be nothing left to send`
+      `Every item of order ${order_id} is marked unavailable: cancel the order instead`
     )
   }
   return new StepResponse<RemovalPlan>({ items, units: Object.fromEntries(marked) })

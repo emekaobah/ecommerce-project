@@ -32,6 +32,8 @@ import { onlyLiveShops } from "./store/live-shops";
 import { validatePickupAddressFirst } from "./pickup-address-check";
 import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
 import { vendorOrderPayoutMiddlewares } from "./vendor/orders/[id]/payout/middlewares";
+import { vendorCancelOrderMiddlewares } from "./vendor/orders/[id]/cancel/middlewares";
+import { AdminCancelOrder } from "./admin/orders/[id]/cancel/validators";
 import { commissionOnlyInPayout } from "./vendor/orders/commission-in-payout";
 import { vendorShopHoursMiddlewares } from "./vendor/shop-hours/middlewares";
 import { vendorCollectionPointMiddlewares } from "./vendor/collection-point/middlewares";
@@ -40,6 +42,7 @@ import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
+import { StoreRefundAccount } from "./store/refunds/validators";
 import { StoreGetPublishedReviews } from "./store/reviews/validators";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
@@ -175,6 +178,18 @@ export default defineMiddlewares({
             matcher: "/store/order-history/:id",
             middlewares: [authenticate("customer", ["session", "bearer"])],
         },
+        // A refund that needs the buyer's bank account (#13): theirs only.
+        { matcher: "/store/refunds/*", middlewares: [authenticate("customer", ["session", "bearer"])] },
+        {
+            method: ["POST"],
+            matcher: "/store/refunds/:id/resolve-account",
+            middlewares: [validateAndTransformBody(StoreRefundAccount)],
+        },
+        {
+            method: ["POST"],
+            matcher: "/store/refunds/:id/retry",
+            middlewares: [validateAndTransformBody(StoreRefundAccount)],
+        },
         // Address lookup through the backend's Google key, for signed-in buyers only (ADR 0002, #40).
         {
             method: ["GET"],
@@ -248,6 +263,8 @@ export default defineMiddlewares({
             matcher: "/vendor/orders/:id/collect",
             middlewares: [validateAndTransformBody(VendorCollectOrder)],
         },
+        // Owners and managers cancel an accepted order with a reason (#17).
+        ...vendorCancelOrderMiddlewares,
         { method: ["POST"], matcher: "/vendor/orders/:id/fulfillments", middlewares: [courierFulfilmentsByLabelOnly] },
         {
             method: ["POST"],
@@ -296,6 +313,12 @@ export default defineMiddlewares({
             method: ["POST"],
             matcher: "/admin/orders/:id/delivery-refund",
             middlewares: [validateAndTransformBody(AdminRefundDelivery)],
+        },
+        // Oja's staff cancel an accepted order with a reason, refunding its share alone (#17).
+        {
+            method: ["POST"],
+            matcher: "/admin/orders/:id/cancel",
+            middlewares: [validateAndTransformBody(AdminCancelOrder)],
         },
         // Oja's staff settle by hand a refund Paystack can't make (#16).
         {

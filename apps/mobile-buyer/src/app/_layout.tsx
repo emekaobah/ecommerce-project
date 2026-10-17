@@ -75,6 +75,7 @@ function RootStack() {
         <Stack.Screen name="addresses/edit" options={{ title: 'Address' }} />
         <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
         <Stack.Screen name="review/[id]" options={{ title: 'Review' }} />
+        <Stack.Screen name="refund/[id]" options={{ title: 'Refund' }} />
       </Stack.Protected>
       {/* AuthView draws its own chrome, including the dismiss button. */}
       <Stack.Screen name="sign-in" options={{ presentation: 'modal', headerShown: false }} />

@@ -14,7 +14,8 @@ import {
   type Picks,
   type PlacedOrder,
 } from "./order-fulfilment"
-import { failedSinceLastMade, owedRefundsOf, type OwedRefund } from "./owed-refunds"
+import { refundMade, refusedByPaystack, totalOf } from "./order-refund"
+import { failedSinceLastMade, handedOver, needsAccount, owedRefundsOf, type OwedRefund } from "./owed-refunds"
 import { HOLD_LINE_FIELDS, holdLinesOf } from "./pickup-hold"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
@@ -60,6 +61,11 @@ export type BuyerOrder = {
    * `manual` once Oja's team sends it by hand; null while it owes nothing.
    */
   owed_refund: BuyerOwedRefund | null
+  /**
+   * The order's refund that needs the buyer's bank account (#13), whose screen in the app
+   * takes one; null while none does.
+   */
+  refund_needing_account: string | null
   /** Where and when to collect a pickup order, and its code once ready (#12); null for a delivered order. */
   pickup: BuyerPickup | null
   /** Whether the buyer may review its shop and products (#7): once they have received it. */
@@ -100,7 +106,13 @@ export type BuyerRefund = { amount: number; status: PaystackRefundStatus }
 /** A refund the order owes its buyer, as the buyer sees it (#16). */
 export type BuyerOwedRefund = Pick<OwedRefund, "amount" | "state">
 
-type RefundRow = { amount: unknown; status: string; created_at: Date | string; failure_reason?: string | null }
+type RefundRow = {
+  amount: unknown
+  status: string
+  created_at: Date | string
+  failure_reason?: string | null
+  handed_over_at?: Date | string | null
+}
 
 /** The least settled first: the buyer is told about the refund that's furthest from done. */
 const LEAST_SETTLED: PaystackRefundStatus[] = ["needs-attention", "failed", "pending", "processing", "processed"]
@@ -110,16 +122,17 @@ const LEAST_SETTLED: PaystackRefundStatus[] = ["needs-attention", "failed", "pen
  * made again as a new refund, so one followed by a later refund no longer counts; until then
  * the refund is delayed. Failed attempts since then are tries at the same refund: only the
  * latest counts. A refund Paystack refused was never made, so it isn't one: what it was for is
- * still owed (`owed_refund`).
+ * still owed (`owed_refund`). Nor is one that needed the buyer's bank account and was handed to
+ * Oja's team (#13): it is owed too, by hand, until Paystack settles it.
  */
 export function buyerRefund(all: RefundRow[]): BuyerRefund | null {
-  const rows = all.filter((r) => !r.failure_reason)
+  const rows = all.filter((r) => !refusedByPaystack(r) && !handedOver(r))
   const latestFailed = failedSinceLastMade(rows).at(-1)
-  const counted = [...rows.filter((r) => r.status !== "failed"), ...(latestFailed ? [latestFailed] : [])]
+  const counted = [...rows.filter(refundMade), ...(latestFailed ? [latestFailed] : [])]
   if (!counted.length) return null
   const statuses = new Set(counted.map((r) => r.status))
   return {
-    amount: counted.reduce((sum, r) => sum + Number(r.amount), 0),
+    amount: totalOf(counted.map((r) => r.amount)),
     status: LEAST_SETTLED.find((s) => statuses.has(s)) ?? "pending",
   }
 }
@@ -234,6 +247,7 @@ async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Pro
           fulfilment: buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o), lines: lines.get(o.id) }, shopHours),
           refund: buyerRefund(refundsOf(o.id)),
           owed_refund: buyerOwedRefund(owed.get(o.id)),
+          refund_needing_account: refundsOf(o.id).find(needsAccount)?.id ?? null,
           pickup: buyerPickup(record, places.get(o.seller?.id)),
           // An order without a fulfilment row yet is New.
           can_review: canReview(record?.state ?? "new"),
@@ -267,7 +281,10 @@ function paidTotal(o: any): number {
   return captures.reduce((sum, t) => sum + Number(t!.amount), 0)
 }
 
-function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund" | "owed_refund" | "pickup" | "can_review" | "reviews"> {
+function buyerOrder(
+  o: any,
+  removed: Picks
+): Omit<BuyerOrder, "fulfilment" | "refund" | "owed_refund" | "refund_needing_account" | "pickup" | "can_review" | "reviews"> {
   return {
     id: o.id,
     display_id: o.display_id,
