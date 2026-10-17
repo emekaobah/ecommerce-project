@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import {
   buyerStatusPush,
+  holdReminderPush,
   itemsRemovedPush,
+  notCollectedPush,
+  orderCollectedPush,
   orderCancelledPush,
   orderConfirmedPush,
   refundAccountPush,
@@ -68,7 +71,7 @@ describe("buyerStatusPush", () => {
       expect(body).toBe("Your pickup code is in the Oja app. Collect it from Mama Put Groceries, 14 Adeniran Ogunsanya Street, Surulere.")
     })
 
-    test("stays quiet once collected: the buyer was at the counter (#33 adds the pickup emails)", () => {
+    test("leaves collecting to its receipt (`orderCollectedPush`)", () => {
       expect(buyerStatusPush("collected", { ...order, pickup })).toBeNull()
     })
   })
@@ -204,5 +207,68 @@ describe("refundAccountPush", () => {
       body: `Add a bank account to receive your ${formatMoney(14500, "ngn")} refund for order #42. If you don't within 6 days, our team will contact you.`,
     })
     expect(refundAccountPush(refund, { days_left: 1 }).body).toContain("within 1 day,")
+  })
+})
+
+describe("pickup pushes (#33)", () => {
+  const order = { display_id: 42, shop: "Mama Put Groceries" }
+
+  test("reminds the buyer half-way through the hold when to collect by, and that the code is in the app", () => {
+    expect(holdReminderPush({ ...order, reminder: "half_way", collect_by: "Collect by 6pm, Thu 15 Oct", perishable: false })).toEqual({
+      title: "Order #42 is waiting for you",
+      body: "Collect by 6pm, Thu 15 Oct from Mama Put Groceries. Your pickup code is in the Oja app.",
+    })
+  })
+
+  test("reminds the buyer on the last day what happens if they don't collect", () => {
+    expect(holdReminderPush({ ...order, reminder: "last_day", collect_by: "Collect by 6pm today", perishable: false })).toEqual({
+      title: "Last day to collect order #42",
+      body: "Collect by 6pm today from Mama Put Groceries, or it is refunded instead. Your pickup code is in the Oja app.",
+    })
+    expect(holdReminderPush({ ...order, reminder: "last_day", collect_by: "Collect by 6pm today", perishable: true }).body).toBe(
+      "Collect by 6pm today from Mama Put Groceries, or it is refunded instead, except its fresh items. Your pickup code is in the Oja app."
+    )
+  })
+
+  test("tells the buyer their receipt for a collected order is in their email", () => {
+    expect(orderCollectedPush(order)).toEqual({
+      title: "Order #42 collected",
+      body: "You collected your order from Mama Put Groceries. Your receipt is in your email.",
+    })
+  })
+
+  describe("notCollectedPush", () => {
+    const notice = { ...order, refund: 14500, currency_code: "ngn" }
+
+    test("tells the buyer an order not collected in time is refunded", () => {
+      expect(notCollectedPush({ ...notice, kept: [] })).toEqual({
+        title: "Order #42 wasn't collected",
+        body: `Mama Put Groceries held it, but it wasn't collected in time. You'll be refunded ${formatMoney(14500, "ngn")}.`,
+      })
+    })
+
+    test("names the fresh items that aren't refunded", () => {
+      expect(notCollectedPush({ ...notice, kept: [{ title: "Tomatoes 1kg", quantity: 1 }] }).body).toBe(
+        `Mama Put Groceries held it, but it wasn't collected in time. You'll be refunded ${formatMoney(14500, "ngn")}. ` +
+          "Fresh items aren't refunded: 1 × Tomatoes 1kg."
+      )
+    })
+
+    test("promises no refund when every item was fresh", () => {
+      expect(notCollectedPush({ ...notice, refund: 0, kept: [{ title: "Tomatoes 1kg", quantity: 2 }] }).body).toBe(
+        "Mama Put Groceries held it, but it wasn't collected in time. Fresh items aren't refunded: 2 × Tomatoes 1kg."
+      )
+    })
+
+    test("counts the fresh units once more than two lines are kept", () => {
+      const kept = [
+        { title: "Tomatoes 1kg", quantity: 1 },
+        { title: "Fresh Fish", quantity: 1 },
+        { title: "Ugu Leaves", quantity: 2 },
+      ]
+      expect(notCollectedPush({ ...notice, refund: 0, kept }).body).toBe(
+        "Mama Put Groceries held it, but it wasn't collected in time. Fresh items aren't refunded: 4 of your items."
+      )
+    })
   })
 })

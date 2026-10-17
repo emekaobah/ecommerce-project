@@ -6,6 +6,7 @@ import {
   type Fulfilment,
   type FulfilmentMethod,
   type FulfilmentState,
+  type HoldReminder,
   type Reached,
   type ShopHours,
   type TimelineStep,
@@ -60,6 +61,18 @@ export const ORDER_CANCELLED = "order_fulfilment.cancelled"
 export const ORDER_PACKED = "order_fulfilment.packed"
 /** Emitted when a pickup order is handed over at the counter, and so may be paid out (#12), with `{ id }` (the order). */
 export const ORDER_COLLECTED = "order_fulfilment.collected"
+/**
+ * Emitted when a pickup order's hold ends uncollected (#32), with `{ id, amount, refunded, kept }`:
+ * the order, what the edit took off its total (which its buyer is refunded), and the units of
+ * each line refunded (its non-perishable lines) and kept for the shop (its perishable lines), by
+ * line item id. Its buyer and the shop's owners and managers are told (#33).
+ */
+export const ORDER_NOT_COLLECTED = "order_fulfilment.not_collected"
+/**
+ * Emitted once for each reminder to the buyer of a pickup order still to collect (#33), with
+ * `{ id, reminder, at }`: the order, `half_way` or `last_day`, and when it was due (ISO 8601).
+ */
+export const ORDER_PICKUP_HOLD_REMINDER = "order_fulfilment.pickup_hold_reminder"
 /** Emitted once when a new order nears its accept deadline unaccepted, with `{ id }` (the order). */
 export const ORDER_ACCEPT_DEADLINE_NEAR = "order_fulfilment.accept_deadline_near"
 /** Emitted when staff book a courier label for a packed order, with `{ id }` (the order). */
@@ -128,6 +141,8 @@ export type FulfilmentRecord = {
   pickup_code: string | null
   /** When wrong pickup codes were tried on the order (ISO 8601). */
   pickup_code_attempts: string[] | null
+  /** The last reminder the buyer of a pickup order still to collect had (#33). */
+  hold_reminded: HoldReminder | null
 }
 
 export type OrderRefundRecord = InferTypeOf<typeof OrderRefund>
