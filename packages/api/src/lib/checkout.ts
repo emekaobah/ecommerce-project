@@ -861,6 +861,13 @@ export async function startCheckoutPayment(
     },
   })
   const data = session.data as unknown as PaystackSessionData
+  // A cart that wasn't placed is being paid for again: what is shown now is this payment's outcome.
+  if (checkout.not_placed) {
+    const carts = scope.resolve(Modules.CART)
+    const { metadata } = await carts.retrieveCart(cartId, { select: ["id", "metadata"] })
+    await carts.updateCarts(cartId, { metadata: { ...metadata, [NOT_PLACED_KEY]: null } })
+    checkout.not_placed = null
+  }
   return {
     payment: { provider_id: PAYSTACK_PROVIDER_ID, reference: data.reference, authorization_url: data.authorization_url },
     price_changes: [],

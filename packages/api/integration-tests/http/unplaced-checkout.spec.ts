@@ -133,6 +133,23 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("a charge for a different amount than the cart", () => {
+      it("is refunded in full, places nothing, and the buyer can pay again", async () => {
+        const cartId = await preparedCart(ada)
+        const { reference } = await ada.startPayment(cartId)
+        // Paystack took less than the transaction was started for: a bug or tampering.
+        paystack.transaction(reference).amount = TOTAL * 100 - 500000
+        paystack.pay(reference)
+
+        await ada.postWebhook(paystack.chargeSuccess(reference))
+
+        await eventually(async () => paystack.refundsOf(reference), (refunds) => refunds.length > 0, 150)
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([TOTAL * 100 - 500000])
+        expect(await ada.ordersOfCart(cartId)).toEqual([])
+        expect(await ada.startPayment(cartId)).toMatchObject({ reference: expect.any(String) })
+      })
+    })
+
     describe("an item sold out while the buyer paid", () => {
       it("refunds the cart in full, says so, and cuts the line to what is left", async () => {
         const cartId = await preparedCart(ada)
@@ -165,6 +182,33 @@ medusaIntegrationTestRunner({
         } finally {
           await restore()
         }
+      })
+
+      it("lets the buyer pay the fixed cart's new total, and places it", async () => {
+        const cartId = await preparedCart(ada)
+        const { reference } = await ada.startPayment(cartId)
+        paystack.pay(reference)
+        const restore = await setStock(GROCERY, RICE.title, 1)
+        try {
+          await ada.postWebhook(paystack.chargeSuccess(reference))
+          await notPlaced(ada, cartId)
+        } finally {
+          await restore()
+        }
+
+        // The parcel changed, so checkout quotes its delivery again.
+        await ada.prepare(cartId)
+        const again = await ada.startPayment(cartId)
+        expect(paystack.transaction(again.reference).amount).toBe((TOTAL - RICE.price) * 100)
+        // Paying again, the app waits for this payment's order, not the last one's refund.
+        expect((await ada.checkout(cartId)).not_placed).toBeNull()
+        paystack.pay(again.reference)
+        await ada.postWebhook(paystack.chargeSuccess(again.reference))
+
+        await ada.orderGroupOf(cartId)
+        expect(await ada.ordersOfCart(cartId)).toHaveLength(2)
+        expect((await ada.checkout(cartId)).not_placed).toBeNull()
+        expect(paystack.refundsOf(again.reference)).toEqual([])
       })
     })
   },
