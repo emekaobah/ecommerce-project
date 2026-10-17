@@ -3,6 +3,9 @@
  * cheapest, the fastest and the best value, with best value preselected (docs/design.md).
  */
 
+import type { FulfilmentState } from "./fulfilment"
+import { nextOpening, type ShopHours } from "./shop-hours"
+
 /** A courier's quote for one shop's parcel. `delivery_eta_time` is ISO 8601. */
 export type DeliveryRate = {
   id: string
@@ -66,4 +69,36 @@ export function deliveryEstimate(etaTime: string, now: Date, timeZone: string): 
   if (days === 1) return "Arrives tomorrow"
   const date = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short", day: "numeric", month: "short" })
   return `Arrives ${date.format(arrives).replace(",", "")}`
+}
+
+/**
+ * When a shop's delivery estimate starts (ADR 0004): now while it is open, else its next
+ * opening, when the order is prepared and a courier can collect it. Now for a shop without
+ * hours, or one not set to reopen, which takes no orders.
+ */
+export function deliveryStartsAt(hours: ShopHours | null, now: Date): Date {
+  return (hours && nextOpening(hours, now)) || now
+}
+
+/**
+ * A courier's ETA (ISO 8601) quoted as if the parcel left at `quotedAt`, counted from
+ * `startsAt` instead: later by the time between.
+ */
+export const etaCountedFrom = (etaTime: string, quotedAt: Date, startsAt: Date): Date =>
+  new Date(Date.parse(etaTime) + Math.max(0, startsAt.getTime() - quotedAt.getTime()))
+
+/** A delivered order's courier and when checkout said it arrives (ISO 8601), with the timezone its days are counted in. */
+export type OrderDelivery = { courier_name: string; delivery_eta_time: string; time_zone: string }
+
+/** States in which a delivered order has arrived, or won't. */
+const NOT_ARRIVING: FulfilmentState[] = ["delivered", "rejected", "cancelled"]
+
+/**
+ * "Arrives Wed 7 Oct · GIG Next Day": when the buyer's order arrives, as checkout quoted it
+ * (counted from the shop's next opening, ADR 0004). Null once it has arrived or won't, and for
+ * an order without a delivery.
+ */
+export function orderArrival(state: FulfilmentState, delivery: OrderDelivery | null, now: Date): string | null {
+  if (!delivery || NOT_ARRIVING.includes(state)) return null
+  return `${deliveryEstimate(delivery.delivery_eta_time, now, delivery.time_zone)} · ${delivery.courier_name}`
 }

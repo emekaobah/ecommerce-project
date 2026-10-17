@@ -35,7 +35,7 @@ The module is the **only source of truth**. Mercur's closure fields are unused a
 
 ### Ordering
 
-- **Outside regular weekly hours**: orderable. The shop shows "Closed · opens 8am Mon"; checkout says the order is prepared when the shop opens; delivery estimates count from the next opening.
+- **Outside regular weekly hours**: orderable. The shop shows "Closed · opens 8am Mon"; checkout says the order is prepared when the shop opens; delivery estimates count from the next opening. Shipbubble is asked for rates with `pickup_date` on the day the shop opens, so its ETAs count from then; a rate quoted for today (the shop opens later today, or Shipbubble refuses a later pickup date) is moved later by the wait until the opening. No preparation time is added.
 - **During an exception or a pause**: visible but not orderable. "Closed until Tue 14 Oct" plus the note; items can't be added to the cart and checkout refuses that shop's lines.
 
 ### Open-hours clocks

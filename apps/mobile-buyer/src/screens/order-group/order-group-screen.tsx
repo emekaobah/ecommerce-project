@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { collectByLabel, formatMoney, historyEntries, PICKUP_HOLD_NOTICE } from '@oja/domain';
+import { collectByLabel, formatMoney, historyEntries, openingLabel, orderArrival, PICKUP_HOLD_NOTICE, preparedWhenOpen } from '@oja/domain';
 import { ErrorState, ListRow, LoadingState, Text, Timeline, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -70,6 +70,7 @@ function ShopOrder({ groupId, order }: Readonly<{ groupId: string; order: Seller
         <Text tone="secondary">#{order.display_id}</Text>
       </View>
       <OrderStatusDetails order={order} />
+      <Arrival order={order} />
       {order.pickup ? <Collection order={order} pickup={order.pickup} /> : null}
       <Tracking order={order} />
       {order.items.map((item) => (
@@ -117,6 +118,28 @@ function Tracking({ order }: Readonly<{ order: SellerOrder }>) {
       ) : null}
       {timeline.length ? <Timeline steps={timeline} /> : null}
     </>
+  );
+}
+
+/**
+ * When a delivered order arrives, as checkout quoted it, and while its closed shop hasn't opened
+ * yet, that it is prepared then (ADR 0004): the estimate counts from that opening.
+ */
+function Arrival({ order }: Readonly<{ order: SellerOrder }>) {
+  const theme = useTheme();
+  const now = new Date();
+  const arrives = orderArrival(order.fulfilment.state, order.delivery, now);
+  const opens = order.shop_opens;
+  if (!arrives && !opens) return null;
+  return (
+    <View style={{ gap: theme.space.xs }}>
+      {opens ? (
+        <Text tone="secondary">
+          {preparedWhenOpen({ name: order.seller.name, opens: openingLabel(opens.at, now, opens.time_zone) })}
+        </Text>
+      ) : null}
+      {arrives ? <Text variant="label">{arrives}</Text> : null}
+    </View>
   );
 }
 

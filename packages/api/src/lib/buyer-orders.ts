@@ -1,7 +1,8 @@
-import { canReview, type ShopHours } from "@oja/domain"
+import { canReview, shopStatus, type OrderDelivery, type ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
+import { SHIPBUBBLE_TIMEZONE, type ShipbubbleQuote } from "../modules/shipbubble"
 import { collectionPlacesOf, type CollectionPlace } from "./collection-point"
 import {
   fulfilmentService,
@@ -52,6 +53,13 @@ export type BuyerOrder = {
   items: BuyerOrderItem[]
   /** Where the shop is with it: the same state its staff see. */
   fulfilment: BuyerFulfilmentView
+  /** The delivery checkout quoted for it, counted from its shop's next opening (ADR 0004); null for a pickup order. */
+  delivery: OrderDelivery | null
+  /**
+   * While the order is New and its shop closed: when the shop opens (ISO 8601) and prepares it
+   * (ADR 0004), with the region's timezone to show it in. Null otherwise, and for a shop not set to reopen.
+   */
+  shop_opens: { at: string; time_zone: string } | null
   /** What the buyer paid for it, refunded or not. */
   paid_total: number
   /** What has been refunded of it, and where that is; null while nothing has been. */
@@ -72,6 +80,21 @@ export type BuyerOrder = {
   can_review: boolean
   /** The buyer's reviews of its shop and products, written on this order or an earlier one (one each), and where each is in moderation. */
   reviews: BuyerReview[]
+}
+
+/** The buyer's chosen rate on the order's Shipbubble method, as checkout saved it. */
+function buyerDelivery(o: { shipping_methods?: ({ data?: Record<string, unknown> | null } | null)[] | null }): OrderDelivery | null {
+  const quote = (o.shipping_methods ?? []).map((m) => m?.data?.quote as ShipbubbleQuote | undefined).find((q) => q?.delivery_eta_time)
+  return quote ? { courier_name: quote.courier_name, delivery_eta_time: quote.delivery_eta_time, time_zone: SHIPBUBBLE_TIMEZONE } : null
+}
+
+/** When the order's closed shop opens, while the order waits for it as New. */
+function shopOpens(state: string, hours: ShopHours | null, now: Date): BuyerOrder["shop_opens"] {
+  if (state !== "new" || !hours) return null
+  const status = shopStatus(hours, now)
+  if (status.state === "open") return null
+  const at = status.state === "closed" ? status.opens_at : status.until
+  return at ? { at, time_zone: hours.time_zone } : null
 }
 
 /**
@@ -236,15 +259,19 @@ async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Pro
     holdLinesOf(scope, data as any[]),
   ])
   const refundsOf = (orderId: string) => refunds.filter((r) => r.order_id === orderId)
+  const now = new Date()
   return new Map(
     (data as any[]).map((o) => {
       const record = fulfilments.get(o.id)
       const shopHours = hours.get(o.seller?.id) ?? null
+      const fulfilment = buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o), lines: lines.get(o.id) }, shopHours)
       return [
         o.id,
         {
           ...buyerOrder(o, record?.removed ?? {}),
-          fulfilment: buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o), lines: lines.get(o.id) }, shopHours),
+          fulfilment,
+          delivery: fulfilment.method === "delivery" ? buyerDelivery(o) : null,
+          shop_opens: shopOpens(fulfilment.state, shopHours, now),
           refund: buyerRefund(refundsOf(o.id)),
           owed_refund: buyerOwedRefund(owed.get(o.id)),
           refund_needing_account: refundsOf(o.id).find(needsAccount)?.id ?? null,
@@ -284,7 +311,7 @@ function paidTotal(o: any): number {
 function buyerOrder(
   o: any,
   removed: Picks
-): Omit<BuyerOrder, "fulfilment" | "refund" | "owed_refund" | "refund_needing_account" | "pickup" | "can_review" | "reviews"> {
+): Omit<BuyerOrder, "fulfilment" | "delivery" | "shop_opens" | "refund" | "owed_refund" | "refund_needing_account" | "pickup" | "can_review" | "reviews"> {
   return {
     id: o.id,
     display_id: o.display_id,
