@@ -1,19 +1,22 @@
 import type { IOrderModuleService } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN, MedusaError, Modules } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
-import { fulfilmentService, orderMoney, paymentsOfOrder, type OrderRefundRecord } from "../../../lib/order-fulfilment"
-import { refundPlan } from "../../../lib/order-refund"
+import { orderMoney, paymentsOfOrder, type OrderRefundRecord } from "../../../lib/order-fulfilment"
+import { owedToBuyerOf, refundableShareOf, refundPlan, type OrderSummary } from "../../../lib/order-refund"
 import type { RefundCovers } from "../../../modules/order-fulfilment/models/order-refund"
 import { refundPayment } from "./refund-payment"
+
+type Scope = Parameters<typeof paymentsOfOrder>[0]
 
 export type RefundOrderShareInput = {
   order_id: string
   /**
-   * What the refund is of (#22): the order's items (the default), or its delivery fee, which
-   * only Oja's staff refund. A refund of delivery is at most the fee less its earlier refunds.
+   * What the refund is of (#22): the order's items, at most what was paid for them less their
+   * earlier refunds; its delivery fee, which only Oja's staff refund, at most the fee less its
+   * earlier refunds; or all of the order's share, for an order rejected.
    */
-  covers?: RefundCovers
-  /** All of the order's share still refundable when left out; for delivery, all of the fee left. */
+  covers: RefundCovers
+  /** All that is left of what it covers when left out. */
   amount?: number
   /** The shop or member that asked for it; none for the accept deadline. */
   created_by?: string
@@ -30,16 +33,17 @@ export type RefundOrderShareInput = {
  *
  * Like Medusa's own refund, each refund also adds a credit line for what the order didn't
  * already owe the buyer, so the order's total no longer counts the refunded money as owed
- * (the web vendor panel shows total less net paid as outstanding).
+ * (the web vendor panel shows total less net paid as outstanding). What the order owes is for
+ * lines an order edit removed, so a refund of delivery never pays it off.
  */
 export const refundOrderShareStep = createStep(
   "refund-order-share",
-  async ({ order_id, covers = "items", amount, created_by, note, refund_reason_id }: RefundOrderShareInput, { container }) => {
+  async ({ order_id, covers, amount, created_by, note, refund_reason_id }: RefundOrderShareInput, { container }) => {
     const payments = await paymentsOfOrder(container, order_id)
     const money = await orderMoney(container, order_id, payments)
-    const plan = refundPlan(money, covers === "delivery" ? await deliveryRefund(container, order_id, amount) : amount)
+    const plan = refundPlan(money, covers === "all" ? amount : await withinWhatIsLeft(container, order_id, covers, amount))
     const orderModule = container.resolve<IOrderModuleService>(Modules.ORDER)
-    let owed = await owedToBuyer(container, order_id)
+    let owed = covers === "delivery" ? MathBN.convert(0) : MathBN.convert(await owedToBuyer(container, order_id))
 
     const recorded: OrderRefundRecord[] = []
     // One payment at a time: a refund Paystack turns down stops the rest, rather than racing them.
@@ -74,30 +78,26 @@ export const refundOrderShareStep = createStep(
   }
 )
 
-/**
- * How much of the order's delivery fee to refund: what was asked, or all of the fee left when
- * nothing was. Refused beyond the fee less its earlier refunds (a failed one gave its money back).
- */
-async function deliveryRefund(container: Parameters<typeof paymentsOfOrder>[0], orderId: string, requested?: number) {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "order", fields: ["id", "shipping_total"], filters: { id: orderId } })
-  const refunded = (await fulfilmentService(container).listOrderRefunds({ order_id: orderId, covers: "delivery" }))
-    .filter((r) => r.status !== "failed")
-    .reduce((sum, r) => MathBN.add(sum, r.amount), MathBN.convert(0))
-  const left = MathBN.max(MathBN.sub(data[0]?.shipping_total ?? 0, refunded), 0)
-  if (requested != null ? MathBN.gt(requested, left) : MathBN.lte(left, 0)) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      `A refund of delivery can't be more than the delivery fee less what was refunded of it already (${MathBN.convert(left).toNumber()})`
-    )
-  }
-  return requested ?? MathBN.convert(left).toNumber()
+const WHAT_IS_LEFT: Record<Exclude<RefundCovers, "all">, string> = {
+  items: "A refund of items can't be more than what was paid for them less what was refunded of them already",
+  delivery: "A refund of delivery can't be more than the delivery fee less what was refunded of it already",
 }
 
-/** What the order already owes the buyer (a negative pending difference), which a refund pays off first. */
-async function owedToBuyer(container: Parameters<typeof paymentsOfOrder>[0], orderId: string) {
+/**
+ * How much of the order's items or delivery fee to refund: what was asked, or all that is left
+ * when nothing was. Refused beyond what is left (`refundableShareOf`), or when nothing is.
+ */
+async function withinWhatIsLeft(container: Scope, orderId: string, covers: Exclude<RefundCovers, "all">, requested?: number) {
+  const left = (await refundableShareOf(container, orderId))[covers]
+  if (requested != null ? MathBN.gt(requested, left) : MathBN.lte(left, 0)) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${WHAT_IS_LEFT[covers]} (${left})`)
+  }
+  return requested ?? left
+}
+
+/** What the order already owes the buyer (`owedToBuyerOf`), which a refund of its items pays off first. */
+async function owedToBuyer(container: Scope, orderId: string) {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({ entity: "order", fields: ["id", "summary"], filters: { id: orderId } })
-  const pending = (data[0]?.summary as { pending_difference?: number } | undefined)?.pending_difference ?? 0
-  return MathBN.max(MathBN.mult(pending, -1), 0)
+  return owedToBuyerOf(data[0]?.summary as OrderSummary)
 }

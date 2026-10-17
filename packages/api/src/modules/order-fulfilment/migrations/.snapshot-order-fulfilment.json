@@ -645,7 +645,8 @@
           "comment": null,
           "enumItems": [
             "items",
-            "delivery"
+            "delivery",
+            "all"
           ],
           "mappedType": "enum"
         },

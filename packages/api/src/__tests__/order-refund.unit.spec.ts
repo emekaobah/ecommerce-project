@@ -1,4 +1,23 @@
-import { RefundExceedsShareError, refundPlan, type OrderMoney } from "../lib/order-refund"
+import { RefundExceedsShareError, refundableShare, refundPlan, type OrderMoney } from "../lib/order-refund"
+
+// A shop refunds only items, and Oja's staff only delivery (#22): neither can refund the other.
+describe("refundableShare", () => {
+  const transactions = [{ amount: 6500, reference: "capture", reference_id: "capt_1" }]
+  const made = (amount: number, covers: "items" | "delivery" | "all", status = "pending") => ({ amount, covers, status })
+
+  it("leaves the order's share less its delivery fee to refund of its items, and the fee of delivery", () => {
+    expect(refundableShare({ transactions, deliveryFee: 1500, refunds: [] })).toEqual({ items: 5000, delivery: 1500 })
+  })
+
+  it("takes earlier refunds off what they covered, but not those that failed", () => {
+    const refunds = [made(2000, "items"), made(500, "delivery"), made(1000, "items", "failed")]
+    expect(refundableShare({ transactions, deliveryFee: 1500, refunds })).toEqual({ items: 3000, delivery: 1000 })
+  })
+
+  it("leaves nothing once all of the order was refunded", () => {
+    expect(refundableShare({ transactions, deliveryFee: 1500, refunds: [made(6500, "all")] })).toEqual({ items: 0, delivery: 0 })
+  })
+})
 
 // A checkout split across shops has one Paystack payment; each order's share of it is what
 // its own `capture` transactions hold, less its own refunds (#20).

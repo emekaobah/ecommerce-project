@@ -35,7 +35,8 @@ export async function rejectAndRefund(scope: Scope, input: { order_id: string; a
 async function refundRejected(scope: Scope, orderId: string, actor: string | undefined, reason: string) {
   try {
     await refundOrderShareWorkflow(scope as MedusaContainer).run({
-      input: { order_id: orderId, created_by: actor, note: `Order rejected: ${reason}` },
+      // Nobody is paid for a rejected order: all of its share is refunded, delivery fee and all.
+      input: { order_id: orderId, covers: "all", created_by: actor, note: `Order rejected: ${reason}` },
     })
     return true
   } catch (error) {

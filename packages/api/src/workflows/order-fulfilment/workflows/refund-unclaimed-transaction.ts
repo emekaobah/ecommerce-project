@@ -39,6 +39,7 @@ const refundUnclaimedTransactionStep = createStep(
       payment_id: null,
       refund_id: null,
       amount: fromSubunit(refund.amount ?? transaction.amount),
+      covers: "all",
       currency_code: transaction.currency.toLowerCase(),
       transaction_reference: reference,
       paystack_refund_id: String(refund.id),

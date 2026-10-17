@@ -1,8 +1,11 @@
 import { model } from "@medusajs/framework/utils"
 import { PAYSTACK_REFUND_STATUSES } from "../../paystack/client"
 
-/** What a refund is of: an order's items, or its delivery fee. */
-export const REFUND_COVERS = ["items", "delivery"] as const
+/**
+ * What a refund is of: an order's items, its delivery fee, or all of what was paid, items and
+ * delivery together (a rejected order's share, or a payment no order claims).
+ */
+export const REFUND_COVERS = ["items", "delivery", "all"] as const
 export type RefundCovers = (typeof REFUND_COVERS)[number]
 
 /**
@@ -25,6 +28,8 @@ const OrderRefund = model
     /**
      * What the refund is of (#22): the order's items, which comes off its shop's payout, or its
      * delivery fee, which Oja keeps and so bears the refund of. Only Oja's staff refund delivery.
+     * A refund of all is of an order nobody is paid for. The default is for rows made before
+     * refunds said what they cover; each refund made now says.
      */
     covers: model.enum([...REFUND_COVERS]).default("items"),
     currency_code: model.text(),

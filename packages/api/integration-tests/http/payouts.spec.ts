@@ -69,7 +69,7 @@ medusaIntegrationTestRunner({
       for (const line of pick_list.lines) await post(GROCERY, `${orderId}/pick-list/${line.id}`, { picked: line.quantity })
       await post(GROCERY, `${orderId}/pack`)
       const { data } = await post(GROCERY, `${orderId}/book-label`)
-      return { orderId, reference, waybill: data.fulfilment.shipment.waybill as string }
+      return { orderId, cartId, reference, waybill: data.fulfilment.shipment.waybill as string }
     }
     /** As `bookedOrder`, then handed to the courier and delivered. */
     const deliveredOrder = async () => {
@@ -240,11 +240,43 @@ medusaIntegrationTestRunner({
         expect(await refundsOf(orderId)).toEqual([{ amount: RICE.price, covers: "items" }])
       })
 
+      it("refunds a shop's items with no amount given, never the delivery fee", async () => {
+        const { orderId, reference, cartId } = await bookedOrder()
+        const paymentId = (await buyer.paymentOf(cartId)).id
+
+        await api.post(`/vendor/payments/${paymentId}/refund`, {}, await buyer.owner(GROCERY))
+
+        expect(await refundsOf(orderId)).toEqual([{ amount: GROCERY_GOODS, covers: "items" }])
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([kobo(GROCERY_GOODS)])
+      })
+
+      it("caps a shop's refunds at its items less their earlier refunds, counting none that failed", async () => {
+        const { orderId, reference, cartId } = await bookedOrder()
+        const paymentId = (await buyer.paymentOf(cartId)).id
+        const refundItems = async (amount: number) =>
+          status(api.post(`/vendor/payments/${paymentId}/refund`, { amount }, await buyer.owner(GROCERY)))
+
+        expect(await refundItems(GROCERY_GOODS + 1)).toBe(400)
+        expect(await refundItems(RICE.price)).toBe(200)
+        await settleRefunds(reference, "failed")
+        await eventually(() => refundStatuses(orderId), (s) => s.every((x) => x === "failed"))
+        expect(await refundItems(GROCERY_GOODS)).toBe(200)
+        expect(await refundItems(1)).toBe(400)
+
+        // Staff can still refund the delivery fee, which the shop's refunds never touched.
+        await refundDelivery(orderId)
+        expect((await refundsOf(orderId)).map((r) => r.covers)).toEqual(["items", "items", "delivery"])
+      })
+
       it("lets Oja's staff refund delivery, up to the delivery fee less what was refunded of it already", async () => {
         const { orderId } = await bookedOrder()
 
+        const deliveryLeft = async () =>
+          (await api.get(`/admin/orders/${orderId}/delivery-refund`, await adminHeaders(getContainer(), api))).data.delivery_refund
+        expect(await deliveryLeft()).toEqual({ currency_code: "ngn", delivery_fee: BEST_VALUE_FEE, left: BEST_VALUE_FEE })
         expect(await status(refundDelivery(orderId, { amount: BEST_VALUE_FEE + 1 }))).toBe(400)
-        await refundDelivery(orderId, { amount: 500 })
+        expect((await refundDelivery(orderId, { amount: 500 })).data.delivery_refund).toMatchObject({ left: BEST_VALUE_FEE - 500 })
+        expect(await deliveryLeft()).toMatchObject({ left: BEST_VALUE_FEE - 500 })
         // Left out, the amount is what is left of the delivery fee.
         await refundDelivery(orderId)
         expect(await status(refundDelivery(orderId, { amount: 1 }))).toBe(400)
