@@ -7,6 +7,7 @@ import { remindPickupHolds } from "../../src/lib/pickup-reminders"
 import { setWeeklyHours } from "../../src/lib/shop-hours"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_PERISHABLE_CATEGORIES, SEED_PRODUCTS } from "../../src/scripts/seed-data"
+import { refundOrderShareWorkflow } from "../../src/workflows/order-fulfilment/workflows/refund-order-share"
 import { vendorHeaders } from "../helpers/auth"
 import { ADDRESS, buyerCheckout, eventually, GROCERY, RETURN_URL, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -269,6 +270,36 @@ medusaIntegrationTestRunner({
         await settled()
         expect(matching(expo.sentTo(device), /refund|wasn't collected/i)).toHaveLength(1)
         expect(matching(resend.sentTo(ADA), /wasn't collected/i)).toHaveLength(1)
+      })
+
+      it("still pushes a later refund of the order, such as Oja's team refunding the fresh items", async () => {
+        const device = await registerAda()
+        const { orderId, groupId, reference, readyAt, display_id } = await readyOrder({ fresh: 1 })
+        await longAfter(readyAt)
+        await toldAda(device, /wasn't collected/i)
+        const settle = async () => {
+          for (const refund of paystack.refundsOf(reference)) {
+            paystack.settleRefund(refund.id, "processed")
+            await buyer.postWebhook(paystack.refundEvent(refund.id))
+          }
+        }
+        await settle()
+        await eventually(() => adasOrder(groupId, orderId), (o) => o.refund?.status === "processed")
+
+        await refundOrderShareWorkflow(getContainer()).run({
+          input: { order_id: orderId, amount: TOMATOES.price, created_by: "user_operator", note: "Fresh items refunded" },
+        })
+        await settle()
+
+        const pushes = await eventually(async () => matching(expo.sentTo(device), /refund/i), (p) => p.length > 0)
+        expect(pushes).toEqual([
+          expect.objectContaining({
+            title: `Refund for order #${display_id} completed`,
+            body: `The refund of ${money(TOMATOES.price)} from ${GROCERY.name} has completed.`,
+          }),
+        ])
+        await settled()
+        expect(matching(expo.sentTo(device), /refund/i)).toHaveLength(1)
       })
 
       it("pushes the shop's owners and managers, not its other staff", async () => {

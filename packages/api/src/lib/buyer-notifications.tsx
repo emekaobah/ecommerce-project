@@ -45,6 +45,7 @@ import { sendEmail } from "./email"
 import { fulfilmentService, fulfilmentsOf, type Picks } from "./order-fulfilment"
 import { needsAttentionSince } from "./owed-refunds"
 import { perishableProductIds } from "./perishable"
+import { NOT_COLLECTED_NOTE } from "./pickup-hold"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
 import type { StoredNotPlaced } from "./unplaced-checkout"
@@ -347,12 +348,22 @@ export async function tellRefundByHand(scope: Scope, { order_id: orderId, amount
   ])
 }
 
+/**
+ * Whether a refund is the one a pickup order's hold expiry made (#32): its buyer was told what
+ * it refunds (`tellNotCollected`), in place of its own push. Any other refund of the order, such
+ * as Oja's team refunding the fresh items it kept, is pushed as usual.
+ */
+async function isNotCollectedRefund(scope: Scope, refund: { refund_id?: string | null }): Promise<boolean> {
+  if (!refund.refund_id) return false
+  const [made] = await scope.resolve(Modules.PAYMENT).listRefunds({ id: refund.refund_id }, { select: ["id", "note"] })
+  return made?.note === NOT_COLLECTED_NOTE
+}
+
 /** Pushes the buyer that a refund of their order has completed: Paystack processed it. */
 export async function pushRefundCompleted(scope: Scope, refundId: string): Promise<void> {
   const [refund] = await fulfilmentService(scope).listOrderRefunds({ id: refundId })
   const found = refund?.order_id ? await buyerOrder(scope, refund.order_id) : null
-  // A pickup order not collected: its buyer was told what is refunded (`tellNotCollected`).
-  if (!refund || !found || found.order.fulfilment.state === "not_collected") return
+  if (!refund || !found || (await isNotCollectedRefund(scope, refund))) return
   const { checkout, order } = found
   const push = refundCompletedPush({
     display_id: order.display_id,
@@ -557,8 +568,8 @@ export async function tellOrderCollected(scope: Scope, orderId: string): Promise
 /**
  * Tells the buyer, by push and email, that their pickup order wasn't collected in time (#33,
  * #32): what they are refunded, its non-perishable lines, and the fresh lines that aren't:
- * `order_fulfilment.not_collected`'s data. Its refund completing isn't pushed besides
- * (`pushRefundCompleted`). Once.
+ * `order_fulfilment.not_collected`'s data. The refund it tells of isn't pushed besides when it
+ * completes (`pushRefundCompleted`). Once.
  */
 export async function tellNotCollected(
   scope: Scope,
