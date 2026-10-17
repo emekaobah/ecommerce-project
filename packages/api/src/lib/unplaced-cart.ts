@@ -58,11 +58,10 @@ const item = (line: CartItem, seller: string | null) => ({
 })
 
 /**
- * Fixes a cart that was refunded because it failed to become orders: its payment sessions are
- * deleted, so nothing completes it on the refunded payment (Paystack sending the webhook again),
- * lines whose offer is gone are removed, sold-out lines cut to what is left (removed when none
- * is), deliveries whose option is gone taken off, and codes used up dropped. Returns what
- * changed, and the causes.
+ * Fixes a cart that was refunded because it failed to become orders, once its payment sessions
+ * are deleted (`deleteCartSessions`): lines whose offer is gone are removed, sold-out lines cut
+ * to what is left (removed when none is), deliveries whose option is gone taken off, and codes
+ * used up dropped. Returns what changed, and the causes.
  */
 export async function fixUnplacedCart(
   scope: Scope,
@@ -71,7 +70,6 @@ export async function fixUnplacedCart(
   const container = scope as MedusaContainer
   const changes: NotPlacedChange[] = []
   const causes = new Set<NotPlacedReason>()
-  await deleteCartSessions(scope, cartId)
   const { sellers } = await retrieveCartBySeller(container, cartId)
 
   const removed: string[] = []
@@ -114,8 +112,12 @@ export async function fixUnplacedCart(
   return { changes, causes }
 }
 
-/** Deletes the cart's payment sessions: the buyer pays the fixed cart with a new one. */
-async function deleteCartSessions(scope: Scope, cartId: string) {
+/**
+ * Deletes the cart's payment sessions once its payment is refunded, so nothing completes it on
+ * the refunded payment (Paystack sending the webhook again): the buyer pays the fixed cart with
+ * a new one.
+ */
+export async function deleteCartSessions(scope: Scope, cartId: string) {
   const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
     entity: "cart",
     fields: ["payment_collection.payment_sessions.id"],

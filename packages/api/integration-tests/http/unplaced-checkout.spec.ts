@@ -119,6 +119,9 @@ medusaIntegrationTestRunner({
         const paid = paystack.transaction(secondPayment.reference).amount
         expect(paystack.refundsOf(secondPayment.reference).map((r) => r.amount)).toEqual([paid])
         expect(checkout.not_placed).toMatchObject({ reason: "code_used_up", amount: paid / 100 })
+        // Why it failed is kept with it.
+        const { data } = await bola.query().graph({ entity: "cart", fields: ["metadata"], filters: { id: second } })
+        expect((data[0] as any).metadata.not_placed.failure).toBe("Promotion usage exceeds the limit.")
         expect(checkout.order_group_id).toBeNull()
         expect(await bola.ordersOfCart(second)).toEqual([])
         expect(paystack.refundsOf(firstPayment.reference)).toEqual([])
@@ -130,18 +133,47 @@ medusaIntegrationTestRunner({
         const cartId = await preparedCart(ada)
         const { reference } = await ada.startPayment(cartId)
         paystack.pay(reference)
-        // The rice is briefly out of stock as Paystack's webhook arrives, and back moments later.
-        const restore = await setStock(GROCERY, RICE.title, 0)
+        // Mercur's completion of the cart fails for a moment, as the webhook arrives.
+        let failed = false
+        const fail = jest.spyOn(getContainer().resolve(Modules.ORDER), "createOrders").mockImplementationOnce(async () => {
+          failed = true
+          throw new Error("Connection terminated")
+        })
         try {
           await ada.postWebhook(paystack.chargeSuccess(reference))
-          await eventually(() => ada.paymentOf(cartId), (p) => !!p?.captured_at, 150)
-          await new Promise((resolve) => setTimeout(resolve, 1500))
-          expect(await ada.ordersOfCart(cartId)).toEqual([])
+          await ada.orderGroupOf(cartId)
         } finally {
-          await restore()
+          fail.mockRestore()
         }
 
-        await ada.orderGroupOf(cartId)
+        expect(failed).toBe(true)
+        expect(await ada.ordersOfCart(cartId)).toHaveLength(2)
+        expect(paystack.refundsOf(reference)).toEqual([])
+        expect((await ada.checkout(cartId)).not_placed).toBeNull()
+      })
+    })
+
+    describe("a completion that takes a while", () => {
+      it("is waited for: the orders are placed once, and nothing is refunded", async () => {
+        const cartId = await preparedCart(ada)
+        const { reference } = await ada.startPayment(cartId)
+        paystack.pay(reference)
+        // Mercur's completion of the cart is slow to create its orders.
+        const orders = getContainer().resolve(Modules.ORDER)
+        const createOrders = orders.createOrders.bind(orders) as (...args: unknown[]) => Promise<unknown>
+        const slow = jest.spyOn(orders, "createOrders").mockImplementationOnce((async (...args: unknown[]) => {
+          await new Promise((resolve) => setTimeout(resolve, 8000))
+          return createOrders(...args)
+        }) as any)
+        try {
+          await ada.postWebhook(paystack.chargeSuccess(reference))
+          await ada.orderGroupOf(cartId)
+          // Long enough for anything else the webhook started to have finished.
+          await new Promise((resolve) => setTimeout(resolve, 10000))
+        } finally {
+          slow.mockRestore()
+        }
+
         expect(await ada.ordersOfCart(cartId)).toHaveLength(2)
         expect(paystack.refundsOf(reference)).toEqual([])
         expect((await ada.checkout(cartId)).not_placed).toBeNull()
