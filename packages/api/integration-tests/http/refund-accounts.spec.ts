@@ -206,6 +206,9 @@ medusaIntegrationTestRunner({
           owed_refund: { amount: ORDER_TOTALS.get(GROCERY), state: "manual" },
         })
 
+        // Staff can't retry it to the card: Paystack still holds the first refund.
+        expect(await statusOf(api.post(`/admin/owed-refunds/${orderId}/retry`, {}, await adminHeaders(getContainer(), api)))).toBe(409)
+
         // Marked settled once the team has sent it.
         await api.post(`/admin/owed-refunds/${orderId}/settle`, { method: "bank_transfer", note: "Sent to her GTB account" }, await adminHeaders(getContainer(), api))
         expect(await owedRefundOf(orderId)).toBeUndefined()

@@ -27,7 +27,7 @@ export function register() {
     // attached, and one anywhere else (Paystack's lookup URL, say) is blanked.
     integrations: [Sentry.httpIntegration({ ignoreRequestBody: (url) => carriesBankAccount(url) })],
     beforeSend: (event) => redactAccountNumbers(event),
-    beforeSendTransaction: (event) => redactAccountNumbers(event),
+    beforeSendSpan: (span) => redactAccountNumbers(span),
     beforeBreadcrumb: (breadcrumb) => redactAccountNumbers(breadcrumb),
   })
 }

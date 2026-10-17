@@ -53,7 +53,7 @@ const OrderRefund = model
     /**
      * When a refund that needed attention was handed to Oja's team to send by hand (#13): the
      * buyer gave no bank account in 7 days. It still counts as refunded (Paystack holds the
-     * money), but it no longer holds up the order's payout or retries, and the order owes it to
+     * money), but it no longer holds up the order's payout, and the order owes it to
      * its buyer by hand (`lib/owed-refunds`).
      */
     handed_over_at: model.dateTime().nullable(),
