@@ -49,33 +49,51 @@ export type RefundAttemptRow = {
   failure_reason?: string | null
 }
 
+/** A settlement by hand (`refund_settlement`), as much of it as an owed refund reads. */
+export type SettlementRow = { amount: number; created_at: Date | string }
+
+/** When a refund or settlement was recorded, in milliseconds. */
+const recordedAt = (row: { created_at: Date | string }) => new Date(row.created_at).getTime()
+
+/**
+ * The refunds that failed since one was last made, or since `after`, oldest first: tries at the
+ * same refund, refused by Paystack or failed after it accepted them.
+ */
+export function failedSinceLastMade<R extends { status: string; created_at: Date | string }>(refunds: R[], after = -Infinity): R[] {
+  const lastMade = Math.max(after, ...refunds.filter((r) => r.status !== "failed").map(recordedAt))
+  return refunds.filter((r) => r.status === "failed" && recordedAt(r) > lastMade).sort((a, b) => recordedAt(a) - recordedAt(b))
+}
+
 /**
  * What the order still owes its buyer and where its refund is; null when it owes nothing. The
- * attempts are its refunds of items that failed since one last went through: refused by
- * Paystack, or accepted and failed later (its money came back, so it is owed again).
+ * attempts are its refunds of items that failed since one last went through, or since Oja's
+ * team last settled what it owed by hand: refused by Paystack, or accepted and failed later
+ * (its money came back, so it is owed again).
  */
 export function owedRefund({
   owed,
-  settled,
+  settlements,
   refunds,
 }: {
   owed: number
-  settled: number
+  settlements: SettlementRow[]
   refunds: RefundAttemptRow[]
 }): OwedRefund | null {
+  const settled = settlements.reduce((sum, s) => MathBN.convert(MathBN.add(sum, s.amount)).toNumber(), 0)
   const amount = MathBN.convert(MathBN.sub(owed, settled)).toNumber()
   if (amount <= 0) return null
-  const time = (r: RefundAttemptRow) => new Date(r.created_at).getTime()
-  const ofItems = refunds.filter((r) => r.covers === "items")
-  const lastMade = Math.max(-Infinity, ...ofItems.filter((r) => r.status !== "failed").map(time))
-  const failed = ofItems.filter((r) => r.status === "failed" && time(r) > lastMade).sort((a, b) => time(a) - time(b))
+  const lastSettled = Math.max(-Infinity, ...settlements.map(recordedAt))
+  const failed = failedSinceLastMade(
+    refunds.filter((r) => r.covers === "items"),
+    lastSettled
+  )
   const latest = failed.at(-1)
   const base = { amount, attempts: failed.length, last_error: latest?.failure_reason ?? null }
   if (amount < PAYSTACK_MIN_REFUND || failed.length > OWED_REFUND_BACKOFF_MS.length) {
     return { ...base, state: "manual", next_attempt_at: null }
   }
   const wait = latest ? OWED_REFUND_BACKOFF_MS[failed.length - 1] : undefined
-  return { ...base, state: "retrying", next_attempt_at: latest && wait != null ? new Date(time(latest) + wait) : null }
+  return { ...base, state: "retrying", next_attempt_at: latest && wait != null ? new Date(recordedAt(latest) + wait) : null }
 }
 
 /** Whether the retry job tries the owed refund at `now`. */
@@ -101,9 +119,7 @@ export async function owedRefundsOf(scope: Scope, orderIds: string[]): Promise<M
   for (const order of data as unknown as { id: string; currency_code: string; summary?: OrderSummary }[]) {
     const found = owedRefund({
       owed: owedToBuyerOf(order.summary),
-      settled: settlements
-        .filter((s) => s.order_id === order.id)
-        .reduce((sum, s) => MathBN.convert(MathBN.add(sum, s.amount)).toNumber(), 0),
+      settlements: settlements.filter((s) => s.order_id === order.id),
       refunds: refunds.filter((r) => r.order_id === order.id),
     })
     if (found) owed.set(order.id, { ...found, order_id: order.id, currency_code: order.currency_code })
