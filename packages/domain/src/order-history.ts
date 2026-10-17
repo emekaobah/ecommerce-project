@@ -1,4 +1,5 @@
-import type { FulfilmentState } from "./fulfilment"
+import { cancelReasonText } from "./cancellation"
+import type { Cancellation, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
 
 /**
@@ -13,13 +14,15 @@ export type OrderFulfilmentView = {
   state: FulfilmentState
   rejected_by: "seller" | "accept_deadline" | null
   reject_reason: string | null
+  /** Who cancelled an accepted order and why (#17); null unless it is cancelled. */
+  cancellation: Pick<Cancellation, "by" | "reason" | "note"> | null
 }
 
 /** A label for a status chip, and a line to say more under it. */
 export type StatusView = { label: string; tone: StatusTone; note: string | null }
 
 /** What the buyer is told of each state; staff's finer steps read as one to the buyer. */
-const STATES: Record<Exclude<FulfilmentState, "rejected">, Omit<StatusView, "note">> = {
+const STATES: Record<Exclude<FulfilmentState, "rejected" | "cancelled">, Omit<StatusView, "note">> = {
   new: { label: "Waiting for the shop", tone: "warning" },
   accepted: { label: "Accepted", tone: "info" },
   picking: { label: "Being prepared", tone: "info" },
@@ -80,8 +83,13 @@ export function owedRefundStatus(owed: OwedRefundView | null, currencyCode: stri
   }
 }
 
-/** Where a shop's order is, as its buyer reads it; a rejected order says why. */
+/** Where a shop's order is, as its buyer reads it; a rejected or cancelled order says why. */
 export function orderStatus({ fulfilment }: { fulfilment: OrderFulfilmentView }): StatusView {
+  if (fulfilment.state === "cancelled") {
+    const { cancellation } = fulfilment
+    const label = cancellation?.by === "operator" ? "Cancelled" : "Cancelled by the shop"
+    return { label, tone: "danger", note: cancellation ? cancelReasonText(cancellation) : null }
+  }
   if (fulfilment.state !== "rejected") return { ...STATES[fulfilment.state], note: null }
   if (fulfilment.rejected_by === "accept_deadline") return { label: "Not accepted in time", tone: "danger", note: null }
   return { label: "Rejected by the shop", tone: "danger", note: fulfilment.reject_reason }

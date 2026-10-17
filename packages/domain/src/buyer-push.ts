@@ -1,5 +1,6 @@
 import { PRODUCT_NAME } from "./app-identity"
-import type { FulfilmentState } from "./fulfilment"
+import { cancelReasonText } from "./cancellation"
+import type { Cancellation, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
 import { openingHoursLines } from "./pickup"
 import type { WeeklyHours } from "./shop-hours"
@@ -117,6 +118,28 @@ export function itemsRemovedPush({
     title: `Items removed from order #${display_id}`,
     body: `${shop} didn't have ${removed}. You'll be refunded ${formatMoney(refund, currency_code)}.`,
   }
+}
+
+/**
+ * The push telling the buyer an accepted order was cancelled (#17): by its shop or by Oja's
+ * team, why, and what they are refunded (none when nothing was paid for it).
+ */
+export function orderCancelledPush({
+  display_id,
+  shop,
+  cancellation,
+  refund,
+  currency_code,
+}: {
+  display_id: number
+  shop: string
+  cancellation: Pick<Cancellation, "by" | "reason" | "note">
+  refund: number
+  currency_code: string
+}): BuyerPush {
+  const who = cancellation.by === "operator" ? `We cancelled your order from ${shop}` : `${shop} cancelled your order`
+  const refunded = refund > 0 ? ` You'll be refunded ${formatMoney(refund, currency_code)}.` : ""
+  return { title: `Order #${display_id} cancelled`, body: `${who}: ${cancelReasonText(cancellation)}.${refunded}` }
 }
 
 /** A refund of one of the buyer's orders, as they are told about it: its order, shop and amount. */

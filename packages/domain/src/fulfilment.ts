@@ -10,14 +10,18 @@
  *                              └─ pickup:   ready_for_pickup → collected
  *
  * Branches: new → rejected (seller declines, or the 24h accept deadline
- * passes); picking ⇄ partially_available → packed (or ready_for_pickup);
+ * passes); accepted, picking, partially_available, packed or ready_for_pickup
+ * → cancelled (the shop's owners and managers, or Oja's operators, cancel it
+ * with a reason before a courier label is booked or it is collected, #17);
+ * picking ⇄ partially_available → packed (or ready_for_pickup);
  * label_booked or courier_confirmed → packed when the shipment provider
  * cancels (rebook); handed_to_courier → delivered when the provider never
  * reported transit; ready_for_pickup → not_collected when the pickup hold
  * expires (#32), which is final: no code is taken there.
  *
  * Every trigger names its source: a `staff` action (who and when), a
- * shipment-`provider` event, or a `system` event. Provider events are generic
+ * shipment-`provider` event, a `system` event, or an `operator` (Oja's team)
+ * cancelling. Provider events are generic
  * (not tied to one courier aggregator), so a provider adapter maps its own
  * webhook statuses onto them. The types keep each path's triggers to its own
  * orders: no label or courier event on a pickup order, no code event on a
@@ -59,6 +63,16 @@ export type Collection = { actor: string; at: string; collectedBy: string }
 /** How a seller order reaches its buyer; fixed when the order is placed. */
 export type FulfilmentMethod = "delivery" | "pickup"
 
+/** Why an accepted order was cancelled (#17), as staff choose it; `other` comes with a note. */
+export const CANCEL_REASONS = ["items_unavailable", "cannot_fulfil", "buyer_asked", "other"] as const
+export type CancelReason = (typeof CANCEL_REASONS)[number]
+
+/**
+ * An accepted order cancelled (#17): by its shop (`seller`) or by Oja's team (`operator`), the
+ * member or user who did, when (ISO 8601), why, and the note given (required for `other`).
+ */
+export type Cancellation = { by: "seller" | "operator"; actor: string; at: string; reason: CancelReason; note: string | null }
+
 /** The states both methods share, before the paths part. */
 type SharedState =
   | { state: "new" }
@@ -66,6 +80,7 @@ type SharedState =
   | { state: "rejected"; rejectedBy: "seller" | "accept_deadline" }
   | { state: "picking" }
   | { state: "partially_available" }
+  | { state: "cancelled"; cancellation: Cancellation }
 
 export type DeliveryFulfilment = { method: "delivery" } & (
   | SharedState
@@ -123,11 +138,23 @@ export type CollectAction = { source: "staff"; type: "collect"; actor: string; a
 export type ProviderEvent = { source: "provider"; type: ProviderEventType; at: string }
 /** An event raised by the platform itself, such as a scheduled job. */
 export type SystemEvent = { source: "system"; type: SystemEventType; at: string }
+/**
+ * An accepted order cancelled (#17), by the shop's staff (owners and managers) or by Oja's
+ * operators, with its reason; `note` says more, and is required for `other`.
+ */
+export type CancelAction = {
+  source: "staff" | "operator"
+  type: "cancel"
+  actor: string
+  at: string
+  reason: CancelReason
+  note?: string | null
+}
 
 /** What can happen to a delivery order: never a pickup code. */
-export type DeliveryTrigger = StaffAction<SharedStaffActionType | "confirm_handover"> | ProviderEvent | SystemEvent
+export type DeliveryTrigger = StaffAction<SharedStaffActionType | "confirm_handover"> | CancelAction | ProviderEvent | SystemEvent
 /** What can happen to a pickup order: never a label or a courier. */
-export type PickupTrigger = StaffAction<SharedStaffActionType> | CollectAction | SystemEvent
+export type PickupTrigger = StaffAction<SharedStaffActionType> | CollectAction | CancelAction | SystemEvent
 
 export type FulfilmentTrigger = DeliveryTrigger | PickupTrigger
 
@@ -167,6 +194,16 @@ type Step<S extends FulfilmentState> = (
 ) => Fulfilment | undefined
 
 const done = () => undefined
+
+/**
+ * Where an order can still be cancelled (#17): accepted and not yet handed on. A delivery order
+ * is cancelled up to Packed, before its courier label is booked (a label Shipbubble cancelled
+ * leaves it Packed again); a pickup order up to Ready for pickup, its Packed.
+ */
+const CANCELLABLE = new Set<FulfilmentState>(["accepted", "picking", "partially_available", "packed", "ready_for_pickup"])
+
+/** Whether an order in `state` can be cancelled, for the apps to offer it. */
+export const canCancel = (state: FulfilmentState) => CANCELLABLE.has(state)
 
 /** What each state does with a trigger; `undefined` means the trigger is not allowed there. */
 const STEPS: { [S in FulfilmentState]: Step<S> } = {
@@ -235,6 +272,7 @@ const STEPS: { [S in FulfilmentState]: Step<S> } = {
     return { method: "pickup", state: "collected", collection: { actor, at, collectedBy } }
   },
   rejected: done,
+  cancelled: done,
   delivered: done,
   collected: done,
   not_collected: done,
@@ -245,9 +283,16 @@ const packed = (method: FulfilmentMethod): Fulfilment =>
   method === "pickup" ? { method, state: "ready_for_pickup" } : { method, state: "packed" }
 
 function nextFulfilment(fulfilment: Fulfilment, trigger: FulfilmentTrigger): Fulfilment | undefined {
+  if (trigger.type === "cancel") return canCancel(fulfilment.state) ? cancelled(fulfilment.method, trigger) : undefined
   // The mapped type pairs each state with its own step; TypeScript can't correlate the union here.
   const step = STEPS[fulfilment.state] as Step<FulfilmentState>
   return step(fulfilment, trigger)
+}
+
+/** The order cancelled by the trigger: the shop's when staff cancel it, Oja's when an operator does. */
+function cancelled(method: FulfilmentMethod, { source, actor, at, reason, note }: CancelAction): Fulfilment {
+  const by = source === "operator" ? "operator" : "seller"
+  return { method, state: "cancelled", cancellation: { by, actor, at, reason, note: note ?? null } }
 }
 
 /** Completes the handover once both halves are in, at the furthest state the provider reported. */

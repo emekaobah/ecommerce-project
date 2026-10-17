@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { buyerStatusPush, itemsRemovedPush, orderConfirmedPush, refundByHandPush, refundCompletedPush } from "./buyer-push"
+import {
+  buyerStatusPush,
+  itemsRemovedPush,
+  orderCancelledPush,
+  orderConfirmedPush,
+  refundByHandPush,
+  refundCompletedPush,
+} from "./buyer-push"
 import { formatMoney } from "./money"
 import type { FulfilmentState } from "./fulfilment"
 
@@ -132,6 +139,32 @@ describe("itemsRemovedPush", () => {
     ]
     expect(itemsRemovedPush({ ...order, items }).body).toBe(
       `Mama Put Groceries didn't have 4 of your items. You'll be refunded ${formatMoney(14500, "ngn")}.`
+    )
+  })
+})
+
+describe("orderCancelledPush", () => {
+  const order = { display_id: 42, shop: "Mama Put Groceries", refund: 14500, currency_code: "ngn" }
+
+  test("tells the buyer the shop cancelled their order, why, and what they are refunded", () => {
+    const cancellation = { by: "seller", reason: "items_unavailable", note: null } as const
+    expect(orderCancelledPush({ ...order, cancellation })).toEqual({
+      title: "Order #42 cancelled",
+      body: `Mama Put Groceries cancelled your order: Items unavailable. You'll be refunded ${formatMoney(14500, "ngn")}.`,
+    })
+  })
+
+  test("says it was Oja's team that cancelled it, with their note", () => {
+    const cancellation = { by: "operator", reason: "other", note: "The shop has closed" } as const
+    expect(orderCancelledPush({ ...order, cancellation }).body).toBe(
+      `We cancelled your order from Mama Put Groceries: The shop has closed. You'll be refunded ${formatMoney(14500, "ngn")}.`
+    )
+  })
+
+  test("promises no refund when nothing was paid for it", () => {
+    const cancellation = { by: "seller", reason: "buyer_asked", note: null } as const
+    expect(orderCancelledPush({ ...order, refund: 0, cancellation }).body).toBe(
+      "Mama Put Groceries cancelled your order: Buyer asked to cancel."
     )
   })
 })

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { formatMoney } from "./money"
 import { historyEntries, orderStatus, owedRefundStatus, refundStatus } from "./order-history"
 
-const placed = { state: "new", rejected_by: null, reject_reason: null } as const
+const placed = { state: "new", rejected_by: null, reject_reason: null, cancellation: null } as const
 
 describe("orderStatus", () => {
   test("a new order waits for its shop to accept it", () => {
@@ -26,13 +26,31 @@ describe("orderStatus", () => {
     expect(orderStatus({ fulfilment: { ...placed, state } })).toEqual({ label, tone, note: null })
   })
 
+  test("an order its shop cancelled after accepting it says why (#17)", () => {
+    const cancellation = { by: "seller", reason: "items_unavailable", note: null } as const
+    expect(orderStatus({ fulfilment: { ...placed, state: "cancelled", cancellation } })).toEqual({
+      label: "Cancelled by the shop",
+      tone: "danger",
+      note: "Items unavailable",
+    })
+  })
+
+  test("an order Oja's team cancelled says why, in the note they wrote", () => {
+    const cancellation = { by: "operator", reason: "other", note: "The shop has closed" } as const
+    expect(orderStatus({ fulfilment: { ...placed, state: "cancelled", cancellation } })).toEqual({
+      label: "Cancelled",
+      tone: "danger",
+      note: "The shop has closed",
+    })
+  })
+
   test("a rejected order gives the shop's reason", () => {
-    const fulfilment = { state: "rejected", rejected_by: "seller", reject_reason: "Out of stock" } as const
+    const fulfilment = { state: "rejected", rejected_by: "seller", reject_reason: "Out of stock", cancellation: null } as const
     expect(orderStatus({ fulfilment })).toEqual({ label: "Rejected by the shop", tone: "danger", note: "Out of stock" })
   })
 
   test("an order the shop didn't accept in time says so, whatever reason was recorded", () => {
-    const fulfilment = { state: "rejected", rejected_by: "accept_deadline", reject_reason: "Not accepted in time" } as const
+    const fulfilment = { state: "rejected", rejected_by: "accept_deadline", reject_reason: "Not accepted in time", cancellation: null } as const
     expect(orderStatus({ fulfilment })).toEqual({ label: "Not accepted in time", tone: "danger", note: null })
   })
 })
