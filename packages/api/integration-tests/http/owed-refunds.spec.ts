@@ -1,5 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { retryOwedRefunds } from "../../src/lib/refund-retry"
 import seedDemoData from "../../src/scripts/seed"
+import { refundOrderShareWorkflow } from "../../src/workflows/order-fulfilment/workflows/refund-order-share"
 import { adminHeaders } from "../helpers/auth"
 import { buyerCheckout, GROCERY, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -21,6 +23,10 @@ process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
 
 const ADA = "ada@oja.test"
 const BALANCE = "Insufficient balance"
+const MINUTE = 60 * 1000
+const HOUR = 60 * MINUTE
+/** A moment `ms` after `start`, when the retry job runs. */
+const after = (start: number, ms: number) => new Date(start + ms)
 
 // A refund Paystack refuses is owed to the buyer until it is made: retried with backoff, then
 // handed to Oja's team, who can retry it or mark it settled by hand (#16).
@@ -82,6 +88,41 @@ medusaIntegrationTestRunner({
         })
         const { order } = (await api.get(`/vendor/orders/${orderId}?fields=*items`, await buyer.owner(GROCERY))).data
         expect(order.items.map((i: any) => i.quantity)).toEqual([1])
+      })
+    })
+
+    describe("the retry job", () => {
+      it("retries it 5 minutes, then an hour, after each refusal, and refunds it once Paystack accepts, then stops", async () => {
+        const { orderId, reference } = await refusedRefund()
+        const start = Date.now()
+
+        await retryOwedRefunds(getContainer(), after(start, 4 * MINUTE))
+        expect(await owedRefundOf(orderId)).toMatchObject({ attempts: 1 })
+
+        await retryOwedRefunds(getContainer(), after(start, 6 * MINUTE))
+        expect(await owedRefundOf(orderId)).toMatchObject({ attempts: 2, last_error: BALANCE, state: "retrying" })
+
+        paystack.refuseRefunds(undefined)
+        await retryOwedRefunds(getContainer(), after(start, 30 * MINUTE))
+        expect(paystack.refundsOf(reference)).toEqual([])
+
+        await retryOwedRefunds(getContainer(), after(start, 6 * MINUTE + HOUR + MINUTE))
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([RICE.price * 100])
+        expect(await owedRefundOf(orderId)).toBeUndefined()
+
+        await retryOwedRefunds(getContainer(), after(start, 24 * HOUR))
+        expect(paystack.refundsOf(reference)).toHaveLength(1)
+      })
+
+      it("leaves an order alone while a refund of it is still in Paystack's hands", async () => {
+        const { orderId, reference } = await refusedRefund()
+        paystack.refuseRefunds(undefined)
+        await refundOrderShareWorkflow(getContainer()).run({ input: { order_id: orderId, amount: 100 } })
+
+        await retryOwedRefunds(getContainer(), after(Date.now(), HOUR))
+
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([100 * 100])
+        expect(await owedRefundOf(orderId)).toMatchObject({ amount: RICE.price - 100, state: "retrying" })
       })
     })
 

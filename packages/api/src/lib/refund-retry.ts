@@ -5,7 +5,8 @@ import {
   type RefundOwedInput,
   type RefundOwedResult,
 } from "../workflows/order-fulfilment/workflows/refund-owed"
-import { allOwedRefunds, type OrderOwedRefund } from "./owed-refunds"
+import { errorMessage } from "./errors"
+import { allOwedRefunds, isDue, type OrderOwedRefund } from "./owed-refunds"
 
 // What an order owes its buyer is refunded after the edit that owed it, retried with backoff
 // while Paystack refuses, and handed to Oja's team once it can't be made (#16).
@@ -16,6 +17,26 @@ type Scope = Pick<MedusaContainer, "resolve">
 export async function refundOwed(scope: Scope, input: RefundOwedInput): Promise<RefundOwedResult> {
   const { result } = await refundOwedWorkflow(scope as MedusaContainer).run({ input })
   return result
+}
+
+/** The note on a refund the retry job makes. */
+export const RETRY_NOTE = "Refund owed to the buyer, retried"
+
+/**
+ * The retry job (#16): refunds what each order owes its buyer once its retry is due (`isDue`),
+ * one order at a time, each holding its refund lock. An order whose refund one attempt can't
+ * make is logged, and the others are still tried.
+ */
+export async function retryOwedRefunds(scope: Scope, now = new Date()): Promise<void> {
+  const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  for (const owed of await allOwedRefunds(scope)) {
+    if (!isDue(owed, now)) continue
+    try {
+      await refundOwed(scope, { order_id: owed.order_id, note: RETRY_NOTE, retry_at: now.toISOString() })
+    } catch (error) {
+      logger.warn(`Retrying the refund owed on order ${owed.order_id} failed: ${errorMessage(error)}`)
+    }
+  }
 }
 
 /** An owed refund as Oja's staff see it in the admin's Owed refunds list. */
