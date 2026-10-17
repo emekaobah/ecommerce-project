@@ -88,11 +88,12 @@ export { fulfilmentTimeline, recordReached } from "./timeline"
 export type { Reached, TimelineStep } from "./timeline"
 export { HANDOVER_DISAGREEMENT_MS, HANDOVER_REALERT_MS, handoverAlertDue, handoverDisagreement } from "./handover"
 export type { HandoverDisagreement } from "./handover"
-export { historyEntries, orderStatus, refundStatus } from "./order-history"
+export { historyEntries, orderStatus, owedRefundStatus, refundStatus } from "./order-history"
 export type {
   HistoryEntry,
   OrderFulfilmentView,
   OrderRefundView,
+  OwedRefundView,
   RefundStatus,
   StatusTone,
   StatusView,
@@ -119,7 +120,14 @@ export type { DeliveryChoice, DeliveryRate, DeliveryTag } from "./delivery"
 export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from "./perishable"
 export { pushTarget } from "./push"
 export type { PushTarget } from "./push"
-export { buyerStatusPush, itemsRemovedPush, orderConfirmedPush, preparedWhenOpen, refundCompletedPush } from "./buyer-push"
+export {
+  buyerStatusPush,
+  itemsRemovedPush,
+  orderConfirmedPush,
+  preparedWhenOpen,
+  refundByHandPush,
+  refundCompletedPush,
+} from "./buyer-push"
 export type { BuyerPush, BuyerPushOrder, BuyerPushPickup, ConfirmedShop, RemovedItem } from "./buyer-push"
 export { pickProgress, scanBarcode } from "./picking"
 export type { PickLine, PickProgress, ScanResult } from "./picking"

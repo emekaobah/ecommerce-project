@@ -136,3 +136,24 @@ export function refundCompletedPush({
     body: `The refund of ${formatMoney(amount, currency_code)} from ${shop} has completed.`,
   }
 }
+
+/**
+ * The push telling the buyer Oja's team is sending their refund by hand (#16): Paystack can't
+ * make it (under its ₦50 minimum), or refused every retry.
+ */
+export function refundByHandPush({
+  display_id,
+  shop,
+  amount,
+  currency_code,
+}: {
+  display_id: number
+  shop: string
+  amount: number
+  currency_code: string
+}): BuyerPush {
+  return {
+    title: `Refund for order #${display_id}`,
+    body: `Our team is sending your ${formatMoney(amount, currency_code)} refund for your order from ${shop}.`,
+  }
+}

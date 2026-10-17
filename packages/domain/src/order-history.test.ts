@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { historyEntries, orderStatus, refundStatus } from "./order-history"
+import { formatMoney } from "./money"
+import { historyEntries, orderStatus, owedRefundStatus, refundStatus } from "./order-history"
 
 const placed = { state: "new", rejected_by: null, reject_reason: null } as const
 
@@ -82,6 +83,28 @@ describe("refundStatus", () => {
       label: "Refund delayed",
       tone: "warning",
       note: "Your bank couldn't take it back to your card. We'll contact you to finish it.",
+    })
+  })
+})
+
+describe("owedRefundStatus", () => {
+  test("is nothing while the order owes nothing", () => {
+    expect(owedRefundStatus(null, "ngn")).toBeNull()
+  })
+
+  test("a refund still being retried is pending", () => {
+    expect(owedRefundStatus({ amount: 12300, state: "retrying" }, "ngn")).toEqual({
+      label: "Refund pending",
+      tone: "warning",
+      note: `Refund of ${formatMoney(12300, "ngn")} pending`,
+    })
+  })
+
+  test("a refund Oja's team sends by hand says so", () => {
+    expect(owedRefundStatus({ amount: 30, state: "manual" }, "ngn")).toEqual({
+      label: "Refund pending",
+      tone: "warning",
+      note: `Our team is sending your ${formatMoney(30, "ngn")} refund`,
     })
   })
 })
