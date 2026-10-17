@@ -199,7 +199,7 @@ type CartRow = {
     | null
   payment_collection?: {
     id: string
-    payment_sessions?: { provider_id: string; data: Record<string, unknown> | null }[] | null
+    payment_sessions?: { id: string; provider_id: string; data: Record<string, unknown> | null }[] | null
   } | null
 }
 
@@ -217,7 +217,7 @@ const ADDRESS_FIELDS = [
 ] as const
 
 /** The buyer's cart, or not found: another buyer's cart is none of theirs. */
-async function buyersCart(scope: MedusaContainer, cartId: string, customerId: string): Promise<CartRow> {
+export async function buyersCart(scope: MedusaContainer, cartId: string, customerId: string): Promise<CartRow> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "cart",
@@ -246,6 +246,7 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
       "shipping_methods.adjustments.amount",
       "shipping_methods.adjustments.is_tax_inclusive",
       "payment_collection.id",
+      "payment_collection.payment_sessions.id",
       "payment_collection.payment_sessions.provider_id",
       "payment_collection.payment_sessions.data",
     ],
@@ -258,7 +259,7 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
   return cart
 }
 
-const notCompleted = (cart: CartRow) => {
+export const notCompleted = (cart: CartRow) => {
   if (cart.completed_at) throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "This cart has already been checked out")
 }
 
@@ -308,7 +309,7 @@ const perishableTooSlow = (shopName: string): DeliveryUnavailable => ({
  * Takes off the cart the delivery of each shop it no longer holds an item from: the buyer
  * removed the shop's last item (say, one whose offer is gone) after its delivery was added.
  */
-async function dropEmptyShopDeliveries(scope: MedusaContainer, cart: CartRow) {
+export async function dropEmptyShopDeliveries(scope: MedusaContainer, cart: CartRow) {
   const methods = cart.shipping_methods ?? []
   if (!methods.length) return
   const [{ sellers }, sellerByOption] = await Promise.all([
@@ -771,7 +772,7 @@ export class CheckoutAlreadyPaidError extends Error {
  * and could pay, a second transaction while the first one's webhook is on its way. Paystack's
  * word on the cart's current transaction decides: once paid, the buyer waits for the order.
  */
-async function refuseIfAlreadyPaid(cart: CartRow) {
+export async function refuseIfAlreadyPaid(cart: CartRow) {
   const reference = cart.payment_collection?.payment_sessions?.find((s) => s.provider_id === PAYSTACK_PROVIDER_ID)
     ?.data?.reference
   const paystack = paystackClient()
