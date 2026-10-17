@@ -22,14 +22,14 @@ const tone = (status: NonNullable<ShopHours['status']>): StatusTone => {
 
 /**
  * Before pausing, staff are told about orders still waiting to be accepted: a pause stops new
- * orders, not these, and their time to accept stands still until the shop reopens (ADR 0004).
+ * orders, not these, and they are still rejected at their deadline if not accepted (#18).
  */
 function confirmPause(newOrders: number, pause: () => void) {
   if (!newOrders) return pause();
   const orders = newOrders === 1 ? '1 new order is' : `${newOrders} new orders are`;
   Alert.alert(
     'Orders are waiting',
-    `${orders} still waiting to be accepted. Pausing stops new orders, not these: accept or reject them. Their time to accept stands still while you're paused.`,
+    `${orders} still waiting to be accepted. Pausing stops new orders, not these: accept or reject them. Orders already waiting must still be accepted, or they'll be rejected at their deadline.`,
     [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Pause anyway', style: 'destructive', onPress: pause },

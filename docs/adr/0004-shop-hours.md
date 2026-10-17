@@ -45,7 +45,7 @@ Deadlines measured from an order event count only time the shop is open:
 - Accept deadline: 24 open hours (#20). Reminders on the same clock.
 - Pickup hold: 5 open days; perishable orders until close of the next open day after Ready.
 
-A pause pauses the clock. Accepted orders carry on when a shop pauses; the vendor app warns about waiting New orders before pausing.
+Closed hours and closed exceptions stop both clocks. A pause stops new orders, not the accept clock of orders already waiting when it starts: they are still accepted or auto-rejected at their original deadline, so a shop paused "until I resume" can't hold a buyer's money indefinitely (#18). The pickup hold does freeze during a pause. Accepted orders carry on when a shop pauses; the vendor app warns, before pausing, that waiting New orders must still be accepted or they'll be rejected at their deadline.
 
 ### Where it is managed
 
