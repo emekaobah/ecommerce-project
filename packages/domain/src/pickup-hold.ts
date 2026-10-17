@@ -1,4 +1,4 @@
-import { afterOpenDays, dateIn, dayLabel, timeLabel, type ShopHours } from "./shop-hours"
+import { afterOpenDays, dateIn, dayLabel, isOpenAt, timeLabel, type ShopHours } from "./shop-hours"
 
 /**
  * How long a pickup order waits at the counter (#32, docs/design.md → Pickup, ADR 0004): from
@@ -17,8 +17,42 @@ export const PERISHABLE_HOLD_OPEN_DAYS = 1
  * resume date: the clock is frozen.
  */
 export function collectBy(hours: ShopHours, readyAt: string, lines: { perishable: boolean }[]): string | null {
-  const days = lines.some((l) => l.perishable) ? PERISHABLE_HOLD_OPEN_DAYS : PICKUP_HOLD_OPEN_DAYS
-  return afterOpenDays(hours, new Date(readyAt), days)?.toISOString() ?? null
+  return afterOpenDays(hours, new Date(readyAt), holdOpenDays(lines))?.toISOString() ?? null
+}
+
+const holdOpenDays = (lines: { perishable: boolean }[]) =>
+  lines.some((l) => l.perishable) ? PERISHABLE_HOLD_OPEN_DAYS : PICKUP_HOLD_OPEN_DAYS
+
+/**
+ * A reminder to the buyer of a pickup order still to collect (#33): half-way through its hold,
+ * from its middle open day (the 3rd of 5), and on its last day.
+ */
+export type HoldReminder = "half_way" | "last_day"
+
+/**
+ * The reminder due at `now` to the buyer of a pickup order that became Ready at `readyAt`, or
+ * null: only while the shop is open, before the hold ends. `sent` is the last reminder the order
+ * had. A half-way reminder not sent by the last day is skipped; a hold of one open day (a
+ * perishable order's) has only the last day's. None while the hold's clock is frozen.
+ */
+export function holdReminderDue(
+  hours: ShopHours,
+  readyAt: string,
+  lines: { perishable: boolean }[],
+  now: Date,
+  sent: HoldReminder | null
+): HoldReminder | null {
+  if (sent === "last_day" || !isOpenAt(hours, now)) return null
+  const days = holdOpenDays(lines)
+  const ends = afterOpenDays(hours, new Date(readyAt), days)
+  if (!ends || now >= ends) return null
+  // The open day a deadline falls on: closing at midnight is still that day.
+  const dayOf = (closes: Date) => dateIn(closes.getTime() - 1, hours.time_zone)
+  const today = dateIn(now.getTime(), hours.time_zone)
+  if (today === dayOf(ends)) return "last_day"
+  if (sent || days < 2) return null
+  const middle = afterOpenDays(hours, new Date(readyAt), Math.ceil(days / 2))
+  return middle && today >= dayOf(middle) ? "half_way" : null
 }
 
 /**
