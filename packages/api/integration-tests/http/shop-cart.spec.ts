@@ -1,24 +1,14 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules } from "@medusajs/framework/utils"
-import seedDemoData from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
-import { buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, RICE, TOTAL, type Shop } from "../helpers/checkout"
-import { fakeClerk } from "../helpers/clerk"
-import { fakePaystack } from "../helpers/paystack"
-import { BEST_VALUE_FEE, fakeShipbubble } from "../helpers/shipbubble"
+import { eventually, GADGETS, GROCERY, LANTERN, RICE, TOTAL, type Shop } from "../helpers/checkout"
+import { checkoutFakes, checkoutSuite, statusOf } from "../helpers/checkout-suite"
+import { BEST_VALUE_FEE } from "../helpers/shipbubble"
 
 jest.setTimeout(5 * 60 * 1000)
 
-const clerk = fakeClerk()
-// A port per test process, so the fake can be named in the config before it is listening.
-const paystack = fakePaystack(38000 + (process.pid % 1000))
-const shipbubble = fakeShipbubble(39000 + (process.pid % 1000))
-// Set before the runner loads medusa-config, which registers each provider only when its key is set.
-process.env.CLERK_JWT_KEY = clerk.jwtKey
-process.env.PAYSTACK_SECRET_KEY = paystack.secretKey
-process.env.PAYSTACK_API_URL = paystack.apiUrl
-process.env.SHIPBUBBLE_API_KEY = shipbubble.apiKey
-process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
+const fakes = checkoutFakes(38000)
+const { paystack } = fakes
 
 /** The grocery's share of Ada's cart: two bags of rice, delivered at the best-value rate. */
 const GROCERY_TOTAL = 2 * RICE.price + BEST_VALUE_FEE
@@ -31,22 +21,10 @@ medusaIntegrationTestRunner({
   inApp: true,
   env: {},
   testSuite: ({ api, getContainer }) => {
-    const buyer = buyerCheckout({ api, getContainer, clerk, paystack })
-    const status = (request: Promise<unknown>) =>
-      request.then(
-        () => 200,
-        (e: any) => e.response?.status as number
-      )
+    const buyer = checkoutSuite({ api, getContainer, fakes })
 
-    beforeAll(async () => {
-      await Promise.all([paystack.start(), shipbubble.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
-    })
-    afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
-    beforeEach(() => buyer.load())
-
-    /** "Pay for this shop only": the shop's items move to a cart of their own, returned by shop. */
-    const payShopOnly = async (cartId: string, shop: Shop) =>
+    /** "Pay for this shop only": the shop's items move to a shop cart, returned by shop. */
+    const moveShopToOwnCart = async (cartId: string, shop: Shop) =>
       (await api.post(`/store/carts/${cartId}/shop-cart`, { seller_id: await buyer.sellerId(shop) }, buyer.ada())).data
         .cart
     const cartBySeller = async (cartId: string) => (await api.get(`/store/carts/${cartId}/sellers`, buyer.ada())).data.cart
@@ -68,7 +46,7 @@ medusaIntegrationTestRunner({
       it("places one order group with one order for that shop, paid by its own transaction; the cart keeps the rest", async () => {
         const cartId = await buyer.adasCart()
 
-        const shopCart = await payShopOnly(cartId, GROCERY)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
 
         expect(shopCart.id).not.toBe(cartId)
         expect(lines(shopCart)).toEqual([[GROCERY.name, [[RICE.title, 2, RICE.price]]]])
@@ -88,7 +66,7 @@ medusaIntegrationTestRunner({
       it("leaves the rest of the cart to check out normally afterwards", async () => {
         const cartId = await buyer.adasCart()
         await buyer.prepare(cartId)
-        const shopCart = await payShopOnly(cartId, GROCERY)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
         // The moved shop's delivery leaves with its items.
         expect(await buyer.checkout(cartId)).toMatchObject({ shipping_total: BEST_VALUE_FEE, total: GADGETS_TOTAL })
         await buyer.prepare(shopCart.id)
@@ -108,13 +86,13 @@ medusaIntegrationTestRunner({
         const cartId = await buyer.adasCart()
         const grocery = await buyer.sellerId(GROCERY)
         const move = (id: string, sellerId: string, as: { headers: Record<string, string> } = buyer.ada()) =>
-          status(api.post(`/store/carts/${id}/shop-cart`, { seller_id: sellerId }, as))
+          statusOf(api.post(`/store/carts/${id}/shop-cart`, { seller_id: sellerId }, as))
 
         expect(await move(cartId, grocery, { headers: buyer.headers() })).toBe(401)
         expect(await move(cartId, grocery, buyer.as("eve@oja.test"))).toBe(404)
         expect(lines(await cartBySeller(cartId))).toHaveLength(2)
 
-        const shopCart = await payShopOnly(cartId, GROCERY)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
         // Each cart now holds one shop: there is nothing to move out of either.
         expect(await move(cartId, grocery)).toBe(400)
         expect(await move(shopCart.id, grocery)).toBe(400)
@@ -133,7 +111,7 @@ medusaIntegrationTestRunner({
           .spyOn(carts, "softDeleteShippingMethods")
           .mockRejectedValueOnce(new Error("The database went away"))
 
-        const moved = await status(
+        const moved = await statusOf(
           api.post(`/store/carts/${cartId}/shop-cart`, { seller_id: await buyer.sellerId(GROCERY) }, buyer.ada())
         )
         failing.mockRestore()
@@ -158,7 +136,7 @@ medusaIntegrationTestRunner({
         await buyer.prepare(cartId)
         const old = await buyer.startPayment(cartId)
 
-        const shopCart = await payShopOnly(cartId, GROCERY)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
         paystack.pay(old.reference)
         await buyer.postWebhook(paystack.chargeSuccess(old.reference))
 
@@ -198,7 +176,7 @@ medusaIntegrationTestRunner({
       it("puts the shop's items back in the cart, and empties the shop cart", async () => {
         const cartId = await buyer.adasCart()
         const before = lines(await cartBySeller(cartId))
-        const shopCart = await payShopOnly(cartId, GROCERY)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
 
         const { data } = await moveBack(cartId, shopCart.id)
 
@@ -213,7 +191,7 @@ medusaIntegrationTestRunner({
 
       it("places no order when the shop cart's Paystack page is paid afterwards, and refunds it in full", async () => {
         const cartId = await buyer.adasCart()
-        const shopCart = await payShopOnly(cartId, GROCERY)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
         await buyer.prepare(shopCart.id)
         const old = await buyer.startPayment(shopCart.id)
 
@@ -230,7 +208,7 @@ medusaIntegrationTestRunner({
 
       it("won't move the items back once the shop cart's payment went through: its order is on the way", async () => {
         const cartId = await buyer.adasCart()
-        const shopCart = await payShopOnly(cartId, GROCERY)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
         await buyer.prepare(shopCart.id)
         const { reference } = await buyer.startPayment(shopCart.id)
         paystack.pay(reference)
@@ -245,11 +223,11 @@ medusaIntegrationTestRunner({
       it("is only for the buyer's own shop cart, back to the cart it came from", async () => {
         const cartId = await buyer.adasCart()
         const otherCartId = await buyer.adasCart()
-        const shopCart = await payShopOnly(cartId, GROCERY)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
 
-        expect(await status(moveBack(otherCartId, shopCart.id))).toBe(404)
+        expect(await statusOf(moveBack(otherCartId, shopCart.id))).toBe(404)
         expect(
-          await status(api.post(`/store/carts/${cartId}/shop-cart/back`, { shop_cart_id: shopCart.id }, buyer.as("eve@oja.test")))
+          await statusOf(api.post(`/store/carts/${cartId}/shop-cart/back`, { shop_cart_id: shopCart.id }, buyer.as("eve@oja.test")))
         ).toBe(404)
         expect(lines(await cartBySeller(shopCart.id))).toEqual([[GROCERY.name, [[RICE.title, 2, RICE.price]]]])
       })
@@ -295,7 +273,7 @@ medusaIntegrationTestRunner({
         const cartId = await buyer.adasCart()
         await buyer.prepare(cartId)
         await applyCode(cartId, code)
-        const shopCart = await payShopOnly(cartId, GROCERY)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
         return { cartId, shopCartId: shopCart.id as string }
       }
       const payFor = async (cartId: string) => {
@@ -331,18 +309,29 @@ medusaIntegrationTestRunner({
         expect((await payFor(cartId)).total).toBe(TOTAL - (2 * RICE.price) / 10)
       })
 
-      it("keeps an operator's percentage code on both carts, each on its own items, counting a use per payment", async () => {
-        const code = newCode("OJA")
-        const promotion = await operatorPromotion(percentOff(code))
+      // Decided 2026-10-17: the code was entered once, so the two carts count one use (ADR 0010).
+      it.each([
+        ["the shop cart", (carts: { cartId: string; shopCartId: string }) => [carts.shopCartId, carts.cartId]],
+        ["the cart", (carts: { cartId: string; shopCartId: string }) => [carts.cartId, carts.shopCartId]],
+      ])(
+        "keeps an operator's single-use code on both carts, each on its own items, counting one use when %s is paid first",
+        async (_first, payingOrder) => {
+          const code = newCode("OJAONCE")
+          const promotion = await operatorPromotion({ ...percentOff(code), limit: 1 })
+          const carts = await splitWith(code)
+          const discounted = { [carts.shopCartId]: (2 * RICE.price) / 10, [carts.cartId]: LANTERN.price / 10 }
+          const total = { [carts.shopCartId]: GROCERY_TOTAL, [carts.cartId]: GADGETS_TOTAL }
+          const [first, second] = payingOrder(carts)
 
-        const { cartId, shopCartId } = await splitWith(code)
-
-        expect(await promotionsOf(shopCartId)).toEqual([[code, (2 * RICE.price) / 10]])
-        expect(await promotionsOf(cartId)).toEqual([[code, LANTERN.price / 10]])
-        expect((await payFor(shopCartId)).total).toBe(GROCERY_TOTAL - (2 * RICE.price) / 10)
-        expect((await payFor(cartId)).total).toBe(GADGETS_TOTAL - LANTERN.price / 10)
-        expect(await usesOf(promotion.id)).toBe(2)
-      })
+          expect(await promotionsOf(carts.shopCartId)).toEqual([[code, discounted[carts.shopCartId]]])
+          expect(await promotionsOf(carts.cartId)).toEqual([[code, discounted[carts.cartId]]])
+          expect((await payFor(first)).total).toBe(total[first] - discounted[first])
+          expect(await usesOf(promotion.id)).toBe(1)
+          expect(await promotionsOf(second)).toEqual([[code, discounted[second]]])
+          expect((await payFor(second)).total).toBe(total[second] - discounted[second])
+          expect(await usesOf(promotion.id)).toBe(1)
+        }
+      )
 
       it("leaves an operator's fixed amount off the whole cart with the rest, so it is taken off once", async () => {
         const code = newCode("OJAFIXED")

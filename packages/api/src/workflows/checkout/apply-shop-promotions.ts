@@ -1,5 +1,5 @@
-import type { ComputeActionContext } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, Modules, PromotionActions } from "@medusajs/framework/utils"
+import type { ComputeActionContext, ComputeActions } from "@medusajs/framework/types"
+import { ComputedActions, ContainerRegistrationKeys, Modules, PromotionActions } from "@medusajs/framework/utils"
 import { createStep, createWorkflow, StepResponse, transform, WorkflowResponse } from "@medusajs/framework/workflows-sdk"
 import {
   acquireLockStep,
@@ -14,16 +14,21 @@ import {
 } from "@medusajs/medusa/core-flows"
 import { cartFieldsForRefreshSteps } from "@mercurjs/core/workflows/cart/utils/fields"
 import { shopAdjustments, type PromotionOwner, type PromotionPass } from "../../lib/promotions"
+import { codesCountedElsewhere } from "../../lib/shared-codes"
 
 export type ApplyShopPromotionsInput = {
   cart_id: string
-  /** The codes the cart has; its current ones when not given. Automatic promotions always apply. */
+  /**
+   * The codes the cart has; when not given, its current ones and those it shares whose use
+   * another cart counted (ADR 0010). Automatic promotions always apply.
+   */
   promo_codes?: string[]
 }
 
 type Adjusted = { id: string; adjustments?: { id: string }[] | null }
 /** The cart as promotions are worked out on it: `cartFieldsForRefreshSteps`, with each line's shop. */
 type PromotionCart = {
+  id: string
   items?: (Adjusted & { subtotal?: number | null; offer?: { seller_id: string } | null })[] | null
   shipping_methods?: Adjusted[] | null
   promotions?: { code?: string | null }[] | null
@@ -35,19 +40,38 @@ const withoutAdjustments = <T extends Adjusted>(rows: T[] | null | undefined) =>
 /** Works the cart's promotions out: a shop's on its own items, the operator's on the whole cart. */
 const computeShopPromotionsStep = createStep(
   "compute-shop-promotions",
-  async ({ cart, promo_codes }: { cart: PromotionCart; promo_codes: string[] }, { container }) => {
+  async (
+    { cart, promo_codes: given }: { cart: PromotionCart; promo_codes: string[] | undefined },
+    { container }
+  ) => {
     const promotions = container.resolve(Modules.PROMOTION)
+    // A code whose one use a cart sharing it already counted is still this cart's (ADR 0010):
+    // its usage limit is not checked again. Medusa's own refresh of the cart drops it as used
+    // up, so the cart's codes, when not given, get it back.
+    const counted = new Set(await codesCountedElsewhere(container, cart.id))
+    const current = (cart.promotions ?? []).flatMap((p) => (p.code ? [p.code] : []))
+    const promo_codes = given ?? [...new Set([...current, ...counted])]
+    const computeActions = async (context: ComputeActionContext): Promise<ComputeActions[]> => {
+      const actions = await promotions.computeActions(promo_codes, context)
+      const recount = new Set(
+        actions.filter((a) => a.action === ComputedActions.PROMOTION_LIMIT_EXCEEDED && counted.has(a.code)).map((a) => a.code)
+      )
+      if (!recount.size) return actions
+      const again = await promotions.computeActions([...recount], context, {
+        skip_usage_limit_checks: true,
+        prevent_auto_promotions: true,
+      })
+      return [...actions.filter((a) => !recount.has(a.code)), ...again]
+    }
     const items = cart.items ?? []
     const sellerIds = [...new Set(items.flatMap((i) => (i.offer?.seller_id ? [i.offer.seller_id] : [])))]
     // Adjustments are replaced wholesale, so they are worked out as if the cart had none.
     const context = { ...cart, items: withoutAdjustments(items), shipping_methods: withoutAdjustments(cart.shipping_methods) }
     const passes: PromotionPass[] = await Promise.all([
-      promotions
-        .computeActions(promo_codes, context as unknown as ComputeActionContext)
-        .then((actions) => ({ seller_id: null, actions })),
+      computeActions(context as unknown as ComputeActionContext).then((actions) => ({ seller_id: null, actions })),
       ...sellerIds.map(async (sellerId) => {
         const own = { ...context, items: context.items.filter((i) => i.offer?.seller_id === sellerId), shipping_methods: [] }
-        const actions = await promotions.computeActions(promo_codes, own as unknown as ComputeActionContext)
+        const actions = await computeActions(own as unknown as ComputeActionContext)
         return { seller_id: sellerId, actions }
       }),
     ])
@@ -95,11 +119,7 @@ export const applyShopPromotionsWorkflow = createWorkflow(
       options: { isList: false, throwIfKeyNotFound: true },
     })
     acquireLockStep({ key: input.cart_id, timeout: 2, ttl: 10 })
-    const promo_codes = transform({ input, cart }, ({ input, cart }) => {
-      const current = ((cart as unknown as PromotionCart).promotions ?? []).flatMap((p) => (p.code ? [p.code] : []))
-      return input.promo_codes ?? current
-    })
-    const computed = computeShopPromotionsStep({ cart: cart as unknown as PromotionCart, promo_codes })
+    const computed = computeShopPromotionsStep({ cart: cart as unknown as PromotionCart, promo_codes: input.promo_codes })
     removeLineItemAdjustmentsStep({ lineItemAdjustmentIdsToRemove: computed.lineItemAdjustmentIdsToRemove })
     removeShippingMethodAdjustmentsStep({ shippingMethodAdjustmentIdsToRemove: computed.shippingMethodAdjustmentIdsToRemove })
     createLineItemAdjustmentsStep({ lineItemAdjustmentsToCreate: computed.lineItemAdjustmentsToCreate })

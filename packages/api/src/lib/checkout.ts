@@ -34,6 +34,7 @@ import {
 } from "./collection-point"
 import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
 import { promoCodeProblem, type CodedPromotion } from "./promotions"
+import { unshareCode } from "./shared-codes"
 import { closedShopError } from "./shop-hours"
 
 // Checkout of a multi-shop cart (#16): the buyer's address, each shop's delivery, then a
@@ -949,8 +950,11 @@ export async function removePromoCode(
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
   const entered = await enteredCodes(scope, cart)
-  const remaining = entered.filter((c) => c.toLowerCase() !== code.trim().toLowerCase())
-  if (remaining.length !== entered.length) await applyShopPromotions(scope, cartId, remaining)
+  const removed = entered.find((c) => c.toLowerCase() === code.trim().toLowerCase())
+  if (removed) {
+    await unshareCode(scope, cartId, removed)
+    await applyShopPromotions(scope, cartId, entered.filter((c) => c !== removed))
+  }
   return retrieveCheckout(scope, cartId, customerId)
 }
 

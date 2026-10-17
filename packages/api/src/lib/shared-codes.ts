@@ -1,5 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 // A code on both a cart and its shop cart (#11, ADR 0010) counts one use: the first of the two
 // paid registers it, and the other doesn't register it again. Each of the two carts keeps, in its
@@ -28,6 +28,20 @@ export function withSharedCodes(
 ): Record<string, unknown> {
   const { [otherCartId]: _previous, ...others } = sharedCodesOf(metadata)
   return { ...metadata, [SHARED_CODES_KEY]: codes.length ? { ...others, [otherCartId]: codes } : others }
+}
+
+/** The buyer took a code off the cart: it shares it no more, so nothing puts it back. */
+export async function unshareCode(scope: MedusaContainer, cartId: string, code: string) {
+  const carts = scope.resolve(Modules.CART)
+  const { metadata } = await carts.retrieveCart(cartId, { select: ["id", "metadata"] })
+  const shared = sharedCodesOf(metadata)
+  const sharing = Object.entries(shared).filter(([, codes]) => codes.includes(code))
+  if (!sharing.length) return
+  const unshared = sharing.reduce(
+    (next, [otherCartId, codes]) => withSharedCodes(next, otherCartId, codes.filter((c) => c !== code)),
+    metadata ?? {}
+  )
+  await carts.updateCarts(cartId, { metadata: unshared })
 }
 
 /**
