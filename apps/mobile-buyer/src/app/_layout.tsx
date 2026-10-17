@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import { queryClient } from '@/api/query-client';
 import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
+import { DeliveringToProvider } from '@/delivering-to/delivering-to-provider';
 import { withSentry } from '@/monitoring/sentry';
 import { usePushRegistration } from '@/push/push-registration';
 import { useOpenTappedPush } from '@/push/use-open-tapped-push';
@@ -29,8 +30,10 @@ function RootLayout() {
         <ThemeProvider theme={buyerTheme}>
           <RegionProvider>
             <CartProvider>
-              <StatusBar style="dark" />
-              <RootStack />
+              <DeliveringToProvider>
+                <StatusBar style="dark" />
+                <RootStack />
+              </DeliveringToProvider>
             </CartProvider>
           </RegionProvider>
         </ThemeProvider>
@@ -73,6 +76,7 @@ function RootStack() {
         <Stack.Screen name="wishlist" options={{ title: 'Wishlist' }} />
         <Stack.Screen name="addresses/index" options={{ title: 'Addresses' }} />
         <Stack.Screen name="addresses/edit" options={{ title: 'Address' }} />
+        <Stack.Screen name="delivering-to" options={{ title: 'Delivering to' }} />
         <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
         <Stack.Screen name="review/[id]" options={{ title: 'Review' }} />
         <Stack.Screen name="refund/[id]" options={{ title: 'Refund' }} />
