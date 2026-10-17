@@ -27,7 +27,8 @@ const holdOpenDays = (lines: { perishable: boolean }[]) =>
  * A reminder to the buyer of a pickup order still to collect (#33): half-way through its hold,
  * from its middle open day (the 3rd of 5), and on its last day.
  */
-export type HoldReminder = "half_way" | "last_day"
+export const HOLD_REMINDERS = ["half_way", "last_day"] as const
+export type HoldReminder = (typeof HOLD_REMINDERS)[number]
 
 /**
  * The reminder due at `now` to the buyer of a pickup order that became Ready at `readyAt`, or

@@ -78,7 +78,7 @@ export {
   PICKUP_HOLD_NOTICE,
 } from "./pickup"
 export type { PickupCodeCheck, PickupCodeState } from "./pickup"
-export { collectBy, collectByLabel, holdReminderDue, PERISHABLE_HOLD_OPEN_DAYS, PICKUP_HOLD_OPEN_DAYS } from "./pickup-hold"
+export { collectBy, collectByLabel, HOLD_REMINDERS, holdReminderDue, PERISHABLE_HOLD_OPEN_DAYS, PICKUP_HOLD_OPEN_DAYS } from "./pickup-hold"
 export type { HoldReminder } from "./pickup-hold"
 export { dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
 export type { DisplayPrice, ListingPrice, PricedOffer, ShopDeal, ShopGroup } from "./listing"
