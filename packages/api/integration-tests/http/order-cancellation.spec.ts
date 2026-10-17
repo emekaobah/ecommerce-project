@@ -2,6 +2,8 @@ import { Modules } from "@medusajs/framework/utils"
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { SellerRole } from "@mercurjs/types"
 import { formatMoney } from "@oja/domain"
+import { fulfilmentService } from "../../src/lib/order-fulfilment"
+import { followUpRefundAccounts } from "../../src/lib/refund-accounts"
 import { retryOwedRefunds } from "../../src/lib/refund-retry"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
@@ -268,6 +270,91 @@ medusaIntegrationTestRunner({
 
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([GROCERY_SHARE * 100])
         expect((await owedRefunds()).find((o) => o.order_id === grocery)).toBeUndefined()
+      })
+    })
+
+    describe("an order already owing its buyer a refund", () => {
+      const DAY = 24 * 60 * MINUTE
+      const owedRefundOf = async (orderId: string) =>
+        ((await api.get("/admin/owed-refunds", await admin())).data.owed_refunds as any[]).find((o) => o.order_id === orderId)
+      /** The grocery's order being picked, a bag of rice taken off it as unavailable (its refund then made, or refused). */
+      const riceRemoved = async () => {
+        const paid = await paidOrders()
+        const [rice] = (await startPicking(paid.grocery)).lines
+        await post(`${paid.grocery}/pick-list/${rice.id}/unavailable`, { quantity: 1 })
+        await post(`${paid.grocery}/remove-unavailable`)
+        return paid
+      }
+      const LEFT = GROCERY_SHARE - RICE.price
+      /**
+       * The rice's refund needs Ada's bank account, which she doesn't give in 7 days: it is handed
+       * to Oja's team, who owe it to her by hand.
+       */
+      const riceRefundHandedOver = async () => {
+        const paid = await riceRemoved()
+        const [riceRefund] = paystack.refundsOf(paid.reference)
+        paystack.settleRefund(riceRefund!.id, "needs-attention")
+        await buyer.postWebhook(paystack.refundEvent(riceRefund!.id))
+        const row = await eventually(
+          async () => (await fulfilmentService(getContainer()).listOrderRefunds({ paystack_refund_id: String(riceRefund!.id) }))[0],
+          (r) => r?.status === "needs-attention"
+        )
+        await followUpRefundAccounts(getContainer(), new Date(new Date(row!.needs_attention_at!).getTime() + 7 * DAY + MINUTE))
+        return paid
+      }
+
+      it("shows, refunds and tells Ada of what is left once Oja's team settled the rice's refund by hand", async () => {
+        const device = pushToken()
+        await api.post("/store/push-tokens", { token: device }, buyer.ada())
+        paystack.refuseRefunds("Insufficient balance")
+        const { reference, grocery } = await riceRemoved()
+        expect(await owedRefundOf(grocery)).toMatchObject({ amount: RICE.price, attempts: 1 })
+        await api.post(`/admin/owed-refunds/${grocery}/settle`, { method: "bank_transfer", note: "Sent to her GTB account" }, await admin())
+        paystack.refuseRefunds(undefined)
+
+        expect((await get(`${grocery}/cancel`)).cancel).toMatchObject({ refund_amount: LEFT })
+        const { data } = await cancel(grocery)
+
+        expect(data).toMatchObject({ refund_amount: LEFT, refund: { amount: LEFT, status: "pending" } })
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([LEFT * 100])
+        expect(await owedRefundOf(grocery)).toBeUndefined()
+        const { display_id } = await shopOrder(grocery)
+        const [push] = await eventually(
+          async () => expo.sentTo(device).filter((m: any) => m.title === `Order #${display_id} cancelled`),
+          (sent) => sent.length > 0
+        )
+        expect(push.body).toContain(`You'll be refunded ${formatMoney(LEFT, "ngn")}.`)
+      })
+
+      it("still refunds the rest through Paystack when the rice's refund was handed to Oja's team (#13)", async () => {
+        const { reference, grocery } = await riceRefundHandedOver()
+        expect(await owedRefundOf(grocery)).toMatchObject({ amount: RICE.price, by_hand: RICE.price, state: "manual" })
+
+        expect((await get(`${grocery}/cancel`)).cancel).toMatchObject({ refund_amount: LEFT })
+        const { data } = await cancel(grocery)
+
+        expect(data).toMatchObject({ refund_amount: LEFT, refund: { amount: LEFT, status: "pending" } })
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([RICE.price * 100, LEFT * 100])
+        // The rice's refund is still the team's to send; nothing else is owed.
+        expect(await owedRefundOf(grocery)).toMatchObject({ amount: RICE.price, by_hand: RICE.price, state: "manual" })
+      })
+
+      it("retries the rest when Paystack refuses it, leaving only the handed-over refund to Oja's team", async () => {
+        const { reference, grocery } = await riceRefundHandedOver()
+        paystack.refuseRefunds("Insufficient balance")
+
+        const { data } = await cancel(grocery)
+
+        expect(data).toMatchObject({ refund_amount: LEFT, refund: null })
+        expect(await owedRefundOf(grocery)).toMatchObject({
+          amount: GROCERY_SHARE,
+          by_hand: RICE.price,
+          attempts: 1,
+          state: "retrying",
+        })
+        paystack.refuseRefunds(undefined)
+        await retryOwedRefunds(getContainer(), new Date(Date.now() + 6 * MINUTE))
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([RICE.price * 100, LEFT * 100])
       })
     })
 

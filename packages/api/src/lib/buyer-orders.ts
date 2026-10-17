@@ -14,7 +14,8 @@ import {
   type Picks,
   type PlacedOrder,
 } from "./order-fulfilment"
-import { failedSinceLastMade, needsAccount, owedRefundsOf, type OwedRefund } from "./owed-refunds"
+import { refundMade, refusedByPaystack, totalOf } from "./order-refund"
+import { failedSinceLastMade, handedOver, needsAccount, owedRefundsOf, type OwedRefund } from "./owed-refunds"
 import { HOLD_LINE_FIELDS, holdLinesOf } from "./pickup-hold"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
@@ -125,13 +126,13 @@ const LEAST_SETTLED: PaystackRefundStatus[] = ["needs-attention", "failed", "pen
  * Oja's team (#13): it is owed too, by hand, until Paystack settles it.
  */
 export function buyerRefund(all: RefundRow[]): BuyerRefund | null {
-  const rows = all.filter((r) => !r.failure_reason && !(r.handed_over_at && r.status === "needs-attention"))
+  const rows = all.filter((r) => !refusedByPaystack(r) && !handedOver(r))
   const latestFailed = failedSinceLastMade(rows).at(-1)
-  const counted = [...rows.filter((r) => r.status !== "failed"), ...(latestFailed ? [latestFailed] : [])]
+  const counted = [...rows.filter(refundMade), ...(latestFailed ? [latestFailed] : [])]
   if (!counted.length) return null
   const statuses = new Set(counted.map((r) => r.status))
   return {
-    amount: counted.reduce((sum, r) => sum + Number(r.amount), 0),
+    amount: totalOf(counted.map((r) => r.amount)),
     status: LEAST_SETTLED.find((s) => statuses.has(s)) ?? "pending",
   }
 }

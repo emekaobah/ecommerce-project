@@ -1,15 +1,13 @@
 import { defineWidgetConfig } from "@mercurjs/dashboard-sdk"
-import type { InferClientInput, InferClientOutput } from "@mercurjs/client"
+import type { InferClientOutput } from "@mercurjs/client"
 import { Button, Container, Drawer, Heading, Label, Select, Text, Textarea, toast } from "@medusajs/ui"
+import { CANCEL_REASON_LABELS, CANCEL_REASONS, cancelRequest, type CancelReason, type CancelRequest } from "@oja/domain"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { client } from "../lib/client"
 
 type CancelPreview = InferClientOutput<typeof client.admin.orders.$id.cancel.query>["cancel"]
-type Reason = InferClientInput<typeof client.admin.orders.$id.cancel.mutate>["reason"]
-
-const REASONS: Reason[] = ["items_unavailable", "cannot_fulfil", "buyer_asked", "other"]
 
 const money = (amount: number, currency: string) => `${currency.toUpperCase()} ${amount.toLocaleString()}`
 
@@ -51,10 +49,12 @@ const OrderCancelWidget = ({ data }: { data?: { id: string; updated_at?: string 
 function CancelDrawer({ orderId, preview, onClose }: Readonly<{ orderId: string; preview: CancelPreview; onClose: () => void }>) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [reason, setReason] = useState<Reason>("items_unavailable")
+  const [reason, setReason] = useState<CancelReason>("items_unavailable")
   const [note, setNote] = useState("")
+  // The same request the vendor app's form makes: none for `other` until it says why.
+  const request = cancelRequest({ reason, note })
   const cancel = useMutation({
-    mutationFn: () => client.admin.orders.$id.cancel.mutate({ $id: orderId, reason, note: note.trim() || undefined }),
+    mutationFn: (body: CancelRequest) => client.admin.orders.$id.cancel.mutate({ $id: orderId, ...body }),
     onSuccess: ({ refund }) => {
       // The order's status, payments and totals changed.
       void queryClient.invalidateQueries({ queryKey: ["orders"] })
@@ -64,7 +64,6 @@ function CancelDrawer({ orderId, preview, onClose }: Readonly<{ orderId: string;
     },
     onError: (error) => toast.error(error.message),
   })
-  const needsNote = reason === "other" && !note.trim()
 
   return (
     <Drawer open onOpenChange={(next) => !next && onClose()}>
@@ -77,14 +76,14 @@ function CancelDrawer({ orderId, preview, onClose }: Readonly<{ orderId: string;
             <Label htmlFor="cancel-reason" size="small">
               {t("orderCancel.reason")}
             </Label>
-            <Select value={reason} onValueChange={(value) => setReason(value as Reason)}>
+            <Select value={reason} onValueChange={(value) => setReason(value as CancelReason)}>
               <Select.Trigger id="cancel-reason">
                 <Select.Value />
               </Select.Trigger>
               <Select.Content>
-                {REASONS.map((r) => (
+                {CANCEL_REASONS.map((r) => (
                   <Select.Item key={r} value={r}>
-                    {t(`orderCancel.reasons.${r}`)}
+                    {CANCEL_REASON_LABELS[r]}
                   </Select.Item>
                 ))}
               </Select.Content>
@@ -108,9 +107,9 @@ function CancelDrawer({ orderId, preview, onClose }: Readonly<{ orderId: string;
           <Button
             size="small"
             variant="danger"
-            disabled={needsNote || cancel.isPending}
+            disabled={!request || cancel.isPending}
             isLoading={cancel.isPending}
-            onClick={() => cancel.mutate()}
+            onClick={() => request && cancel.mutate(request)}
           >
             {t("orderCancel.confirm", { amount: money(preview.refund_amount, preview.currency_code) })}
           </Button>

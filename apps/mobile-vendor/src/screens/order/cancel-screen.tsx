@@ -6,7 +6,7 @@ import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { useCancelOrder, useCancelPreview } from '@/api/orders';
 
-const isReason = (value: string | undefined): value is CancelReason => CANCEL_REASONS.some((reason) => reason === value);
+const isReason = (value: string | undefined): value is CancelReason => (CANCEL_REASONS as readonly (string | undefined)[]).includes(value);
 
 /**
  * Cancels an accepted order (#17), for owners and managers: why (the buyer is told), then the
@@ -18,7 +18,7 @@ export function CancelScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; reason?: string }>();
   const { id } = params;
-  const preview = useCancelPreview(id, true);
+  const preview = useCancelPreview(id);
   const cancel = useCancelOrder(id);
   const [reason, setReason] = useState<CancelReason | null>(isReason(params.reason) ? params.reason : null);
   const [note, setNote] = useState('');

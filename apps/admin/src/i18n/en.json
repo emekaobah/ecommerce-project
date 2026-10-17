@@ -32,12 +32,6 @@
     "hint": "Cancelling refunds the buyer {{amount}}, all that is left of this shop's order, and pays the shop nothing. The checkout's other orders are untouched.",
     "open": "Cancel order",
     "reason": "Reason (shown to the buyer)",
-    "reasons": {
-      "items_unavailable": "Items unavailable",
-      "cannot_fulfil": "Shop can't fulfil this order",
-      "buyer_asked": "Buyer asked to cancel",
-      "other": "Other"
-    },
     "note": "Note (optional)",
     "noteRequired": "Say why",
     "refund": "The buyer is refunded {{amount}}.",

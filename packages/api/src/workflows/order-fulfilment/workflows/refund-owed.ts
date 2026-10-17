@@ -3,7 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import { fulfilmentService, paymentsOfOrder, type OrderRefundRecord } from "../../../lib/order-fulfilment"
-import { isDue, owedRefundOf, PAYSTACK_MIN_REFUND, type OrderOwedRefund } from "../../../lib/owed-refunds"
+import { isDue, owedRefundOf, PAYSTACK_MIN_REFUND, paystackPart, type OrderOwedRefund } from "../../../lib/owed-refunds"
 import type { SettlementMethod } from "../../../modules/order-fulfilment/models/refund-settlement"
 import { UNSETTLED_REFUND_STATUSES } from "../../../modules/paystack/client"
 import { refundOrderShare, RefundRefusedError } from "../steps/refund-order-share"
@@ -32,16 +32,29 @@ export type RefundOwedInput = {
 /** The refunds made, and what the order still owes its buyer afterwards (null once nothing). */
 export type RefundOwedResult = { refunds: OrderRefundRecord[]; owed: OrderOwedRefund | null }
 
-/** Whether a refund of the order is still in Paystack's hands (`pending`, `processing` or `needs-attention`). */
+/**
+ * Whether a refund of the order is still in Paystack's hands (`pending`, `processing` or
+ * `needs-attention`), but one handed to Oja's team (#13): that is theirs to send, and what
+ * else the order owes is still Paystack's to try.
+ */
 async function refundInProgress(scope: Scope, orderId: string) {
-  const rows = await fulfilmentService(scope).listOrderRefunds({ order_id: orderId, status: UNSETTLED_REFUND_STATUSES }, { take: 1 })
+  const rows = await fulfilmentService(scope).listOrderRefunds(
+    { order_id: orderId, status: UNSETTLED_REFUND_STATUSES, handed_over_at: null },
+    { take: 1 }
+  )
   return rows.length > 0
 }
 
 /** Refuses Oja's staff a retry of a refund the retry job couldn't try either. */
 function refuseStaffRetry(orderId: string, owed: OrderOwedRefund | null, inProgress: boolean): void {
   if (!owed) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order ${orderId} owes its buyer no refund`)
-  if (owed.amount < PAYSTACK_MIN_REFUND) {
+  if (paystackPart(owed) <= 0) {
+    throw new MedusaError(
+      MedusaError.Types.CONFLICT,
+      `Oja's team is sending order ${orderId}'s refund by hand: Paystack still holds it, so retry it from Paystack's dashboard`
+    )
+  }
+  if (paystackPart(owed) < PAYSTACK_MIN_REFUND) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Paystack can't refund under ₦${PAYSTACK_MIN_REFUND}: send it by hand`)
   }
   if (inProgress) {
@@ -62,14 +75,14 @@ const refundOwedStep = createStep("refund-owed", async (input: RefundOwedInput, 
   const unchanged = (): StepResponse<RefundOwedResult> => new StepResponse({ refunds: [], owed })
   const inProgress = !!retry && (await refundInProgress(container, orderId))
   if (retry?.by === "staff") refuseStaffRetry(orderId, owed, inProgress)
-  if (!owed || owed.amount < PAYSTACK_MIN_REFUND || inProgress) return unchanged()
+  if (!owed || paystackPart(owed) < PAYSTACK_MIN_REFUND || inProgress) return unchanged()
   if (retry?.by === "job" && !isDue(owed, new Date(retry.at))) return unchanged()
 
   try {
     const refunds = await refundOrderShare(container, {
       order_id: orderId,
       covers: owed.covers,
-      amount: owed.amount,
+      amount: paystackPart(owed),
       created_by: input.created_by,
       note: input.note,
     })

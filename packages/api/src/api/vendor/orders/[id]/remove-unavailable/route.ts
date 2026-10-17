@@ -2,9 +2,10 @@ import type { MedusaResponse } from "@medusajs/framework/http"
 import type { BuyerRefund } from "../../../../../lib/buyer-orders"
 import { removeUnavailableAndRefund } from "../../../../../lib/order-availability"
 import { pickListOf, type PickList } from "../../../../../lib/order-picking"
-import { fulfilmentResponse, shopsOwnOrder, type VendorOrderFulfilmentResponse, type VendorRequest } from "../../fulfilment"
+import { fulfilmentResponse, type OrderFulfilmentResponse } from "../../../../fulfilment-response"
+import { shopsOwnOrder, type VendorRequest } from "../../fulfilment"
 
-export type VendorRemoveUnavailableResponse = VendorOrderFulfilmentResponse & {
+export type VendorRemoveUnavailableResponse = OrderFulfilmentResponse & {
   pick_list: PickList
   /** What removing the items took off the order's total: the buyer's refund. */
   removed_amount: number

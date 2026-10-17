@@ -2,7 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN, MedusaError } from "@medusajs/framework/utils"
 import type { RefundCovers } from "../modules/order-fulfilment/models/order-refund"
 import { fulfilmentService } from "./order-fulfilment"
-import type { OrderTransaction } from "./shop-order"
+import { transactionsOf, type OrderTransaction } from "./shop-order"
 
 // A shop refunds its own order's share of what the buyer paid (#20). A checkout split across
 // shops has one Paystack payment, and later an order may be paid by a payment of its own
@@ -36,28 +36,40 @@ export type RefundableShare = { items: number; delivery: number }
 
 type RefundRow = { amount: unknown; covers: RefundCovers; status: string }
 
-const total = (amounts: unknown[]) =>
-  amounts.reduce<ReturnType<typeof MathBN.convert>>((sum, a) => MathBN.add(sum, Number(a)), MathBN.convert(0))
+/** The sum of the amounts, read as numbers. */
+export const totalOf = (amounts: unknown[]): number =>
+  MathBN.convert(amounts.reduce<ReturnType<typeof MathBN.convert>>((sum, a) => MathBN.add(sum, Number(a)), MathBN.convert(0))).toNumber()
+
+/**
+ * Whether a refund of the order (`order_refund`) was made: Paystack made it or still holds it.
+ * One that `failed` (refused by Paystack, which `refundOwedWorkflow` records with its reason,
+ * or failed after it accepted it) gave the buyer nothing, or gave the money back.
+ */
+export const refundMade = (r: { status: string }) => r.status !== "failed"
+
+/**
+ * Whether Paystack refused the refund outright (`refundOwedWorkflow` records it `failed` with
+ * Paystack's reason): no money moved, so it is an attempt at what the order owes, not a refund.
+ */
+export const refusedByPaystack = (r: { status: string; failure_reason?: string | null }) => r.status === "failed" && !!r.failure_reason
 
 /** What was captured for the order: its share of the checkout's payment (and of any payment of its own). */
-const capturedOf = (transactions: OrderTransaction[]) => total(transactions.filter((t) => t.reference === "capture").map((t) => t.amount))
+const capturedOf = (transactions: OrderTransaction[]) => totalOf(transactions.filter((t) => t.reference === "capture").map((t) => t.amount))
 
 /**
  * What is left of the order's share: what was captured for it less every refund of it made
- * (Paystack's record, so a refund it made that failed to be recorded on the order counts). A
- * refund that failed gave its money back, so it isn't counted. All of it is refunded when an
- * accepted order is cancelled (#17).
+ * (`refundMade`: Paystack's record, so a refund it made that failed to be recorded on the order
+ * counts). All of it is refunded when an order is cancelled (#17).
  */
 export function shareLeft({ transactions, refunds }: { transactions: OrderTransaction[]; refunds: RefundRow[] }): number {
-  const made = refunds.filter((r) => r.status !== "failed").map((r) => r.amount)
-  return MathBN.convert(MathBN.max(MathBN.sub(capturedOf(transactions), total(made)), 0)).toNumber()
+  const made = refunds.filter(refundMade).map((r) => r.amount)
+  return MathBN.convert(MathBN.max(MathBN.sub(capturedOf(transactions), totalOf(made)), 0)).toNumber()
 }
 
 /**
  * What is left to refund of the order's items (what was captured, less the delivery fee and
  * the refunds of items) and of its delivery fee (less the refunds of delivery), neither more
- * than is left of the order's share (a refund of all covers both). A refund that failed gave
- * its money back, so it isn't counted.
+ * than is left of the order's share (a refund of all covers both). Only refunds made count (`refundMade`).
  */
 export function refundableShare({
   transactions,
@@ -69,9 +81,9 @@ export function refundableShare({
   refunds: RefundRow[]
 }): RefundableShare {
   const captured = capturedOf(transactions)
-  const made = refunds.filter((r) => r.status !== "failed")
-  const ofDelivery = total(made.filter((r) => r.covers === "delivery").map((r) => r.amount))
-  const ofItems = total(made.filter((r) => r.covers !== "delivery").map((r) => r.amount))
+  const made = refunds.filter(refundMade)
+  const ofDelivery = totalOf(made.filter((r) => r.covers === "delivery").map((r) => r.amount))
+  const ofItems = totalOf(made.filter((r) => r.covers !== "delivery").map((r) => r.amount))
   const share = MathBN.sub(MathBN.sub(captured, ofDelivery), ofItems)
   const left = (amount: Parameters<typeof MathBN.convert>[0]) => MathBN.convert(MathBN.max(MathBN.min(amount, share), 0)).toNumber()
   return {
@@ -96,25 +108,11 @@ export async function refundableShareOf(scope: Scope, orderId: string): Promise<
   if (!order) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order ${orderId} was not found`)
   const deliveryFee = Number(order.shipping_total ?? 0)
   const share = refundableShare({
-    transactions: (order.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) })),
+    transactions: transactionsOf(order),
     deliveryFee,
     refunds: await fulfilmentService(scope).listOrderRefunds({ order_id: orderId }),
   })
   return { ...share, currency_code: order.currency_code, delivery_fee: deliveryFee }
-}
-
-/** What is left of the order's share (`shareLeft`), and its currency. */
-export async function shareLeftOf(scope: Scope, orderId: string): Promise<{ amount: number; currency_code: string }> {
-  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
-    entity: "order",
-    fields: ["id", "currency_code", "transactions.amount", "transactions.reference", "transactions.reference_id"],
-    filters: { id: orderId },
-  })
-  const order = data[0] as unknown as { currency_code: string; transactions?: OrderTransaction[] | null } | undefined
-  if (!order) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order ${orderId} was not found`)
-  const transactions = (order.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) }))
-  const refunds = await fulfilmentService(scope).listOrderRefunds({ order_id: orderId })
-  return { amount: shareLeft({ transactions, refunds }), currency_code: order.currency_code }
 }
 
 /** The order's delivery fee and what is left of it to refund, which Oja's staff refund (`POST /admin/orders/:id/delivery-refund`). */

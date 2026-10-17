@@ -3,9 +3,9 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import { PaystackRequestError, type PaystackRefundStatus } from "../modules/paystack/client"
 import { askForRefundAccount } from "./buyer-notifications"
 import { errorMessage } from "./errors"
-import { accountRefused, lookupsLimited, requirePaystack } from "./onboarding"
+import { accountRefused, activeBanks, lookupsLimited, requirePaystack } from "./paystack"
 import { fulfilmentService, type OrderRefundRecord } from "./order-fulfilment"
-import { needsAccount } from "./owed-refunds"
+import { needsAccount, needsAttentionSince } from "./owed-refunds"
 import { handOverOwedRefundsOf } from "./refund-retry"
 
 // A refund Paystack couldn't return to the buyer's card needs their bank account (#13). The
@@ -69,7 +69,7 @@ export async function buyerRefundOf(scope: Scope, customerId: string, refundId: 
     filters: { id: refund.order_id },
   })
   const order = data[0] as unknown as OrderRow | undefined
-  if (!order || order.customer_id !== customerId) throw notFound
+  if (order?.customer_id !== customerId) throw notFound
   return { refund, order }
 }
 
@@ -99,16 +99,6 @@ export async function buyerRefundAccountView(scope: Scope, customerId: string, r
   }
 }
 
-/** A bank a refund can be retried to: Paystack's code (to resolve accounts at) and id (to retry to). */
-type RefundBank = { code: string; name: string; id: number }
-
-/** Paystack's active banks in the currency, by name, each once. */
-async function refundBanksFor(currencyCode: string): Promise<RefundBank[]> {
-  const banks = await requirePaystack().listBanks(currencyCode.toUpperCase())
-  const byCode = new Map(banks.filter((b) => b.active).map((b) => [b.code, { code: b.code, name: b.name, id: b.id }]))
-  return [...byCode.values()].sort((a, b) => a.name.localeCompare(b.name))
-}
-
 /** What the buyer enters: the bank, from the list, and the account number at it. */
 export type RefundAccountInput = { bank_code: string; account_number: string }
 
@@ -118,7 +108,7 @@ async function refundNeedingAccount(scope: Scope, customerId: string, refundId: 
   if (!needsAccount(refund)) {
     throw new MedusaError(MedusaError.Types.CONFLICT, refund.handed_over_at ? "Our team is sending this refund" : "This refund doesn't need a bank account")
   }
-  const bank = (await refundBanksFor(refund.currency_code)).find((b) => b.code === bankCode)
+  const bank = (await activeBanks(refund.currency_code)).find((b) => b.code === bankCode)
   if (!bank) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Choose your bank from the list")
   return { refund, order, bank }
 }
@@ -126,7 +116,7 @@ async function refundNeedingAccount(scope: Scope, customerId: string, refundId: 
 /** The banks the buyer can have their refund sent to. */
 export async function refundBanks(scope: Scope, customerId: string, refundId: string): Promise<{ code: string; name: string }[]> {
   const { refund } = await buyerRefundOf(scope, customerId, refundId)
-  return (await refundBanksFor(refund.currency_code)).map(({ code, name }) => ({ code, name }))
+  return (await activeBanks(refund.currency_code)).map(({ code, name }) => ({ code, name }))
 }
 
 /** A Paystack error as the buyer is told it, never repeating the account number they entered. */
@@ -225,6 +215,8 @@ export async function followUpRefundAccounts(scope: Scope, now = new Date()): Pr
     order_id: { $ne: null },
     needs_attention_at: { $ne: null },
   })
+  // One at a time, on purpose: handing over takes the order's refund lock and checks the admin's
+  // notices before adding one, so two refunds of one order followed up at once would race.
   for (const refund of waiting) {
     const due = refundAccountFollowUp(new Date(refund.needs_attention_at!), now)
     try {
@@ -255,6 +247,6 @@ export async function refundNeedsAttention(scope: Scope, refundId: string): Prom
     channel: "feed",
     template: "admin-ui",
     data: { title: "Refund needs the buyer's bank account", description },
-    idempotency_key: `refund-needs-attention:${refund.id}:${refund.needs_attention_at ? new Date(refund.needs_attention_at).toISOString() : ""}`,
+    idempotency_key: `refund-needs-attention:${refund.id}:${needsAttentionSince(refund)}`,
   })
 }

@@ -1,6 +1,7 @@
 import type { MedusaResponse } from "@medusajs/framework/http"
 import { rejectAndRefund } from "../../../../../lib/order-acceptance"
-import { fulfilmentResponse, shopsOwnOrder, type VendorOrderFulfilmentResponse, type VendorRequest } from "../../fulfilment"
+import { fulfilmentResponse, type OrderFulfilmentResponse } from "../../../../fulfilment-response"
+import { shopsOwnOrder, type VendorRequest } from "../../fulfilment"
 import type { VendorRejectOrderType } from "../../validators"
 
 /**
@@ -9,7 +10,7 @@ import type { VendorRejectOrderType } from "../../validators"
  */
 export const POST = async (
   req: VendorRequest<VendorRejectOrderType>,
-  res: MedusaResponse<VendorOrderFulfilmentResponse>
+  res: MedusaResponse<OrderFulfilmentResponse>
 ) => {
   const orderId = await shopsOwnOrder(req)
   const fulfilment = await rejectAndRefund(req.scope, {

@@ -7,7 +7,15 @@ import {
 } from "../workflows/order-fulfilment/workflows/refund-owed"
 import { tellRefundByHand } from "./buyer-notifications"
 import { errorMessage } from "./errors"
-import { allOwedRefunds, isDue, NO_ACCOUNT_REASON, owedRefundsOf, PAYSTACK_MIN_REFUND, type OrderOwedRefund } from "./owed-refunds"
+import {
+  allOwedRefunds,
+  isDue,
+  NO_ACCOUNT_REASON,
+  owedRefundsOf,
+  PAYSTACK_MIN_REFUND,
+  teamPart,
+  type OrderOwedRefund,
+} from "./owed-refunds"
 
 // What an order owes its buyer is refunded after the edit that owed it, retried with backoff
 // while Paystack refuses, and handed to Oja's team once it can't be made (#16).
@@ -24,15 +32,15 @@ export async function refundOwed(scope: Scope, input: RefundOwedInput): Promise<
   return result
 }
 
-/** The admin's notice of a refund handed to Oja's team: one per order and amount. */
-const handOverKey = (owed: OrderOwedRefund) => `owed-refund-by-hand:${owed.order_id}:${owed.amount}`
+/** The admin's notice of a refund handed to Oja's team: one per order and amount theirs to send (`teamPart`). */
+const handOverKey = (owed: OrderOwedRefund) => `owed-refund-by-hand:${owed.order_id}:${teamPart(owed)}`
 
 /**
  * Hands Oja's team each refund left for them to send by hand that isn't theirs yet: one that
  * just became theirs, as the admin's notice of it (`handOverKey`) says.
  */
 async function handOverNew(scope: Scope, owed: OrderOwedRefund[]): Promise<void> {
-  const manual = owed.filter((o) => o.state === "manual")
+  const manual = owed.filter((o) => teamPart(o) > 0)
   if (!manual.length) return
   const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
     entity: "notification",
@@ -50,21 +58,23 @@ export async function handOverOwedRefundsOf(scope: Scope, orderIds: string[]): P
 
 /**
  * Hands a refund Paystack can't make to Oja's team: a notice in the admin's notifications, and
- * the buyer told by push and email that the team is sending it.
+ * the buyer told by push and email that the team is sending it. While Paystack still retries
+ * the rest of what the order owes, only the refund the buyer gave no bank account for is theirs.
  */
 async function handOver(scope: Scope, owed: OrderOwedRefund): Promise<void> {
   const { data } = await scope
     .resolve(ContainerRegistrationKeys.QUERY)
     .graph({ entity: "order", fields: ["display_id"], filters: { id: owed.order_id } })
   const displayId = (data[0] as unknown as { display_id?: number } | undefined)?.display_id
+  const amount = teamPart(owed)
   const why = (() => {
-    if (owed.attempts > 0) return `Paystack refused it ${owed.attempts} times, last with "${owed.last_error ?? "no reason"}".`
-    if (owed.last_error === NO_ACCOUNT_REASON) {
+    if (owed.state === "manual" && owed.attempts > 0) return `Paystack refused it ${owed.attempts} times, last with "${owed.last_error ?? "no reason"}".`
+    if (owed.state === "retrying" || owed.last_error === NO_ACCOUNT_REASON) {
       return "Paystack couldn't return it to the buyer's card and needs their bank account, which they didn't give in 7 days. Ask them for one and retry it from Paystack's dashboard, or send it by hand."
     }
     return `It is under Paystack's ₦${PAYSTACK_MIN_REFUND} minimum.`
   })()
-  const description = `Order #${displayId} owes its buyer ${owed.currency_code.toUpperCase()} ${owed.amount}. ${why} Send it by hand, then mark it settled under Owed refunds.`
+  const description = `Order #${displayId} owes its buyer ${owed.currency_code.toUpperCase()} ${amount}. ${why} Send it by hand, then mark it settled under Owed refunds.`
   scope.resolve(ContainerRegistrationKeys.LOGGER).warn(description)
   await Promise.all([
     scope.resolve(Modules.NOTIFICATION).createNotifications({
@@ -74,7 +84,7 @@ async function handOver(scope: Scope, owed: OrderOwedRefund): Promise<void> {
       data: { title: `Refund for order #${displayId} to send by hand`, description },
       idempotency_key: handOverKey(owed),
     }),
-    tellRefundByHand(scope, owed),
+    tellRefundByHand(scope, { order_id: owed.order_id, amount }),
   ])
 }
 

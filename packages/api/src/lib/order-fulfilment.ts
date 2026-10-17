@@ -19,7 +19,7 @@ import type OrderFulfilment from "../modules/order-fulfilment/models/order-fulfi
 import type OrderRefund from "../modules/order-fulfilment/models/order-refund"
 import type { OrderMoney } from "./order-refund"
 import { shopHoursOf } from "./shop-hours"
-import type { OrderTransaction } from "./shop-order"
+import { transactionsOf, type OrderTransaction } from "./shop-order"
 
 // A seller order's fulfilment (docs/design.md, "Order state machine"), and what staff see of it.
 
@@ -138,6 +138,20 @@ export const asFulfilmentRecord = (row: InferTypeOf<typeof OrderFulfilment>) => 
 /** When the owner was last alerted about the order's handover (ISO 8601), if ever. */
 export const alertedAt = (row: Pick<FulfilmentRecord, "handover_alerted_at">) =>
   row.handover_alerted_at ? new Date(row.handover_alerted_at).toISOString() : null
+
+/**
+ * Whether the order was cancelled once accepted (#17): its buyer is owed all that is left of its
+ * share, retried like any owed refund (#16). Not a rejected order, whose refund the accept-deadline
+ * job retries (#20).
+ */
+export const cancelledOnceAccepted = (record: Pick<FulfilmentRecord, "state"> | undefined) => record?.state === "cancelled"
+
+/**
+ * Whether the order's buyer gets all of its share back and its shop is paid nothing for it: it
+ * was rejected while New (#20) or cancelled once accepted (#17), Medusa's order `canceled` either way.
+ */
+export const givesShareBack = (record: Pick<FulfilmentRecord, "state"> | undefined) =>
+  record?.state === "rejected" || cancelledOnceAccepted(record)
 
 /** Each order's fulfilment row; an order without one is New. */
 export async function fulfilmentsOf(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentRecord>> {
@@ -331,7 +345,7 @@ export async function orderMoney(scope: Scope, orderId: string, payments: Paymen
     new Map(payments.flatMap((p) => (p[key] ?? []).map((item) => [item.id, p.id] as const)))
   return {
     currency_code: order.currency_code,
-    transactions: (order.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) })),
+    transactions: transactionsOf(order),
     paymentOfCapture: paymentOf("captures"),
     paymentOfRefund: paymentOf("refunds"),
   }

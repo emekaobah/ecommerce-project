@@ -1,17 +1,8 @@
-import {
-  acquireLockStep,
-  cancelOrdersStep,
-  deleteReservationsByLineItemsStep,
-  emitEventStep,
-  releaseLockStep,
-  useQueryGraphStep,
-} from "@medusajs/medusa/core-flows"
-import { OrderWorkflowEvents } from "@medusajs/framework/utils"
+import { emitEventStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import { WorkflowResponse, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
 import { ORDER_REJECTED } from "../../../lib/order-fulfilment"
-import { codeCheckoutLocksStep, giveBackCodeUsesStep } from "../steps/give-back-code-uses"
 import { transitionFulfilmentStep } from "../steps/transition-fulfilment"
-import { lockOrderFulfilment } from "../compose"
+import { cancelOrderGivingBackCodes, lockCodeCheckouts, lockOrderFulfilment } from "../compose"
 
 export type RejectOrderInput = {
   order_id: string
@@ -22,10 +13,10 @@ export type RejectOrderInput = {
 
 /**
  * A new order is rejected, by its shop or because the accept deadline passed: New → Rejected,
- * its stock reservations are released and the order is cancelled. A promo code's use goes back
- * once every order it discounted, of the checkout and of a checkout sharing the code, is
- * cancelled (#17). Refunding it is a separate
- * step (`refundOrderShareWorkflow`), so a refund Paystack turns down doesn't undo the rejection.
+ * and the order is cancelled in Medusa (`cancelOrderGivingBackCodes`): its stock reservations
+ * released, and a promo code's use given back once every order it discounted is cancelled (#17).
+ * Refunding it is a separate step (`refundOrderShareWorkflow`), so a refund Paystack turns down
+ * doesn't undo the rejection.
  *
  * Not Medusa's `cancelOrderWorkflow`: it refunds every payment linked to the order in full,
  * which for an order sharing its payment with other shops' orders is their money too, and
@@ -39,28 +30,14 @@ export const rejectOrderWorkflow = createWorkflow("reject-order", (input: Reject
       ? { source: "staff" as const, type: "reject" as const, actor: input.actor, at }
       : { source: "system" as const, type: "accept_deadline_passed" as const, at }
   })
-  const checkoutLocks = codeCheckoutLocksStep({ order_id: input.order_id })
-  acquireLockStep({ key: checkoutLocks, timeout: 30, ttl: 60 }).config({ name: "acquire-checkout-locks" })
+  const checkoutLocks = lockCodeCheckouts(input)
   const fulfilment = transitionFulfilmentStep({ order_id: input.order_id, trigger, reject_reason: input.reason })
-
-  const { data: orders } = useQueryGraphStep({
-    entity: "order",
-    fields: ["id", "items.id"],
-    filters: { id: input.order_id },
-  })
-  const lineItemIds = transform({ orders }, ({ orders }) => (orders[0]?.items ?? []).map((item: { id: string } | null) => item!.id))
-  deleteReservationsByLineItemsStep(lineItemIds)
-  cancelOrdersStep({ orderIds: [input.order_id] })
-  giveBackCodeUsesStep({ order_id: input.order_id })
-  releaseLockStep({ key: checkoutLocks }).config({ name: "release-checkout-locks" })
+  cancelOrderGivingBackCodes(input, checkoutLocks)
 
   const event = transform({ input }, ({ input }) => ({
     id: input.order_id,
     rejected_by: input.actor ? "seller" : "accept_deadline",
   }))
-  emitEventStep({ eventName: OrderWorkflowEvents.CANCELED, data: { id: input.order_id } }).config({
-    name: "emit-order-canceled",
-  })
   emitEventStep({ eventName: ORDER_REJECTED, data: event }).config({ name: "emit-order-rejected" })
   releaseLockStep({ key: lock })
   return new WorkflowResponse(fulfilment)

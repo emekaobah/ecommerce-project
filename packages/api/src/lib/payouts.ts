@@ -9,9 +9,9 @@ import { fromSubunit, toSubunit, UNSETTLED_REFUND_STATUSES } from "../modules/pa
 import { payoutStatusOf } from "../modules/paystack-payout/service"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account"
 import { ojaFundedDiscount, ojaSharesOf, taxRateOf } from "./discount-funding"
-import { fulfilmentService, fulfilmentsOf, type OrderRefundRecord } from "./order-fulfilment"
+import { fulfilmentService, fulfilmentsOf, givesShareBack, type OrderRefundRecord } from "./order-fulfilment"
 import { owedToBuyerOf, shareLeft, type OrderSummary } from "./order-refund"
-import type { OrderTransaction } from "./shop-order"
+import { transactionsOf, type OrderTransaction } from "./shop-order"
 
 // What a shop is paid for an order (#29): Paystack Transfers after delivery, worked out here
 // rather than from Mercur's commission lines, which an order's refunds don't change.
@@ -222,15 +222,15 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
     fulfilmentService(scope).listOrderRefunds({ order_id: orderIds }),
   ])
   return orders.map(({ items, summary, ...order }) => {
-    const removed = records.get(order.id)?.removed ?? {}
+    const record = records.get(order.id)
+    const removed = record?.removed ?? {}
     const ofOrder = refunds.filter((r) => r.order_id === order.id)
-    // A cancelled order (rejected, or cancelled once accepted, #17) gives the buyer back all of
-    // it: they keep none of its lines, and it owes them whatever of its share isn't refunded
-    // yet, so the shop is paid nothing for it.
-    const cancelled = order.status === "canceled"
+    // The buyer of a rejected or cancelled order keeps none of its lines, and is owed whatever
+    // of its share isn't refunded yet, so the shop is paid nothing for it.
+    const givenBack = givesShareBack(record)
     const lines = (items ?? []).map((i) => ({
       quantity: Number(i.quantity),
-      removed: cancelled ? Number(i.quantity) : (removed[i.id] ?? 0),
+      removed: givenBack ? Number(i.quantity) : (removed[i.id] ?? 0),
       tax_rate: taxRateOf(i.tax_lines),
       adjustments: (i.adjustments ?? []).map((a) => ({
         amount: Number(a.amount),
@@ -242,7 +242,7 @@ async function paidOrders(scope: Scope, orderIds: string[]): Promise<PaidOrder[]
       ...order,
       oja_discount: ojaFundedDiscount(lines, shares.get(order.id) ?? new Map()),
       refunds: ofOrder,
-      owed_to_buyer: cancelled ? shareLeft({ transactions: order.transactions ?? [], refunds: ofOrder }) : owedToBuyerOf(summary),
+      owed_to_buyer: givenBack ? shareLeft({ transactions: transactionsOf(order), refunds: ofOrder }) : owedToBuyerOf(summary),
     }
   })
 }

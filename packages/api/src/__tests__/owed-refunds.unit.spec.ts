@@ -1,4 +1,4 @@
-import { isDue, NO_ACCOUNT_REASON, owedRefund } from "../lib/owed-refunds"
+import { isDue, NO_ACCOUNT_REASON, owedRefund, paystackPart } from "../lib/owed-refunds"
 
 // What an order owes its buyer and hasn't refunded is retried with backoff, and handled by
 // Oja's team once Paystack can't make it (#16).
@@ -81,23 +81,60 @@ describe("owedRefund", () => {
   })
 
   // #13: a refund that needed the buyer's bank account for 7 days, of anything.
-  it("owes a refund handed to Oja's team by hand, with what else the order owes, until settled or Paystack settles it", () => {
+  describe("a refund handed to Oja's team when the buyer gave no bank account", () => {
+    const DAY = 24 * HOUR
     const handedOver = (status = "needs-attention") => ({
       covers: "all" as const,
       status,
       amount: 9000,
       created_at: at(0),
-      handed_over_at: at(7 * 24 * HOUR),
+      handed_over_at: at(7 * DAY),
     })
-    expect(owedRefund({ owed: 0, settlements: [], refunds: [handedOver()] })).toMatchObject({
-      amount: 9000,
-      attempts: 0,
-      last_error: NO_ACCOUNT_REASON,
-      state: "manual",
-      next_attempt_at: null,
+
+    it("is owed by hand until settled or Paystack settles it", () => {
+      const owed = owedRefund({ owed: 0, settlements: [], refunds: [handedOver()] })!
+      expect(owed).toMatchObject({
+        amount: 9000,
+        by_hand: 9000,
+        attempts: 0,
+        last_error: NO_ACCOUNT_REASON,
+        state: "manual",
+        next_attempt_at: null,
+      })
+      expect(paystackPart(owed)).toBe(0)
+      expect(owedRefund({ owed: 0, settlements: [{ amount: 9000, created_at: at(8 * DAY) }], refunds: [handedOver()] })).toBeNull()
+      expect(owedRefund({ owed: 0, settlements: [], refunds: [handedOver("processed")] })).toBeNull()
     })
-    expect(owedRefund({ owed: 2500, settlements: [], refunds: [handedOver()] })).toMatchObject({ amount: 11500, state: "manual" })
-    expect(owedRefund({ owed: 0, settlements: [{ amount: 9000, created_at: at(8 * 24 * HOUR) }], refunds: [handedOver()] })).toBeNull()
-    expect(owedRefund({ owed: 0, settlements: [], refunds: [handedOver("processed")] })).toBeNull()
+
+    it("leaves what else the order owes for Paystack to try first, and to retry", () => {
+      const owed = owedRefund({ owed: 2500, settlements: [], refunds: [handedOver()] })!
+      expect(owed).toMatchObject({ amount: 11500, by_hand: 9000, attempts: 0, last_error: null, state: "retrying", next_attempt_at: null })
+      expect(paystackPart(owed)).toBe(2500)
+      expect(isDue(owed, at(8 * DAY))).toBe(true)
+
+      const refusedOnce = owedRefund({ owed: 2500, settlements: [], refunds: [handedOver(), refused(8 * DAY)] })!
+      expect(refusedOnce).toMatchObject({ by_hand: 9000, attempts: 1, last_error: "Insufficient balance", state: "retrying" })
+      expect(refusedOnce.next_attempt_at).toEqual(at(8 * DAY + 5 * MINUTE))
+    })
+
+    it("hands the rest to Oja's team too once Paystack can't make it", () => {
+      const refusals = [refused(8 * DAY), refused(8 * DAY + HOUR), refused(8 * DAY + 3 * HOUR), refused(8 * DAY + 10 * HOUR)]
+      expect(owedRefund({ owed: 2500, settlements: [], refunds: [handedOver(), ...refusals] })).toMatchObject({
+        amount: 11500,
+        state: "manual",
+      })
+      expect(owedRefund({ owed: 30, settlements: [], refunds: [handedOver()] })).toMatchObject({ amount: 9030, state: "manual" })
+    })
+
+    it("is no longer the team's once they settle it, whatever the order owes since", () => {
+      const owed = owedRefund({ owed: 4000, settlements: [{ amount: 9000, created_at: at(8 * DAY) }], refunds: [handedOver()] })!
+      expect(owed).toMatchObject({ amount: 4000, by_hand: 0, state: "retrying" })
+      expect(paystackPart(owed)).toBe(4000)
+    })
+
+    it("is the team's when handed over after they settled what the order owed before", () => {
+      const owed = owedRefund({ owed: 2500, settlements: [{ amount: 2500, created_at: at(DAY) }], refunds: [handedOver()] })!
+      expect(owed).toMatchObject({ amount: 9000, by_hand: 9000, state: "manual", last_error: NO_ACCOUNT_REASON })
+    })
   })
 })

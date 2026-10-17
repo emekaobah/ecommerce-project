@@ -33,7 +33,7 @@ import { validatePickupAddressFirst } from "./pickup-address-check";
 import { vendorOnboardingMiddlewares } from "./vendor/onboarding/middlewares";
 import { vendorOrderPayoutMiddlewares } from "./vendor/orders/[id]/payout/middlewares";
 import { vendorCancelOrderMiddlewares } from "./vendor/orders/[id]/cancel/middlewares";
-import { CancelOrderBody } from "./cancel-order";
+import { AdminCancelOrder } from "./admin/orders/[id]/cancel/validators";
 import { commissionOnlyInPayout } from "./vendor/orders/commission-in-payout";
 import { vendorShopHoursMiddlewares } from "./vendor/shop-hours/middlewares";
 import { vendorCollectionPointMiddlewares } from "./vendor/collection-point/middlewares";
@@ -318,7 +318,7 @@ export default defineMiddlewares({
         {
             method: ["POST"],
             matcher: "/admin/orders/:id/cancel",
-            middlewares: [validateAndTransformBody(CancelOrderBody)],
+            middlewares: [validateAndTransformBody(AdminCancelOrder)],
         },
         // Oja's staff settle by hand a refund Paystack can't make (#16).
         {

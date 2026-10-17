@@ -1,4 +1,5 @@
 import { z } from "@medusajs/framework/zod"
+import { cancelOrderBody } from "../../cancel-order"
 
 /** Staff say why they reject an order; the buyer is told. */
 export const VendorRejectOrder = z.object({ reason: z.string().trim().min(1).max(500) })
@@ -26,3 +27,7 @@ export type VendorCollectOrderType = z.infer<typeof VendorCollectOrder>
 /** How many of a line are unavailable (#22); none clears the mark. Never past the units not yet picked. */
 export const VendorMarkUnavailable = z.object({ quantity: z.number().int().min(0) }).strict()
 export type VendorMarkUnavailableType = z.infer<typeof VendorMarkUnavailable>
+
+/** Why owners and managers cancel an accepted order (#17): the reasons Oja's operators give too (`cancelOrderBody`). */
+export const VendorCancelOrder = cancelOrderBody
+export type VendorCancelOrderType = z.infer<typeof VendorCancelOrder>

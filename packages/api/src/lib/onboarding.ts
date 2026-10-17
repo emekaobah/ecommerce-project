@@ -2,8 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { SellerStatus } from "@mercurjs/types"
 import { addressFormValues, addressFromForm, getAddressConfig } from "@oja/domain"
-import { paystackClient } from "../modules/paystack"
-import { PaystackRequestError } from "../modules/paystack/client"
+import { accountRefused, activeBanks, lookupsLimited, requirePaystack } from "./paystack"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account"
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account"
 import { sellersWithHours } from "./shop-hours"
@@ -137,28 +136,8 @@ export async function onboardingOf(scope: MedusaContainer, sellerId: string): Pr
 
 /** Paystack's banks for the shop's currency, by name, each once. */
 export async function banksFor(currencyCode: string): Promise<{ code: string; name: string }[]> {
-  const banks = await requirePaystack().listBanks(currencyCode.toUpperCase())
-  const byCode = new Map(banks.filter((b) => b.active).map((b) => [b.code, { code: b.code, name: b.name }]))
-  return [...byCode.values()].sort((a, b) => a.name.localeCompare(b.name))
+  return (await activeBanks(currencyCode)).map(({ code, name }) => ({ code, name }))
 }
-
-export function requirePaystack() {
-  const paystack = paystackClient()
-  if (!paystack) {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Bank accounts can't be checked yet: Paystack isn't set up")
-  }
-  return paystack
-}
-
-/** Paystack refused the account, not our request: anything but our key being wrong or a rate limit. */
-export const accountRefused = (error: unknown) =>
-  error instanceof PaystackRequestError &&
-  error.status >= 400 &&
-  error.status < 500 &&
-  ![401, 403, 429].includes(error.status)
-
-/** Paystack is limiting bank lookups (test mode allows 3 a day): nothing is wrong with the account. */
-export const lookupsLimited = (error: unknown) => error instanceof PaystackRequestError && error.status === 429
 
 /** The one currency the shop trades and is paid in. */
 export async function currencyOf(scope: MedusaContainer, sellerId: string): Promise<string> {

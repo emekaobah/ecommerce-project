@@ -1,7 +1,8 @@
 import type { MedusaResponse } from "@medusajs/framework/http"
 import { handoverNames } from "../../../../../lib/order-fulfilment"
 import { collectOrderWorkflow } from "../../../../../workflows/order-fulfilment/workflows/collect-order"
-import { fulfilmentResponse, shopsOwnOrder, type VendorOrderFulfilmentResponse, type VendorRequest } from "../../fulfilment"
+import { fulfilmentResponse, type OrderFulfilmentResponse } from "../../../../fulfilment-response"
+import { shopsOwnOrder, type VendorRequest } from "../../fulfilment"
 import type { VendorCollectOrderType } from "../../validators"
 
 /** Why a code was refused: a wrong code, or too many lately (`retry_at`, ISO 8601). */
@@ -15,7 +16,7 @@ export type VendorCollectRefusal = { type: "invalid_data" | "too_many_attempts";
  */
 export const POST = async (
   req: VendorRequest<VendorCollectOrderType>,
-  res: MedusaResponse<VendorOrderFulfilmentResponse | VendorCollectRefusal>
+  res: MedusaResponse<OrderFulfilmentResponse | VendorCollectRefusal>
 ) => {
   const orderId = await shopsOwnOrder(req)
   const { code, collected_by } = req.validatedBody

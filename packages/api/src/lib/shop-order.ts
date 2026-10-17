@@ -7,6 +7,10 @@ import { getLastPaymentStatus } from "@mercurjs/core/workflows/order-group/utils
 
 export type OrderTransaction = { amount: number; reference: string | null; reference_id: string | null }
 
+/** An order's transactions, each amount a number: the query graph reads them as big numbers. */
+export const transactionsOf = (order: { transactions?: OrderTransaction[] | null }): OrderTransaction[] =>
+  (order.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) }))
+
 /** The order's part of its checkout's payment: its total, and what was captured and refunded for it. */
 export type OrderShare = { total: number; transactions: OrderTransaction[] }
 

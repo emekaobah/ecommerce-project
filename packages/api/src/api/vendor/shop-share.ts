@@ -1,7 +1,7 @@
 import type { MedusaNextFunction, MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import type { OrderShare } from "../../lib/shop-order"
+import { transactionsOf, type OrderShare } from "../../lib/shop-order"
 
 // A shop sees its own share of a checkout split across shops (lib/shop-order). Mercur's vendor
 // routes answer through res.json, so what they send is cut down on the way out.
@@ -31,7 +31,7 @@ export async function sharesOf(scope: MedusaContainer, orderIds: string[]): Prom
   return new Map(
     (data as { id: string; total: number; transactions?: OrderShare["transactions"] | null }[]).map((o) => [
       o.id,
-      { total: Number(o.total), transactions: (o.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) })) },
+      { total: Number(o.total), transactions: transactionsOf(o) },
     ])
   )
 }

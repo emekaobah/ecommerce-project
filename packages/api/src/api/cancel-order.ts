@@ -1,14 +1,15 @@
 import { CANCEL_REASONS } from "@oja/domain"
 import { z } from "@medusajs/framework/zod"
-import type { FulfilmentView } from "../lib/order-fulfilment"
 import type { BuyerRefund } from "../lib/buyer-orders"
 import type { CancelPreview } from "../lib/order-cancellation"
+import type { OrderFulfilmentResponse } from "./fulfilment-response"
 
-// Cancelling an accepted order (#17) from the vendor app (`/vendor/orders/:id/cancel`) or the
-// admin (`/admin/orders/:id/cancel`): the same reasons, the same answers.
+// Cancelling an accepted order (#17) from the vendor app (`/vendor/orders/:id/cancel`,
+// `VendorCancelOrder`) or the admin (`/admin/orders/:id/cancel`, `AdminCancelOrder`): the same
+// reasons, the same answers.
 
-/** Why the order is cancelled, which its buyer is shown; `other` needs a note saying what. */
-export const CancelOrderBody = z
+/** Why the order is cancelled (`CancelRequest`), which its buyer is shown; `other` needs a note saying what. */
+export const cancelOrderBody = z
   .object({
     reason: z.enum(CANCEL_REASONS),
     note: z
@@ -20,13 +21,11 @@ export const CancelOrderBody = z
   })
   .strict()
   .refine((body) => body.reason !== "other" || !!body.note, { message: "Say why the order is cancelled", path: ["note"] })
-export type CancelOrderBodyType = z.infer<typeof CancelOrderBody>
 
 export type CancelPreviewResponse = { cancel: CancelPreview }
 
-export type CancelOrderResponse = {
-  fulfilment: FulfilmentView
-  /** All that was left of the order's share: what its buyer is refunded. */
+export type CancelOrderResponse = OrderFulfilmentResponse & {
+  /** What cancelling it refunds its buyer: all that was left of its share, less what Oja's team sends by hand. */
   refund_amount: number
   /** The refund made; null if Paystack turned it down, and the buyer is still owed it (retried, #16). */
   refund: BuyerRefund | null

@@ -1,4 +1,4 @@
-import { pickProgress, type CancelReason } from '@oja/domain';
+import { pickProgress, type CancelRequest } from '@oja/domain';
 import { ClientError } from '@oja/api-client';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -105,13 +105,12 @@ export function useRejectOrder(orderId: string) {
 
 /**
  * Whether the order can be cancelled now, and what cancelling it would refund its buyer (#17).
- * Only owners and managers may ask; pass `enabled: false` for anyone else.
+ * Only owners and managers may ask, so only the cancel screen they are offered reads it.
  */
-export function useCancelPreview(orderId: string, enabled: boolean) {
+export function useCancelPreview(orderId: string) {
   return useQuery({
     queryKey: orderKeys.cancel(orderId),
     queryFn: async () => (await vendorClient.vendor.orders.$id.cancel.query({ $id: orderId })).cancel,
-    enabled,
   });
 }
 
@@ -123,7 +122,7 @@ export function useCancelPreview(orderId: string, enabled: boolean) {
 export function useCancelOrder(orderId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (request: { reason: CancelReason; note?: string }) =>
+    mutationFn: (request: CancelRequest) =>
       vendorClient.vendor.orders.$id.cancel.mutate({ $id: orderId, ...request }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
   });

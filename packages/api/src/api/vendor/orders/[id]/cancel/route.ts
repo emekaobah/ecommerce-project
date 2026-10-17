@@ -1,7 +1,9 @@
 import type { MedusaResponse } from "@medusajs/framework/http"
 import { cancelAndRefund, cancelPreview } from "../../../../../lib/order-cancellation"
-import type { CancelOrderBodyType, CancelOrderResponse, CancelPreviewResponse } from "../../../../cancel-order"
-import { fulfilmentResponse, shopsOwnOrder, type VendorRequest } from "../../fulfilment"
+import type { CancelOrderResponse, CancelPreviewResponse } from "../../../../cancel-order"
+import { fulfilmentResponse } from "../../../../fulfilment-response"
+import { shopsOwnOrder, type VendorRequest } from "../../fulfilment"
+import type { VendorCancelOrderType } from "../../validators"
 
 /** Whether the shop can cancel its order now, and what cancelling it would refund its buyer (#17), for staff to confirm. */
 export const GET = async (req: VendorRequest, res: MedusaResponse<CancelPreviewResponse>) => {
@@ -15,7 +17,7 @@ export const GET = async (req: VendorRequest, res: MedusaResponse<CancelPreviewR
  * of its share of the checkout, never the other shops' orders'. Replaces Mercur's route, which
  * refunded the checkout's whole payment.
  */
-export const POST = async (req: VendorRequest<CancelOrderBodyType>, res: MedusaResponse<CancelOrderResponse>) => {
+export const POST = async (req: VendorRequest<VendorCancelOrderType>, res: MedusaResponse<CancelOrderResponse>) => {
   const orderId = await shopsOwnOrder(req)
   const { fulfilment, refund_amount, refund } = await cancelAndRefund(req.scope, {
     ...req.validatedBody,

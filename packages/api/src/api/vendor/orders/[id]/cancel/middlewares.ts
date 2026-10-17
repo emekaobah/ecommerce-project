@@ -1,6 +1,6 @@
 import { validateAndTransformBody } from "@medusajs/framework/http"
 import { PolicyOperation } from "@medusajs/framework/utils"
-import { CancelOrderBody } from "../../../../cancel-order"
+import { VendorCancelOrder } from "../../validators"
 import type { PolicedRoute } from "../../../../policed-route"
 
 // Cancelling an accepted order (#17) is for the shop's owners and managers (seller update,
@@ -13,7 +13,7 @@ export const vendorCancelOrderMiddlewares: PolicedRoute[] = [
   {
     method: ["POST"],
     matcher: "/vendor/orders/:id/cancel",
-    middlewares: [validateAndTransformBody(CancelOrderBody)],
+    middlewares: [validateAndTransformBody(VendorCancelOrder)],
     policies: MAY_CANCEL,
   },
 ]

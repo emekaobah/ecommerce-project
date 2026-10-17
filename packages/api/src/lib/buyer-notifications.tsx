@@ -32,6 +32,7 @@ import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
 import { sendEmail } from "./email"
 import { fulfilmentService, fulfilmentsOf, type Picks } from "./order-fulfilment"
+import { needsAttentionSince } from "./owed-refunds"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
 import type { StoredNotPlaced } from "./unplaced-checkout"
@@ -351,8 +352,8 @@ export async function askForRefundAccount(scope: Scope, refundId: string, remind
   if (!found) return
   const { refund, checkout, order } = found
   const notice: RefundNotice = { display_id: order.display_id, shop: order.seller.name, amount: Number(refund.amount), currency_code: refund.currency_code }
-  const since = refund.needs_attention_at ? new Date(refund.needs_attention_at).toISOString() : ""
-  const key = `refund-account${reminder ? `-reminder-${reminder.nth}` : ""}:${refund.id}:${since}`
+  const kind = reminder ? `refund-account-reminder-${reminder.nth}` : "refund-account"
+  const key = `${kind}:${refund.id}:${needsAttentionSince(refund)}`
   const url = refundScreen(refund.id)
   const push = refundAccountPush(notice, reminder)
   await Promise.all([
