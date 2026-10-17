@@ -1,5 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   refundOwedWorkflow,
   type RefundOwedInput,
@@ -7,7 +7,7 @@ import {
 } from "../workflows/order-fulfilment/workflows/refund-owed"
 import { tellRefundByHand } from "./buyer-notifications"
 import { errorMessage } from "./errors"
-import { allOwedRefunds, isDue, owedRefundsOf, PAYSTACK_MIN_REFUND, type OrderOwedRefund } from "./owed-refunds"
+import { allOwedRefunds, isDue, PAYSTACK_MIN_REFUND, type OrderOwedRefund } from "./owed-refunds"
 
 // What an order owes its buyer is refunded after the edit that owed it, retried with backoff
 // while Paystack refuses, and handed to Oja's team once it can't be made (#16).
@@ -16,17 +16,36 @@ type Scope = Pick<MedusaContainer, "resolve">
 
 /**
  * Tries to refund what the order owes its buyer (`refundOwedWorkflow`). A refund that is
- * left for Oja's team to send by hand is handed over (`handOver`).
+ * left for Oja's team to send by hand is handed over (`handOverNew`).
  */
 export async function refundOwed(scope: Scope, input: RefundOwedInput): Promise<RefundOwedResult> {
   const { result } = await refundOwedWorkflow(scope as MedusaContainer).run({ input })
-  if (result.owed?.state === "manual") await handOver(scope, result.owed)
+  if (result.owed) await handOverNew(scope, [result.owed])
   return result
+}
+
+/** The admin's notice of a refund handed to Oja's team: one per order and amount. */
+const handOverKey = (owed: OrderOwedRefund) => `owed-refund-by-hand:${owed.order_id}:${owed.amount}`
+
+/**
+ * Hands Oja's team each refund left for them to send by hand that isn't theirs yet: one that
+ * just became theirs, as the admin's notice of it (`handOverKey`) says.
+ */
+async function handOverNew(scope: Scope, owed: OrderOwedRefund[]): Promise<void> {
+  const manual = owed.filter((o) => o.state === "manual")
+  if (!manual.length) return
+  const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
+    entity: "notification",
+    fields: ["idempotency_key"],
+    filters: { idempotency_key: manual.map(handOverKey) },
+  })
+  const handedOver = new Set((data as { idempotency_key: string | null }[]).map((n) => n.idempotency_key))
+  for (const o of manual.filter((m) => !handedOver.has(handOverKey(m)))) await handOver(scope, o)
 }
 
 /**
  * Hands a refund Paystack can't make to Oja's team: a notice in the admin's notifications, and
- * the buyer told by push and email that the team is sending it. Each once per order and amount.
+ * the buyer told by push and email that the team is sending it.
  */
 async function handOver(scope: Scope, owed: OrderOwedRefund): Promise<void> {
   const { data } = await scope
@@ -45,7 +64,7 @@ async function handOver(scope: Scope, owed: OrderOwedRefund): Promise<void> {
       channel: "feed",
       template: "admin-ui",
       data: { title: `Refund for order #${displayId} to send by hand`, description },
-      idempotency_key: `owed-refund-by-hand:${owed.order_id}:${owed.amount}`,
+      idempotency_key: handOverKey(owed),
     }),
     tellRefundByHand(scope, owed),
   ])
@@ -57,16 +76,23 @@ export const RETRY_NOTE = "Refund owed to the buyer, retried"
 /**
  * The retry job (#16): refunds what each order owes its buyer once its retry is due (`isDue`),
  * one order at a time, each holding its refund lock, and hands to Oja's team each one Paystack
- * can't make. An order whose refund can't be tried is logged, and the others are still tried.
+ * can't make, once: one that became theirs some other way too (a shop's refund leaving less
+ * than Paystack's minimum, say). An order whose refund can't be tried is logged, and the
+ * others are still tried.
  */
 export async function retryOwedRefunds(scope: Scope, now = new Date()): Promise<void> {
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
-  for (const owed of await allOwedRefunds(scope)) {
+  const owed = await allOwedRefunds(scope)
+  try {
+    await handOverNew(scope, owed)
+  } catch (error) {
+    logger.warn(`Handing owed refunds to Oja's team failed: ${errorMessage(error)}`)
+  }
+  for (const o of owed.filter((o) => isDue(o, now))) {
     try {
-      if (owed.state === "manual") await handOver(scope, owed)
-      else if (isDue(owed, now)) await refundOwed(scope, { order_id: owed.order_id, note: RETRY_NOTE, retry_at: now.toISOString() })
+      await refundOwed(scope, { order_id: o.order_id, note: RETRY_NOTE, retry: { by: "job", at: now.toISOString() } })
     } catch (error) {
-      logger.warn(`Retrying the refund owed on order ${owed.order_id} failed: ${errorMessage(error)}`)
+      logger.warn(`Retrying the refund owed on order ${o.order_id} failed: ${errorMessage(error)}`)
     }
   }
 }
@@ -76,15 +102,11 @@ export const RETRY_NOW_NOTE = "Refund owed to the buyer, retried by Oja's staff"
 
 /**
  * Oja's staff retry an owed refund now (#16), whatever its backoff, even once it was handed
- * to them. Refused when the order owes nothing, or less than Paystack's minimum.
+ * to them. Refused when the order owes nothing, less than Paystack's minimum, or while a
+ * refund of it is still in Paystack's hands (`refundOwedWorkflow`).
  */
-export async function retryOwedRefundNow(scope: Scope, orderId: string, actor: string): Promise<RefundOwedResult> {
-  const [owed] = (await owedRefundsOf(scope, [orderId])).values()
-  if (!owed) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order ${orderId} owes its buyer no refund`)
-  if (owed.amount < PAYSTACK_MIN_REFUND) {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Paystack can't refund under ₦${PAYSTACK_MIN_REFUND}: send it by hand`)
-  }
-  return refundOwed(scope, { order_id: orderId, created_by: actor, note: RETRY_NOW_NOTE })
+export function retryOwedRefundNow(scope: Scope, orderId: string, actor: string): Promise<RefundOwedResult> {
+  return refundOwed(scope, { order_id: orderId, created_by: actor, note: RETRY_NOW_NOTE, retry: { by: "staff" } })
 }
 
 /** An owed refund as Oja's staff see it in the admin's Owed refunds list. */

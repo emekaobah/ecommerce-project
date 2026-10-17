@@ -4,9 +4,33 @@ import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { orderMoney, paymentsOfOrder, type OrderRefundRecord } from "../../../lib/order-fulfilment"
 import { owedToBuyerOf, refundableShareOf, refundPlan, type OrderSummary } from "../../../lib/order-refund"
 import type { RefundCovers } from "../../../modules/order-fulfilment/models/order-refund"
-import { refundPayment } from "./refund-payment"
+import { PaystackRequestError } from "../../../modules/paystack/client"
+import { refundPayment, type RefundPaymentInput } from "./refund-payment"
 
 type Scope = Parameters<typeof paymentsOfOrder>[0]
+
+/**
+ * Paystack refused one of a refund's payments, so none of that payment's money moved. The
+ * refunds made before it stand (`made`), and `left` of what was asked is still unrefunded.
+ */
+export class RefundRefusedError extends MedusaError {
+  constructor(
+    readonly refusal: PaystackRequestError,
+    readonly made: OrderRefundRecord[],
+    readonly left: number
+  ) {
+    super(MedusaError.Types.UNEXPECTED_STATE, refusal.message)
+  }
+}
+
+/** Refunds the payment on Paystack; one Paystack refuses is a `RefundRefusedError`. */
+async function refundOrRefuse(container: Scope, input: RefundPaymentInput, made: OrderRefundRecord[], left: number) {
+  try {
+    return await refundPayment(container, input)
+  } catch (error) {
+    throw error instanceof PaystackRequestError ? new RefundRefusedError(error, made, left) : error
+  }
+}
 
 export type RefundOrderShareInput = {
   order_id: string
@@ -35,6 +59,8 @@ export type RefundOrderShareInput = {
  * already owe the buyer, so the order's total no longer counts the refunded money as owed
  * (the web vendor panel shows total less net paid as outstanding). What the order owes is for
  * lines an order edit removed, so a refund of delivery never pays it off.
+ *
+ * A payment Paystack refuses throws a `RefundRefusedError`, with the refunds made before it.
  */
 export async function refundOrderShare(
   container: Scope,
@@ -48,17 +74,24 @@ export async function refundOrderShare(
 
   const recorded: OrderRefundRecord[] = []
   // One payment at a time: a refund Paystack turns down stops the rest, rather than racing them.
-  for (const part of plan) {
-    const refunded = await refundPayment(container, {
-      ...part,
-      currency_code: money.currency_code,
-      order_id,
-      covers,
-      earlier_refund_ids: payments.find((p) => p.id === part.payment_id)?.refunds?.map((r) => r.id) ?? [],
-      created_by,
-      note,
-      refund_reason_id,
-    })
+  for (const [i, part] of plan.entries()) {
+    const left = MathBN.convert(plan.slice(i).reduce((sum, p) => MathBN.add(sum, p.amount), MathBN.convert(0))).toNumber()
+    // Recording a refund Paystack made on the order may still fail: that is no refusal.
+    const refunded = await refundOrRefuse(
+      container,
+      {
+        ...part,
+        currency_code: money.currency_code,
+        order_id,
+        covers,
+        earlier_refund_ids: payments.find((p) => p.id === part.payment_id)?.refunds?.map((r) => r.id) ?? [],
+        created_by,
+        note,
+        refund_reason_id,
+      },
+      [...recorded],
+      left
+    )
     await orderModule.addOrderTransactions({
       order_id,
       amount: -part.amount,

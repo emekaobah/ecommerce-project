@@ -1,5 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { buyerRefund, type BuyerRefund } from "./buyer-orders"
+import { errorMessage } from "./errors"
 import { refundOwed } from "./refund-retry"
 
 type Scope = Pick<MedusaContainer, "resolve">
@@ -10,13 +12,21 @@ type Scope = Pick<MedusaContainer, "resolve">
  * (#32). Returns the refund, or null when there was nothing to refund or it wasn't made. Until
  * it is made the order still owes the buyer the amount, which keeps it off the shop's payout
  * (`payoutOf`): a refund Paystack refuses (e.g. "Insufficient balance") is retried by the
- * retry job, and one it can't make goes to Oja's team (`refundOwed`, #16).
+ * retry job, and one it can't make goes to Oja's team (`refundOwed`, #16). A refund that fails
+ * otherwise is logged, and the edit stands.
  */
 export async function refundOrderEdit(
   scope: Scope,
   edit: { order_id: string; removed_amount: number; created_by?: string; note: string }
 ): Promise<BuyerRefund | null> {
   if (edit.removed_amount <= 0) return null
-  const { refunds } = await refundOwed(scope, { order_id: edit.order_id, created_by: edit.created_by, note: edit.note })
-  return buyerRefund(refunds)
+  try {
+    const { refunds } = await refundOwed(scope, { order_id: edit.order_id, created_by: edit.created_by, note: edit.note })
+    return buyerRefund(refunds)
+  } catch (error) {
+    scope
+      .resolve(ContainerRegistrationKeys.LOGGER)
+      .error(`Refund of ${edit.removed_amount} for order ${edit.order_id} (${edit.note}) failed: ${errorMessage(error)}`)
+    return null
+  }
 }

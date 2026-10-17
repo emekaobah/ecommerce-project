@@ -7,8 +7,8 @@ import { owedToBuyerOf, type OrderSummary } from "./order-refund"
 // What an order owes its buyer and hasn't refunded (#16): lines an order edit removed (#22,
 // #32) whose refund Paystack refused, or that was never made. The amount stays derived from
 // Medusa's order summary (`owedToBuyerOf`), less what Oja's team settled by hand
-// (`refund_settlement`). Each refused attempt is an `order_refund` row that `failed`, with
-// Paystack's reason.
+// (`refund_settlement`) and any refund Paystack made that failed to be recorded on the order.
+// Each refused attempt is an `order_refund` row that `failed`, with Paystack's reason.
 
 /** Paystack refuses every refund under ₦50; such an amount goes straight to Oja's team. */
 export const PAYSTACK_MIN_REFUND = 50
@@ -106,25 +106,53 @@ type Scope = Pick<MedusaContainer, "resolve">
 /** An order's owed refund, and the order's currency. */
 export type OrderOwedRefund = OwedRefund & { order_id: string; currency_code: string }
 
+type OrderRow = {
+  id: string
+  currency_code: string
+  summary?: OrderSummary
+  transactions?: { reference?: string | null; reference_id?: string | null }[] | null
+}
+
+/**
+ * What Paystack refunded of the order's items that isn't recorded on the order: recording a
+ * refund it made failed (`refundOrderShare`), so the order's summary still counts it as owed.
+ */
+function unrecordedRefunds(order: OrderRow, refunds: { refund_id: string | null; covers: RefundCovers; status: string; amount: number }[]) {
+  const recorded = new Set((order.transactions ?? []).filter((t) => t.reference === "refund").map((t) => t.reference_id))
+  return refunds
+    .filter((r) => r.covers === "items" && r.status !== "failed" && r.refund_id && !recorded.has(r.refund_id))
+    .reduce((sum, r) => MathBN.convert(MathBN.add(sum, r.amount)).toNumber(), 0)
+}
+
 /** Each order's owed refund (`owedRefund`); an order owing its buyer nothing is left out. */
 export async function owedRefundsOf(scope: Scope, orderIds: string[]): Promise<Map<string, OrderOwedRefund>> {
   if (!orderIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const [{ data }, refunds, settlements] = await Promise.all([
-    query.graph({ entity: "order", fields: ["id", "currency_code", "summary"], filters: { id: orderIds } }),
+    query.graph({
+      entity: "order",
+      fields: ["id", "currency_code", "summary", "transactions.reference", "transactions.reference_id"],
+      filters: { id: orderIds },
+    }),
     fulfilmentService(scope).listOrderRefunds({ order_id: orderIds }),
     fulfilmentService(scope).listRefundSettlements({ order_id: orderIds }),
   ])
   const owed = new Map<string, OrderOwedRefund>()
-  for (const order of data as unknown as { id: string; currency_code: string; summary?: OrderSummary }[]) {
+  for (const order of data as unknown as OrderRow[]) {
+    const ofOrder = refunds.filter((r) => r.order_id === order.id)
     const found = owedRefund({
-      owed: owedToBuyerOf(order.summary),
+      owed: MathBN.convert(MathBN.sub(owedToBuyerOf(order.summary), unrecordedRefunds(order, ofOrder))).toNumber(),
       settlements: settlements.filter((s) => s.order_id === order.id),
-      refunds: refunds.filter((r) => r.order_id === order.id),
+      refunds: ofOrder,
     })
     if (found) owed.set(order.id, { ...found, order_id: order.id, currency_code: order.currency_code })
   }
   return owed
+}
+
+/** The order's owed refund (`owedRefundsOf`); null when it owes its buyer nothing. */
+export async function owedRefundOf(scope: Scope, orderId: string): Promise<OrderOwedRefund | null> {
+  return (await owedRefundsOf(scope, [orderId])).get(orderId) ?? null
 }
 
 /**

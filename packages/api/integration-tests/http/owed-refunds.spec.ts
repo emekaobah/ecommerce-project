@@ -1,3 +1,4 @@
+import { Modules } from "@medusajs/framework/utils"
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { formatMoney } from "@oja/domain"
 import { retryOwedRefunds } from "../../src/lib/refund-retry"
@@ -175,6 +176,15 @@ medusaIntegrationTestRunner({
         const owed = await owedRefundOf(orderId)
         expect(owed).toMatchObject({ attempts: 4, last_error: BALANCE, state: "manual", next_attempt_at: null })
         expect(await adminNoticesAbout(owed.display_id)).toHaveLength(1)
+        // Handed over once: later runs of the job leave it be.
+        const notify = jest.spyOn(getContainer().resolve(Modules.NOTIFICATION), "createNotifications")
+        try {
+          await retryOwedRefunds(getContainer(), after(start, 10 * HOUR))
+          await retryOwedRefunds(getContainer(), after(start, 11 * HOUR))
+          expect(notify).not.toHaveBeenCalled()
+        } finally {
+          notify.mockRestore()
+        }
         const [push] = await refundPushesTo(device)
         expect(push).toMatchObject({
           title: `Refund for order #${owed.display_id}`,
@@ -220,6 +230,26 @@ medusaIntegrationTestRunner({
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([100 * 100])
         expect(await owedRefundOf(orderId)).toMatchObject({ amount: RICE.price - 100, state: "retrying" })
       })
+
+      it("doesn't count a refund that failed after Paystack made it as refused, nor make it again", async () => {
+        const { orderId, reference } = await refusedRefund()
+        paystack.refuseRefunds(undefined)
+        // Paystack refunds it, then recording the refund on the order fails.
+        const record = jest
+          .spyOn(getContainer().resolve(Modules.ORDER), "addOrderTransactions")
+          .mockRejectedValueOnce(new Error("Connection terminated"))
+        try {
+          await retryOwedRefunds(getContainer(), after(Date.now(), 6 * MINUTE))
+        } finally {
+          record.mockRestore()
+        }
+
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([RICE.price * 100])
+        expect(await owedRefundOf(orderId)).toBeUndefined()
+        await settleRefunds(reference)
+        await retryAll(Date.now(), [...RETRIES, 24 * HOUR])
+        expect(paystack.refundsOf(reference)).toHaveLength(1)
+      })
     })
 
     describe("Oja's staff", () => {
@@ -256,6 +286,16 @@ medusaIntegrationTestRunner({
 
         expect(data).toMatchObject({ refunds: [expect.objectContaining({ amount: RICE.price, covers: "items" })], owed_refund: null })
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([RICE.price * 100])
+      })
+
+      it("can't retry one while a refund of the order is still in Paystack's hands", async () => {
+        const { orderId, reference } = await refusedRefund()
+        paystack.refuseRefunds(undefined)
+        await refundOrderShareWorkflow(getContainer()).run({ input: { order_id: orderId, amount: 100 } })
+
+        expect(await status(api.post(`/admin/owed-refunds/${orderId}/retry`, {}, await admin()))).toBe(409)
+
+        expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([100 * 100])
       })
 
       it("can't settle or retry an order that owes nothing, or settle without saying how", async () => {
