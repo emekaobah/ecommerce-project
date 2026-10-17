@@ -106,15 +106,26 @@ describe("deliveryStartsAt", () => {
 })
 
 describe("etaCountedFrom", () => {
-  test("moves a courier's ETA quoted now later by the wait until the start", () => {
-    expect(
-      etaCountedFrom("2026-10-06T12:00:00+01:00", new Date("2026-10-05T21:00:00+01:00"), new Date("2026-10-06T08:00:00+01:00"))
-    ).toEqual(new Date("2026-10-06T23:00:00+01:00"))
+  const opens = new Date("2026-10-06T08:00:00+01:00")
+
+  test("moves a courier's ETA later by how long before the opening it would collect", () => {
+    expect(etaCountedFrom("2026-10-06T12:00:00+01:00", "2026-10-05T21:00:00+01:00", opens)).toEqual(
+      new Date("2026-10-06T23:00:00+01:00")
+    )
   })
 
-  test("leaves it as it is when the start is now", () => {
-    const now = new Date("2026-10-05T10:00:00+01:00")
-    expect(etaCountedFrom("2026-10-06T12:00:00+01:00", now, now)).toEqual(new Date("2026-10-06T12:00:00+01:00"))
+  test("leaves it as it is when the courier collects at the opening or after", () => {
+    expect(etaCountedFrom("2026-10-07T12:00:00+01:00", "2026-10-06T08:00:00+01:00", opens)).toEqual(
+      new Date("2026-10-07T12:00:00+01:00")
+    )
+    expect(etaCountedFrom("2026-10-08T08:00:00+01:00", "2026-10-07T08:00:00+01:00", opens)).toEqual(
+      new Date("2026-10-08T08:00:00+01:00")
+    )
+  })
+
+  test("leaves it as it is when the courier gives no collection time", () => {
+    expect(etaCountedFrom("2026-10-06T12:00:00+01:00", null, opens)).toEqual(new Date("2026-10-06T12:00:00+01:00"))
+    expect(etaCountedFrom("2026-10-06T12:00:00+01:00", undefined, opens)).toEqual(new Date("2026-10-06T12:00:00+01:00"))
   })
 })
 

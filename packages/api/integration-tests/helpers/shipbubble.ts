@@ -2,9 +2,10 @@ import { createHmac, randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage, type Server } from "node:http"
 
 /**
- * A courier the fake quotes: its price, and how many hours after the request it delivers, or
- * at a set time of day `arrives.day` days after the request's day in Lagos. A request for a
- * later `pickup_date` counts from 9am that day instead.
+ * A courier the fake quotes: its price, and how many hours after its collection it delivers, or
+ * at a set time of day `arrives.day` days after the collection's day in Lagos. Like Shipbubble,
+ * the fake says when the courier collects (`pickup_eta_time`) and counts delivery from then: now
+ * for a `pickup_date` of today, `LATER_PICKUP_TIME` on a later one.
  */
 export type FakeCourier = {
   courier_id: string
@@ -97,7 +98,6 @@ export function fakeShipbubble(port: number) {
   let couriers: FakeCourier[] = Object.values(COURIERS)
   let rejected: ((v: Validation) => boolean) | undefined
   let ratesFailWith: number | undefined
-  let laterPickupsRefused = false
   let walletEmpty = false
   let server: Server | undefined
 
@@ -150,11 +150,8 @@ export function fakeShipbubble(port: number) {
       return failed(400, "Invalid address code")
     }
     const today = lagosTime(new Date()).slice(0, 10)
-    if (body.pickup_date > today && laterPickupsRefused) {
-      return failed(422, "Invalid request parameters", ["The pickup date must be today"])
-    }
-    // Counted from the pickup: now, or the morning of a later pickup date.
-    const now = body.pickup_date > today ? new Date(`${body.pickup_date}T${LATER_PICKUP_TIME}+01:00`) : new Date()
+    // When the courier collects: now, or the morning of a later pickup date. Delivery counts from then.
+    const collected = body.pickup_date > today ? new Date(`${body.pickup_date}T${LATER_PICKUP_TIME}+01:00`) : new Date()
     const quoted = couriers.map((c) => ({
       courier_id: c.courier_id,
       courier_name: c.courier_name,
@@ -166,11 +163,11 @@ export function fakeShipbubble(port: number) {
       rate_card_currency: "NGN",
       currency: "NGN",
       total: c.amount,
-      pickup_eta_time: lagosTime(now),
+      pickup_eta_time: lagosTime(collected),
       delivery_eta: `Within ${c.hours} hrs`,
       delivery_eta_time: c.arrives
-        ? lagosDayAt(now, c.arrives.day, c.arrives.at)
-        : lagosTime(new Date(now.getTime() + c.hours * 60 * 60 * 1000)),
+        ? lagosDayAt(collected, c.arrives.day, c.arrives.at)
+        : lagosTime(new Date(collected.getTime() + c.hours * 60 * 60 * 1000)),
     }))
     const request_token = `token_${randomUUID()}`
     quotedBy.set(request_token, couriers)
@@ -294,10 +291,6 @@ export function fakeShipbubble(port: number) {
     failRatesWith: (status: number | undefined) => {
       ratesFailWith = status
     },
-    /** Rate requests for a `pickup_date` after today are refused (422) from now on, until turned off. */
-    refuseLaterPickups: (refused: boolean) => {
-      laterPickupsRefused = refused
-    },
     /** Every request is refused as Shipbubble does when the wallet is empty, until turned off. */
     emptyWallet: (empty: boolean) => {
       walletEmpty = empty
@@ -320,7 +313,6 @@ export function fakeShipbubble(port: number) {
       cancellations.length = 0
       walletEmpty = false
       ratesFailWith = undefined
-      laterPickupsRefused = false
       validations.length = 0
       rateRequests.length = 0
       couriers = Object.values(COURIERS)

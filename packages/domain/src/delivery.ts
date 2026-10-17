@@ -81,11 +81,14 @@ export function deliveryStartsAt(hours: ShopHours | null, now: Date): Date {
 }
 
 /**
- * A courier's ETA (ISO 8601) quoted as if the parcel left at `quotedAt`, counted from
- * `startsAt` instead: later by the time between.
+ * A courier's ETA (ISO 8601), counted from its collection at `pickupTime` (ISO 8601), moved so
+ * the parcel is collected no sooner than `startsAt`: later by however long before it the courier
+ * would collect. As it is when the courier collects at `startsAt` or after, or gives no time.
  */
-export const etaCountedFrom = (etaTime: string, quotedAt: Date, startsAt: Date): Date =>
-  new Date(Date.parse(etaTime) + Math.max(0, startsAt.getTime() - quotedAt.getTime()))
+export const etaCountedFrom = (etaTime: string, pickupTime: string | null | undefined, startsAt: Date): Date => {
+  const eta = Date.parse(etaTime)
+  return new Date(pickupTime ? eta + Math.max(0, startsAt.getTime() - Date.parse(pickupTime)) : eta)
+}
 
 /** A delivered order's courier and when checkout said it arrives (ISO 8601), with the timezone its days are counted in. */
 export type OrderDelivery = { courier_name: string; delivery_eta_time: string; time_zone: string }

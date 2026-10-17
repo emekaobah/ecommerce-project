@@ -170,17 +170,17 @@ medusaIntegrationTestRunner({
         expect(group.shipping.delivery_eta_time).toMatch(/\+01:00$/)
       })
 
-      it("move by the wait for the opening when Shipbubble won't quote a later pickup", async () => {
-        await api.post("/vendor/shop-hours/weekly", { weekly: onlyTheDayAfterTomorrow() }, gadgets)
-        shipbubble.refuseLaterPickups(true)
+      it("move later by the gap when the courier would collect before the shop opens", async () => {
+        // Open from 10am on the day after tomorrow; the fake's couriers collect at 9am that day.
+        const day = WEEKDAYS[new Date(`${lagosDate(2)}T00:00:00Z`).getUTCDay()]
+        const lateOpening = weekly((d) => (d === day ? [{ opens: "10:00", closes: "18:00" }] : []))
+        await api.post("/vendor/shop-hours/weekly", { weekly: lateOpening }, gadgets)
 
         const group = await quoted()
 
-        // Asked for the opening day, then quoted for today.
-        expect(shipbubble.rateRequests().map((r) => r.pickup_date)).toEqual([lagosDate(2), lagosDate(0)])
-        const opens = Date.parse(lagosInstant(lagosDate(2), "08:00"))
-        const express = Date.parse(etaOf(group, COURIERS.express))
-        expect(Math.abs(express - (opens + COURIERS.express.hours * HOUR))).toBeLessThan(5000)
+        expect(shipbubble.rateRequests().map((r) => r.pickup_date)).toEqual([lagosDate(2)])
+        const opens = Date.parse(lagosInstant(lagosDate(2), "10:00"))
+        expect(Date.parse(etaOf(group, COURIERS.express))).toBe(opens + COURIERS.express.hours * HOUR)
         expect(etaOf(group, COURIERS.express)).toMatch(/\+01:00$/)
       })
 

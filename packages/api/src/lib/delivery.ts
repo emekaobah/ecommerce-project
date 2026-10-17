@@ -11,7 +11,6 @@ import {
   shipbubbleTimeOf,
   shipbubbleToday,
   type ShipbubbleQuote,
-  type ShipbubbleRateRequest,
 } from "../modules/shipbubble"
 import { shopHoursOf } from "./shop-hours"
 
@@ -437,59 +436,35 @@ async function deliveryStartOf(scope: MedusaContainer, sellerId: string, now: Da
   return deliveryStartsAt(hours, now)
 }
 
-/** Shipbubble refusing the request's `pickup_date`, rather than the parcel or the addresses. */
-const refusesPickupDate = (error: unknown) =>
-  error instanceof ShipbubbleError &&
-  !error.isAccountProblem &&
-  (error.status === 400 || error.status === 422) &&
-  [error.message, ...error.errors].some((text) => /pickup/i.test(text))
-
-/**
- * Shipbubble's rates for a parcel collected from `startsAt` on, and the day they were quoted
- * for. A later day's rates count from that day; should Shipbubble refuse a later pickup date,
- * they are quoted for today.
- */
-async function fetchRatesFrom(request: Omit<ShipbubbleRateRequest, "pickup_date">, startsAt: Date, now: Date) {
-  const today = shipbubbleToday(now)
-  const pickupDate = shipbubbleToday(startsAt)
-  const fetch = (pickup_date: string) => shipbubbleClient().fetchRates({ ...request, pickup_date })
-  if (pickupDate === today) return { rates: await fetch(today), pickupDate: today }
-  try {
-    return { rates: await fetch(pickupDate), pickupDate }
-  } catch (error) {
-    if (!refusesPickupDate(error)) throw error
-    return { rates: await fetch(today), pickupDate: today }
-  }
-}
-
 /**
  * Every courier's rate for a shop's parcel to an address code. Empty when no courier will take
  * it. Delivery counts from the shop's next opening (ADR 0004): couriers are asked to collect on
- * the day it opens, and a rate quoted for today while the shop opens later is moved by the wait.
+ * the day it opens, and a courier whose collection slot (`pickup_eta_time`) comes before the
+ * opening has its ETA moved later by the gap.
  */
 export async function quoteRates(
   scope: MedusaContainer,
   { sellerId, receiverCode, lines, currencyCode }: { sellerId: string; receiverCode: number; lines: ParcelLine[]; currencyCode: string }
 ): Promise<ShipbubbleQuote[]> {
-  const now = new Date()
   const [senderCode, parcel, startsAt] = await Promise.all([
     senderAddressCode(scope, sellerId),
     parcelOf(scope, lines),
-    deliveryStartOf(scope, sellerId, now),
+    deliveryStartOf(scope, sellerId, new Date()),
   ])
-  let quoted
+  let rates
   try {
-    quoted = await fetchRatesFrom({ sender_address_code: senderCode, reciever_address_code: receiverCode, ...parcel }, startsAt, now)
+    rates = await shipbubbleClient().fetchRates({
+      sender_address_code: senderCode,
+      reciever_address_code: receiverCode,
+      pickup_date: shipbubbleToday(startsAt),
+      ...parcel,
+    })
   } catch (error) {
     // Shipbubble answers a parcel no courier carries between the two addresses with a 400 or
     // 422. Anything else, such as a refused API key, is ours to fix, not the buyer's.
     if (error instanceof ShipbubbleError && !error.isAccountProblem && (error.status === 400 || error.status === 422)) return []
     throw error
   }
-  const { rates, pickupDate } = quoted
-  // Today's rates count from now, as if collected at once.
-  const etaOf = (eta: string) =>
-    pickupDate === shipbubbleToday(now) ? shipbubbleTimeOf(etaCountedFrom(shipbubbleTime(eta), now, startsAt)) : shipbubbleTime(eta)
   return rates.couriers
     .filter((c) => c.currency?.toLowerCase() === currencyCode.toLowerCase())
     .map((c) => ({
@@ -501,7 +476,9 @@ export async function quoteRates(
       amount: Number(c.rate_card_amount),
       currency: c.currency.toLowerCase(),
       delivery_eta: c.delivery_eta ?? null,
-      delivery_eta_time: etaOf(c.delivery_eta_time),
+      delivery_eta_time: shipbubbleTimeOf(
+        etaCountedFrom(shipbubbleTime(c.delivery_eta_time), c.pickup_eta_time ? shipbubbleTime(c.pickup_eta_time) : null, startsAt)
+      ),
       tracking_level: c.tracking_level ?? null,
     }))
 }
