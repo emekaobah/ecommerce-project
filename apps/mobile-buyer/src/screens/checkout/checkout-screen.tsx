@@ -10,6 +10,8 @@ import {
   type AddressFormValues,
   deliveryEstimate,
   formatMoney,
+  notPlacedChangeMessage,
+  notPlacedMessage,
   preselectedAddress,
   priceChangeMessage,
   savedAddressFor,
@@ -537,6 +539,7 @@ function PayBar({
         borderTopColor: theme.colors.divider,
         backgroundColor: theme.colors.background,
       }}>
+      <NotPlaced checkout={checkout} />
       <PriceChanges changes={priceChanges} currencyCode={checkout.currency_code} />
       {discountChanged ? (
         <Text tone="secondary" accessibilityLiveRegion="polite">
@@ -648,6 +651,29 @@ type Repricing = { data?: { price_changes: PriceChange[] }; submittedAt: number 
 function latestPriceChanges(...repricings: Repricing[]): PriceChange[] {
   const [latest] = repricings.filter((r) => r.data).sort((a, b) => b.submittedAt - a.submittedAt);
   return latest?.data?.price_changes ?? [];
+}
+
+/**
+ * The buyer paid, but the cart failed to become orders (#38): why, that they were refunded, and
+ * what changed in the cart, which they can now pay for again.
+ */
+function NotPlaced({ checkout }: Readonly<{ checkout: Checkout }>) {
+  const theme = useTheme();
+  const notPlaced = checkout.not_placed;
+  if (!notPlaced) return null;
+  return (
+    <View style={{ gap: theme.space.xs }} accessibilityLiveRegion="polite">
+      <Text variant="label">Your order wasn&apos;t placed</Text>
+      <Text tone="secondary">{notPlacedMessage(notPlaced, checkout.currency_code)}</Text>
+      <Text tone="secondary">A refund can take a few days to reach your card.</Text>
+      {notPlaced.changes.map((change) => (
+        <Text key={notPlacedChangeMessage(change)} tone="secondary">
+          {notPlacedChangeMessage(change)}
+        </Text>
+      ))}
+      <Text tone="secondary">{"The total below is what you'll pay if you order again."}</Text>
+    </View>
+  );
 }
 
 /** The lines a shop repriced since the buyer added them, so the new total is no surprise. */

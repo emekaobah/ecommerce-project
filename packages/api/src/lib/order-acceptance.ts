@@ -2,13 +2,13 @@ import { acceptDeadline, acceptReminderDue } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { refundOrderShareWorkflow } from "../workflows/order-fulfilment/workflows/refund-order-share"
-import { refundUnclaimedPaymentWorkflow } from "../workflows/order-fulfilment/workflows/refund-unclaimed-payment"
 import { rejectOrderWorkflow } from "../workflows/order-fulfilment/workflows/reject-order"
 import { remindAcceptDeadlineWorkflow } from "../workflows/order-fulfilment/workflows/remind-accept-deadline"
 import { errorMessage } from "./errors"
 import { asFulfilmentRecord, fulfilmentService, orderMoney, paymentsOfOrder, sellersOfOrders, type FulfilmentRecord } from "./order-fulfilment"
 import { refundPlan } from "./order-refund"
 import { shopHoursOf } from "./shop-hours"
+import { refundUnplacedPayment } from "./unplaced-checkout"
 
 // Staff accept or reject a new order; one not accepted by its deadline is rejected for them.
 // A rejected order is refunded its share of the checkout's payment (#20).
@@ -123,7 +123,9 @@ const SPLIT_GRACE_MS = 30 * 60 * 1000
 
 /**
  * Refunds in full each payment captured in the last week, and at least half an hour ago, that
- * no order claims: the checkout was paid but never became orders (ADR 0003).
+ * no order claims: the checkout was paid but never became orders (ADR 0003). The backstop to
+ * the check made right after Paystack's webhook (#38), under the same lock: a payment refunded
+ * there has nothing left to refund here.
  */
 export async function refundUnclaimedPayments(scope: Scope, now = new Date()) {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -137,7 +139,7 @@ export async function refundUnclaimedPayments(scope: Scope, now = new Date()) {
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
   for (const { id } of payments as { id: string }[]) {
     try {
-      await refundUnclaimedPaymentWorkflow(scope as MedusaContainer).run({ input: { payment_id: id } })
+      await refundUnplacedPayment(scope, id)
     } catch (error) {
       logger.error(`Refund of unclaimed payment ${id} failed: ${errorMessage(error)}`)
     }

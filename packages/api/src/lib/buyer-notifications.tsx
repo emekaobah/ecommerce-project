@@ -2,20 +2,25 @@ import {
   addressLines,
   buyerStatusPush,
   itemsRemovedPush,
+  notPlacedPush,
+  refundByHandPush,
   refundCompletedPush,
   openingLabel,
   orderConfirmedPush,
   PRODUCT_NAME,
   shopStatus,
   type FulfilmentState,
+  type RefundNotice,
   type StoredAddress,
 } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { ReactElement } from "react"
+import { CheckoutNotPlacedEmail } from "../emails/checkout-not-placed"
 import { DeliveryReceiptEmail } from "../emails/delivery-receipt"
 import { OrderConfirmationEmail } from "../emails/order-confirmation"
 import type { EmailShopOrder } from "../emails/parts"
+import { RefundByHandEmail } from "../emails/refund-by-hand"
 import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
@@ -23,6 +28,7 @@ import { sendEmail } from "./email"
 import { fulfilmentService, fulfilmentsOf, type Picks } from "./order-fulfilment"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
+import type { StoredNotPlaced } from "./unplaced-checkout"
 
 // What buyers are told about their orders (#5): a confirmation once their checkout is paid and
 // a receipt once a shop's order is delivered, each by email and push, and a push as each shop's
@@ -242,6 +248,33 @@ export async function pushItemsRemoved(
   })
 }
 
+/**
+ * Tells the buyer, by push and email, that Oja's team is sending a refund of their order by
+ * hand (#16): Paystack can't make it. Once per order and amount, however often it is asked.
+ */
+export async function tellRefundByHand(scope: Scope, { order_id: orderId, amount }: { order_id: string; amount: number }): Promise<void> {
+  const found = await buyerOrder(scope, orderId)
+  if (!found) return
+  const { checkout, order } = found
+  const refund: RefundNotice = { display_id: order.display_id, shop: order.seller.name, amount, currency_code: order.currency_code }
+  const key = `refund-by-hand:${orderId}:${amount}`
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "refund-by-hand",
+      subject: `Your ${PRODUCT_NAME} refund for order #${order.display_id}`,
+      body: <RefundByHandEmail refund={refund} />,
+      key,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-refund-by-hand",
+      ...refundByHandPush(refund),
+      data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+      idempotencyKey: (to) => `buyer-${key}:${to}`,
+      about: `the refund owed on order ${orderId}`,
+    }),
+  ])
+}
+
 /** Pushes the buyer that a refund of their order has completed: Paystack processed it. */
 export async function pushRefundCompleted(scope: Scope, refundId: string): Promise<void> {
   const [refund] = await fulfilmentService(scope).listOrderRefunds({ id: refundId })
@@ -261,4 +294,41 @@ export async function pushRefundCompleted(scope: Scope, refundId: string): Promi
     idempotencyKey: (to) => `buyer-refund-completed:${refund.id}:${to}`,
     about: `the refund ${refund.id}`,
   })
+}
+
+/** The buyer app's checkout for a cart, which a push about a cart that wasn't placed opens. */
+const checkoutScreen = (cartId: string) => `/checkout?cartId=${cartId}`
+
+/** A paid cart that failed to become orders (#38), as the buyer is told about it. */
+export type CartNotPlaced = {
+  cart_id: string
+  customer_id: string | null
+  email: string | null
+  not_placed: StoredNotPlaced
+}
+
+/**
+ * Tells the buyer, by email and on each of their devices, that their paid cart failed to become
+ * orders (#38): why, what they were refunded (it can take a few days to reach the card), and
+ * what changed in the cart for them to pay again.
+ */
+export async function tellCartNotPlaced(scope: Scope, { cart_id, customer_id, email, not_placed }: CartNotPlaced): Promise<void> {
+  const { currency_code: currency, changes, refund_id } = not_placed
+  const push = notPlacedPush(not_placed, currency)
+  await Promise.all([
+    emailBuyer(scope, email, {
+      template: "checkout-not-placed",
+      subject: `Your ${PRODUCT_NAME} order wasn't placed: you've been refunded`,
+      body: <CheckoutNotPlacedEmail not_placed={not_placed} currency={currency} changes={changes} />,
+      key: `checkout-not-placed:${refund_id}`,
+    }),
+    customer_id &&
+      pushToDevices(scope, await buyerDevices(scope, customer_id), {
+        template: "buyer-checkout-not-placed",
+        ...push,
+        data: { url: checkoutScreen(cart_id), cart_id },
+        idempotencyKey: (to) => `buyer-checkout-not-placed:${refund_id}:${to}`,
+        about: `cart ${cart_id} not being placed`,
+      }),
+  ])
 }

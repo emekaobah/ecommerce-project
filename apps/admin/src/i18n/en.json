@@ -27,6 +27,39 @@
     "refunded": "Delivery refunded.",
     "hint": "Oja keeps the delivery fee, so a refund of it never comes off the shop's payout. Shops refund only items."
   },
+  "owedRefunds": {
+    "title": "Owed refunds",
+    "description": "Refunds orders owe their buyers that Paystack refused or can't make. Each is retried 5 minutes, an hour and 6 hours after a refusal; after that, or under Paystack's ₦50 minimum, send it by hand and mark it settled.",
+    "loadError": "Could not load the owed refunds.",
+    "empty": "No order owes its buyer a refund.",
+    "order": "Order",
+    "buyer": "Buyer",
+    "amount": "Owed",
+    "attempts": "Attempts",
+    "lastError": "Last error",
+    "nextAttempt": "Next retry {{at}}",
+    "states": {
+      "retrying": "Retrying",
+      "manual": "Send by hand"
+    },
+    "retry": "Retry now",
+    "refunded": "Refunded.",
+    "stillOwed": "Paystack refused it again: {{error}}",
+    "settle": "Mark settled",
+    "settleTitle": "Settle the refund for order #{{order}}",
+    "settleAmount": "{{amount}} sent to the buyer by hand.",
+    "method": "How it was sent",
+    "methods": {
+      "bank_transfer": "Bank transfer",
+      "other": "Other"
+    },
+    "note": "Note",
+    "notePlaceholder": "The transfer's reference, or what was done",
+    "settleHint": "A settled refund is no longer retried. It still comes off the shop's payout.",
+    "settleConfirm": "Mark settled",
+    "settled": "Marked settled.",
+    "cancel": "Cancel"
+  },
   "perishable": {
     "title": "Perishable",
     "loadError": "Could not load whether this is perishable.",

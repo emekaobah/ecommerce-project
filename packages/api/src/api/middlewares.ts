@@ -44,6 +44,7 @@ import { StoreGetPublishedReviews } from "./store/reviews/validators";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { AdminRefundDelivery } from "./admin/orders/[id]/delivery-refund/validators";
+import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
 import { reportServerErrors } from "./report-server-errors";
@@ -295,6 +296,12 @@ export default defineMiddlewares({
             method: ["POST"],
             matcher: "/admin/orders/:id/delivery-refund",
             middlewares: [validateAndTransformBody(AdminRefundDelivery)],
+        },
+        // Oja's staff settle by hand a refund Paystack can't make (#16).
+        {
+            method: ["POST"],
+            matcher: "/admin/owed-refunds/:id/settle",
+            middlewares: [validateAndTransformBody(AdminSettleOwedRefund)],
         },
         // A shop's onboarding checklist, pickup address and bank account (#26).
         ...vendorOnboardingMiddlewares,

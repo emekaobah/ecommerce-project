@@ -338,12 +338,14 @@ medusaIntegrationTestRunner({
         expect(paystack.refundsOf(current.reference)).toEqual([])
       })
 
-      it("refunds in full a payment captured for a checkout that never became orders, once it has had time to", async () => {
+      it("refunds in full a payment captured for a checkout that never became orders, once it has had time to, when the refund at once failed", async () => {
         const cartId = await buyer.adasCart()
         await buyer.prepare(cartId)
         const { reference } = await buyer.startPayment(cartId)
         paystack.pay(reference)
-        // The lantern sells out between paying and Paystack's webhook, so the split fails.
+        // The lantern sells out between paying and Paystack's webhook, so the split fails, and
+        // Paystack turns down the refund made right after (#38): the job is the backstop.
+        paystack.refuseRefunds("Insufficient balance")
         const inventory = getContainer().resolve(Modules.INVENTORY)
         const { data: offers } = await buyer.query().graph({
           entity: "offer",
@@ -357,8 +359,11 @@ medusaIntegrationTestRunner({
         try {
           await buyer.postWebhook(paystack.chargeSuccess(reference))
           const payment = await eventually(() => buyer.paymentOf(cartId), (p) => !!p?.captured_at, 150)
-          await new Promise((resolve) => setTimeout(resolve, 3000))
+          // The cart is checked, tried again and refunded a few seconds after the capture.
+          await new Promise((resolve) => setTimeout(resolve, 10000))
           expect(await buyer.ordersOfCart(cartId)).toEqual([])
+          expect(paystack.refundsOf(reference)).toEqual([])
+          paystack.refuseRefunds(undefined)
 
           await refundUnclaimedPayments(getContainer())
           expect(paystack.refundsOf(reference)).toEqual([])
@@ -371,6 +376,7 @@ medusaIntegrationTestRunner({
           await refundUnclaimedPayments(getContainer(), new Date(Date.now() + 2 * HOUR))
           expect(paystack.refundsOf(reference)).toHaveLength(1)
         } finally {
+          paystack.refuseRefunds(undefined)
           await inventory.updateInventoryLevels([
             { inventory_item_id: level.inventory_item_id, location_id: level.location_id, stocked_quantity: level.stocked_quantity },
           ])

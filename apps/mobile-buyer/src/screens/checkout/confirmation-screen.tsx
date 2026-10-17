@@ -20,11 +20,20 @@ export function ConfirmationScreen() {
   const { cartId } = useLocalSearchParams<{ cartId: string }>();
   const checkout = useCheckout(cartId, { waitForOrder: true });
   const orderGroupId = checkout.data?.order_group_id;
+  const notPlaced = !!checkout.data?.not_placed;
   const slow = useElapsed(CONFIRMATION_WAIT_MS);
   const { forgetCart } = useCartSession();
   const queryClient = useQueryClient();
   // A shop paid for on its own (#11) had a shop cart: the app's cart keeps the other shops.
   const paidAppCart = useIsAppCart(cartId);
+
+  // Paid, but the cart didn't become orders and was refunded (#38): checkout says why, and what
+  // changed in the cart, for the buyer to pay again.
+  useEffect(() => {
+    if (!notPlaced) return;
+    void queryClient.invalidateQueries({ queryKey: cartKeys.all });
+    router.dismissTo({ pathname: '/checkout', params: { cartId } });
+  }, [notPlaced, cartId, queryClient]);
 
   // The cart is now orders: the next thing added starts a new one.
   useEffect(() => {

@@ -1,4 +1,5 @@
 import type { FulfilmentState } from "./fulfilment"
+import { formatMoney } from "./money"
 
 /**
  * How the buyer app shows its order history (#17): each checkout is an order group, split into
@@ -57,6 +58,26 @@ const REFUNDS: Record<RefundStatus, StatusView> = {
 /** Where a rejected order's refund is, as its buyer reads it; null while there is none. */
 export function refundStatus(refund: OrderRefundView | null): StatusView | null {
   return refund ? REFUNDS[refund.status] : null
+}
+
+/**
+ * Where a refund an order owes its buyer is (#16): `retrying` while the retry job still tries
+ * it, `manual` once Oja's team sends it themselves (Paystack can't make it, or every retry failed).
+ */
+export type OwedRefundState = "retrying" | "manual"
+
+/** A refund the order owes its buyer and hasn't made (#16), and where it is. */
+export type OwedRefundView = { amount: number; state: OwedRefundState }
+
+/** Where a refund the order still owes is, as its buyer reads it; null while it owes none. */
+export function owedRefundStatus(owed: OwedRefundView | null, currencyCode: string): StatusView | null {
+  if (!owed) return null
+  const amount = formatMoney(owed.amount, currencyCode)
+  return {
+    label: "Refund pending",
+    tone: "warning",
+    note: owed.state === "manual" ? `Our team is sending your ${amount} refund` : `Refund of ${amount} pending`,
+  }
 }
 
 /** Where a shop's order is, as its buyer reads it; a rejected order says why. */

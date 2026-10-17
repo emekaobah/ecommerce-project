@@ -8,7 +8,8 @@
     "skipLibCheck": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "types": ["bun"]
+    "types": ["bun"],
+    "jsx": "react-jsx"
   },
   "include": ["src"]
 }

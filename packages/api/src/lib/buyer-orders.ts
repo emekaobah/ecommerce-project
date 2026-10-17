@@ -14,6 +14,7 @@ import {
   type Picks,
   type PlacedOrder,
 } from "./order-fulfilment"
+import { failedSinceLastMade, owedRefundsOf, type OwedRefund } from "./owed-refunds"
 import { HOLD_LINE_FIELDS, holdLinesOf } from "./pickup-hold"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
@@ -54,6 +55,11 @@ export type BuyerOrder = {
   paid_total: number
   /** What has been refunded of it, and where that is; null while nothing has been. */
   refund: BuyerRefund | null
+  /**
+   * A refund the order owes and hasn't made (#16), and where it is: still `retrying`, or
+   * `manual` once Oja's team sends it by hand; null while it owes nothing.
+   */
+  owed_refund: BuyerOwedRefund | null
   /** Where and when to collect a pickup order, and its code once ready (#12); null for a delivered order. */
   pickup: BuyerPickup | null
   /** Whether the buyer may review its shop and products (#7): once they have received it. */
@@ -91,7 +97,10 @@ function buyerPickup(record: FulfilmentRecord | undefined, place: CollectionPlac
 /** An order's refunds as its buyer sees them: what comes back, and how far it has got. */
 export type BuyerRefund = { amount: number; status: PaystackRefundStatus }
 
-type RefundRow = { amount: unknown; status: string; created_at: Date | string }
+/** A refund the order owes its buyer, as the buyer sees it (#16). */
+export type BuyerOwedRefund = Pick<OwedRefund, "amount" | "state">
+
+type RefundRow = { amount: unknown; status: string; created_at: Date | string; failure_reason?: string | null }
 
 /** The least settled first: the buyer is told about the refund that's furthest from done. */
 const LEAST_SETTLED: PaystackRefundStatus[] = ["needs-attention", "failed", "pending", "processing", "processed"]
@@ -100,13 +109,12 @@ const LEAST_SETTLED: PaystackRefundStatus[] = ["needs-attention", "failed", "pen
  * Sums an order's refunds (`order_refund` rows) into what its buyer sees. A failed refund is
  * made again as a new refund, so one followed by a later refund no longer counts; until then
  * the refund is delayed. Failed attempts since then are tries at the same refund: only the
- * latest counts.
+ * latest counts. A refund Paystack refused was never made, so it isn't one: what it was for is
+ * still owed (`owed_refund`).
  */
-export function buyerRefund(rows: RefundRow[]): BuyerRefund | null {
-  const time = (r: RefundRow) => new Date(r.created_at).getTime()
-  const lastMade = Math.max(-Infinity, ...rows.filter((r) => r.status !== "failed").map(time))
-  const stillFailed = rows.filter((r) => r.status === "failed" && time(r) > lastMade)
-  const latestFailed = stillFailed.reduce<RefundRow | undefined>((a, r) => (!a || time(r) > time(a) ? r : a), undefined)
+export function buyerRefund(all: RefundRow[]): BuyerRefund | null {
+  const rows = all.filter((r) => !r.failure_reason)
+  const latestFailed = failedSinceLastMade(rows).at(-1)
   const counted = [...rows.filter((r) => r.status !== "failed"), ...(latestFailed ? [latestFailed] : [])]
   if (!counted.length) return null
   const statuses = new Set(counted.map((r) => r.status))
@@ -115,6 +123,9 @@ export function buyerRefund(rows: RefundRow[]): BuyerRefund | null {
     status: LEAST_SETTLED.find((s) => statuses.has(s)) ?? "pending",
   }
 }
+
+const buyerOwedRefund = (owed: OwedRefund | undefined): BuyerOwedRefund | null =>
+  owed ? { amount: owed.amount, state: owed.state } : null
 
 /** A checkout, as its buyer sees it: the shops' orders it was split into. */
 export type BuyerOrderGroup = {
@@ -198,10 +209,11 @@ async function withOrders(scope: Scope, customerId: string, groups: GroupRow[]):
 async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Promise<Map<string, BuyerOrder>> {
   if (!ids.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [{ data }, fulfilments, refunds, reviews] = await Promise.all([
+  const [{ data }, fulfilments, refunds, owed, reviews] = await Promise.all([
     query.graph({ entity: "order", fields: ORDER_FIELDS, filters: { id: ids } }),
     fulfilmentsOf(scope, ids),
     fulfilmentService(scope).listOrderRefunds({ order_id: ids }),
+    owedRefundsOf(scope, ids),
     buyerReviews(scope, customerId),
   ])
   const sellerIds = (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : []))
@@ -221,6 +233,7 @@ async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Pro
           ...buyerOrder(o, record?.removed ?? {}),
           fulfilment: buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o), lines: lines.get(o.id) }, shopHours),
           refund: buyerRefund(refundsOf(o.id)),
+          owed_refund: buyerOwedRefund(owed.get(o.id)),
           pickup: buyerPickup(record, places.get(o.seller?.id)),
           // An order without a fulfilment row yet is New.
           can_review: canReview(record?.state ?? "new"),
@@ -254,7 +267,7 @@ function paidTotal(o: any): number {
   return captures.reduce((sum, t) => sum + Number(t!.amount), 0)
 }
 
-function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund" | "pickup" | "can_review" | "reviews"> {
+function buyerOrder(o: any, removed: Picks): Omit<BuyerOrder, "fulfilment" | "refund" | "owed_refund" | "pickup" | "can_review" | "reviews"> {
   return {
     id: o.id,
     display_id: o.display_id,
