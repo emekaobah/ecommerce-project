@@ -1,8 +1,15 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getOrderGroupDetailWorkflow } from "@mercurjs/core/workflows"
-import { getLastPaymentStatus } from "@mercurjs/core/workflows/order-group/utils/aggregate-status"
-import { ownPaymentStatus, paymentShare, transactionsOf, type OrderShare, type OrderTransaction, type PaymentCollection } from "./shop-order"
+import {
+  ownPaymentStatus,
+  paymentShare,
+  paymentStatusOf,
+  transactionsOf,
+  type OrderShare,
+  type OrderTransaction,
+  type PaymentCollection,
+} from "./shop-order"
 
 // Oja's operators see a checkout split across shops two ways (#14): each order with its own
 // payment status, from its own share of the checkout's payment as the shop sees it
@@ -18,7 +25,10 @@ type OrderRow = {
   cart?: { payment_collection?: PaymentCollection | null } | null
 }
 
-/** Each order and its checkout's payment collection, which Mercur keeps on the cart it split. */
+/**
+ * Each order, its checkout's payment collection, which Mercur keeps on the cart it split, and
+ * its own payment status from its share of it (none when the payment can't be found).
+ */
 async function ordersWithCheckoutPayment(scope: MedusaContainer, orderIds: string[]) {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
@@ -37,20 +47,23 @@ async function ordersWithCheckoutPayment(scope: MedusaContainer, orderIds: strin
     filters: { id: orderIds },
   })
   return (data as unknown as OrderRow[]).map((order) => {
-    const collection = order.cart?.payment_collection
+    const found = order.cart?.payment_collection
+    const share: OrderShare = { total: Number(order.total), transactions: transactionsOf(order) }
+    const collection = found
+      ? {
+          ...found,
+          amount: Number(found.amount ?? 0),
+          authorized_amount: Number(found.authorized_amount ?? 0),
+          captured_amount: Number(found.captured_amount ?? 0),
+          refunded_amount: Number(found.refunded_amount ?? 0),
+        }
+      : null
     return {
       id: order.id,
       currency_code: order.currency_code,
-      share: { total: Number(order.total), transactions: transactionsOf(order) } satisfies OrderShare,
-      collection: collection
-        ? {
-            ...collection,
-            amount: Number(collection.amount ?? 0),
-            authorized_amount: Number(collection.authorized_amount ?? 0),
-            captured_amount: Number(collection.captured_amount ?? 0),
-            refunded_amount: Number(collection.refunded_amount ?? 0),
-          }
-        : null,
+      share,
+      collection,
+      payment_status: collection ? ownPaymentStatus(order, [collection], share) : null,
     }
   })
 }
@@ -59,9 +72,7 @@ async function ordersWithCheckoutPayment(scope: MedusaContainer, orderIds: strin
 export async function ownPaymentStatuses(scope: MedusaContainer, orderIds: string[]): Promise<Map<string, string>> {
   if (!orderIds.length) return new Map()
   const orders = await ordersWithCheckoutPayment(scope, orderIds)
-  return new Map(
-    orders.flatMap((o) => (o.collection ? [[o.id, ownPaymentStatus(o, [o.collection], o.share)] as const] : []))
-  )
+  return new Map(orders.flatMap((o) => (o.payment_status ? [[o.id, o.payment_status] as const] : [])))
 }
 
 export type CheckoutOrder = {
@@ -140,7 +151,7 @@ export async function checkoutOfOrder(scope: MedusaContainer, orderId: string): 
         display_id: order.display_id,
         shop: order.seller?.name ?? null,
         total: Number(order.total),
-        payment_status: row?.collection ? ownPaymentStatus(row, [row.collection], row.share) : order.payment_status,
+        payment_status: row?.payment_status ?? order.payment_status,
         fulfillment_status: order.fulfillment_status,
         captured_amount: share?.captured_amount ?? 0,
         refunded_amount: share?.refunded_amount ?? 0,
@@ -148,7 +159,7 @@ export async function checkoutOfOrder(scope: MedusaContainer, orderId: string): 
     }),
     payment: collection
       ? {
-          status: getLastPaymentStatus({ currency_code: currency, payment_collections: [collection] } as never),
+          status: paymentStatusOf({ currency_code: currency, payment_collections: [collection] }),
           amount: collection.amount,
           captured_amount: collection.captured_amount,
           refunded_amount: collection.refunded_amount,

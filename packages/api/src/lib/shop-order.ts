@@ -1,3 +1,4 @@
+import type { OrderDetailDTO } from "@medusajs/framework/types"
 import { getLastPaymentStatus } from "@mercurjs/core/workflows/order-group/utils/aggregate-status"
 
 // A shop sees its own order: never another shop's price, nor what the buyer spent at other
@@ -10,6 +11,15 @@ export type OrderTransaction = { amount: number; reference: string | null; refer
 /** An order's transactions, each amount a number: the query graph reads them as big numbers. */
 export const transactionsOf = (order: { transactions?: OrderTransaction[] | null }): OrderTransaction[] =>
   (order.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) }))
+
+/** What Mercur's `getLastPaymentStatus` reads of an order: its currency, and its payment collections' amounts and statuses. */
+export type PaymentStatusInput = {
+  currency_code?: string
+  payment_collections: { status?: string; amount?: number; captured_amount?: number; refunded_amount?: number }[]
+}
+
+/** Mercur's payment status for an order's payment collections. It is typed for a whole order, but reads only these. */
+export const paymentStatusOf = (order: PaymentStatusInput): string => getLastPaymentStatus(order as unknown as OrderDetailDTO)
 
 /** The order's part of its checkout's payment: its total, and what was captured and refunded for it. */
 export type OrderShare = { total: number; transactions: OrderTransaction[] }
@@ -138,7 +148,7 @@ export function paymentShare(collection: PaymentCollection, share: OrderShare): 
  */
 export function ownPaymentStatus(order: Pick<VendorOrder, "currency_code">, collections: PaymentCollection[], share: OrderShare) {
   const payment_collections = collections.map((collection) => paymentShare(collection, share))
-  return getLastPaymentStatus({ currency_code: order.currency_code, payment_collections } as never) as string
+  return paymentStatusOf({ currency_code: order.currency_code, payment_collections })
 }
 
 /** A checkout's payment as a shop in it may see it: the shop's order's share (see `paymentShare`). */
@@ -168,8 +178,9 @@ export function shopOrderView(order: VendorOrder, share: OrderShare): ShopOrder 
   const view: ShopOrder = { ...rest }
   if (rest.items) view.items = rest.items.map((line) => ownLinePrice(line, rest.currency_code))
   if (collections) {
-    view.payment_collections = collections.map((collection) => paymentShare(collection, share))
-    view.payment_status = getLastPaymentStatus(view as never)
+    const payment_collections = collections.map((collection) => paymentShare(collection, share))
+    view.payment_collections = payment_collections
+    view.payment_status = paymentStatusOf({ currency_code: rest.currency_code, payment_collections })
   }
   return view
 }
