@@ -7,8 +7,6 @@ import {
   fulfilmentService,
   fulfilmentsOf,
   fulfilmentView,
-  HOLD_LINE_FIELDS,
-  holdLinesOf,
   METHOD_FIELDS,
   methodOfOrder,
   type FulfilmentRecord,
@@ -16,6 +14,7 @@ import {
   type Picks,
   type PlacedOrder,
 } from "./order-fulfilment"
+import { HOLD_LINE_FIELDS, holdLinesOf } from "./pickup-hold"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
 

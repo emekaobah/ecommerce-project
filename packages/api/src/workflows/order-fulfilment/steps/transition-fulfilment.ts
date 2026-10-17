@@ -65,9 +65,10 @@ export const checkTransitionStep = createStep(
 /**
  * Moves the order's fulfilment on by the trigger, or refuses a trigger its state doesn't allow.
  * Records when the order reached its new state (#25). An order reaching Delivered or Collected,
- * by whichever trigger, may now be paid out, as may one Not collected with perishable lines kept (#32); a shipment cancelled back to Packed may be alerted
- * about again; a pickup order Ready for pickup is issued its code (#12). A new state emits
- * `order_fulfilment.state_changed` once the workflow succeeds.
+ * by whichever trigger, may now be paid out, as may one Not collected with perishable lines
+ * kept (#32); a shipment cancelled back to Packed may be alerted about again; a pickup order
+ * Ready for pickup is issued its code (#12). A new state emits `order_fulfilment.state_changed`
+ * once the workflow succeeds.
  */
 export const transitionFulfilmentStep = createStep(
   "transition-order-fulfilment",

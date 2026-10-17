@@ -1,18 +1,15 @@
 import { transition } from "@oja/domain"
-import { ContainerRegistrationKeys, MathBN, MedusaError } from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { asFulfilmentRecord, fulfilmentService, fulfilmentsOf, type FulfilmentRecord, type Picks } from "../../../lib/order-fulfilment"
 import { itemsOf } from "../../../lib/order-picking"
 
-type Scope = Parameters<typeof fulfilmentsOf>[0]
-
 /** Each line's quantity once its unavailable units are gone, for the order edit, and the units removed of each. */
-export type RemovalPlan = { items: { id: string; quantity: number }[]; units: Picks; total_before: number }
+export type RemovalPlan = { items: { id: string; quantity: number }[]; units: Picks }
 
 /**
  * Works out the order edit that removes the units marked unavailable: each marked line's new
- * quantity, and the order's total before it. Refuses an order with nothing marked, and one
- * that would be left with nothing to send.
+ * quantity. Refuses an order with nothing marked, and one that would be left with nothing to send.
  */
 export const planRemovalStep = createStep("plan-unavailable-removal", async ({ order_id }: { order_id: string }, { container }) => {
   const record = (await fulfilmentsOf(container, [order_id])).get(order_id)
@@ -33,19 +30,18 @@ export const planRemovalStep = createStep("plan-unavailable-removal", async ({ o
       `Every item of order ${order_id} is marked unavailable: there would be nothing left to send`
     )
   }
-  return new StepResponse<RemovalPlan>({ items, units: Object.fromEntries(marked), total_before: await orderTotal(container, order_id) })
+  return new StepResponse<RemovalPlan>({ items, units: Object.fromEntries(marked) })
 })
 
 type Compensation = Pick<FulfilmentRecord, "id" | "state" | "fulfilment" | "unavailable" | "removed">
 
 /**
  * Once the order edit is confirmed: the marked units are recorded as removed, the marks are
- * cleared and the order goes back to Picking. Returns the fulfilment and what the edit took
- * off the order's total, which is what the buyer is owed.
+ * cleared and the order goes back to Picking. Returns the fulfilment.
  */
 export const recordRemovalStep = createStep(
   "record-unavailable-removal",
-  async ({ order_id, actor, total_before }: { order_id: string; actor: string; total_before: number }, { container }) => {
+  async ({ order_id, actor }: { order_id: string; actor: string }, { container }) => {
     const record = (await fulfilmentsOf(container, [order_id])).get(order_id)!
     const removed: Picks = { ...record.removed }
     for (const [id, count] of Object.entries(record.unavailable ?? {})) removed[id] = (removed[id] ?? 0) + count
@@ -58,7 +54,6 @@ export const recordRemovalStep = createStep(
       state: moved.fulfilment.state,
       fulfilment: moved.fulfilment,
     })
-    const removedAmount = MathBN.convert(MathBN.sub(total_before, await orderTotal(container, order_id))).toNumber()
     const previous: Compensation = {
       id: record.id,
       state: record.state,
@@ -66,15 +61,9 @@ export const recordRemovalStep = createStep(
       unavailable: record.unavailable,
       removed: record.removed,
     }
-    return new StepResponse({ fulfilment: asFulfilmentRecord(saved), removed_amount: removedAmount }, previous)
+    return new StepResponse(asFulfilmentRecord(saved), previous)
   },
   async (previous: Compensation | undefined, { container }) => {
     if (previous) await fulfilmentService(container).updateOrderFulfilments(previous)
   }
 )
-
-async function orderTotal(container: Scope, orderId: string): Promise<number> {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "order", fields: ["id", "total"], filters: { id: orderId } })
-  return Number(data[0]?.total ?? 0)
-}

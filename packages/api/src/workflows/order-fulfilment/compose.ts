@@ -1,7 +1,16 @@
 import type { ProviderEventType, StaffActionType } from "@oja/domain"
-import { acquireLockStep, emitEventStep, markOrderFulfillmentAsDeliveredWorkflow } from "@medusajs/medusa/core-flows"
+import { confirmOrderEditRequestWorkflow } from "@mercurjs/core/workflows"
+import {
+  acquireLockStep,
+  beginOrderEditOrderWorkflow,
+  emitEventStep,
+  markOrderFulfillmentAsDeliveredWorkflow,
+  orderEditUpdateItemQuantityWorkflow,
+  requestOrderEditRequestWorkflow,
+} from "@medusajs/medusa/core-flows"
 import { transform, when, type WorkflowData } from "@medusajs/framework/workflows-sdk"
 import { ORDER_DELIVERED, type FulfilmentRecord } from "../../lib/order-fulfilment"
+import { orderTotalBeforeEditStep, removedByEditStep } from "./steps/edit-order-lines"
 
 // Pieces the order-fulfilment workflows are composed from.
 
@@ -14,6 +23,35 @@ export function lockOrderFulfilment(input: { order_id: string }, ttl = 30) {
   const key = transform({ input }, ({ input }) => `order-fulfilment:${input.order_id}`)
   acquireLockStep({ key, timeout: 5, ttl })
   return key
+}
+
+/** An order edit setting the order's lines to these quantities, made by `actor`: a member, or the system. */
+export type OrderLinesEdit = { order_id: string; items: { id: string; quantity: number }[]; actor: string; note: string }
+
+/**
+ * Sets the order's lines to the edit's quantities through the same order edit Mercur's
+ * `/vendor/order-edits` routes make (begin, set each line's quantity, request, confirm), so the
+ * order's total, its stock reservations and the shop's commission follow (#22, #32). Returns
+ * what the edit took off the order's total, which the buyer is owed until it is refunded
+ * (`refundOrderEdit`). Four order-edit workflows run, so the caller's lock needs a long ttl.
+ */
+export function editOrderLines(edit: WorkflowData<OrderLinesEdit>) {
+  const totalBefore = orderTotalBeforeEditStep(transform({ edit }, ({ edit }) => ({ order_id: edit.order_id })))
+  beginOrderEditOrderWorkflow.runAsStep({
+    input: transform({ edit }, ({ edit }) => ({ order_id: edit.order_id, created_by: edit.actor, description: edit.note })),
+  })
+  orderEditUpdateItemQuantityWorkflow.runAsStep({
+    input: transform({ edit }, ({ edit }) => ({ order_id: edit.order_id, items: edit.items })),
+  })
+  requestOrderEditRequestWorkflow.runAsStep({
+    input: transform({ edit }, ({ edit }) => ({ order_id: edit.order_id, requested_by: edit.actor })),
+  })
+  confirmOrderEditRequestWorkflow.runAsStep({
+    input: transform({ edit }, ({ edit }) => ({ order_id: edit.order_id, confirmed_by: edit.actor })),
+  })
+  return removedByEditStep(
+    transform({ edit, totalBefore }, ({ edit, totalBefore }) => ({ order_id: edit.order_id, total_before: totalBefore }))
+  )
 }
 
 /** A shipment event the provider reported about the order, now: the one `typeOf` reads from the input. */

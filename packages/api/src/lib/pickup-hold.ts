@@ -1,71 +1,70 @@
+import { collectBy, type ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { refundOrderShareWorkflow } from "../workflows/order-fulfilment/workflows/refund-order-share"
-import { expirePickupHoldWorkflow } from "../workflows/order-fulfilment/workflows/expire-pickup-hold"
-import { errorMessage } from "./errors"
-import {
-  asFulfilmentRecord,
-  collectByOf,
-  fulfilmentService,
-  HOLD_LINE_FIELDS,
-  holdLinesOf,
-  NOT_COLLECTED_NOTE,
-  sellersOfOrders,
-  type OrderLineRow,
-} from "./order-fulfilment"
-import { shopHoursOf } from "./shop-hours"
+import type { FulfilmentRecord } from "./order-fulfilment"
+import { perishableProductIds } from "./perishable"
 
 // A pickup order nobody collects (#32, docs/design.md → Pickup): it is held for the shop's open
 // days, then is Not collected. Its non-perishable lines are refunded and their stock returned;
-// its perishable lines are the shop's, paid out less commission.
+// its perishable lines are the shop's, paid out less commission. The job that ends holds is
+// `expirePickupHolds` (`lib/pickup-hold-expiry`).
 
 type Scope = Pick<MedusaContainer, "resolve">
 
+/** Why the order's non-perishable lines were refunded. */
+export const NOT_COLLECTED_NOTE = "Not collected in time"
+
+/** When a pickup order's hold ends (ISO 8601), and the region's timezone. */
+export type CollectBy = { at: string; time_zone: string }
+
 /**
- * The hold-expiry job: every order Ready for pickup whose hold has ended by `now` is Not
- * collected, and its buyer refunded its non-perishable lines. A refund Paystack turns down is
- * logged, as for items removed while picking (#22).
+ * When the order's hold ends, while it is Ready for pickup, counted in the shop's `hours` from
+ * when it became Ready; its `lines` (those still on it) set how long. Null without either.
  */
-export async function expirePickupHolds(scope: Scope, now = new Date()) {
-  const ready = (await fulfilmentService(scope).listOrderFulfilments({ state: "ready_for_pickup" })).map(asFulfilmentRecord)
-  if (!ready.length) return
-  const ids = ready.map((r) => r.order_id)
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [sellers, { data }] = await Promise.all([
-    sellersOfOrders(scope, ids),
-    query.graph({ entity: "order", fields: ["id", ...HOLD_LINE_FIELDS], filters: { id: ids } }),
-  ])
-  const [hours, lines] = await Promise.all([
-    shopHoursOf(scope, [...sellers.values()], now),
-    holdLinesOf(scope, data as unknown as { id: string; items?: OrderLineRow[] | null }[]),
-  ])
-  const expired = ready.filter((row) => {
-    const collectBy = collectByOf(row, hours.get(sellers.get(row.order_id) ?? "") ?? null, lines.get(row.order_id))
-    return collectBy != null && Date.parse(collectBy.at) <= now.getTime()
-  })
-  const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
-  // One order at a time: each edits its order and calls Paystack.
-  for (const row of expired) {
-    try {
-      await notCollectedAndRefund(scope, row.order_id)
-    } catch (error) {
-      // Collected meanwhile, most likely; the next run looks again.
-      logger.warn(`Expiring the pickup hold of order ${row.order_id} failed: ${errorMessage(error)}`)
-    }
-  }
+export function collectByOf(
+  record: Pick<FulfilmentRecord, "state" | "reached"> | undefined,
+  hours: ShopHours | null,
+  lines: { perishable: boolean }[] | undefined
+): CollectBy | null {
+  const readyAt = record?.reached?.ready_for_pickup
+  if (record?.state !== "ready_for_pickup" || !readyAt || !hours || !lines) return null
+  const at = collectBy(hours, readyAt, lines)
+  return at ? { at, time_zone: hours.time_zone } : null
 }
 
-/** Moves the order to Not collected, then refunds what removing its non-perishable lines took off its total. */
-async function notCollectedAndRefund(scope: Scope, orderId: string) {
-  const { result } = await expirePickupHoldWorkflow(scope as MedusaContainer).run({ input: { order_id: orderId } })
-  if (result.removed_amount <= 0) return
-  try {
-    await refundOrderShareWorkflow(scope as MedusaContainer).run({
-      input: { order_id: orderId, amount: result.removed_amount, note: NOT_COLLECTED_NOTE },
-    })
-  } catch (error) {
-    scope
-      .resolve(ContainerRegistrationKeys.LOGGER)
-      .error(`Refund of ${result.removed_amount} for order ${orderId}, not collected, failed: ${errorMessage(error)}`)
-  }
+/** An order line as the order graph gives it: its quantity now is on its detail, which an order edit changes. */
+export type OrderLineRow = {
+  id: string
+  product_id?: string | null
+  quantity?: unknown
+  detail?: { quantity?: unknown } | null
+} | null
+
+/** A line still on an order, and whether it is perishable (#69). */
+export type HoldLine = { id: string; quantity: number; perishable: boolean }
+
+/** The order graph fields `holdLinesOf` reads. */
+export const HOLD_LINE_FIELDS = ["items.id", "items.product_id", "items.quantity", "items.detail.quantity"]
+
+/** Each order's lines still on it, with whether each is perishable, which sets the order's hold. */
+export async function holdLinesOf(
+  scope: Scope,
+  orders: { id: string; items?: OrderLineRow[] | null }[]
+): Promise<Map<string, HoldLine[]>> {
+  const rows = orders.map((o) => ({ id: o.id, items: (o.items ?? []).flatMap((i) => (i ? [i] : [])) }))
+  const perishable = await perishableProductIds(
+    scope,
+    rows.flatMap((o) => o.items.flatMap((i) => (i.product_id ? [i.product_id] : [])))
+  )
+  return new Map(
+    rows.map((o) => [
+      o.id,
+      o.items
+        .map((i) => ({
+          id: i.id,
+          quantity: Number(i.detail?.quantity ?? i.quantity ?? 0),
+          perishable: !!i.product_id && perishable.has(i.product_id),
+        }))
+        .filter((l) => l.quantity > 0),
+    ])
+  )
 }
