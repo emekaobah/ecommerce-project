@@ -11,7 +11,7 @@ import { OrderWorkflowEvents } from "@medusajs/framework/utils"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
 import { ORDER_CANCELLED } from "../../../lib/order-fulfilment"
 import { shareLeftOf } from "../../../lib/order-refund"
-import { checkoutOfOrderStep, giveBackCodeUsesStep } from "../steps/give-back-code-uses"
+import { codeCheckoutLocksStep, giveBackCodeUsesStep } from "../steps/give-back-code-uses"
 import { checkTransitionStep, transitionFulfilmentStep } from "../steps/transition-fulfilment"
 import { lockOrderFulfilment } from "../compose"
 
@@ -35,9 +35,9 @@ const shareLeftStep = createStep("cancelled-order-share-left", async (orderId: s
  * An accepted order is cancelled (#17), by its shop's owners and managers or by Oja's
  * operators, with a reason: Accepted, Picking, Partially available, Packed (no courier label
  * booked) or Ready for pickup → Cancelled. Its stock reservations are released, the order is
- * cancelled, and each promo code's use goes back once every order of the checkout it
- * discounted is cancelled. Returns the fulfilment and all that is left of the order's share,
- * which its buyer is owed until refunded.
+ * cancelled, and each promo code's use goes back once every order it discounted, of the
+ * checkout and of a checkout sharing the code, is cancelled. Returns the fulfilment and all
+ * that is left of the order's share, which its buyer is owed until refunded.
  *
  * Refunding it is separate (`cancelAndRefund`), as for a rejected order: a refund Paystack turns
  * down doesn't undo the cancellation, and is retried (#16). Not Medusa's `cancelOrderWorkflow`:
@@ -55,8 +55,8 @@ export const cancelAcceptedOrderWorkflow = createWorkflow("cancel-accepted-order
     note: input.note ?? null,
   }))
   checkTransitionStep({ order_id: input.order_id, trigger })
-  const checkout = checkoutOfOrderStep({ order_id: input.order_id })
-  acquireLockStep({ key: checkout, timeout: 10, ttl: 30 }).config({ name: "acquire-checkout-lock" })
+  const checkoutLocks = codeCheckoutLocksStep({ order_id: input.order_id })
+  acquireLockStep({ key: checkoutLocks, timeout: 30, ttl: 60 }).config({ name: "acquire-checkout-locks" })
   const refundAmount = shareLeftStep(input.order_id)
   const fulfilment = transitionFulfilmentStep({ order_id: input.order_id, trigger })
 
@@ -69,7 +69,7 @@ export const cancelAcceptedOrderWorkflow = createWorkflow("cancel-accepted-order
   deleteReservationsByLineItemsStep(lineItemIds)
   cancelOrdersStep({ orderIds: [input.order_id] })
   giveBackCodeUsesStep({ order_id: input.order_id })
-  releaseLockStep({ key: checkout }).config({ name: "release-checkout-lock" })
+  releaseLockStep({ key: checkoutLocks }).config({ name: "release-checkout-locks" })
 
   const event = transform({ input, refundAmount }, ({ input, refundAmount }) => ({ id: input.order_id, amount: refundAmount }))
   emitEventStep({ eventName: OrderWorkflowEvents.CANCELED, data: { id: input.order_id } }).config({

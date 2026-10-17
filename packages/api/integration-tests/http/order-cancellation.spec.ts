@@ -358,8 +358,8 @@ medusaIntegrationTestRunner({
 
     describe("a promo code used across the checkout", () => {
       let codes = 0
-      /** Ada pays for her cart with an operator's 10% code on both shops' items; returns its use count and each shop's order. */
-      const paidWithCode = async () => {
+      /** An operator's 10% code on the items, which counts its uses (a usage limit is set). */
+      const operatorCode = async () => {
         const code = `CANCEL${process.pid}X${++codes}`
         const { data } = await api.post(
           "/admin/promotions",
@@ -367,23 +367,64 @@ medusaIntegrationTestRunner({
             code,
             type: "standard",
             status: "active",
-            // Medusa counts a code's uses only with a usage limit set.
             limit: 10,
             is_tax_inclusive: true,
             application_method: { type: "percentage", target_type: "items", allocation: "across", value: 10 },
           },
           await admin()
         )
-        const cartId = await buyer.adasCart()
+        const promotions = getContainer().resolve(Modules.PROMOTION)
+        return {
+          code,
+          uses: async () => Number((await promotions.retrievePromotion(data.promotion.id)).used ?? 0),
+          /** Another buyer's checkout used it too. */
+          usedByAnother: () => promotions.registerUsage([{ code, amount: 0 }], { customer_id: null, customer_email: "eve@oja.test" }),
+        }
+      }
+      const pay = async (cartId: string) => {
         await buyer.prepare(cartId)
-        await api.post(`/store/carts/${cartId}/checkout/promo-codes`, { code }, buyer.ada())
         const { reference } = await buyer.startPayment(cartId)
         paystack.pay(reference)
         await buyer.postWebhook(paystack.chargeSuccess(reference))
         await buyer.orderGroupOf(cartId)
         await buyer.capturedWithin(cartId)
+      }
+      /**
+       * Ada applies the code to her cart and pays for the grocery's items on their own, in a shop
+       * cart sharing the code with the rest of her cart; she can then pay for the rest.
+       */
+      const shopCartPaidWithCode = async () => {
+        const promotion = await operatorCode()
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        await api.post(`/store/carts/${cartId}/checkout/promo-codes`, { code: promotion.code }, buyer.ada())
+        const { data } = await api.post(`/store/carts/${cartId}/shop-cart`, { seller_id: await buyer.sellerId(GROCERY) }, buyer.ada())
+        const shopCartId = data.cart.id as string
+        await pay(shopCartId)
         return {
-          uses: async () => Number((await getContainer().resolve(Modules.PROMOTION).retrievePromotion(data.promotion.id)).used ?? 0),
+          ...promotion,
+          grocery: await buyer.shopOrderId(GROCERY, shopCartId),
+          /** Pays for the rest; returns the gadget shop's order. */
+          payRest: async () => {
+            await pay(cartId)
+            return buyer.shopOrderId(GADGETS, cartId)
+          },
+        }
+      }
+      /** Both checkouts paid, counting the code's one use. */
+      const paidInTwoWithCode = async () => {
+        const { payRest, ...paid } = await shopCartPaidWithCode()
+        return { ...paid, gadgets: await payRest() }
+      }
+      /** Ada pays for her cart with an operator's 10% code on both shops' items; returns its use count and each shop's order. */
+      const paidWithCode = async () => {
+        const { code, uses } = await operatorCode()
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        await api.post(`/store/carts/${cartId}/checkout/promo-codes`, { code }, buyer.ada())
+        await pay(cartId)
+        return {
+          uses,
           grocery: await buyer.shopOrderId(GROCERY, cartId),
           gadgets: await buyer.shopOrderId(GADGETS, cartId),
         }
@@ -410,6 +451,50 @@ medusaIntegrationTestRunner({
         await post(`${gadgets}/reject`, { reason: "Out of stock" }, GADGETS)
 
         expect(await uses()).toBe(0)
+      })
+
+      describe("shared by a cart and its shop cart, paid apart", () => {
+        it("keeps its use while the other checkout still has an order it discounted", async () => {
+          const { uses, grocery, gadgets } = await paidInTwoWithCode()
+          expect(await uses()).toBe(1)
+
+          await startPicking(grocery)
+          await cancel(grocery)
+          expect(await uses()).toBe(1)
+
+          await post(`${gadgets}/accept`, {}, GADGETS)
+          await cancel(gadgets, { reason: "buyer_asked" }, GADGETS)
+          expect(await uses()).toBe(0)
+        })
+
+        it("gets it back once when both checkouts' last orders are cancelled at the same time", async () => {
+          const { uses, usedByAnother, grocery, gadgets } = await paidInTwoWithCode()
+          await usedByAnother()
+          expect(await uses()).toBe(2)
+          await post(`${grocery}/accept`)
+          await post(`${gadgets}/accept`, {}, GADGETS)
+
+          const cancelled = await Promise.all([
+            status(cancel(grocery)),
+            status(cancel(gadgets, { reason: "buyer_asked" }, GADGETS)),
+          ])
+
+          expect(cancelled).toEqual([200, 200])
+          expect(await uses()).toBe(1)
+        })
+
+        it("gets it back once the shop cart's order is cancelled before the rest is paid for, which then counts its own use", async () => {
+          const { uses, usedByAnother, grocery, payRest } = await shopCartPaidWithCode()
+          await usedByAnother()
+          expect(await uses()).toBe(2)
+
+          await post(`${grocery}/accept`)
+          await cancel(grocery)
+          expect(await uses()).toBe(1)
+
+          await payRest()
+          expect(await uses()).toBe(2)
+        })
       })
     })
   },

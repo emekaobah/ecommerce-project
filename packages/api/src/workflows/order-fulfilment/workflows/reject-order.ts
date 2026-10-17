@@ -9,7 +9,7 @@ import {
 import { OrderWorkflowEvents } from "@medusajs/framework/utils"
 import { WorkflowResponse, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
 import { ORDER_REJECTED } from "../../../lib/order-fulfilment"
-import { checkoutOfOrderStep, giveBackCodeUsesStep } from "../steps/give-back-code-uses"
+import { codeCheckoutLocksStep, giveBackCodeUsesStep } from "../steps/give-back-code-uses"
 import { transitionFulfilmentStep } from "../steps/transition-fulfilment"
 import { lockOrderFulfilment } from "../compose"
 
@@ -23,7 +23,8 @@ export type RejectOrderInput = {
 /**
  * A new order is rejected, by its shop or because the accept deadline passed: New → Rejected,
  * its stock reservations are released and the order is cancelled. A promo code's use goes back
- * once every order of the checkout it discounted is cancelled (#17). Refunding it is a separate
+ * once every order it discounted, of the checkout and of a checkout sharing the code, is
+ * cancelled (#17). Refunding it is a separate
  * step (`refundOrderShareWorkflow`), so a refund Paystack turns down doesn't undo the rejection.
  *
  * Not Medusa's `cancelOrderWorkflow`: it refunds every payment linked to the order in full,
@@ -38,8 +39,8 @@ export const rejectOrderWorkflow = createWorkflow("reject-order", (input: Reject
       ? { source: "staff" as const, type: "reject" as const, actor: input.actor, at }
       : { source: "system" as const, type: "accept_deadline_passed" as const, at }
   })
-  const checkout = checkoutOfOrderStep({ order_id: input.order_id })
-  acquireLockStep({ key: checkout, timeout: 10, ttl: 30 }).config({ name: "acquire-checkout-lock" })
+  const checkoutLocks = codeCheckoutLocksStep({ order_id: input.order_id })
+  acquireLockStep({ key: checkoutLocks, timeout: 30, ttl: 60 }).config({ name: "acquire-checkout-locks" })
   const fulfilment = transitionFulfilmentStep({ order_id: input.order_id, trigger, reject_reason: input.reason })
 
   const { data: orders } = useQueryGraphStep({
@@ -51,7 +52,7 @@ export const rejectOrderWorkflow = createWorkflow("reject-order", (input: Reject
   deleteReservationsByLineItemsStep(lineItemIds)
   cancelOrdersStep({ orderIds: [input.order_id] })
   giveBackCodeUsesStep({ order_id: input.order_id })
-  releaseLockStep({ key: checkout }).config({ name: "release-checkout-lock" })
+  releaseLockStep({ key: checkoutLocks }).config({ name: "release-checkout-locks" })
 
   const event = transform({ input }, ({ input }) => ({
     id: input.order_id,

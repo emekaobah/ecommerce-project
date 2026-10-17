@@ -30,18 +30,26 @@ export function withSharedCodes(
   return { ...metadata, [SHARED_CODES_KEY]: codes.length ? { ...others, [otherCartId]: codes } : others }
 }
 
+/** The cart's metadata no longer sharing `codes` with any of `otherCartIds`. */
+export function withoutSharedCodes(
+  metadata: Record<string, unknown> | null | undefined,
+  otherCartIds: string[],
+  codes: string[]
+): Record<string, unknown> {
+  const shared = sharedCodesOf(metadata)
+  return otherCartIds
+    .filter((id) => shared[id])
+    .reduce((next, id) => withSharedCodes(next, id, shared[id].filter((c) => !codes.includes(c))), metadata ?? {})
+}
+
 /** The buyer took a code off the cart: it shares it no more, so nothing puts it back. */
 export async function unshareCode(scope: MedusaContainer, cartId: string, code: string) {
   const carts = scope.resolve(Modules.CART)
   const { metadata } = await carts.retrieveCart(cartId, { select: ["id", "metadata"] })
   const shared = sharedCodesOf(metadata)
-  const sharing = Object.entries(shared).filter(([, codes]) => codes.includes(code))
+  const sharing = Object.keys(shared).filter((otherCartId) => shared[otherCartId].includes(code))
   if (!sharing.length) return
-  const unshared = sharing.reduce(
-    (next, [otherCartId, codes]) => withSharedCodes(next, otherCartId, codes.filter((c) => c !== code)),
-    metadata ?? {}
-  )
-  await carts.updateCarts(cartId, { metadata: unshared })
+  await carts.updateCarts(cartId, { metadata: withoutSharedCodes(metadata, sharing, [code]) })
 }
 
 /**
