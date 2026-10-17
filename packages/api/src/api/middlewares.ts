@@ -3,7 +3,12 @@ import { authenticate, validateAndTransformBody, validateAndTransformQuery } fro
 import { clerkCustomerAuth } from "./store/clerk-customer-auth";
 import { savedAddressesNeedPins } from "./store/customers/address-pin";
 import { savedAddressesValidatedForDelivery } from "./store/customers/saved-address-delivery";
-import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } from "./store/listings/validators";
+import {
+    StoreGetDeliveryEstimateParams,
+    StoreGetListingParams,
+    StoreGetListingsParams,
+    StoreGetShopParams,
+} from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { StoreMoveShopCartBack, StoreMoveShopToOwnCart } from "./store/carts/[id]/shop-cart/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
@@ -62,15 +67,22 @@ export default defineMiddlewares({
         { method: ["GET"], matcher: "/store/offers*", middlewares: [onlyLiveShops] },
         { method: ["GET"], matcher: "/store/sellers*", middlewares: [onlyLiveShops] },
         { method: ["GET"], matcher: "/store/products*", middlewares: [onlyLiveShops] },
+        // Listings are for everyone; a signed-in buyer's `address_id` ranks them nearest first (ADR 0011).
         {
             method: ["GET"],
             matcher: "/store/listings",
-            middlewares: [validateAndTransformQuery(StoreGetListingsParams, {})],
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetListingsParams, {}),
+            ],
         },
         {
             method: ["GET"],
             matcher: "/store/listings/:seller_id/:product_id",
-            middlewares: [validateAndTransformQuery(StoreGetListingParams, {})],
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetListingParams, {}),
+            ],
         },
         // Guests are answered too (no estimate), so the product page asks the same way for everyone.
         {
@@ -78,7 +90,7 @@ export default defineMiddlewares({
             matcher: "/store/listings/:seller_id/:product_id/delivery-estimate",
             middlewares: [
                 authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
-                validateAndTransformQuery(StoreGetListingParams, {}),
+                validateAndTransformQuery(StoreGetDeliveryEstimateParams, {}),
             ],
         },
         // Shops' and products' published reviews and ratings, for everyone (#7).
@@ -95,7 +107,10 @@ export default defineMiddlewares({
         {
             method: ["GET"],
             matcher: "/store/shops/:seller_id",
-            middlewares: [validateAndTransformQuery(StoreGetShopParams, {})],
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetShopParams, {}),
+            ],
         },
         {
             method: ["POST"],
