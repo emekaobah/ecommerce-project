@@ -1,4 +1,4 @@
-import type { MedusaContainer } from "@medusajs/framework/types"
+import type { AddToCartWorkflowInputDTO, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { addToCartWorkflow } from "@medusajs/medusa/core-flows"
 import { priceOffers } from "./listings"
@@ -103,6 +103,25 @@ export async function lineItemOfferId(scope: MedusaContainer, cartId: string, li
 
 export type OfferLine = { offer_id: string; quantity: number; metadata?: Record<string, unknown> | null }
 
+/** Add-to-cart's items for priced offer lines, each pinned to its offer's price. */
+function cartItemsOf(lines: { line: OfferLine; price: OfferLinePrice }[]) {
+  return lines.map(({ line, price }) => ({
+    quantity: line.quantity,
+    variant_id: price.variant_id,
+    unit_price: price.unit_price,
+    compare_at_unit_price: price.compare_at_unit_price,
+    is_tax_inclusive: price.is_tax_inclusive,
+    requires_shipping: true,
+    // Mercur's pricing and validation hooks read `offer_id` from the item; its
+    // cart refresh links the line to the offer from the metadata.
+    offer_id: line.offer_id,
+    metadata: { ...line.metadata, offer_id: line.offer_id },
+  }))
+}
+
+/** What `addToCartWorkflow` adds for offer lines: Medusa's item type has no `offer_id`, which Mercur reads. */
+export type OfferCartItems = AddToCartWorkflowInputDTO["items"]
+
 async function addPricedLines(
   scope: MedusaContainer,
   cartId: string,
@@ -111,25 +130,25 @@ async function addPricedLines(
 ) {
   if (!lines.length) return
   await addToCartWorkflow(scope).run({
-    input: {
-      cart_id: cartId,
-      items: lines.map(({ line, price }) => ({
-        quantity: line.quantity,
-        variant_id: price.variant_id,
-        unit_price: price.unit_price,
-        compare_at_unit_price: price.compare_at_unit_price,
-        is_tax_inclusive: price.is_tax_inclusive,
-        requires_shipping: true,
-        // Mercur's pricing and validation hooks read `offer_id` from the item; its
-        // cart refresh links the line to the offer from the metadata.
-        offer_id: line.offer_id,
-        metadata: { ...line.metadata, offer_id: line.offer_id },
-      })) as never,
-      additional_data: additionalData,
-    },
+    input: { cart_id: cartId, items: cartItemsOf(lines) as OfferCartItems, additional_data: additionalData },
   })
   // Medusa works promotions out over the whole cart; a shop's are its items' alone (#6).
   await applyShopPromotionsWorkflow(scope).run({ input: { cart_id: cartId } })
+}
+
+async function pricedLines(scope: MedusaContainer, cartId: string, lines: OfferLine[]) {
+  const cart = await loadCart(scope, cartId)
+  const priced = await Promise.all(lines.map(async (line) => ({ line, price: await priceLine(scope, cart, line.offer_id) })))
+  await refuseClosedShops(scope, priced.map((p) => p.price.seller_id))
+  return priced
+}
+
+/**
+ * Add-to-cart's items for offers, each at its own shop's price in the cart's region, for a
+ * workflow that adds them itself (a shop cart, #11). Refused as `addOffersToCart` refuses.
+ */
+export async function offerCartItems(scope: MedusaContainer, cartId: string, lines: OfferLine[]): Promise<OfferCartItems> {
+  return cartItemsOf(await pricedLines(scope, cartId, lines)) as OfferCartItems
 }
 
 /**
@@ -142,10 +161,7 @@ export async function addOffersToCart(
   lines: OfferLine[],
   additionalData?: Record<string, unknown>
 ) {
-  const cart = await loadCart(scope, cartId)
-  const priced = await Promise.all(lines.map(async (line) => ({ line, price: await priceLine(scope, cart, line.offer_id) })))
-  await refuseClosedShops(scope, priced.map((p) => p.price.seller_id))
-  await addPricedLines(scope, cartId, priced, additionalData)
+  await addPricedLines(scope, cartId, await pricedLines(scope, cartId, lines), additionalData)
 }
 
 /**

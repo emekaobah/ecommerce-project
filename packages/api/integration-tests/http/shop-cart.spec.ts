@@ -47,7 +47,7 @@ medusaIntegrationTestRunner({
 
     /** "Pay for this shop only": the shop's items move to a cart of their own, returned by shop. */
     const payShopOnly = async (cartId: string, shop: Shop) =>
-      (await api.post(`/store/carts/${cartId}/shop-checkout`, { seller_id: await buyer.sellerId(shop) }, buyer.ada())).data
+      (await api.post(`/store/carts/${cartId}/shop-cart`, { seller_id: await buyer.sellerId(shop) }, buyer.ada())).data
         .cart
     const cartBySeller = async (cartId: string) => (await api.get(`/store/carts/${cartId}/sellers`, buyer.ada())).data.cart
     const lines = (cart: any) =>
@@ -108,7 +108,7 @@ medusaIntegrationTestRunner({
         const cartId = await buyer.adasCart()
         const grocery = await buyer.sellerId(GROCERY)
         const move = (id: string, sellerId: string, as: { headers: Record<string, string> } = buyer.ada()) =>
-          status(api.post(`/store/carts/${id}/shop-checkout`, { seller_id: sellerId }, as))
+          status(api.post(`/store/carts/${id}/shop-cart`, { seller_id: sellerId }, as))
 
         expect(await move(cartId, grocery, { headers: buyer.headers() })).toBe(401)
         expect(await move(cartId, grocery, buyer.as("eve@oja.test"))).toBe(404)
@@ -118,6 +118,37 @@ medusaIntegrationTestRunner({
         // Each cart now holds one shop: there is nothing to move out of either.
         expect(await move(cartId, grocery)).toBe(400)
         expect(await move(shopCart.id, grocery)).toBe(400)
+      })
+
+      it("leaves the cart as it was, with no cart of the shop's own, when moving fails part-way", async () => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        const before = { lines: lines(await cartBySeller(cartId)), checkout: await buyer.checkout(cartId) }
+        const carts = getContainer().resolve(Modules.CART)
+        const { customer_id } = await carts.retrieveCart(cartId)
+        const adasCarts = async () => (await carts.listCarts({ customer_id })).length
+        const cartsBefore = await adasCarts()
+        // Taking the shop's delivery off the cart fails, after its items have left it.
+        const failing = jest
+          .spyOn(carts, "softDeleteShippingMethods")
+          .mockRejectedValueOnce(new Error("The database went away"))
+
+        const moved = await status(
+          api.post(`/store/carts/${cartId}/shop-cart`, { seller_id: await buyer.sellerId(GROCERY) }, buyer.ada())
+        )
+        failing.mockRestore()
+
+        expect(moved).toBe(500)
+        expect(lines(await cartBySeller(cartId))).toEqual(before.lines)
+        expect(await buyer.checkout(cartId)).toMatchObject({
+          total: before.checkout.total,
+          shipping_total: before.checkout.shipping_total,
+          ready_to_pay: true,
+        })
+        expect(await adasCarts()).toBe(cartsBefore)
+        // The cart still checks out whole.
+        await pay(cartId)
+        expect((await orderGroup(cartId)).seller_count).toBe(2)
       })
     })
 
@@ -152,11 +183,75 @@ medusaIntegrationTestRunner({
         paystack.pay(reference)
 
         const refused = await api
-          .post(`/store/carts/${cartId}/shop-checkout`, { seller_id: await buyer.sellerId(GROCERY) }, buyer.ada())
+          .post(`/store/carts/${cartId}/shop-cart`, { seller_id: await buyer.sellerId(GROCERY) }, buyer.ada())
           .catch((e: any) => e.response)
 
         expect(refused.status).toBe(409)
         expect(lines(await cartBySeller(cartId))).toHaveLength(2)
+      })
+    })
+
+    describe("going back from the shop cart's checkout without paying", () => {
+      const moveBack = (cartId: string, shopCartId: string) =>
+        api.post(`/store/carts/${cartId}/shop-cart/back`, { shop_cart_id: shopCartId }, buyer.ada())
+
+      it("puts the shop's items back in the cart, and empties the shop cart", async () => {
+        const cartId = await buyer.adasCart()
+        const before = lines(await cartBySeller(cartId))
+        const shopCart = await payShopOnly(cartId, GROCERY)
+
+        const { data } = await moveBack(cartId, shopCart.id)
+
+        expect(data.cart.id).toBe(cartId)
+        expect(new Set(lines(data.cart))).toEqual(new Set(before))
+        expect((await cartBySeller(shopCart.id)).sellers).toEqual([])
+        // The cart checks out whole again.
+        await buyer.prepare(cartId)
+        await pay(cartId)
+        expect((await orderGroup(cartId)).seller_count).toBe(2)
+      })
+
+      it("places no order when the shop cart's Paystack page is paid afterwards, and refunds it in full", async () => {
+        const cartId = await buyer.adasCart()
+        const shopCart = await payShopOnly(cartId, GROCERY)
+        await buyer.prepare(shopCart.id)
+        const old = await buyer.startPayment(shopCart.id)
+
+        await moveBack(cartId, shopCart.id)
+        paystack.pay(old.reference)
+        await buyer.postWebhook(paystack.chargeSuccess(old.reference))
+
+        await eventually(() => Promise.resolve(paystack.refundsOf(old.reference)), (refunds) => refunds.length > 0, 150)
+        expect(paystack.refundsOf(old.reference).map((r) => r.amount)).toEqual([GROCERY_TOTAL * 100])
+        expect(await buyer.ordersOfCart(shopCart.id)).toEqual([])
+        expect(await buyer.ordersOfCart(cartId)).toEqual([])
+        expect(lines(await cartBySeller(cartId))).toHaveLength(2)
+      })
+
+      it("won't move the items back once the shop cart's payment went through: its order is on the way", async () => {
+        const cartId = await buyer.adasCart()
+        const shopCart = await payShopOnly(cartId, GROCERY)
+        await buyer.prepare(shopCart.id)
+        const { reference } = await buyer.startPayment(shopCart.id)
+        paystack.pay(reference)
+
+        const refused = await moveBack(cartId, shopCart.id).catch((e: any) => e.response)
+
+        expect(refused.status).toBe(409)
+        expect(lines(await cartBySeller(cartId))).toEqual([[GADGETS.name, [[LANTERN.title, 1, LANTERN.price]]]])
+        expect(lines(await cartBySeller(shopCart.id))).toEqual([[GROCERY.name, [[RICE.title, 2, RICE.price]]]])
+      })
+
+      it("is only for the buyer's own shop cart, back to the cart it came from", async () => {
+        const cartId = await buyer.adasCart()
+        const otherCartId = await buyer.adasCart()
+        const shopCart = await payShopOnly(cartId, GROCERY)
+
+        expect(await status(moveBack(otherCartId, shopCart.id))).toBe(404)
+        expect(
+          await status(api.post(`/store/carts/${cartId}/shop-cart/back`, { shop_cart_id: shopCart.id }, buyer.as("eve@oja.test")))
+        ).toBe(404)
+        expect(lines(await cartBySeller(shopCart.id))).toEqual([[GROCERY.name, [[RICE.title, 2, RICE.price]]]])
       })
     })
 
@@ -223,6 +318,17 @@ medusaIntegrationTestRunner({
         expect(await usesOf(promotion.id)).toBe(1)
         expect((await payFor(cartId)).total).toBe(GADGETS_TOTAL)
         expect(await usesOf(promotion.id)).toBe(1)
+      })
+
+      it("brings a shop's code back with its items when the buyer goes back", async () => {
+        const code = newCode("GROCERBACK")
+        await shopPromotion(GROCERY, percentOff(code))
+        const { cartId, shopCartId } = await splitWith(code)
+
+        await api.post(`/store/carts/${cartId}/shop-cart/back`, { shop_cart_id: shopCartId }, buyer.ada())
+
+        expect(await promotionsOf(cartId)).toEqual([[code, (2 * RICE.price) / 10]])
+        expect((await payFor(cartId)).total).toBe(TOTAL - (2 * RICE.price) / 10)
       })
 
       it("keeps an operator's percentage code on both carts, each on its own items, counting a use per payment", async () => {

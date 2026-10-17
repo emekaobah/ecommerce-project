@@ -68,14 +68,14 @@ export function useAddToCart(cartIdForAdding: () => Promise<string>) {
 }
 
 /**
- * "Pay for this shop only" (#11): moves the shop's items to a cart of their own, which resolves
- * to be checked out on its own. The cart keeps the other shops' items.
+ * "Pay for this shop only" (#11): moves the shop's items to a shop cart, which resolves to be
+ * checked out on its own. The cart keeps the other shops' items.
  */
-export function usePayShopOnly(cartId: string) {
+export function useMoveShopToOwnCart(cartId: string) {
   const onSettled = useRefetchCartAfterWrite();
   return useMutation({
     mutationFn: async (sellerId: string) => {
-      const { cart } = await storeClient.store.carts.$id.shopCheckout.mutate({ $id: cartId, seller_id: sellerId });
+      const { cart } = await storeClient.store.carts.$id.shopCart.mutate({ $id: cartId, seller_id: sellerId });
       return cart;
     },
     onSettled,

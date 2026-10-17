@@ -5,7 +5,7 @@ import { savedAddressesNeedPins } from "./store/customers/address-pin";
 import { savedAddressesValidatedForDelivery } from "./store/customers/saved-address-delivery";
 import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
-import { StoreShopCheckout } from "./store/carts/[id]/shop-checkout/validators";
+import { StoreMoveShopCartBack, StoreMoveShopToOwnCart } from "./store/carts/[id]/shop-cart/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
 import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
 import {
@@ -98,11 +98,16 @@ export default defineMiddlewares({
             matcher: "/store/carts/:id/merge",
             middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreMergeCart)],
         },
-        // "Pay for this shop only" (#11): the shop's items move to a cart of their own.
+        // "Pay for this shop only" (#11): the shop's items move to a shop cart, and back.
         {
             method: ["POST"],
-            matcher: "/store/carts/:id/shop-checkout",
-            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreShopCheckout)],
+            matcher: "/store/carts/:id/shop-cart",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreMoveShopToOwnCart)],
+        },
+        {
+            method: ["POST"],
+            matcher: "/store/carts/:id/shop-cart/back",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(StoreMoveShopCartBack)],
         },
         {
             method: ["GET"],
