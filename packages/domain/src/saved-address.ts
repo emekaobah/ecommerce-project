@@ -1,5 +1,6 @@
 import { getAddressConfig } from "./address"
 import { addressFormValues, addressFromForm, pinOf, type PinnedDeliveryAddress, type StoredAddress } from "./address-form"
+import { deliveringTo } from "./distance"
 
 /** An address the buyer saved to their account (Medusa's customer address). */
 export type SavedAddress = StoredAddress & { id: string; is_default_shipping?: boolean | null }
@@ -36,14 +37,17 @@ export function checkoutAddressOf(address: StoredAddress, countryCode: string): 
 }
 
 /**
- * The saved address checkout starts with: the buyer's default, when checkout can deliver there.
- * Without one checkout asks, rather than guessing which address the buyer means.
+ * The saved address checkout starts with, when checkout can deliver there: the one the buyer
+ * picked to deliver to on Home or Search (`pickedId`, #43), else their default. Without either
+ * checkout asks, rather than guessing which address the buyer means.
  */
 export function preselectedAddress(
   addresses: readonly SavedAddress[],
-  countryCode: string
+  countryCode: string,
+  pickedId?: string | null
 ): { id: string; address: PinnedDeliveryAddress } | null {
-  const saved = addresses.find((a) => a.is_default_shipping)
+  const id = deliveringTo(addresses, pickedId)
+  const saved = addresses.find((a) => a.id === id)
   const address = saved && checkoutAddressOf(saved, countryCode)
   return saved && address ? { id: saved.id, address } : null
 }
@@ -56,15 +60,16 @@ export type AddressStep = "starting" | "chosen" | "choosing" | "entering"
 
 /**
  * The address step checkout follows until the buyer moves it themselves. The cart's address
- * shows once it has one checkout can quote. Before that, checkout starts with the buyer's
- * default saved address; without one it offers the saved ones, or a new address, which is also
- * what the buyer gets when the saved addresses won't load.
+ * shows once it has one checkout can quote. Before that, checkout starts with the saved address
+ * the buyer picked to deliver to, else their default; without one it offers the saved ones, or
+ * a new address, which is also what the buyer gets when the saved addresses won't load.
  */
 export function addressStep({
   cartAddress,
   readyToPay,
   saved,
   savedFailed = false,
+  picked,
   countryCode,
 }: {
   cartAddress: StoredAddress | null | undefined
@@ -72,6 +77,8 @@ export function addressStep({
   /** The buyer's saved addresses; undefined while they load. */
   saved: readonly SavedAddress[] | undefined
   savedFailed?: boolean
+  /** The saved address picked to deliver to on Home or Search (#43). */
+  picked?: string | null
   countryCode: string
 }): AddressStep {
   const offerSaved = () => (saved?.length ? "choosing" : "entering")
@@ -80,7 +87,7 @@ export function addressStep({
     return readyToPay || checkoutAddressOf(cartAddress, countryCode) ? "chosen" : offerSaved()
   }
   if (savedFailed) return "entering"
-  if (!saved || preselectedAddress(saved, countryCode)) return "starting"
+  if (!saved || preselectedAddress(saved, countryCode, picked)) return "starting"
   return offerSaved()
 }
 

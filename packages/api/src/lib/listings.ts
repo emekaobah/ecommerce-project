@@ -8,7 +8,7 @@ import {
 } from "@medusajs/framework/utils"
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
 import { ProductStatus } from "@mercurjs/types"
-import type { ShopDeal } from "@oja/domain"
+import { distanceBand, distanceKm, pinOf, roundedDistanceKm, type Pin, type ShopDeal } from "@oja/domain"
 import { attributionOf, type Attribution } from "./enrichment"
 import { perishableProductIds } from "./perishable"
 import { liveSellerIds } from "./onboarding"
@@ -36,6 +36,11 @@ export type ListingSeller = {
   area: string | null
   /** The shop's usual days to ship; null when it hasn't set one. */
   default_leadtime_to_ship: number | null
+  /**
+   * How far the shop is from the buyer's delivery address, in whole kilometres (0 is under 1 km);
+   * null without an address to measure from. Never the shop's coordinates (ADR 0011).
+   */
+  distance_km: number | null
   /**
    * Open, closed outside its hours (still orderable, with when it opens), or closed until it
    * reopens (an exception or pause: not orderable, with its note). ADR 0004.
@@ -88,12 +93,16 @@ export type ListingFilters = {
   /** Only these products (a buyer's wishlist). */
   productIds?: string[]
   excludeProductId?: string
+  /** The pin of the buyer's delivery address, which listings rank nearest first from (ADR 0011). */
+  deliveringTo?: Pin | null
 }
 
 type Region = { id: string; currency_code: string; countries: string[] }
-type SellerRow = Omit<Shop, "area" | "shop_status"> & {
-  address?: { country_code: string | null; city: string | null } | null
+type SellerRow = Omit<Shop, "area" | "shop_status" | "distance_km"> & {
+  address?: { country_code: string | null; city: string | null; metadata?: Record<string, unknown> | null } | null
   shop_status: ShopStatusView
+  /** Straight-line kilometres from the buyer's delivery address to the shop's pickup pin; null without either. */
+  distance: number | null
 }
 /** Mercur's calculated price; the pricing module's fields beyond `ListingPrice` pass through untyped. */
 type CalculatedOfferPrice = ListingPrice & { is_calculated_price_tax_inclusive?: boolean } & Record<string, unknown>
@@ -124,8 +133,11 @@ async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Reg
   return { id: region.id, currency_code: region.currency_code, countries: (region.countries ?? []).map((c) => c.iso_2) }
 }
 
-/** Live shops (open and through onboarding) based in one of the region's countries, with whether they are open now. */
-async function sellersServing(scope: MedusaContainer, region: Region, sellerId?: string) {
+/**
+ * Live shops (open and through onboarding) based in one of the region's countries, with whether
+ * they are open now and how far they are from `from`. Their pickup pins stay in here (ADR 0002).
+ */
+async function sellersServing(scope: MedusaContainer, region: Region, sellerId?: string, from?: Pin | null) {
   const visible = await liveSellerIds(scope)
   const ids = sellerId ? visible.filter((id) => id === sellerId) : visible
   if (!ids.length) return new Map<string, SellerRow>()
@@ -140,16 +152,23 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
       "default_leadtime_to_ship",
       "address.country_code",
       "address.city",
+      "address.metadata",
     ],
     filters: { id: ids },
   })
-  const serving = (data as Omit<SellerRow, "shop_status">[]).filter((s) => {
+  const serving = (data as unknown as Omit<SellerRow, "shop_status" | "distance">[]).filter((s) => {
     const country = s.address?.country_code?.toLowerCase()
     return !!country && region.countries.includes(country)
   })
   // Closed shops stay listed, marked closed (ADR 0004).
   const statuses = await shopStatusesOf(scope, serving.map((s) => s.id))
-  return new Map(serving.map((s) => [s.id, { ...s, shop_status: statuses.get(s.id)! }]))
+  return new Map(
+    serving.map((s) => {
+      const pickup = pinOf(s.address)
+      const distance = from && pickup ? distanceKm(from, pickup) : null
+      return [s.id, { ...s, shop_status: statuses.get(s.id)!, distance }]
+    })
+  )
 }
 
 /** Published products in the publishable key's sales channels, with their titles for ranking. */
@@ -223,7 +242,7 @@ const searchWords = (search: string | undefined) => search?.toLowerCase().split(
  * price set scoped by the offer). An offer without a price in the region's currency is left out.
  */
 async function pricedOffers(scope: MedusaContainer, region: Region, filters: ListingFilters) {
-  const sellers = await sellersServing(scope, region, filters.sellerId)
+  const sellers = await sellersServing(scope, region, filters.sellerId, filters.deliveringTo)
   const titles = sellers.size ? await listableProducts(scope, filters) : new Map<string, string>()
   if (!titles.size) return { sellers, titles, offers: [] as PricedOfferRow[] }
 
@@ -312,19 +331,29 @@ function relevance(title: string, words: string[]): number {
 }
 
 /**
- * The documented listing order (docs/design.md): best name match first, then the shop that
- * ships soonest, then the order listings were first made. Never by price. "Nearest" joins
- * once buyers have a delivery address to measure from.
+ * The documented listing order (docs/design.md, ADR 0011): best name match first, then the
+ * nearest distance band, then the shop that ships soonest, then the nearest shop, then the
+ * order listings were first made. Never by price. Without a delivery address every shop is
+ * equally far, so the order is name match, ship time, first listed; a shop without a pin
+ * comes after those with one.
  */
 function orderListings(groups: ListingGroup[], search: string | undefined) {
   const words = searchWords(search)
-  const ranked = groups.map((group, index) => ({
-    group,
-    index,
-    relevance: relevance(group.title, words),
-    days: leadtimeToShip(group) ?? Number.POSITIVE_INFINITY,
-  }))
-  ranked.sort((a, b) => b.relevance - a.relevance || a.days - b.days || a.index - b.index)
+  const ranked = groups.map((group, index) => {
+    const km = group.seller.distance ?? Number.POSITIVE_INFINITY
+    return {
+      group,
+      index,
+      relevance: relevance(group.title, words),
+      band: distanceBand(km),
+      days: leadtimeToShip(group) ?? Number.POSITIVE_INFINITY,
+      km,
+    }
+  })
+  // Two unknowns (Infinity - Infinity) compare as NaN, which is falsy: a tie.
+  ranked.sort(
+    (a, b) => b.relevance - a.relevance || a.band - b.band || a.days - b.days || a.km - b.km || a.index - b.index
+  )
   return ranked.map((r) => r.group)
 }
 
@@ -336,6 +365,7 @@ function toListingSeller(seller: SellerRow): ListingSeller {
     area: seller.address?.city ?? null,
     default_leadtime_to_ship: seller.default_leadtime_to_ship,
     shop_status: seller.shop_status,
+    distance_km: seller.distance == null ? null : roundedDistanceKm(seller.distance),
   }
 }
 
@@ -591,9 +621,31 @@ function attributesOf(values: AttributeValueRow[]): { name: string; values: stri
 }
 
 /** A live shop serving the region, open or closed (ADR 0004), for its page's header, or not found. */
-export async function retrieveShop(scope: MedusaContainer, filters: { regionId: string; sellerId: string }): Promise<Shop> {
+export async function retrieveShop(
+  scope: MedusaContainer,
+  filters: Pick<ListingFilters, "regionId" | "deliveringTo"> & { sellerId: string }
+): Promise<Shop> {
   const region = await loadRegion(scope, filters.regionId)
-  const seller = (await sellersServing(scope, region, filters.sellerId)).get(filters.sellerId)
+  const seller = (await sellersServing(scope, region, filters.sellerId, filters.deliveringTo)).get(filters.sellerId)
   if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop isn't selling in your region")
   return { ...toListingSeller(seller), description: seller.description }
+}
+
+/**
+ * The pin of the signed-in buyer's saved address that listings measure from (ADR 0011). Null
+ * for a guest, without an address, or for an address that isn't the buyer's, which is ignored
+ * rather than refused so listings still load.
+ */
+export async function deliveringToPin(
+  scope: MedusaContainer,
+  { customerId, addressId }: { customerId: string | null | undefined; addressId: string | undefined }
+): Promise<Pin | null> {
+  if (!customerId || !addressId) return null
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "customer_address",
+    fields: ["id", "metadata"],
+    filters: { id: addressId, customer_id: customerId },
+  })
+  return pinOf(data[0] as unknown as { metadata?: Record<string, unknown> | null } | undefined)
 }
