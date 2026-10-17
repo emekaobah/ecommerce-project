@@ -146,7 +146,6 @@ const orderPushData = (checkout: BuyerCheckout, orderId: string) => ({
   order_id: orderId,
 })
 
-
 /**
  * Emails the buyer, once per `key` however often it is asked. Logged, not thrown, when it can't
  * be sent: the buyer still has the push and the app.
@@ -223,7 +222,7 @@ export async function pushOrderState(scope: Scope, orderId: string, state: Fulfi
   await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
     template: `buyer-order-${state.replaceAll("_", "-")}`,
     ...push,
-    data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+    data: orderPushData(checkout, orderId),
     idempotencyKey: (to) => `buyer-order-${state}:${orderId}:${reachedAt}:${to}`,
     about: `${state} for order ${orderId}`,
   })
@@ -285,7 +284,7 @@ export async function pushItemsRemoved(
   await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
     template: "buyer-order-items-removed",
     ...push,
-    data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+    data: orderPushData(checkout, orderId),
     // Items can be removed from an order more than once: each removal is told once.
     idempotencyKey: (to) => `buyer-order-items-removed:${orderId}:${at}:${to}`,
     about: `the items removed from order ${orderId}`,
@@ -314,7 +313,7 @@ export async function tellOrderCancelled(scope: Scope, { id: orderId, amount }: 
     pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
       template: "buyer-order-cancelled",
       ...orderCancelledPush(notice),
-      data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+      data: orderPushData(checkout, orderId),
       idempotencyKey: (to) => `buyer-${key}:${to}`,
       about: `the cancellation of order ${orderId}`,
     }),
@@ -341,7 +340,7 @@ export async function tellRefundByHand(scope: Scope, { order_id: orderId, amount
     pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
       template: "buyer-refund-by-hand",
       ...refundByHandPush(refund),
-      data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+      data: orderPushData(checkout, orderId),
       idempotencyKey: (to) => `buyer-${key}:${to}`,
       about: `the refund owed on order ${orderId}`,
     }),
@@ -374,7 +373,7 @@ export async function pushRefundCompleted(scope: Scope, refundId: string): Promi
   await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
     template: "buyer-refund-completed",
     ...push,
-    data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: order.id },
+    data: orderPushData(checkout, order.id),
     idempotencyKey: (to) => `buyer-refund-completed:${refund.id}:${to}`,
     about: `the refund ${refund.id}`,
   })
