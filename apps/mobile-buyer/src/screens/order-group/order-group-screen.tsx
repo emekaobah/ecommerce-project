@@ -128,6 +128,8 @@ function Tracking({ order }: Readonly<{ order: SellerOrder }>) {
 function Collection({ order, pickup }: Readonly<{ order: SellerOrder; pickup: NonNullable<SellerOrder['pickup']> }>) {
   const theme = useTheme();
   const { state, collect_by } = order.fulfilment;
+  // A rejected or cancelled order (#17) is never collected: its status says why, and its refund.
+  if (state === 'rejected' || state === 'cancelled') return null;
   if (state === 'not_collected') {
     return (
       <View style={{ gap: theme.space.md, padding: theme.space.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }}>
