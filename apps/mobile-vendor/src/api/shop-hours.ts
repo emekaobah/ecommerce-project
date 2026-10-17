@@ -5,7 +5,6 @@ import { vendorClient } from './client';
 export const shopHoursKeys = {
   all: ['shop-hours'] as const,
   detail: (sellerId: string) => [...shopHoursKeys.all, sellerId] as const,
-  member: (sellerId: string) => [...shopHoursKeys.all, 'member', sellerId] as const,
 };
 
 const fetchShopHours = async () => (await vendorClient.vendor.shopHours.query()).shop_hours;
@@ -17,24 +16,6 @@ export function useShopHours(sellerId: string | undefined) {
   return useQuery({
     queryKey: shopHoursKeys.detail(sellerId ?? ''),
     queryFn: sellerId ? fetchShopHours : skipToken,
-  });
-}
-
-/** The role that may change the shop: owners and managers (ADR 0004). */
-const SELLER_ADMINISTRATION = 'role_seller_administration';
-
-/**
- * Whether the signed-in member may pause and resume orders. The API decides (fulfilment staff
- * are refused); this only hides controls they couldn't use.
- */
-export function useMayChangeShop(sellerId: string | undefined) {
-  return useQuery({
-    queryKey: shopHoursKeys.member(sellerId ?? ''),
-    queryFn: sellerId ? () => vendorClient.vendor.members.me.query() : skipToken,
-    select: ({ seller_member }) => {
-      const member = seller_member as { is_owner?: boolean; rbac_role?: { id?: string } | null };
-      return !!member.is_owner || member.rbac_role?.id === SELLER_ADMINISTRATION;
-    },
   });
 }
 

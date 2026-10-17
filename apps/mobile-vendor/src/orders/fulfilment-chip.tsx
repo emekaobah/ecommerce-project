@@ -6,6 +6,7 @@ import type { OrderFulfilment } from '@/api/orders';
 const TONES: Partial<Record<OrderFulfilment['state'], StatusTone>> = {
   accepted: 'success',
   rejected: 'danger',
+  cancelled: 'danger',
   delivered: 'success',
   ready_for_pickup: 'info',
   collected: 'success',

@@ -5,12 +5,14 @@ import { ScrollView, View } from 'react-native';
 
 import { usePackOrder, usePickList, useRecordPick, type PickListLine } from '@/api/orders';
 
+import { CancelInstead } from './cancel-instead';
 import { PickMark } from './pick-mark';
 
 /**
  * The picking checklist: tick each line off by hand, or scan its barcode. Items the shop
  * doesn't have are marked unavailable, then removed from the order with the buyer refunded
- * (#22). Packing is open once every line left is picked in full.
+ * (#22); once every item is, the order is cancelled instead (#17). Packing is open once every
+ * line left is picked in full.
  */
 export function PickScreen() {
   const theme = useTheme();
@@ -66,7 +68,8 @@ export function PickScreen() {
           ))}
         </View>
 
-        {progress.unavailable > 0 ? (
+        {progress.allUnavailable ? <CancelInstead orderId={id} /> : null}
+        {progress.unavailable > 0 && !progress.allUnavailable ? (
           <View style={{ gap: theme.space.sm }}>
             <Text>
               {`${progress.unavailable} unavailable. Remove ${progress.unavailable === 1 ? 'it' : 'them'} from the order to refund the buyer and pack the rest.`}
