@@ -1,6 +1,7 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { estimateDelivery, regionTimeZone, type DeliveryEstimate } from "../../../../../../lib/delivery"
 import { retrieveListing } from "../../../../../../lib/listings"
+import { customerIdOf } from "../../../delivering-to"
 import type { StoreGetDeliveryEstimateParamsType } from "../../../validators"
 
 export type StoreDeliveryEstimateResponse = { estimate: DeliveryEstimate | null }
@@ -14,7 +15,7 @@ export const GET = async (
   req: AuthenticatedMedusaRequest<unknown, StoreGetDeliveryEstimateParamsType>,
   res: MedusaResponse<StoreDeliveryEstimateResponse>
 ) => {
-  const customerId = req.auth_context?.actor_type === "customer" ? req.auth_context.actor_id : null
+  const customerId = customerIdOf(req)
   if (!customerId) {
     res.json({ estimate: null })
     return
