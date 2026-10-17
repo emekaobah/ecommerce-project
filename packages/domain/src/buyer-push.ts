@@ -119,18 +119,11 @@ export function itemsRemovedPush({
   }
 }
 
+/** A refund of one of the buyer's orders, as they are told about it: its order, shop and amount. */
+export type RefundNotice = { display_id: number; shop: string; amount: number; currency_code: string }
+
 /** The push telling the buyer a refund of their order has reached them (Paystack processed it). */
-export function refundCompletedPush({
-  display_id,
-  shop,
-  amount,
-  currency_code,
-}: {
-  display_id: number
-  shop: string
-  amount: number
-  currency_code: string
-}): BuyerPush {
+export function refundCompletedPush({ display_id, shop, amount, currency_code }: RefundNotice): BuyerPush {
   return {
     title: `Refund for order #${display_id} completed`,
     body: `The refund of ${formatMoney(amount, currency_code)} from ${shop} has completed.`,
@@ -141,17 +134,7 @@ export function refundCompletedPush({
  * The push telling the buyer Oja's team is sending their refund by hand (#16): Paystack can't
  * make it (under its ₦50 minimum), or refused every retry.
  */
-export function refundByHandPush({
-  display_id,
-  shop,
-  amount,
-  currency_code,
-}: {
-  display_id: number
-  shop: string
-  amount: number
-  currency_code: string
-}): BuyerPush {
+export function refundByHandPush({ display_id, shop, amount, currency_code }: RefundNotice): BuyerPush {
   return {
     title: `Refund for order #${display_id}`,
     body: `Our team is sending your ${formatMoney(amount, currency_code)} refund for your order from ${shop}.`,

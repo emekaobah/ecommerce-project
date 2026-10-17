@@ -10,6 +10,7 @@ import {
   PRODUCT_NAME,
   shopStatus,
   type FulfilmentState,
+  type RefundNotice,
   type StoredAddress,
 } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
@@ -255,18 +256,18 @@ export async function tellRefundByHand(scope: Scope, { order_id: orderId, amount
   const found = await buyerOrder(scope, orderId)
   if (!found) return
   const { checkout, order } = found
-  const details = { display_id: order.display_id, shop: order.seller.name, amount, currency_code: order.currency_code }
+  const refund: RefundNotice = { display_id: order.display_id, shop: order.seller.name, amount, currency_code: order.currency_code }
   const key = `refund-by-hand:${orderId}:${amount}`
   await Promise.all([
     emailBuyer(scope, checkout.email, {
       template: "refund-by-hand",
       subject: `Your ${PRODUCT_NAME} refund for order #${order.display_id}`,
-      body: <RefundByHandEmail display_id={order.display_id} shop={order.seller.name} currency={order.currency_code} amount={amount} />,
+      body: <RefundByHandEmail refund={refund} />,
       key,
     }),
     pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
       template: "buyer-refund-by-hand",
-      ...refundByHandPush(details),
+      ...refundByHandPush(refund),
       data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
       idempotencyKey: (to) => `buyer-${key}:${to}`,
       about: `the refund owed on order ${orderId}`,
