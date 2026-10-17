@@ -51,7 +51,7 @@ async function handOver(scope: Scope, owed: OrderOwedRefund): Promise<void> {
   const { data } = await scope
     .resolve(ContainerRegistrationKeys.QUERY)
     .graph({ entity: "order", fields: ["display_id"], filters: { id: owed.order_id } })
-  const displayId = (data[0] as { display_id?: number } | undefined)?.display_id
+  const displayId = (data[0] as unknown as { display_id?: number } | undefined)?.display_id
   const why =
     owed.attempts > 0
       ? `Paystack refused it ${owed.attempts} times, last with "${owed.last_error ?? "no reason"}".`
