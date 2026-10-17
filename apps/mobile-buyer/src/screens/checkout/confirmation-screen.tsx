@@ -7,7 +7,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { cartKeys } from '@/api/cart';
 import { useCheckout, useOrderGroup } from '@/api/checkout';
-import { useCartSession } from '@/cart/cart-provider';
+import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
 
 /** How long to wait for Paystack's webhook before telling the buyer it's taking a while. */
 const CONFIRMATION_WAIT_MS = 60_000;
@@ -23,13 +23,15 @@ export function ConfirmationScreen() {
   const slow = useElapsed(CONFIRMATION_WAIT_MS);
   const { forgetCart } = useCartSession();
   const queryClient = useQueryClient();
+  // A shop paid for on its own (#11) had a shop cart: the app's cart keeps the other shops.
+  const paidAppCart = useIsAppCart(cartId);
 
   // The cart is now orders: the next thing added starts a new one.
   useEffect(() => {
     if (!orderGroupId) return;
-    forgetCart();
+    if (paidAppCart) forgetCart();
     void queryClient.invalidateQueries({ queryKey: cartKeys.all });
-  }, [orderGroupId, forgetCart, queryClient]);
+  }, [orderGroupId, paidAppCart, forgetCart, queryClient]);
 
   const header = <Stack.Screen options={{ title: orderGroupId ? 'Order placed' : 'Confirming payment', headerBackVisible: false }} />;
 
@@ -45,7 +47,7 @@ export function ConfirmationScreen() {
     <>
       {header}
       {slow ? (
-        <StillConfirming onCheckAgain={() => void checkout.refetch()} />
+        <StillConfirming cartId={cartId} onCheckAgain={() => void checkout.refetch()} />
       ) : (
         <LoadingState label="Confirming your payment with Paystack" />
       )}
@@ -57,7 +59,7 @@ export function ConfirmationScreen() {
  * Paystack is slow to confirm, or the buyer didn't finish paying. Waiting stays the default:
  * paying again could charge twice if the first payment went through.
  */
-function StillConfirming({ onCheckAgain }: Readonly<{ onCheckAgain: () => void }>) {
+function StillConfirming({ cartId, onCheckAgain }: Readonly<{ cartId: string; onCheckAgain: () => void }>) {
   const theme = useTheme();
   return (
     <View style={[styles.fill, styles.centered, { padding: theme.space.lg, gap: theme.space.md }]}>
@@ -69,7 +71,8 @@ function StillConfirming({ onCheckAgain }: Readonly<{ onCheckAgain: () => void }
         it&apos;s confirmed. If you didn&apos;t finish paying, go back to checkout and pay again.
       </Text>
       <Button label="Check again" onPress={onCheckAgain} />
-      <Button label="Back to checkout" variant="secondary" onPress={() => router.dismissTo('/checkout')} />
+      <Button label="Back to checkout" variant="secondary" onPress={() => router.dismissTo({ pathname: '/checkout', params: { cartId } })}
+      />
     </View>
   );
 }

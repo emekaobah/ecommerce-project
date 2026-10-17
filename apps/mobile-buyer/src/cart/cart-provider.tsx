@@ -81,6 +81,14 @@ export function useCartSession(): CartSession {
   return session;
 }
 
+/**
+ * Whether a cart is the one this device shops with, rather than a shop cart: one shop's items
+ * paid for on their own (#11), while the app's cart keeps the other shops'.
+ */
+export function useIsAppCart(cartId: string | null | undefined): boolean {
+  return useCartSession().cartId === cartId;
+}
+
 /** The guest's cart, or for a buyer who just signed in, the cart `cartOnSignIn` picks. */
 async function cartForOwner(userId: CartOwner): Promise<string | null> {
   if (!userId) return readCartId(null);

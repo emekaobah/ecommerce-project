@@ -1,0 +1,349 @@
+import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { Modules } from "@medusajs/framework/utils"
+import { adminHeaders } from "../helpers/auth"
+import { eventually, GADGETS, GROCERY, LANTERN, RICE, TOTAL, type Shop } from "../helpers/checkout"
+import { checkoutFakes, checkoutSuite, statusOf } from "../helpers/checkout-suite"
+import { BEST_VALUE_FEE } from "../helpers/shipbubble"
+
+jest.setTimeout(5 * 60 * 1000)
+
+const fakes = checkoutFakes(38000)
+const { paystack } = fakes
+
+/** The grocery's share of Ada's cart: two bags of rice, delivered at the best-value rate. */
+const GROCERY_TOTAL = 2 * RICE.price + BEST_VALUE_FEE
+const GADGETS_TOTAL = LANTERN.price + BEST_VALUE_FEE
+
+// Mercur's default order-group fields nest deeper than the store's relation limit (3).
+const ORDER_GROUP_FIELDS = ["id", "seller_count", "total", "orders.total", "orders.seller.name", "orders.items.quantity"].join(",")
+
+medusaIntegrationTestRunner({
+  inApp: true,
+  env: {},
+  testSuite: ({ api, getContainer }) => {
+    const buyer = checkoutSuite({ api, getContainer, fakes })
+
+    /** "Pay for this shop only": the shop's items move to a shop cart, returned by shop. */
+    const moveShopToOwnCart = async (cartId: string, shop: Shop) =>
+      (await api.post(`/store/carts/${cartId}/shop-cart`, { seller_id: await buyer.sellerId(shop) }, buyer.ada())).data
+        .cart
+    const cartBySeller = async (cartId: string) => (await api.get(`/store/carts/${cartId}/sellers`, buyer.ada())).data.cart
+    const lines = (cart: any) =>
+      cart.sellers.map((g: any) => [g.seller.name, g.items.map((i: any) => [i.product_title, i.quantity, i.unit_price])])
+    /** Ada pays for a prepared cart with Paystack; returns the transaction once the webhook has been sent. */
+    const pay = async (cartId: string) => {
+      const payment = await buyer.startPayment(cartId)
+      paystack.pay(payment.reference)
+      await buyer.postWebhook(paystack.chargeSuccess(payment.reference))
+      return payment.reference as string
+    }
+    const orderGroup = async (cartId: string) => {
+      const id = await buyer.orderGroupOf(cartId)
+      return (await api.get(`/store/order-groups/${id}?fields=${ORDER_GROUP_FIELDS}`, buyer.ada())).data.order_group
+    }
+
+    describe("paying for one shop's items on their own", () => {
+      it("places one order group with one order for that shop, paid by its own transaction; the cart keeps the rest", async () => {
+        const cartId = await buyer.adasCart()
+
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
+
+        expect(shopCart.id).not.toBe(cartId)
+        expect(lines(shopCart)).toEqual([[GROCERY.name, [[RICE.title, 2, RICE.price]]]])
+        expect(lines(await cartBySeller(cartId))).toEqual([[GADGETS.name, [[LANTERN.title, 1, LANTERN.price]]]])
+
+        await buyer.prepare(shopCart.id)
+        const reference = await pay(shopCart.id)
+
+        const group = await orderGroup(shopCart.id)
+        expect(group).toMatchObject({ seller_count: 1, total: GROCERY_TOTAL })
+        expect(group.orders.map((o: any) => [o.seller.name, o.total])).toEqual([[GROCERY.name, GROCERY_TOTAL]])
+        expect(paystack.transaction(reference)).toMatchObject({ amount: GROCERY_TOTAL * 100, status: "success" })
+        expect(await buyer.ordersOfCart(cartId)).toEqual([])
+        expect(lines(await cartBySeller(cartId))).toEqual([[GADGETS.name, [[LANTERN.title, 1, LANTERN.price]]]])
+      })
+
+      it("leaves the rest of the cart to check out normally afterwards", async () => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
+        // The moved shop's delivery leaves with its items.
+        expect(await buyer.checkout(cartId)).toMatchObject({ shipping_total: BEST_VALUE_FEE, total: GADGETS_TOTAL })
+        await buyer.prepare(shopCart.id)
+        await pay(shopCart.id)
+        await buyer.orderGroupOf(shopCart.id)
+
+        const { data } = await buyer.prepare(cartId)
+        expect(data.checkout).toMatchObject({ total: GADGETS_TOTAL, ready_to_pay: true })
+        const reference = await pay(cartId)
+
+        const group = await orderGroup(cartId)
+        expect(group.orders.map((o: any) => [o.seller.name, o.total])).toEqual([[GADGETS.name, GADGETS_TOTAL]])
+        expect(paystack.transaction(reference)).toMatchObject({ amount: GADGETS_TOTAL * 100 })
+      })
+
+      it("is only for the signed-in buyer's own cart, and a shop with items in it beside others", async () => {
+        const cartId = await buyer.adasCart()
+        const grocery = await buyer.sellerId(GROCERY)
+        const move = (id: string, sellerId: string, as: { headers: Record<string, string> } = buyer.ada()) =>
+          statusOf(api.post(`/store/carts/${id}/shop-cart`, { seller_id: sellerId }, as))
+
+        expect(await move(cartId, grocery, { headers: buyer.headers() })).toBe(401)
+        expect(await move(cartId, grocery, buyer.as("eve@oja.test"))).toBe(404)
+        expect(lines(await cartBySeller(cartId))).toHaveLength(2)
+
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
+        // Each cart now holds one shop: there is nothing to move out of either.
+        expect(await move(cartId, grocery)).toBe(400)
+        expect(await move(shopCart.id, grocery)).toBe(400)
+      })
+
+      it("leaves the cart as it was, with no cart of the shop's own, when moving fails part-way", async () => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        const before = { lines: lines(await cartBySeller(cartId)), checkout: await buyer.checkout(cartId) }
+        const carts = getContainer().resolve(Modules.CART)
+        const { customer_id } = await carts.retrieveCart(cartId)
+        const adasCarts = async () => (await carts.listCarts({ customer_id })).length
+        const cartsBefore = await adasCarts()
+        // Taking the shop's delivery off the cart fails, after its items have left it.
+        const failing = jest
+          .spyOn(carts, "softDeleteShippingMethods")
+          .mockRejectedValueOnce(new Error("The database went away"))
+
+        const moved = await statusOf(
+          api.post(`/store/carts/${cartId}/shop-cart`, { seller_id: await buyer.sellerId(GROCERY) }, buyer.ada())
+        )
+        failing.mockRestore()
+
+        expect(moved).toBe(500)
+        expect(lines(await cartBySeller(cartId))).toEqual(before.lines)
+        expect(await buyer.checkout(cartId)).toMatchObject({
+          total: before.checkout.total,
+          shipping_total: before.checkout.shipping_total,
+          ready_to_pay: true,
+        })
+        expect(await adasCarts()).toBe(cartsBefore)
+        // The cart still checks out whole.
+        await pay(cartId)
+        expect((await orderGroup(cartId)).seller_count).toBe(2)
+      })
+    })
+
+    describe("a Paystack page opened for the whole cart before a shop's items moved out", () => {
+      it("places no order when it is paid, and refunds it in full, as a replaced page is", async () => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        const old = await buyer.startPayment(cartId)
+
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
+        paystack.pay(old.reference)
+        await buyer.postWebhook(paystack.chargeSuccess(old.reference))
+
+        await eventually(() => Promise.resolve(paystack.refundsOf(old.reference)), (refunds) => refunds.length > 0, 150)
+        expect(paystack.refundsOf(old.reference).map((r) => r.amount)).toEqual([TOTAL * 100])
+        expect(await buyer.ordersOfCart(cartId)).toEqual([])
+        expect(await buyer.ordersOfCart(shopCart.id)).toEqual([])
+
+        // Both carts still check out, each with a payment of its own.
+        await buyer.prepare(shopCart.id)
+        await pay(shopCart.id)
+        expect((await orderGroup(shopCart.id)).total).toBe(GROCERY_TOTAL)
+        await buyer.prepare(cartId)
+        await pay(cartId)
+        expect((await orderGroup(cartId)).total).toBe(GADGETS_TOTAL)
+      })
+
+      it("won't move a shop's items once the cart's payment went through: its order is on the way", async () => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        const { reference } = await buyer.startPayment(cartId)
+        paystack.pay(reference)
+
+        const refused = await api
+          .post(`/store/carts/${cartId}/shop-cart`, { seller_id: await buyer.sellerId(GROCERY) }, buyer.ada())
+          .catch((e: any) => e.response)
+
+        expect(refused.status).toBe(409)
+        expect(lines(await cartBySeller(cartId))).toHaveLength(2)
+      })
+    })
+
+    describe("going back from the shop cart's checkout without paying", () => {
+      const moveBack = (cartId: string, shopCartId: string) =>
+        api.post(`/store/carts/${cartId}/shop-cart/back`, { shop_cart_id: shopCartId }, buyer.ada())
+
+      it("puts the shop's items back in the cart, and empties the shop cart", async () => {
+        const cartId = await buyer.adasCart()
+        const before = lines(await cartBySeller(cartId))
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
+
+        const { data } = await moveBack(cartId, shopCart.id)
+
+        expect(data.cart.id).toBe(cartId)
+        expect(new Set(lines(data.cart))).toEqual(new Set(before))
+        expect((await cartBySeller(shopCart.id)).sellers).toEqual([])
+        // The cart checks out whole again.
+        await buyer.prepare(cartId)
+        await pay(cartId)
+        expect((await orderGroup(cartId)).seller_count).toBe(2)
+      })
+
+      it("places no order when the shop cart's Paystack page is paid afterwards, and refunds it in full", async () => {
+        const cartId = await buyer.adasCart()
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
+        await buyer.prepare(shopCart.id)
+        const old = await buyer.startPayment(shopCart.id)
+
+        await moveBack(cartId, shopCart.id)
+        paystack.pay(old.reference)
+        await buyer.postWebhook(paystack.chargeSuccess(old.reference))
+
+        await eventually(() => Promise.resolve(paystack.refundsOf(old.reference)), (refunds) => refunds.length > 0, 150)
+        expect(paystack.refundsOf(old.reference).map((r) => r.amount)).toEqual([GROCERY_TOTAL * 100])
+        expect(await buyer.ordersOfCart(shopCart.id)).toEqual([])
+        expect(await buyer.ordersOfCart(cartId)).toEqual([])
+        expect(lines(await cartBySeller(cartId))).toHaveLength(2)
+      })
+
+      it("won't move the items back once the shop cart's payment went through: its order is on the way", async () => {
+        const cartId = await buyer.adasCart()
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
+        await buyer.prepare(shopCart.id)
+        const { reference } = await buyer.startPayment(shopCart.id)
+        paystack.pay(reference)
+
+        const refused = await moveBack(cartId, shopCart.id).catch((e: any) => e.response)
+
+        expect(refused.status).toBe(409)
+        expect(lines(await cartBySeller(cartId))).toEqual([[GADGETS.name, [[LANTERN.title, 1, LANTERN.price]]]])
+        expect(lines(await cartBySeller(shopCart.id))).toEqual([[GROCERY.name, [[RICE.title, 2, RICE.price]]]])
+      })
+
+      it("is only for the buyer's own shop cart, back to the cart it came from", async () => {
+        const cartId = await buyer.adasCart()
+        const otherCartId = await buyer.adasCart()
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
+
+        expect(await statusOf(moveBack(otherCartId, shopCart.id))).toBe(404)
+        expect(
+          await statusOf(api.post(`/store/carts/${cartId}/shop-cart/back`, { shop_cart_id: shopCart.id }, buyer.as("eve@oja.test")))
+        ).toBe(404)
+        expect(lines(await cartBySeller(shopCart.id))).toEqual([[GROCERY.name, [[RICE.title, 2, RICE.price]]]])
+      })
+    })
+
+    // Discounts follow items (ADR 0010).
+    describe("discounts on the cart", () => {
+      let admin: { headers: Record<string, string> }
+      beforeEach(async () => {
+        admin = await adminHeaders(getContainer(), api)
+      })
+      let codes = 0
+      /** A promo code no other test uses: codes are unique across the marketplace. */
+      const newCode = (prefix: string) => `${prefix}${++codes}`
+      /** 10% off; its uses are counted only with a usage limit set. */
+      const percentOff = (code: string) => ({
+        code,
+        type: "standard",
+        status: "active",
+        limit: 10,
+        is_tax_inclusive: true,
+        application_method: { type: "percentage", target_type: "items", allocation: "across", value: 10 },
+      })
+      const amountOff = (code: string, value: number) => ({
+        code,
+        type: "standard",
+        status: "active",
+        is_tax_inclusive: true,
+        application_method: { type: "fixed", target_type: "items", allocation: "across", value, currency_code: "ngn" },
+      })
+      const shopPromotion = async (shop: Shop, body: Record<string, unknown>) =>
+        (await api.post("/vendor/promotions", body, await buyer.owner(shop))).data.promotion
+      const operatorPromotion = async (body: Record<string, unknown>) =>
+        (await api.post("/admin/promotions", body, admin)).data.promotion
+      const applyCode = (cartId: string, code: string) =>
+        api.post(`/store/carts/${cartId}/checkout/promo-codes`, { code }, buyer.ada())
+      const promotionsOf = async (cartId: string) =>
+        (await buyer.checkout(cartId)).promotions.map((p: any) => [p.code, p.amount])
+      const usesOf = async (promotionId: string) =>
+        Number((await getContainer().resolve(Modules.PROMOTION).retrievePromotion(promotionId)).used ?? 0)
+      /** Ada's cart, with each cart's code applied, split: the grocery's items in a cart of their own. */
+      const splitWith = async (code: string) => {
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        await applyCode(cartId, code)
+        const shopCart = await moveShopToOwnCart(cartId, GROCERY)
+        return { cartId, shopCartId: shopCart.id as string }
+      }
+      const payFor = async (cartId: string) => {
+        await buyer.prepare(cartId)
+        await pay(cartId)
+        return orderGroup(cartId)
+      }
+
+      it("moves a shop's own code with its items, and counts its use once, when that cart is paid", async () => {
+        const code = newCode("GROCER")
+        const promotion = await shopPromotion(GROCERY, percentOff(code))
+
+        const { cartId, shopCartId } = await splitWith(code)
+
+        expect(await promotionsOf(shopCartId)).toEqual([[code, (2 * RICE.price) / 10]])
+        expect(await promotionsOf(cartId)).toEqual([])
+        expect(await usesOf(promotion.id)).toBe(0)
+
+        expect((await payFor(shopCartId)).total).toBe(GROCERY_TOTAL - (2 * RICE.price) / 10)
+        expect(await usesOf(promotion.id)).toBe(1)
+        expect((await payFor(cartId)).total).toBe(GADGETS_TOTAL)
+        expect(await usesOf(promotion.id)).toBe(1)
+      })
+
+      it("brings a shop's code back with its items when the buyer goes back", async () => {
+        const code = newCode("GROCERBACK")
+        await shopPromotion(GROCERY, percentOff(code))
+        const { cartId, shopCartId } = await splitWith(code)
+
+        await api.post(`/store/carts/${cartId}/shop-cart/back`, { shop_cart_id: shopCartId }, buyer.ada())
+
+        expect(await promotionsOf(cartId)).toEqual([[code, (2 * RICE.price) / 10]])
+        expect((await payFor(cartId)).total).toBe(TOTAL - (2 * RICE.price) / 10)
+      })
+
+      // Decided 2026-10-17: the code was entered once, so the two carts count one use (ADR 0010).
+      it.each([
+        ["the shop cart", (carts: { cartId: string; shopCartId: string }) => [carts.shopCartId, carts.cartId]],
+        ["the cart", (carts: { cartId: string; shopCartId: string }) => [carts.cartId, carts.shopCartId]],
+      ])(
+        "keeps an operator's single-use code on both carts, each on its own items, counting one use when %s is paid first",
+        async (_first, payingOrder) => {
+          const code = newCode("OJAONCE")
+          const promotion = await operatorPromotion({ ...percentOff(code), limit: 1 })
+          const carts = await splitWith(code)
+          const discounted = { [carts.shopCartId]: (2 * RICE.price) / 10, [carts.cartId]: LANTERN.price / 10 }
+          const total = { [carts.shopCartId]: GROCERY_TOTAL, [carts.cartId]: GADGETS_TOTAL }
+          const [first, second] = payingOrder(carts)
+
+          expect(await promotionsOf(carts.shopCartId)).toEqual([[code, discounted[carts.shopCartId]]])
+          expect(await promotionsOf(carts.cartId)).toEqual([[code, discounted[carts.cartId]]])
+          expect((await payFor(first)).total).toBe(total[first] - discounted[first])
+          expect(await usesOf(promotion.id)).toBe(1)
+          expect(await promotionsOf(second)).toEqual([[code, discounted[second]]])
+          expect((await payFor(second)).total).toBe(total[second] - discounted[second])
+          expect(await usesOf(promotion.id)).toBe(1)
+        }
+      )
+
+      it("leaves an operator's fixed amount off the whole cart with the rest, so it is taken off once", async () => {
+        const code = newCode("OJAFIXED")
+        await operatorPromotion(amountOff(code, 1000))
+
+        const { cartId, shopCartId } = await splitWith(code)
+
+        expect(await promotionsOf(shopCartId)).toEqual([])
+        expect(await promotionsOf(cartId)).toEqual([[code, 1000]])
+        expect((await payFor(shopCartId)).total).toBe(GROCERY_TOTAL)
+        expect((await payFor(cartId)).total).toBe(GADGETS_TOTAL - 1000)
+      })
+    })
+  },
+})

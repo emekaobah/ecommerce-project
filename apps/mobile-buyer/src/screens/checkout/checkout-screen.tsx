@@ -21,11 +21,13 @@ import {
   type PriceChange,
 } from '@oja/domain';
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useSaveAddress, useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
+import { cartKeys, moveShopCartBack } from '@/api/cart';
 import {
   useCheckout,
   useChooseDelivery,
@@ -45,7 +47,7 @@ import { PickupDetails } from '@/components/pickup';
 import { RadioOption } from '@/components/radio-option';
 import { useAddressDraft } from '@/components/address/use-address-draft';
 import { ToggleRow } from '@/components/toggle-row';
-import { useCartSession } from '@/cart/cart-provider';
+import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { ShopStatusBadge } from '@/components/shop-status';
 import { env } from '@/config/env';
@@ -64,12 +66,17 @@ type PaymentLeft = Extract<PaymentReturn['kind'], 'cancelled'> | 'closed';
 
 /**
  * Checkout: the delivery address, then each shop's items and delivery, then pay with Paystack.
- * `payment=cancelled` is set when the buyer comes back from Paystack without paying.
+ * `payment=cancelled` is set when the buyer comes back from Paystack without paying. `cartId` is
+ * set to a shop cart when the buyer pays for one shop's items on their own (#11); otherwise
+ * checkout is for the app's cart.
  */
 export function CheckoutScreen() {
-  const { cartId } = useCartSession();
+  const session = useCartSession();
+  const { cartId: shopCartId } = useLocalSearchParams<{ cartId?: string }>();
+  const cartId = shopCartId ?? session.cartId;
   const { region } = useRegion();
   const checkout = useCheckout(cartId);
+  useShopCartBackOnLeaving(cartId);
 
   const emptyCart = (
     <EmptyState
@@ -88,6 +95,27 @@ export function CheckoutScreen() {
   if (!cartId || !checkout.data || !countryCode) return <LoadingState />;
   if (checkout.data.sellers.length === 0) return emptyCart;
   return <CheckoutForm cartId={cartId} checkout={checkout.data} countryCode={countryCode} />;
+}
+
+/**
+ * A shop's items being paid for on their own (#11) are in a shop cart. Going back from its
+ * checkout without paying moves them back to the app's cart, where the buyer left them; the API
+ * refuses once the shop cart is paid.
+ */
+function useShopCartBackOnLeaving(cartId: string | null | undefined) {
+  const navigation = useNavigation();
+  const { cartId: appCartId } = useCartSession();
+  const isAppCart = useIsAppCart(cartId);
+  const orderGroupId = useCheckout(cartId).data?.order_group_id;
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (isAppCart || !cartId || !appCartId || orderGroupId) return;
+    return navigation.addListener('beforeRemove', (event) => {
+      // Back, by the header or a swipe; after an order, checkout is dismissed with the rest.
+      if (event.data.action.type !== 'GO_BACK' && event.data.action.type !== 'POP') return;
+      void moveShopCartBack(appCartId, cartId).finally(() => queryClient.invalidateQueries({ queryKey: cartKeys.all }));
+    });
+  }, [navigation, isAppCart, cartId, appCartId, orderGroupId, queryClient]);
 }
 
 /**

@@ -77,18 +77,41 @@ medusaIntegrationTestRunner({
     const store = () => ({ headers: buyer.headers() })
     const region = () => `region_id=${buyer.regionId()}`
 
-    /** The gadget hub as buyers see it: in the feed, on its shop page and on the lantern's page. */
+    /**
+     * The gadget hub as buyers see it: in the feed, search and category results, on its shop
+     * page with its own listings, and on the lantern's page. A closed shop stays listed (ADR 0004).
+     */
     const gadgetsSeenByBuyers = async () => {
-      const { data: feed } = await api.get(`/store/listings?${region()}&limit=100`, store())
-      const products = await buyer.query().graph({ entity: "product", fields: ["id"], filters: { title: LANTERN.title } })
+      const listed = async (params: string) => {
+        const { data } = await api.get(`/store/listings?${region()}&limit=100&${params}`, store())
+        return data.listings.find((l: any) => l.seller.id === gadgetsId)?.seller.shop_status
+      }
+      const query = buyer.query()
+      const products = await query.graph({ entity: "product", fields: ["id"], filters: { title: LANTERN.title } })
+      const categories = await query.graph({
+        entity: "product_category",
+        fields: ["id"],
+        filters: { name: "Power & Lighting" },
+      })
       const { data: listing } = await api.get(`/store/listings/${gadgetsId}/${products.data[0].id}?${region()}`, store())
       const { data: shop } = await api.get(`/store/shops/${gadgetsId}?${region()}`, store())
       return {
-        feed: feed.listings.find((l: any) => l.seller.id === gadgetsId)?.seller.shop_status,
-        listing: listing.listing.seller.shop_status,
+        feed: await listed(""),
+        search: await listed("q=lantern"),
+        category: await listed(`category_id=${categories.data[0].id}`),
         shop: shop.shop.shop_status,
+        shop_listings: await listed(`seller_id=${gadgetsId}`),
+        listing: listing.listing.seller.shop_status,
       }
     }
+    const everywhere = (status: unknown) => ({
+      feed: status,
+      search: status,
+      category: status,
+      shop: status,
+      shop_listings: status,
+      listing: status,
+    })
 
     const newCart = async () => {
       const { data } = await api.post("/store/carts", { region_id: buyer.regionId() }, ada())
@@ -109,7 +132,7 @@ medusaIntegrationTestRunner({
           orderable: true,
           label: expect.stringMatching(/^Closed · opens 8am /),
         }
-        expect(seen).toEqual({ feed: closed, listing: closed, shop: closed })
+        expect(seen).toEqual(everywhere(closed))
 
         const cartId = await newCart()
         expect(await status(addLantern(cartId))).toBe(200)
@@ -143,7 +166,7 @@ medusaIntegrationTestRunner({
           orderable: false,
           label: expect.stringMatching(/^Closed until /),
         }
-        expect(seen).toEqual({ feed: closedUntil, listing: closedUntil, shop: closedUntil })
+        expect(seen).toEqual(everywhere(closedUntil))
       })
 
       it("refuses its items in a cart, and payment for the items already there", async () => {
@@ -224,7 +247,7 @@ medusaIntegrationTestRunner({
           orderable: false,
           label: expect.any(String),
         }
-        expect(await gadgetsSeenByBuyers()).toEqual({ feed: paused, listing: paused, shop: paused })
+        expect(await gadgetsSeenByBuyers()).toEqual(everywhere(paused))
         expect((await addLantern(await newCart()).catch((e) => e.response)).status).toBe(400)
 
         const { data: resumed } = await api.post("/vendor/shop-hours/resume", {}, gadgets)

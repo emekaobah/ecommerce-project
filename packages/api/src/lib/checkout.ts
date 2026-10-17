@@ -34,6 +34,7 @@ import {
 } from "./collection-point"
 import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
 import { promoCodeProblem, type CodedPromotion } from "./promotions"
+import { unshareCode } from "./shared-codes"
 import { closedShopError } from "./shop-hours"
 
 // Checkout of a multi-shop cart (#16): the buyer's address, each shop's delivery, then a
@@ -176,6 +177,8 @@ export type CheckoutPaymentStart = {
 type CartRow = {
   id: string
   customer_id: string | null
+  region_id: string
+  sales_channel_id: string | null
   completed_at: string | Date | null
   email: string | null
   currency_code: string
@@ -199,7 +202,7 @@ type CartRow = {
     | null
   payment_collection?: {
     id: string
-    payment_sessions?: { provider_id: string; data: Record<string, unknown> | null }[] | null
+    payment_sessions?: { id: string; provider_id: string; data: Record<string, unknown> | null }[] | null
   } | null
 }
 
@@ -224,6 +227,8 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
     fields: [
       "id",
       "customer_id",
+      "region_id",
+      "sales_channel_id",
       "completed_at",
       "email",
       "currency_code",
@@ -246,6 +251,7 @@ async function buyersCart(scope: MedusaContainer, cartId: string, customerId: st
       "shipping_methods.adjustments.amount",
       "shipping_methods.adjustments.is_tax_inclusive",
       "payment_collection.id",
+      "payment_collection.payment_sessions.id",
       "payment_collection.payment_sessions.provider_id",
       "payment_collection.payment_sessions.data",
     ],
@@ -763,6 +769,13 @@ export async function chooseDelivery(
 export class CheckoutAlreadyPaidError extends Error {
   constructor() {
     super("This cart is already paid. Its order appears as soon as Paystack confirms the payment.")
+    // Kept when a workflow step throws it: the workflow rethrows the error serialized.
+    this.name = "CheckoutAlreadyPaidError"
+  }
+
+  /** Whether an error is this one, thrown directly or from a workflow step. */
+  static is(error: unknown): error is { name: string; message: string } {
+    return (error as { name?: unknown } | null)?.name === "CheckoutAlreadyPaidError"
   }
 }
 
@@ -937,7 +950,55 @@ export async function removePromoCode(
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
   const entered = await enteredCodes(scope, cart)
-  const remaining = entered.filter((c) => c.toLowerCase() !== code.trim().toLowerCase())
-  if (remaining.length !== entered.length) await applyShopPromotions(scope, cartId, remaining)
+  const removed = entered.find((c) => c.toLowerCase() === code.trim().toLowerCase())
+  if (removed) {
+    await unshareCode(scope, cartId, removed)
+    await applyShopPromotions(scope, cartId, entered.filter((c) => c !== removed))
+  }
   return retrieveCheckout(scope, cartId, customerId)
+}
+
+/** A buyer's cart as items move between it and a shop cart (#11, `lib/shop-cart.ts`). */
+export type MovableCart = {
+  id: string
+  region_id: string
+  sales_channel_id: string | null
+  currency_code: string
+  email: string | null
+  metadata: Record<string, unknown> | null
+  /** The codes the buyer entered on it: automatic promotions apply by themselves. */
+  codes: string[]
+  payment_session_ids: string[]
+  /** Its deliveries, each with the shop it is for (null when none sells through its option). */
+  deliveries: { id: string; seller_id: string | null }[]
+}
+
+/**
+ * The buyer's cart, for moving items into or out of it (#11): not found when it isn't theirs,
+ * refused once checked out, and refused (`CheckoutAlreadyPaidError`) once its current Paystack
+ * transaction is paid, as starting a payment is: its order is on the way.
+ */
+export async function movableCart(scope: MedusaContainer, cartId: string, customerId: string): Promise<MovableCart> {
+  const cart = await buyersCart(scope, cartId, customerId)
+  notCompleted(cart)
+  await refuseIfAlreadyPaid(cart)
+  const methods = cart.shipping_methods ?? []
+  const [codes, sellerByOption] = await Promise.all([
+    enteredCodes(scope, cart),
+    sellerOfOptions(scope, methods.flatMap((m) => (m.shipping_option_id ? [m.shipping_option_id] : []))),
+  ])
+  return {
+    id: cart.id,
+    region_id: cart.region_id,
+    sales_channel_id: cart.sales_channel_id,
+    currency_code: cart.currency_code,
+    email: cart.email,
+    metadata: cart.metadata,
+    codes,
+    payment_session_ids: (cart.payment_collection?.payment_sessions ?? []).map((s) => s.id),
+    deliveries: methods.map((m) => ({
+      id: m.id,
+      seller_id: (m.shipping_option_id && sellerByOption.get(m.shipping_option_id)) || null,
+    })),
+  }
 }

@@ -139,7 +139,7 @@ medusaIntegrationTestRunner({
         expect(data.listings.some((l: any) => l.product.id === lantern)).toBe(false)
       })
 
-      it("hides a closed shop's listings", async () => {
+      it("hides a suspended shop's listings", async () => {
         const seller = await sellerId("Adire House")
         await (getContainer().resolve(MercurModules.SELLER) as any).updateSellers({ id: seller, status: "suspended" })
 
@@ -268,7 +268,7 @@ medusaIntegrationTestRunner({
         expect(await titles()).toEqual([fan, ...asListed.filter((t: string) => t !== fan)])
       })
 
-      it("is not found for a closed shop", async () => {
+      it("is not found for a suspended shop", async () => {
         const seller = await sellerId("Adire House")
         await (getContainer().resolve(MercurModules.SELLER) as any).updateSellers({ id: seller, status: "suspended" })
 
