@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
-import { buyerCheckout, eventually, GADGETS, GROCERY } from "../helpers/checkout"
+import { buyerCheckout, eventually, GADGETS, GROCERY, RICE, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
 import { fakeShipbubble } from "../helpers/shipbubble"
@@ -53,6 +53,20 @@ medusaIntegrationTestRunner({
       await buyer.prepare(cartId)
       return cartId
     }
+    /** Sets how many of a shop's product can still be sold; returns how to put the stock back. */
+    const setStock = async (shop: Shop, title: string, units: number) => {
+      const inventory = getContainer().resolve(Modules.INVENTORY)
+      const { data: offers } = await ada.query().graph({
+        entity: "offer",
+        fields: ["inventory_item_link.inventory_item.location_levels.*"],
+        filters: { id: await ada.offerId(shop, title) },
+      })
+      const [level] = (offers[0] as any).inventory_item_link[0].inventory_item.location_levels
+      const update = (stocked_quantity: number) =>
+        inventory.updateInventoryLevels([{ inventory_item_id: level.inventory_item_id, location_id: level.location_id, stocked_quantity }])
+      await update(Number(level.reserved_quantity) + units)
+      return () => update(Number(level.stocked_quantity))
+    }
     /** The buyer's checkout once it says the cart wasn't placed. */
     const notPlaced = async (buyer: typeof ada, cartId: string) =>
       eventually(() => buyer.checkout(cartId), (c) => !!c.not_placed, 300)
@@ -93,6 +107,64 @@ medusaIntegrationTestRunner({
         expect(checkout.order_group_id).toBeNull()
         expect(await bola.ordersOfCart(second)).toEqual([])
         expect(paystack.refundsOf(firstPayment.reference)).toEqual([])
+      })
+    })
+
+    describe("a completion that fails once", () => {
+      it("places the orders when it is tried again, and refunds nothing", async () => {
+        const cartId = await preparedCart(ada)
+        const { reference } = await ada.startPayment(cartId)
+        paystack.pay(reference)
+        // The rice is briefly out of stock as Paystack's webhook arrives, and back moments later.
+        const restore = await setStock(GROCERY, RICE.title, 0)
+        try {
+          await ada.postWebhook(paystack.chargeSuccess(reference))
+          await eventually(() => ada.paymentOf(cartId), (p) => !!p?.captured_at, 150)
+          await new Promise((resolve) => setTimeout(resolve, 1500))
+          expect(await ada.ordersOfCart(cartId)).toEqual([])
+        } finally {
+          await restore()
+        }
+
+        await ada.orderGroupOf(cartId)
+        expect(await ada.ordersOfCart(cartId)).toHaveLength(2)
+        expect(paystack.refundsOf(reference)).toEqual([])
+        expect((await ada.checkout(cartId)).not_placed).toBeNull()
+      })
+    })
+
+    describe("an item sold out while the buyer paid", () => {
+      it("refunds the cart in full, says so, and cuts the line to what is left", async () => {
+        const cartId = await preparedCart(ada)
+        const { reference } = await ada.startPayment(cartId)
+        paystack.pay(reference)
+        // Only one bag of rice is left by the time Paystack's webhook arrives; Ada has two.
+        const restore = await setStock(GROCERY, RICE.title, 1)
+        try {
+          await ada.postWebhook(paystack.chargeSuccess(reference))
+
+          const checkout = await notPlaced(ada, cartId)
+          expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([TOTAL * 100])
+          expect(checkout.not_placed).toEqual({
+            reason: "sold_out",
+            amount: TOTAL,
+            changes: [
+              {
+                type: "quantity_reduced",
+                product_title: RICE.title,
+                variant_title: RICE.title,
+                seller: GROCERY.name,
+                was: 2,
+                now: 1,
+              },
+            ],
+          })
+          const rice = checkout.sellers.find((g: any) => g.seller.name === GROCERY.name).items[0]
+          expect(rice.quantity).toBe(1)
+          expect(await ada.ordersOfCart(cartId)).toEqual([])
+        } finally {
+          await restore()
+        }
       })
     })
   },
