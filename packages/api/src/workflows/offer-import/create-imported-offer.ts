@@ -4,7 +4,7 @@ import { emitEventStep, useQueryGraphStep } from "@medusajs/medusa/core-flows"
 import { createOffersWorkflow, createProductsWorkflow } from "@mercurjs/core/workflows"
 import { ENRICHMENT_QUEUED, type EnrichableField } from "../../lib/enrichment"
 import type { ProposedProduct } from "../../lib/offer-import/rows"
-import { setOfferSalePriceWorkflow } from "./set-offer-sale-price"
+import { putOnSaleIfGiven } from "./set-offer-sale-price"
 import { createOfferCostStep, recordQueuedEnrichmentStep } from "./steps"
 
 export type CreateImportedOfferInput = {
@@ -115,17 +115,14 @@ export const createImportedOfferWorkflow = createWorkflow(
       )
     })
 
-    // Last, as its price-list update can't be undone by a later failure.
-    when("put-on-sale", input, (i) => i.sale !== null).then(() => {
-      setOfferSalePriceWorkflow.runAsStep({
-        input: transform({ input, offer }, ({ input, offer }) => ({
-          seller_id: input.seller_id,
-          offer_id: offer.id,
-          currency_code: input.currency_code,
-          amount: input.sale!,
-        })),
-      })
-    })
+    putOnSaleIfGiven(
+      transform({ input, offer }, ({ input, offer }) => ({
+        seller_id: input.seller_id,
+        offer_id: offer.id,
+        currency_code: input.currency_code,
+        sale: input.sale,
+      }))
+    )
 
     return new WorkflowResponse(offer)
   }

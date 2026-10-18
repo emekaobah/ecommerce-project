@@ -2,7 +2,7 @@ import { WorkflowResponse, createWorkflow, transform, when } from "@medusajs/fra
 import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
 import type { OfferPriceInput } from "../offer-prices/steps"
 import { updateOfferWorkflow } from "../offer-prices/update-offer"
-import { setOfferSalePriceWorkflow } from "./set-offer-sale-price"
+import { putOnSaleIfGiven } from "./set-offer-sale-price"
 import { setOfferCostStep } from "./steps"
 
 export type UpdateImportedOfferInput = {
@@ -73,17 +73,7 @@ export const updateImportedOfferWorkflow = createWorkflow("update-imported-offer
     )
   })
 
-  // Last, as Medusa's price-list price update can't be undone by a later failure.
-  when("put-on-sale", input, (i) => i.sale !== null).then(() => {
-    setOfferSalePriceWorkflow.runAsStep({
-      input: transform({ input }, ({ input }) => ({
-        seller_id: input.seller_id,
-        offer_id: input.offer_id,
-        currency_code: input.currency_code,
-        amount: input.sale!,
-      })),
-    })
-  })
+  putOnSaleIfGiven(input)
 
   return new WorkflowResponse({ id: input.offer_id })
 })

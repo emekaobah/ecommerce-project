@@ -58,3 +58,23 @@ export const setOfferSalePriceWorkflow = createWorkflow("set-offer-sale-price", 
 
   return new WorkflowResponse({ offer_id: input.offer_id })
 })
+
+/** An import row's offer and the sale price it gave, null for none. */
+export type OfferSaleRow = { seller_id: string; offer_id: string; currency_code: string; sale: number | null }
+
+/**
+ * Within a row's workflow, puts its offer on sale when the row gave a sale price. Call it last:
+ * Medusa's price-list price changes can't be undone by a later failure.
+ */
+export function putOnSaleIfGiven(row: OfferSaleRow) {
+  when("put-on-sale", row, (r) => r.sale !== null).then(() => {
+    setOfferSalePriceWorkflow.runAsStep({
+      input: transform({ row }, ({ row }) => ({
+        seller_id: row.seller_id,
+        offer_id: row.offer_id,
+        currency_code: row.currency_code,
+        amount: row.sale!,
+      })),
+    })
+  })
+}
