@@ -25,7 +25,7 @@ import {
 import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, RadioOption, StatusChip, Text, useTheme } from '@oja/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useSaveAddress, useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
@@ -110,16 +110,20 @@ function useShopCartBackOnLeaving(cartId: string | null | undefined) {
   const isAppCart = useIsAppCart(cartId);
   const orderGroupId = useCheckout(cartId).data?.order_group_id;
   const queryClient = useQueryClient();
-  useEffect(() => {
+  // Reads the latest cart and order on removal, so the listener below never needs replacing.
+  const onRemoved = useEffectEvent((actionType: string) => {
     if (isAppCart || !cartId || !appCartId || orderGroupId) return;
-    const unsubscribe = navigation.addListener('removed', (event) => {
-      // Back, by the header or a swipe; after an order, checkout is dismissed with the rest.
-      if (event.data.action.type !== 'GO_BACK' && event.data.action.type !== 'POP') return;
-      void moveShopCartBack(appCartId, cartId).finally(() => queryClient.invalidateQueries({ queryKey: cartKeys.all }));
-    });
-    // The screen unmounts before `removed` fires, so the listener has to outlive this cleanup.
+    // Back, by the header or a swipe; after an order, checkout is dismissed with the rest.
+    if (actionType !== 'GO_BACK' && actionType !== 'POP') return;
+    void moveShopCartBack(appCartId, cartId).finally(() => queryClient.invalidateQueries({ queryKey: cartKeys.all }));
+  });
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('removed', (event) => onRemoved(event.data.action.type));
+    // `removed` fires after the screen unmounts, so unsubscribing waits a microtask, as React
+    // Navigation's `removed` event documents (expo-router/build/react-navigation/core/types.d.ts).
+    // Only `navigation` re-runs this, and it is fixed for the screen, so one listener is ever live.
     return () => queueMicrotask(unsubscribe);
-  }, [navigation, isAppCart, cartId, appCartId, orderGroupId, queryClient]);
+  }, [navigation]);
 }
 
 /**
