@@ -78,12 +78,12 @@ export async function clerkCustomerAuth(req: MedusaRequest, res: MedusaResponse,
  * The auth identity's customer, created on first sign-in. Locked per identity so a new
  * buyer's first requests, which the app often sends together, create one customer.
  */
-async function customerFor(container: MedusaContainer, authIdentity: AuthIdentityDTO): Promise<string | undefined> {
+function customerFor(container: MedusaContainer, authIdentity: AuthIdentityDTO): Promise<string | undefined> {
   const existing = authIdentity.app_metadata?.customer_id as string | undefined
-  if (existing) return existing
+  if (existing) return Promise.resolve(existing)
 
   const { email, first_name, last_name } = clerkProfileOf(authIdentity)
-  if (!email) return undefined
+  if (!email) return Promise.resolve(undefined)
 
   const locking = container.resolve(Modules.LOCKING)
   const auth = container.resolve(Modules.AUTH)

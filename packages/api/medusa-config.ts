@@ -1,7 +1,7 @@
 import { loadEnv } from '@medusajs/framework/utils'
 import { withMercur } from '@mercurjs/core'
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 

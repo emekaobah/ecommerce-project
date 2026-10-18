@@ -16,6 +16,7 @@ import type { VendorPreviewOfferImportType } from "../validators"
 
 type PreviewRow = Pick<OfferImportRow, "row" | "title" | "action" | "errors" | "warnings" | "changes"> & {
   price: number | null
+  sale: number | null
   cost: number | null
   stock: number | null
 }
@@ -76,6 +77,7 @@ export async function POST(req: VendorRequest<VendorPreviewOfferImportType>, res
       warnings,
       changes,
       price: offer?.price ?? update?.price ?? null,
+      sale: offer?.sale ?? update?.sale ?? null,
       cost: offer?.cost ?? update?.cost ?? null,
       stock: offer?.stock ?? update?.stock ?? null,
     })),

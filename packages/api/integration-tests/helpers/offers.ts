@@ -23,6 +23,7 @@ export async function offerOn(container: MedusaContainer, api: Api, product: { i
   })
   const { data: [full] } = await query.graph({ entity: "product", fields: ["variants.id"], filters: { id: product.id } })
   const vendor = await groceryVendor(container, api)
+  // One variant at a time: offers on one product race to link its shipping profile (lib/offer-import).
   for (const variant of full.variants as { id: string }[]) {
     const sku = `OFFER-${variant.id}`
     await api.post(

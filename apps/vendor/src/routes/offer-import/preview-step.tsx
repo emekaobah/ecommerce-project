@@ -50,6 +50,7 @@ export const PreviewStep = ({ sheet, preview, mapping, onBack, onImported }: Pro
             <Table.HeaderCell>{t("offerImport.row")}</Table.HeaderCell>
             <Table.HeaderCell>{t("offerImport.product")}</Table.HeaderCell>
             <Table.HeaderCell>{t("offerImport.price")}</Table.HeaderCell>
+            <Table.HeaderCell>{t("offerImport.sale")}</Table.HeaderCell>
             <Table.HeaderCell>{t("offerImport.cost")}</Table.HeaderCell>
             <Table.HeaderCell>{t("offerImport.stock")}</Table.HeaderCell>
             <Table.HeaderCell>{t("offerImport.status")}</Table.HeaderCell>
@@ -62,6 +63,7 @@ export const PreviewStep = ({ sheet, preview, mapping, onBack, onImported }: Pro
               <Table.Cell>{row.row}</Table.Cell>
               <Table.Cell>{row.title ?? "–"}</Table.Cell>
               <Table.Cell>{amount(row.price)}</Table.Cell>
+              <Table.Cell>{amount(row.sale)}</Table.Cell>
               <Table.Cell>{amount(row.cost)}</Table.Cell>
               <Table.Cell>{stockLabel(row)}</Table.Cell>
               <Table.Cell>

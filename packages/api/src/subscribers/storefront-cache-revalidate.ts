@@ -72,11 +72,8 @@ export default async function storefrontCacheRevalidateHandler({
 
   const payloads = Array.isArray(event.data) ? event.data : [event.data]
 
-  const tagSet = new Set<string>()
-  for (const payload of payloads) {
-    const tags = await buildTags(container, event.name, payload ?? {})
-    tags.forEach((tag) => tagSet.add(tag))
-  }
+  const tagLists = await Promise.all(payloads.map((payload) => buildTags(container, event.name, payload ?? {})))
+  const tagSet = new Set(tagLists.flat())
 
   if (tagSet.size === 0) {
     return

@@ -278,4 +278,4 @@ export const SEED_PRODUCTS: SeedProduct[] = [
  * until the catalogue pipeline stores real photos in R2.
  */
 export const seedImageUrl = (title: string) =>
-  `https://placehold.co/800x800/F3F3F3/000000/png?text=${encodeURIComponent(title).replace(/%20/g, "+")}`
+  `https://placehold.co/800x800/F3F3F3/000000/png?text=${encodeURIComponent(title).replaceAll("%20", "+")}`
