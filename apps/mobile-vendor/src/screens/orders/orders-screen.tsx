@@ -53,7 +53,7 @@ export function OrdersScreen() {
                 onPress={() => setReadyOnly(true)}
               />
             </View>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           readyOnly ? (

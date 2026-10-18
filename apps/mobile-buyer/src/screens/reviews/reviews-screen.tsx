@@ -39,11 +39,11 @@ export function ReviewsScreen({ kind, id, title }: Readonly<{ kind: ReviewKind; 
               <Text variant="title">{title}</Text>
               <RatingLine rating={{ average: first.average_rating, count: first.count }} />
             </View>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={<EmptyState title="No reviews yet" message="Reviews show here once they're published." />}
         ListFooterComponent={
-          pages.isFetchingNextPage ? <ActivityIndicator color={theme.colors.ink} accessibilityLabel="Loading" /> : null
+          pages.isFetchingNextPage ? <ActivityIndicator color={theme.colors.ink} accessibilityLabel="Loading" /> : undefined
         }
         renderItem={({ item }) => <ReviewItem review={item} />}
       />

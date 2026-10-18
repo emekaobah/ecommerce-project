@@ -112,11 +112,13 @@ function useShopCartBackOnLeaving(cartId: string | null | undefined) {
   const queryClient = useQueryClient();
   useEffect(() => {
     if (isAppCart || !cartId || !appCartId || orderGroupId) return;
-    return navigation.addListener('beforeRemove', (event) => {
+    const unsubscribe = navigation.addListener('removed', (event) => {
       // Back, by the header or a swipe; after an order, checkout is dismissed with the rest.
       if (event.data.action.type !== 'GO_BACK' && event.data.action.type !== 'POP') return;
       void moveShopCartBack(appCartId, cartId).finally(() => queryClient.invalidateQueries({ queryKey: cartKeys.all }));
     });
+    // The screen unmounts before `removed` fires, so the listener has to outlive this cleanup.
+    return () => queueMicrotask(unsubscribe);
   }, [navigation, isAppCart, cartId, appCartId, orderGroupId, queryClient]);
 }
 
