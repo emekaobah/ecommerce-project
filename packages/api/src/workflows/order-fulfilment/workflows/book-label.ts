@@ -20,7 +20,6 @@ const bookedShipmentStep = createStep(
     const { request_token: _bookedBy, delivery_eta_time, ...courier } = booking.rate
     const shipment: Shipment = {
       waybill: data.shipment_id,
-      courier_name: data.courier_name,
       tracking_url: data.tracking_url,
       fulfillment_id,
       booked_at: new Date().toISOString(),

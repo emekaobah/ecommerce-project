@@ -337,13 +337,13 @@ export default defineMiddlewares({
             matcher: "/admin/products/:id/perishable",
             middlewares: [validateAndTransformBody(AdminOverrideProductPerishable)],
         },
-        // Refunds of delivery (#22): Oja's staff alone, since Oja keeps the delivery fee.
         // Oja's team set the courier top-up cap (#19).
         {
             method: ["POST"],
             matcher: "/admin/courier-approvals/cap",
             middlewares: [validateAndTransformBody(AdminSetTopUpCap)],
         },
+        // Refunds of delivery (#22): Oja's staff alone, since Oja keeps the delivery fee.
         {
             method: ["POST"],
             matcher: "/admin/orders/:id/delivery-refund",

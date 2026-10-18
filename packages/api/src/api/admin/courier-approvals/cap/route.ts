@@ -1,5 +1,5 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { setTopUpCap } from "../../../../lib/label-booking"
+import { setTopUpCap } from "../../../../lib/top-up-cap"
 import type { AdminSetTopUpCapType } from "../validators"
 
 export type AdminSetTopUpCapResponse = { top_up_cap: number }

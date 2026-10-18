@@ -179,7 +179,7 @@ export function useRecordPick(orderId: string) {
 }
 
 /** A courier staff choose to book, by Shipbubble's ids for it (#19). */
-export type CourierPick = { courier_id: string; service_code: string };
+export type CourierPick = NonNullable<Parameters<typeof vendorClient.vendor.orders.$id.bookLabel.mutate>[0]['courier']>;
 
 const bookLabel = (orderId: string, courier?: CourierPick) =>
   vendorClient.vendor.orders.$id.bookLabel.mutate({ $id: orderId, ...(courier && { courier }) });

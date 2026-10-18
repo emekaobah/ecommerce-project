@@ -1,19 +1,21 @@
 import { formatMoney } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { ShipbubbleLabelRequest, ShipbubbleMethodData, ShipbubbleQuote } from "../modules/shipbubble"
 import { addressCodeOf, quoteRates, type DeliveryAddress } from "./delivery"
+import { topUpCap } from "./top-up-cap"
 
-// Booking a packed order's courier label (#24, docs/design.md "Order state machine"), and the
-// cap on what the platform pays above the buyer's checkout price for it (#19).
-
-type Scope = Pick<MedusaContainer, "resolve">
+// Booking a packed order's courier label (#24, docs/design.md "Order state machine"): quoting
+// its parcel now, and deciding which courier to book within the top-up cap (#19).
 
 /** A courier as the order knows it: Shipbubble's ids for it, its name and its price. */
 export type Courier = { courier_id: string; service_code: string; courier_name: string; amount: number }
 
-/** The courier rate a label is booked with: what Shipbubble books it by, its price and when it delivers (ISO 8601). */
-export type LabelRate = ShipbubbleLabelRequest & Courier & { delivery_eta_time: string }
+/** A courier as quoted now: also when it delivers (ISO 8601). */
+export type QuotedCourier = Courier & { delivery_eta_time: string }
+
+/** The courier rate a label is booked with: what Shipbubble books it by, its price and when it delivers. */
+export type LabelRate = ShipbubbleLabelRequest & QuotedCourier
 
 /**
  * What booking an order's label needs: the rate to book, the courier the buyer chose at checkout
@@ -22,9 +24,7 @@ export type LabelRate = ShipbubbleLabelRequest & Courier & { delivery_eta_time: 
 export type LabelBooking = { rate: LabelRate; chosen: Courier; items: { id: string; quantity: number }[] }
 
 /** A courier staff may book instead, when the one booking would pick costs the platform more than the cap. */
-export type CourierOption = Courier & {
-  /** ISO 8601. */
-  delivery_eta_time: string
+export type CourierOption = QuotedCourier & {
   /** What it costs above the buyer's checkout price (negative when it costs less). */
   difference: number
   /** Whether booking it is within the cap; above it, Oja's team approve it first. */
@@ -32,9 +32,7 @@ export type CourierOption = Courier & {
 }
 
 /** A courier staff chose that costs the platform more than the cap, waiting for Oja's team to approve it (#19). */
-export type CourierApproval = Courier & {
-  /** ISO 8601, as it was quoted when staff chose it. */
-  delivery_eta_time: string
+export type CourierApproval = QuotedCourier & {
   /** What the buyer's courier cost at checkout. */
   checkout_amount: number
   difference: number
@@ -66,14 +64,10 @@ export type LabelQuote = {
   currency_code: string
 }
 
-/** Where the cap is kept: the store's metadata, set by Oja's team in the admin. */
-export const TOP_UP_CAP_KEY = "courier_top_up_cap"
-/** The cap until Oja's team set one: ₦1,000 per shipment. */
-export const DEFAULT_TOP_UP_CAP = 1000
-
 const etaOf = (rate: Pick<ShipbubbleQuote, "delivery_eta_time">) => new Date(rate.delivery_eta_time).getTime()
 export const sameCourier = (a: CourierPick, b: CourierPick) => a.courier_id === b.courier_id && a.service_code === b.service_code
 const courierOf = ({ courier_id, service_code, courier_name, amount }: Courier): Courier => ({ courier_id, service_code, courier_name, amount })
+const quotedCourierOf = (rate: ShipbubbleQuote): QuotedCourier => ({ ...courierOf(rate), delivery_eta_time: rate.delivery_eta_time })
 
 /**
  * The rate to book from a fresh quote: the courier the buyer chose at checkout when it still
@@ -87,25 +81,6 @@ export function rateToBook(rates: ShipbubbleQuote[], chosen: ShipbubbleQuote | u
   const inTime = chosen ? rates.filter((r) => etaOf(r) <= etaOf(chosen)) : []
   if (inTime.length) return [...inTime].sort((a, b) => a.amount - b.amount)[0]
   return [...rates].sort((a, b) => etaOf(a) - etaOf(b))[0]
-}
-
-async function theStore(scope: Scope) {
-  const [store] = await scope.resolve(Modules.STORE).listStores({}, { select: ["id", "metadata"], take: 1 })
-  if (!store) throw new MedusaError(MedusaError.Types.NOT_FOUND, "The store isn't set up")
-  return store
-}
-
-/** The top-up cap Oja's team set, or the default. */
-export async function topUpCap(scope: Scope): Promise<number> {
-  const cap = (await theStore(scope)).metadata?.[TOP_UP_CAP_KEY]
-  return typeof cap === "number" ? cap : DEFAULT_TOP_UP_CAP
-}
-
-/** Sets the top-up cap (#19): a flat amount per shipment, in the store's currency. */
-export async function setTopUpCap(scope: Scope, cap: number): Promise<number> {
-  const store = await theStore(scope)
-  await scope.resolve(Modules.STORE).updateStores(store.id, { metadata: { ...store.metadata, [TOP_UP_CAP_KEY]: cap } })
-  return cap
 }
 
 /**
@@ -164,7 +139,7 @@ const NO_COURIER = "No courier will collect this parcel right now. Try again lat
 
 function bookingOf({ chosen, items }: LabelQuote, rate: ShipbubbleQuote): LabelBooking {
   return {
-    rate: { request_token: rate.request_token, ...courierOf(rate), delivery_eta_time: rate.delivery_eta_time },
+    rate: { request_token: rate.request_token, ...quotedCourierOf(rate) },
     chosen: courierOf(chosen),
     items,
   }
@@ -193,17 +168,12 @@ export function decideLabel(quote: LabelQuote, pick?: CourierPick): LabelDecisio
   if (pick) {
     return {
       action: "approve",
-      courier: { ...courierOf(rate), delivery_eta_time: rate.delivery_eta_time, checkout_amount: chosen.amount, difference: differenceOf(rate) },
+      courier: { ...quotedCourierOf(rate), checkout_amount: chosen.amount, difference: differenceOf(rate) },
     }
   }
   const options = [...rates]
     .sort((a, b) => a.amount - b.amount || etaOf(a) - etaOf(b))
-    .map((r) => ({
-      ...courierOf(r),
-      delivery_eta_time: r.delivery_eta_time,
-      difference: differenceOf(r),
-      within_cap: differenceOf(r) <= cap,
-    }))
+    .map((r) => ({ ...quotedCourierOf(r), difference: differenceOf(r), within_cap: differenceOf(r) <= cap }))
   return { action: "choose", options }
 }
 

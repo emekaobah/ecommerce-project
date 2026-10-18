@@ -1,6 +1,7 @@
 import { TruckFast } from "@medusajs/icons"
 import { Button, Container, Heading, Input, Label, Table, Text, toast } from "@medusajs/ui"
 import type { RouteConfig } from "@mercurjs/dashboard-sdk"
+import { formatMoney } from "@oja/domain"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -21,7 +22,6 @@ export const handle = {
 }
 
 const QUERY_KEY = ["courier-approvals"]
-const money = (amount: number, currency: string) => `${currency.toUpperCase()} ${amount.toLocaleString()}`
 
 /**
  * Couriers shops chose that cost more than the top-up cap above what the buyer paid for
@@ -100,12 +100,12 @@ const CourierApprovalsPage = () => {
                     </Text>
                   </Table.Cell>
                   <Table.Cell>
-                    <Text size="small">{money(w.courier.amount, w.currency_code)}</Text>
+                    <Text size="small">{formatMoney(w.courier.amount, w.currency_code)}</Text>
                     <Text size="xsmall" className="text-ui-fg-subtle">
-                      {t("courierApprovals.paid", { amount: money(w.courier.checkout_amount, w.currency_code) })}
+                      {t("courierApprovals.paid", { amount: formatMoney(w.courier.checkout_amount, w.currency_code) })}
                     </Text>
                   </Table.Cell>
-                  <Table.Cell>{money(w.courier.difference, w.currency_code)}</Table.Cell>
+                  <Table.Cell>{formatMoney(w.courier.difference, w.currency_code)}</Table.Cell>
                   <Table.Cell>
                     <div className="flex justify-end gap-x-2">
                       <Button

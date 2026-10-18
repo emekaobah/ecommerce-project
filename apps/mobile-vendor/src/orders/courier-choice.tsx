@@ -93,9 +93,13 @@ function CourierChoice({
   );
 }
 
-/** While a courier staff chose waits for Oja's team to approve it (#19): which, and at what price. */
-export function approvalNote({ courier_approval }: Pick<OrderFulfilment, 'courier_approval'>, currency: string): string | null {
-  if (!courier_approval) return null;
-  const { courier_name, amount } = courier_approval;
-  return `Waiting for Oja to approve ${courier_name} at ${formatMoney(amount, currency)}. It is booked once approved; you can choose another meanwhile.`;
+/** While a courier staff chose waits for Oja's team to approve it (#19): which, and at what price. Nothing otherwise. */
+export function ApprovalNote({ fulfilment, currency }: Readonly<{ fulfilment: Pick<OrderFulfilment, 'courier_approval'>; currency: string }>) {
+  if (!fulfilment.courier_approval) return null;
+  const { courier_name, amount } = fulfilment.courier_approval;
+  return (
+    <Text tone="secondary">
+      {`Waiting for Oja to approve ${courier_name} at ${formatMoney(amount, currency)}. It is booked once approved; you can choose another meanwhile.`}
+    </Text>
+  );
 }

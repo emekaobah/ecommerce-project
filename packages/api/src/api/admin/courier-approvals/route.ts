@@ -1,6 +1,6 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { courierApprovals, type AdminCourierApproval } from "../../../lib/courier-choice"
-import { topUpCap } from "../../../lib/label-booking"
+import { topUpCap } from "../../../lib/top-up-cap"
 
 export type AdminCourierApprovalsResponse = { courier_approvals: AdminCourierApproval[]; top_up_cap: number }
 

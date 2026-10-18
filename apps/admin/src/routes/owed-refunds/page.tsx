@@ -2,6 +2,7 @@ import { ArrowUturnLeft } from "@medusajs/icons"
 import { Button, Container, Drawer, Heading, Label, Select, StatusBadge, Table, Text, Textarea, toast } from "@medusajs/ui"
 import type { InferClientOutput } from "@mercurjs/client"
 import type { RouteConfig } from "@mercurjs/dashboard-sdk"
+import { formatMoney } from "@oja/domain"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -25,7 +26,6 @@ type OwedRefund = InferClientOutput<typeof client.admin.owedRefunds.query>["owed
 type Method = "bank_transfer" | "other"
 
 const QUERY_KEY = ["owed-refunds"]
-const money = (amount: number, currency: string) => `${currency.toUpperCase()} ${amount.toLocaleString()}`
 
 /**
  * Refunds orders owe their buyers that Paystack refused or can't make (#16): what each owes,
@@ -95,7 +95,7 @@ const OwedRefundsPage = () => {
                     <Text size="small">{o.buyer.name ?? "–"}</Text>
                     {o.buyer.email && <Text size="xsmall" className="text-ui-fg-subtle">{o.buyer.email}</Text>}
                   </Table.Cell>
-                  <Table.Cell>{money(o.amount, o.currency_code)}</Table.Cell>
+                  <Table.Cell>{formatMoney(o.amount, o.currency_code)}</Table.Cell>
                   <Table.Cell>
                     <div className="flex flex-col items-start gap-y-1">
                       {o.attempts}
@@ -167,7 +167,7 @@ function SettleDrawer({ owed, onClose, onSettled }: Readonly<{ owed: OwedRefund;
           <Drawer.Title>{t("owedRefunds.settleTitle", { order: owed.display_id })}</Drawer.Title>
         </Drawer.Header>
         <Drawer.Body className="flex flex-col gap-y-4">
-          <Text size="small">{t("owedRefunds.settleAmount", { amount: money(owed.amount, owed.currency_code) })}</Text>
+          <Text size="small">{t("owedRefunds.settleAmount", { amount: formatMoney(owed.amount, owed.currency_code) })}</Text>
           <div className="flex flex-col gap-y-2">
             <Label htmlFor="settle-method" size="small">
               {t("owedRefunds.method")}

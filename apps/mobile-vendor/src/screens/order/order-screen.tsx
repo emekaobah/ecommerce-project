@@ -12,7 +12,7 @@ import {
   type OrderFulfilment,
 } from '@/api/orders';
 import { useMayManageShop } from '@/api/sellers';
-import { approvalNote, BookCourier } from '@/orders/courier-choice';
+import { ApprovalNote, BookCourier } from '@/orders/courier-choice';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { lineLabel } from '@/orders/items';
 import { useNow } from '@/orders/use-now';
@@ -42,7 +42,7 @@ export function OrderScreen() {
         <View style={{ gap: theme.space.sm }}>
           <FulfilmentChip fulfilment={fulfilment} now={now} />
           <StateNote fulfilment={fulfilment} />
-          {fulfilment.courier_approval ? <Text tone="secondary">{approvalNote(fulfilment, currency_code)}</Text> : null}
+          <ApprovalNote fulfilment={fulfilment} currency={currency_code} />
         </View>
 
         <CourierLabel fulfilment={fulfilment} />
@@ -154,7 +154,7 @@ function CourierLabel({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>)
   const instead = shipment.switched_from ? ` · instead of ${shipment.switched_from}` : '';
   return (
     <View>
-      <ListRow title={shipment.courier_name ?? 'Courier'} subtitle={`Waybill ${shipment.waybill}${instead}`} />
+      <ListRow title={shipment.courier_name} subtitle={`Waybill ${shipment.waybill}${instead}`} />
       <ListRow
         title="Track shipment"
         trailing={<Text tone="secondary">›</Text>}

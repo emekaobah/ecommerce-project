@@ -107,7 +107,6 @@ export type Picks = Record<string, number>
  */
 export type Shipment = {
   waybill: string
-  courier_name: string | null
   tracking_url: string
   fulfillment_id: string
   /** ISO 8601. */
@@ -221,7 +220,7 @@ export type FulfilmentView = {
    */
   shipment: {
     waybill: string
-    courier_name: string | null
+    courier_name: string
     tracking_url: string
     cancelled: boolean
     switched_from: string | null
@@ -302,7 +301,7 @@ export function fulfilmentView(
     shipment: shipment
       ? {
           waybill: shipment.waybill,
-          courier_name: shipment.courier_name,
+          courier_name: shipment.courier.courier_name,
           tracking_url: shipment.tracking_url,
           cancelled: !!shipment.cancelled_at,
           switched_from: switchedFrom(shipment)?.courier_name ?? null,
