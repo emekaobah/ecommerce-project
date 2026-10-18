@@ -34,7 +34,8 @@ type ImportOptions = { seller_id: string; member_id: string; setup: ShopSetup }
  * new product, created by the shop as its own vendor proposals are, queued for
  * enrichment as a vendor's (so it goes to the admin queue unless a trusted source
  * vouches for it), and offered by the shop. The cost price is kept apart from the
- * offer, private to the shop's owner and managers.
+ * offer, private to the shop's owner and managers; a sale price goes in the shop's
+ * price lists, kept to its own offer.
  */
 export async function importOfferRows(
   scope: MedusaContainer,
@@ -78,6 +79,7 @@ export async function importOfferRows(
           variant_id: row.offer.variant_id,
           sku: row.offer.sku,
           price: row.offer.price,
+          sale: row.offer.sale,
           cost: row.offer.cost,
           stock,
         },
@@ -105,7 +107,7 @@ async function updateRow(
   try {
     const plan = await planOfferUpdate(scope, update, setup)
     await updateImportedOfferWorkflow(scope).run({
-      input: { offer_id: update.offer_id, seller_id, currency_code: setup.currency_code, cost: update.cost, ...plan },
+      input: { offer_id: update.offer_id, seller_id, currency_code: setup.currency_code, cost: update.cost, sale: update.sale, ...plan },
     })
     return { ...done, status: "updated" }
   } catch (error) {

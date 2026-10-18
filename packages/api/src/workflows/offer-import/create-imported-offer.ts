@@ -4,6 +4,7 @@ import { emitEventStep, useQueryGraphStep } from "@medusajs/medusa/core-flows"
 import { createOffersWorkflow, createProductsWorkflow } from "@mercurjs/core/workflows"
 import { ENRICHMENT_QUEUED, type EnrichableField } from "../../lib/enrichment"
 import type { ProposedProduct } from "../../lib/offer-import/rows"
+import { setOfferSalePriceWorkflow } from "./set-offer-sale-price"
 import { createOfferCostStep, recordQueuedEnrichmentStep } from "./steps"
 
 export type CreateImportedOfferInput = {
@@ -22,6 +23,8 @@ export type CreateImportedOfferInput = {
   variant_id: string | null
   sku: string
   price: number
+  /** A sale price below `price`, kept to this offer (#46); null for none. */
+  sale: number | null
   cost: number | null
   /** Units in stock; null leaves the offer untracked. */
   stock: number | null
@@ -34,7 +37,8 @@ export type CreateImportedOfferInput = {
 /**
  * One row of a shop's import, all or nothing (#37): proposes the product if the
  * catalogue lacks it (created by the shop, queued for enrichment as a vendor's),
- * creates the shop's offer on it, and keeps its cost price. A failing step undoes
+ * creates the shop's offer on it, keeps its cost price, and puts it on sale if the
+ * row gave a sale price. A failing step undoes
  * those before it, so a failed row leaves no orphaned proposal, offer or cost,
  * and importing it again starts clean. The enrichment worker hears of the
  * proposal only once the row has gone through.
@@ -109,6 +113,18 @@ export const createImportedOfferWorkflow = createWorkflow(
           currency_code: input.currency_code,
         }))
       )
+    })
+
+    // Last, as its price-list update can't be undone by a later failure.
+    when("put-on-sale", input, (i) => i.sale !== null).then(() => {
+      setOfferSalePriceWorkflow.runAsStep({
+        input: transform({ input, offer }, ({ input, offer }) => ({
+          seller_id: input.seller_id,
+          offer_id: offer.id,
+          currency_code: input.currency_code,
+          amount: input.sale!,
+        })),
+      })
     })
 
     return new WorkflowResponse(offer)

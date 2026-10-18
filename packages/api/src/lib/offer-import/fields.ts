@@ -30,7 +30,14 @@ export const OFFER_IMPORT_FIELDS: OfferImportField[] = [
     label: "Selling price",
     group: "offer",
     kind: "price",
-    aliases: ["price", "selling price", "retail price", "sale price", "unit price", "rrp", "amount"],
+    aliases: ["price", "selling price", "retail price", "unit price", "rrp", "amount", "regular price"],
+  },
+  {
+    key: "sale_price",
+    label: "Sale price",
+    group: "offer",
+    kind: "price",
+    aliases: ["sale price", "promo price", "promotional price", "discount price", "discounted price", "special price", "offer price"],
   },
   {
     key: "cost_price",

@@ -19,6 +19,7 @@
     "row": "Row",
     "product": "Product",
     "price": "Price",
+    "sale": "Sale price",
     "cost": "Cost",
     "stock": "Stock",
     "untracked": "Not tracked",
@@ -46,7 +47,7 @@
         "variant": "Barcode",
         "offer": "Your offer"
       },
-      "minimum": "A new product needs a barcode or a title, and a selling price; one you already sell needs only its barcode or SKU. Cost price and stock are optional; your cost is visible only to owners and managers.",
+      "minimum": "A new product needs a barcode or a title, and a selling price; one you already sell needs only its barcode or SKU. Sale price, cost price and stock are optional. A sale price must be below the selling price and discounts only your own offer; it goes in your price lists, where you can change or end the sale. Your cost is visible only to owners and managers.",
       "preview": "Preview rows"
     },
     "preview": {
@@ -60,7 +61,7 @@
       "updates_other": "{{count}} offers to update",
       "unchangedCount_one": "{{count}} unchanged",
       "unchangedCount_other": "{{count}} unchanged",
-      "explain": "Rows with errors are skipped. A product you already sell (found by barcode or SKU) has its price, cost and stock updated from the row; blank cells leave them as they are. A barcode the catalogue knows becomes your offer at once. Other rows are proposed as new products: they are completed from product databases and reviewed before buyers see them, already carrying your offer.",
+      "explain": "Rows with errors are skipped. A product you already sell (found by barcode or SKU) has its price, sale price, cost and stock updated from the row; blank cells leave them as they are. A barcode the catalogue knows becomes your offer at once. Other rows are proposed as new products: they are completed from product databases and reviewed before buyers see them, already carrying your offer.",
       "offer": "Offer",
       "propose": "New product",
       "update": "Update",

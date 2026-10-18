@@ -239,6 +239,7 @@ async function addOnce(scope: MedusaContainer, { seller_id, member_id }: QuickAd
         variant_id: lookup.product?.variant_id ?? null,
         sku: await freeSku(scope, seller_id, read.barcode.barcode),
         price: input.price,
+        sale: null,
         cost: null,
         stock,
         metadata: { ...QUICK_ADD_METADATA },

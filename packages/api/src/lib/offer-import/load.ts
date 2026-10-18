@@ -5,6 +5,7 @@ import { OFFER_IMPORT_MODULE, type OfferImportModuleService } from "../../module
 import type { OfferPriceInput } from "../../workflows/offer-prices/steps"
 import type { UpdateImportedOfferInput } from "../../workflows/offer-import/update-imported-offer"
 import type { CatalogueVariant, OfferImportContext, OfferUpdate, ShopOffer } from "./rows"
+import { loadShopSales } from "./sales"
 
 type Scope = Pick<MedusaContainer, "resolve">
 
@@ -131,12 +132,13 @@ function stockAt(offer: OfferRow, locationId: string | null): number | null {
   return level ? Number(level.stocked_quantity) : 0
 }
 
-/** The shop's offers as a re-import compares its rows with them: price, cost, stock and product title. */
+/** The shop's offers as a re-import compares its rows with them: price, sale price, cost, stock and product title. */
 async function loadShopOffers(scope: Scope, sellerId: string, setup: ShopSetup): Promise<ShopOffer[]> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [{ data }, costs] = await Promise.all([
+  const [{ data }, costs, sales] = await Promise.all([
     query.graph({ entity: "offer", fields: OFFER_FIELDS, filters: { seller_id: sellerId } }),
     offerImportService(scope).listOfferCosts({ seller_id: sellerId }),
+    loadShopSales(scope, sellerId, setup.currency_code),
   ])
   const offers = data as OfferRow[]
   const { data: products } = offers.length
@@ -152,6 +154,7 @@ async function loadShopOffers(scope: Scope, sellerId: string, setup: ShopSetup):
       variant_id: offer.variant_id,
       title: titleOf.get(offer.product_id) ?? offer.sku,
       price: price ? Number(price.amount) : null,
+      sale: sales.by_offer.get(offer.id)?.amount ?? null,
       cost: costOf.get(offer.id) ?? null,
       stock: stockAt(offer, setup.stock_location_id),
     }
