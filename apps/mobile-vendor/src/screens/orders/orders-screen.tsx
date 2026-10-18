@@ -81,8 +81,8 @@ export function OrdersScreen() {
       <Stack.Screen
         options={{
           title: seller.data?.name ?? 'Orders',
-          headerLeft: AddProductButton,
-          headerRight: SettingsButton,
+          headerLeft: () => <AddProductButton />,
+          headerRight: () => <SettingsButton />,
         }}
       />
       {content()}
