@@ -1,3 +1,4 @@
+import { formatMoney } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import type { ShipbubbleLabelRequest, ShipbubbleMethodData, ShipbubbleQuote } from "../modules/shipbubble"
@@ -62,6 +63,7 @@ export type LabelQuote = {
   items: LabelBooking["items"]
   /** The most the platform pays above the buyer's checkout price without Oja's team approving it. */
   cap: number
+  currency_code: string
 }
 
 /** Where the cap is kept: the store's metadata, set by Oja's team in the admin. */
@@ -149,7 +151,7 @@ export async function quoteLabel(scope: MedusaContainer, orderId: string): Promi
     }),
     topUpCap(scope),
   ])
-  return { rates, chosen, items: items.map((i) => ({ id: i.id, quantity: Number(i.quantity) })), cap }
+  return { rates, chosen, items: items.map((i) => ({ id: i.id, quantity: Number(i.quantity) })), cap, currency_code: order.currency_code }
 }
 
 /** What to do about the order's label: book a rate, have staff choose a courier, or ask Oja's team to approve one. */
@@ -178,7 +180,12 @@ function bookingOf({ chosen, items }: LabelQuote, rate: ShipbubbleQuote): LabelB
 export function decideLabel(quote: LabelQuote, pick?: CourierPick): LabelDecision {
   const { rates, chosen, cap } = quote
   const differenceOf = (rate: ShipbubbleQuote) => rate.amount - chosen.amount
-  const rate = pick ? rates.find((r) => sameCourier(r, pick)) : rateToBook(rates, chosen)
+  const automatic = rateToBook(rates, chosen)
+  // Staff choose only when booking wouldn't book a courier by itself.
+  if (pick && automatic && differenceOf(automatic) <= cap) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Book the label without choosing a courier: one is booked within what Oja tops up.")
+  }
+  const rate = pick ? rates.find((r) => sameCourier(r, pick)) : automatic
   if (!rate) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, pick ? "That courier no longer collects this parcel. Choose another." : NO_COURIER)
   }
@@ -201,13 +208,21 @@ export function decideLabel(quote: LabelQuote, pick?: CourierPick): LabelDecisio
 }
 
 /**
- * The booking of a courier Oja's team approved, at its price now, whatever the cap. Refused
- * (400) when it no longer quotes: the shop chooses again.
+ * The booking of a courier Oja's team approved, at its price now, whatever the cap, as long as
+ * that is no more than the price staff asked them to approve. Refused (400) when it no longer
+ * quotes, or now costs more: Oja's team decline it, and the shop chooses again.
  */
-export function approvedBooking(quote: LabelQuote, approved: CourierPick): LabelBooking {
+export function approvedBooking(quote: LabelQuote, approved: Pick<CourierApproval, "courier_id" | "service_code" | "amount">): LabelBooking {
   const rate = quote.rates.find((r) => sameCourier(r, approved))
   if (!rate) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "That courier no longer collects this parcel. Decline it, so the shop chooses another.")
+  }
+  if (rate.amount > approved.amount) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `${rate.courier_name} now costs ${formatMoney(rate.amount, quote.currency_code)}, more than the ` +
+        `${formatMoney(approved.amount, quote.currency_code)} asked for. Decline it, so the shop chooses again.`
+    )
   }
   return bookingOf(quote, rate)
 }

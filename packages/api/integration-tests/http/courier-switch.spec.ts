@@ -110,8 +110,10 @@ medusaIntegrationTestRunner({
         expect(push.body).toContain(FARAMOVE.courier_name)
         expect(push.body).toMatch(/Arrives/)
         const [email] = await eventually(async () => switchEmailsToAda(), (sent) => sent.length > 0)
-        expect(email.text).toContain(FARAMOVE.courier_name)
+        expect(email.text).toContain(`now shipping with ${FARAMOVE.courier_name}`)
         expect(email.text).toContain(CHOSEN.courier_name)
+        // GIG no longer quoting isn't the only reason couriers change: staff may choose another.
+        expect(email.text).not.toContain("couldn't")
         // Told once about the courier, not also that a courier was booked.
         expect(expo.sentTo(device).filter((m) => m.title?.startsWith("Courier booked"))).toEqual([])
 
@@ -194,7 +196,22 @@ medusaIntegrationTestRunner({
         expect((await approvals()).courier_approvals).toEqual([])
         const [push] = await eventually(async () => switchPushesTo(device), (sent) => sent.length > 0)
         expect(push.body).toContain(COURIERS.express.courier_name)
-        await eventually(async () => switchEmailsToAda(), (sent) => sent.length > 0)
+        const [email] = await eventually(async () => switchEmailsToAda(), (sent) => sent.length > 0)
+        expect(email.text).toContain(`now shipping with ${COURIERS.express.courier_name}`)
+        expect(email.text).toContain(CHOSEN.courier_name)
+      })
+
+      it("isn't booked once approved if it now costs more than staff asked for: Oja's team decline it", async () => {
+        const { orderId } = await packedOverCap()
+        await bookLabel(orderId, { courier: { courier_id: COURIERS.express.courier_id, service_code: COURIERS.express.service_code } })
+        shipbubble.setCouriers([COURIERS.bike, { ...COURIERS.express, amount: COURIERS.express.amount + 500 }])
+
+        const refused = await api.post(`/admin/courier-approvals/${orderId}/approve`, {}, await admin()).catch((e) => e.response)
+
+        expect(refused.status).toBe(400)
+        expect(refused.data.message).toMatch(/more than the .* asked for\. Decline it/)
+        expect(shipbubble.labelRequests()).toEqual([])
+        expect((await approvals()).courier_approvals).toEqual([expect.objectContaining({ order_id: orderId })])
       })
 
       it("declined by Oja's team leaves the order packed for staff to choose again", async () => {

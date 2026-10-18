@@ -18,7 +18,7 @@ export function CourierChangedEmail({ display_id, shop, courier, chosen, arrives
     <EmailLayout preview={now} heading={`New courier for order #${display_id}`}>
       <Paragraph>{now}</Paragraph>
       <Paragraph>{`${arrives}.`}</Paragraph>
-      <Note>{`${chosen}, the courier you chose at checkout, couldn't take it. You won't pay any more for delivery.`}</Note>
+      <Note>{`It replaces ${chosen}, the courier you chose at checkout. You won't pay any more for delivery.`}</Note>
     </EmailLayout>
   )
 }

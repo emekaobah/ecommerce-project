@@ -25,6 +25,8 @@ export function BookCourier({
         setOptions(courier_options);
         if (fulfilment.state === 'label_booked') onBooked?.();
       },
+      // The couriers quoting have changed, or one is booked without choosing: book again for a fresh quote.
+      onError: () => setOptions(null),
     });
   return (
     <View style={{ gap: theme.space.sm }}>

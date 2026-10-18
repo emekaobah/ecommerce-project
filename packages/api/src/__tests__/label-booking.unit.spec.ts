@@ -1,4 +1,4 @@
-import { decideLabel, rateToBook } from "../lib/label-booking"
+import { approvedBooking, decideLabel, rateToBook } from "../lib/label-booking"
 import type { ShipbubbleQuote } from "../modules/shipbubble"
 
 const rate = (courier_id: string, amount: number, delivery_eta_time: string): ShipbubbleQuote => ({
@@ -41,7 +41,7 @@ describe("the courier a label is booked with", () => {
 
 describe("what booking a label comes to, with a ₦1,000 top-up cap", () => {
   const chosen = rate("gig", 2500, "2026-10-09T12:00:00+01:00")
-  const quote = (rates: ShipbubbleQuote[]) => ({ rates, chosen, items: [{ id: "item_1", quantity: 2 }], cap: 1000 })
+  const quote = (rates: ShipbubbleQuote[]) => ({ rates, chosen, items: [{ id: "item_1", quantity: 2 }], cap: 1000, currency_code: "ngn" })
   const within = rate("faramove", 3500, "2026-10-09T10:00:00+01:00")
   const above = rate("kwik", 3501, "2026-10-08T15:00:00+01:00")
   const later = rate("dellyman", 1800, "2026-10-10T18:00:00+01:00")
@@ -76,5 +76,31 @@ describe("what booking a label comes to, with a ₦1,000 top-up cap", () => {
 
   it("applies the cap to the buyer's own courier quoting dearer now", () => {
     expect(decideLabel(quote([{ ...chosen, amount: 4000 }]))).toMatchObject({ action: "choose" })
+  })
+
+  it("refuses a courier staff pick while booking would book one within the cap by itself", () => {
+    expect(() => decideLabel(quote([within, later]), { courier_id: "dellyman", service_code: "dellyman" })).toThrow(
+      "Book the label without choosing a courier"
+    )
+  })
+})
+
+describe("booking a courier Oja's team approved", () => {
+  const chosen = rate("gig", 2500, "2026-10-09T12:00:00+01:00")
+  const kwik = rate("kwik", 3501, "2026-10-08T15:00:00+01:00")
+  const quote = (rates: ShipbubbleQuote[]) => ({ rates, chosen, items: [{ id: "item_1", quantity: 2 }], cap: 1000, currency_code: "ngn" })
+  const approved = { courier_id: "kwik", service_code: "kwik", amount: 3501 }
+
+  it("books it at its price now, up to the price staff asked for", () => {
+    expect(approvedBooking(quote([{ ...kwik, amount: 3400 }]), approved).rate).toMatchObject({ courier_id: "kwik", amount: 3400 })
+    expect(approvedBooking(quote([kwik]), approved).rate).toMatchObject({ courier_id: "kwik", amount: 3501 })
+  })
+
+  it("refuses it once it costs more than staff asked for, so Oja's team decline it", () => {
+    expect(() => approvedBooking(quote([{ ...kwik, amount: 3600 }]), approved)).toThrow("Decline it")
+  })
+
+  it("refuses it once it no longer quotes", () => {
+    expect(() => approvedBooking(quote([chosen]), approved)).toThrow("no longer collects")
   })
 })

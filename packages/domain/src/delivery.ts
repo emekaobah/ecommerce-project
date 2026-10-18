@@ -112,9 +112,10 @@ export function orderArrival(state: FulfilmentState, delivery: OrderDelivery | n
 
 /**
  * When the order's label was booked with another courier than the buyer chose at checkout
- * (#19), which, until the order has arrived: the platform paid any difference. Null otherwise.
+ * (#19), which, until the order has arrived: the platform paid any difference. Shown under the
+ * new estimate (`orderArrival`). Null otherwise.
  */
 export function courierChangedNote(state: FulfilmentState, delivery: OrderDelivery | null): string | null {
   if (!delivery?.switched_from || NOT_ARRIVING.has(state)) return null
-  return `${delivery.switched_from} couldn't take your order, so it's shipping with ${delivery.courier_name} at no extra cost.`
+  return `Your order is now shipping with ${delivery.courier_name} instead of ${delivery.switched_from}, at no extra cost to you.`
 }

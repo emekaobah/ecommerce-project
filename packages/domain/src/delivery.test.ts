@@ -147,9 +147,9 @@ describe("orderArrival", () => {
 describe("courierChangedNote", () => {
   const delivery = { courier_name: "Faramove Same Day", delivery_eta_time: "2026-10-07T11:00:00+01:00", time_zone: "Africa/Lagos" }
 
-  test("says which courier the buyer chose couldn't take the order, and that it costs them nothing more", () => {
+  test("says which courier the order now ships with instead of the buyer's, at no more cost to them", () => {
     expect(courierChangedNote("label_booked", { ...delivery, switched_from: "GIG Next Day" })).toBe(
-      "GIG Next Day couldn't take your order, so it's shipping with Faramove Same Day at no extra cost."
+      "Your order is now shipping with Faramove Same Day instead of GIG Next Day, at no extra cost to you."
     )
   })
 
