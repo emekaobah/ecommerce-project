@@ -58,6 +58,9 @@ function RootStack() {
     <Stack
       screenOptions={{
         headerTintColor: buyerTheme.colors.ink,
+        // An opaque header: SDK 58's default Liquid Glass header is transparent and lays each
+        // screen's content under it.
+        headerStyle: { backgroundColor: buyerTheme.colors.background },
         // A bare chevron: the tab group has no title, so a labelled back button read "(tabs)".
         headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: buyerTheme.colors.background },
