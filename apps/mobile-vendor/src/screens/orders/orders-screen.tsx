@@ -78,13 +78,15 @@ export function OrdersScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: seller.data?.name ?? 'Orders',
-          headerLeft: () => <AddProductButton />,
-          headerRight: () => <SettingsButton />,
-        }}
-      />
+      <Stack.Screen options={{ title: seller.data?.name ?? 'Orders' }} />
+      {/* asChild renders our own buttons as elements; they use hooks, so they mustn't be called as
+          the header's render function. */}
+      <Stack.Toolbar placement="left" asChild>
+        <AddProductButton />
+      </Stack.Toolbar>
+      <Stack.Toolbar placement="right" asChild>
+        <SettingsButton />
+      </Stack.Toolbar>
       {content()}
     </>
   );
