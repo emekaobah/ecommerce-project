@@ -15,5 +15,9 @@ export async function readPickedAddressId(userId: string): Promise<string | null
 }
 
 export async function savePickedAddressId(userId: string, addressId: string): Promise<void> {
-  await SecureStore.setItemAsync(keyFor(userId), addressId);
+  try {
+    await SecureStore.setItemAsync(keyFor(userId), addressId);
+  } catch {
+    // An unwritable keychain keeps the pick for this session only.
+  }
 }
