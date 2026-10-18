@@ -1,5 +1,5 @@
 import { useTheme } from '@oja/ui';
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs';
 
 import { useCart } from '@/api/cart';
 import { useCartSession } from '@/cart/cart-provider';
