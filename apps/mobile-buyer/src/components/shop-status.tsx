@@ -19,6 +19,7 @@ export function ShopStatusBadge({
   const theme = useTheme();
   if (status.state === 'open') return null;
   const note = status.state === 'closed_until' ? status.note : null;
+  const countsFrom = delivered ? ', and delivery counts from then' : '';
   return (
     <View style={{ gap: theme.space.xs, alignItems: 'flex-start' }}>
       <StatusChip label={status.label} tone={status.orderable ? 'warning' : 'danger'} symbol="◷" />
@@ -26,7 +27,7 @@ export function ShopStatusBadge({
       {withNote ? (
         <Text tone="secondary">
           {status.orderable
-            ? `You can still order: it is prepared when the shop opens${delivered ? ', and delivery counts from then' : ''}.`
+            ? `You can still order: it is prepared when the shop opens${countsFrom}.`
             : "You can't order from this shop until it reopens."}
         </Text>
       ) : null}

@@ -500,7 +500,7 @@ export async function remindOfPickupHold(scope: Scope, { id: orderId, reminder, 
   const found = await buyerOrder(scope, orderId)
   const collectBy = found?.order.fulfilment.collect_by
   const place = found && emailCollectionPlace(found.order)
-  if (!found || found.order.fulfilment.state !== "ready_for_pickup" || !collectBy || !place) return
+  if (found?.order.fulfilment.state !== "ready_for_pickup" || !collectBy || !place) return
   const { checkout, order } = found
   const onOrder = order.items.filter((i) => i.quantity > 0 && i.product_id).map((i) => i.product_id!)
   const notice = {

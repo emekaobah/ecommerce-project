@@ -94,7 +94,7 @@ export const etaCountedFrom = (etaTime: string, pickupTime: string | null | unde
 export type OrderDelivery = { courier_name: string; delivery_eta_time: string; time_zone: string }
 
 /** States in which a delivered order has arrived, or won't. */
-const NOT_ARRIVING: FulfilmentState[] = ["delivered", "rejected", "cancelled"]
+const NOT_ARRIVING = new Set<FulfilmentState>(["delivered", "rejected", "cancelled"])
 
 /**
  * "Arrives Wed 7 Oct · GIG Next Day": when the buyer's order arrives, as checkout quoted it
@@ -102,6 +102,6 @@ const NOT_ARRIVING: FulfilmentState[] = ["delivered", "rejected", "cancelled"]
  * an order without a delivery.
  */
 export function orderArrival(state: FulfilmentState, delivery: OrderDelivery | null, now: Date): string | null {
-  if (!delivery || NOT_ARRIVING.includes(state)) return null
+  if (!delivery || NOT_ARRIVING.has(state)) return null
   return `${deliveryEstimate(delivery.delivery_eta_time, now, delivery.time_zone)} · ${delivery.courier_name}`
 }
