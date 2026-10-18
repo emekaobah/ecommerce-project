@@ -14,7 +14,7 @@ Facts that shaped the decision (checked 2026-10-18 on the iOS 27 simulator, agai
 
 ## Decision
 
-Each app's `src/monitoring/sentry.ts` adds `reactNavigationIntegration({ useFullPathsForNavigationRoutes: true })` to `Sentry.init`, and the root layout calls `useSentryNavigation()`, which registers `useNavigationContainerRef()` with it. We stay on 8.28.0, the version SDK 58 lists. We don't patch Sentry or subscribe to the router's internal events.
+The shared `@oja/expo-sentry` package (`packages/expo-sentry`, started by each app's root layout with its own DSN) adds `reactNavigationIntegration({ useFullPathsForNavigationRoutes: true })` to `Sentry.init`, and the root layout calls `useSentryNavigation()`, which registers `useNavigationContainerRef()` with it. We stay on 8.28.0, the version SDK 58 lists. We don't patch Sentry or subscribe to the router's internal events.
 
 ## Consequences
 

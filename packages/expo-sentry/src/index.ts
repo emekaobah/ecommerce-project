@@ -1,22 +1,26 @@
+// Errors, crashes and traces (app start, network) sent to Sentry, shared by the buyer and vendor
+// apps (#19, ADR 0013).
 import * as Sentry from '@sentry/react-native';
 import { useNavigationContainerRef } from 'expo-router';
 import { useEffect } from 'react';
 
-import { env } from '@/config/env';
-
-// Names traces by the route's file path, e.g. `__root/(tabs)/index`. On Expo Router 58 that is only
+// Names traces by the route's file path, e.g. `__root/(app)/index`. On Expo Router 58 that is only
 // the app start: the router no longer emits the event Sentry starts navigation spans on (ADR 0013).
 const navigation = Sentry.reactNavigationIntegration({ useFullPathsForNavigationRoutes: true });
 
-// Errors, crashes and traces (app start, network) go to Sentry (#19). Without a
-// DSN, as in local development, nothing is sent. Release and dist come from the native build.
-Sentry.init({
-  dsn: env.sentryDsn,
-  enabled: Boolean(env.sentryDsn),
-  environment: __DEV__ ? 'development' : 'production',
-  tracesSampleRate: __DEV__ ? 1 : 0.1,
-  integrations: [navigation],
-});
+/**
+ * Starts Sentry with the app's DSN; called once, before the root layout renders. Without a DSN,
+ * as in local development, nothing is sent. Release and dist come from the native build.
+ */
+export function initSentry(dsn: string | undefined): void {
+  Sentry.init({
+    dsn,
+    enabled: Boolean(dsn),
+    environment: __DEV__ ? 'development' : 'production',
+    tracesSampleRate: __DEV__ ? 1 : 0.1,
+    integrations: [navigation],
+  });
+}
 
 export const withSentry = Sentry.wrap;
 

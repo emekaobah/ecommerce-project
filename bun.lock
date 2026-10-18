@@ -68,6 +68,7 @@
         "@oja/api-client": "workspace:*",
         "@oja/domain": "workspace:*",
         "@oja/expo-push": "workspace:*",
+        "@oja/expo-sentry": "workspace:*",
         "@oja/ui": "workspace:*",
         "@sentry/react-native": "~8.28.0",
         "@tanstack/react-query": "5.64.2",
@@ -117,6 +118,7 @@
         "@oja/api-client": "workspace:*",
         "@oja/domain": "workspace:*",
         "@oja/expo-push": "workspace:*",
+        "@oja/expo-sentry": "workspace:*",
         "@oja/ui": "workspace:*",
         "@sentry/react-native": "~8.28.0",
         "@tanstack/react-query": "5.64.2",
@@ -299,6 +301,19 @@
         "expo-constants": "~58.0.12",
         "expo-device": "~58.0.5",
         "expo-notifications": "~58.1.5",
+        "react": "19.3.0",
+        "react-native": "0.88.0",
+        "typescript": "~6.0.3",
+      },
+    },
+    "packages/expo-sentry": {
+      "name": "@oja/expo-sentry",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@sentry/react-native": "~8.28.0",
+        "@types/react": "~19.3.0",
+        "expo": "~58.0.14",
+        "expo-router": "~58.0.23",
         "react": "19.3.0",
         "react-native": "0.88.0",
         "typescript": "~6.0.3",
@@ -1282,6 +1297,8 @@
     "@oja/domain": ["@oja/domain@workspace:packages/domain"],
 
     "@oja/expo-push": ["@oja/expo-push@workspace:packages/expo-push"],
+
+    "@oja/expo-sentry": ["@oja/expo-sentry@workspace:packages/expo-sentry"],
 
     "@oja/mobile-buyer": ["@oja/mobile-buyer@workspace:apps/mobile-buyer"],
 
@@ -4954,6 +4971,12 @@
     "@oja/expo-push/react": ["react@19.3.0", "", {}, "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog=="],
 
     "@oja/expo-push/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@oja/expo-sentry/@types/react": ["@types/react@19.3.0", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg=="],
+
+    "@oja/expo-sentry/react": ["react@19.3.0", "", {}, "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog=="],
+
+    "@oja/expo-sentry/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "@oja/mobile-buyer/@types/react": ["@types/react@19.3.0", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg=="],
 
