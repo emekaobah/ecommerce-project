@@ -51,7 +51,9 @@ const config: ExpoConfig = {
   ],
   // Expo push tokens are issued per EAS project; without one the app runs but gets no pushes.
   extra: { eas: { projectId: process.env.EAS_PROJECT_ID || undefined } },
-  experiments: { typedRoutes: true, reactCompiler: true },
+  // Metro resolves react, react-native and every autolinked native module to the copy this app
+  // links, though Bun's isolated install keeps same-version copies elsewhere (ADR 0012).
+  experiments: { typedRoutes: true, reactCompiler: true, autolinkingModuleResolution: true },
 };
 
 export default config;
