@@ -1,5 +1,14 @@
 import { useAuth } from '@clerk/expo';
-import { collectByLabel, formatMoney, historyEntries, openingLabel, orderArrival, PICKUP_HOLD_NOTICE, preparedWhenOpen } from '@oja/domain';
+import {
+  collectByLabel,
+  courierChangedNote,
+  formatMoney,
+  historyEntries,
+  openingLabel,
+  orderArrival,
+  PICKUP_HOLD_NOTICE,
+  preparedWhenOpen,
+} from '@oja/domain';
 import { ErrorState, ListRow, LoadingState, Text, Timeline, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -122,14 +131,17 @@ function Tracking({ order }: Readonly<{ order: SellerOrder }>) {
 }
 
 /**
- * When a delivered order arrives, as checkout quoted it, and while its closed shop hasn't opened
- * yet, that it is prepared then (ADR 0004): the estimate counts from that opening.
+ * When a delivered order arrives and with which courier, as checkout quoted it or, once booked,
+ * as the booked courier did, and that it changed when another than the buyer's was booked (#19).
+ * While its closed shop hasn't opened yet, that it is prepared then (ADR 0004): the estimate
+ * counts from that opening.
  */
 function Arrival({ order }: Readonly<{ order: SellerOrder }>) {
   const theme = useTheme();
   const now = new Date();
   const arrives = orderArrival(order.fulfilment.state, order.delivery, now);
   const opens = order.shop_opens;
+  const changed = courierChangedNote(order.fulfilment.state, order.delivery);
   if (!arrives && !opens) return null;
   return (
     <View style={{ gap: theme.space.xs }}>
@@ -139,6 +151,7 @@ function Arrival({ order }: Readonly<{ order: SellerOrder }>) {
         </Text>
       ) : null}
       {arrives ? <Text variant="label">{arrives}</Text> : null}
+      {changed ? <Text tone="secondary">{changed}</Text> : null}
     </View>
   );
 }
