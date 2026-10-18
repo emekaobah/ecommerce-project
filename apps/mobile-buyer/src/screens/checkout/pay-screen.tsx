@@ -34,7 +34,7 @@ export function PayScreen() {
       options={{
         title: 'Pay with Paystack',
         headerBackVisible: false,
-        headerLeft: cancelButton(() => leave('closed')),
+        headerLeft: () => <CancelButton onCancel={() => leave('closed')} />,
       }}
     />
   );
@@ -73,10 +73,8 @@ export function PayScreen() {
 }
 
 /** The header's Cancel button, which closes Paystack's page. */
-function cancelButton(onCancel: () => void) {
-  return function CancelButton() {
-    return <Button label="Cancel" variant="link" onPress={onCancel} />;
-  };
+function CancelButton({ onCancel }: Readonly<{ onCancel: () => void }>) {
+  return <Button label="Cancel" variant="link" onPress={onCancel} />;
 }
 
 const styles = StyleSheet.create({
