@@ -6,13 +6,13 @@ import { Linking, ScrollView, View } from 'react-native';
 import {
   orderValue,
   useAcceptOrder,
-  useBookLabel,
   useConfirmHandover,
   useOrder,
   useStartPicking,
   type OrderFulfilment,
 } from '@/api/orders';
 import { useMayManageShop } from '@/api/sellers';
+import { approvalNote, BookCourier } from '@/orders/courier-choice';
 import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { lineLabel } from '@/orders/items';
 import { useNow } from '@/orders/use-now';
@@ -42,6 +42,7 @@ export function OrderScreen() {
         <View style={{ gap: theme.space.sm }}>
           <FulfilmentChip fulfilment={fulfilment} now={now} />
           <StateNote fulfilment={fulfilment} />
+          {fulfilment.courier_approval ? <Text tone="secondary">{approvalNote(fulfilment, currency_code)}</Text> : null}
         </View>
 
         <CourierLabel fulfilment={fulfilment} />
@@ -53,7 +54,7 @@ export function OrderScreen() {
           <ListRow title="Total" trailing={<Text variant="label">{formatMoney(orderValue(order.data), currency_code)}</Text>} />
         </View>
 
-        <NextStep orderId={id} fulfilment={fulfilment} />
+        <NextStep orderId={id} fulfilment={fulfilment} currency={currency_code} />
         <CancelOrder orderId={id} fulfilment={fulfilment} />
 
         {fulfilment.timeline.length ? <Timeline steps={fulfilment.timeline} /> : null}
@@ -143,13 +144,17 @@ function HandoverNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>)
   return <Text tone="secondary">The courier confirmed the pickup. Keep the parcel ready at the counter.</Text>;
 }
 
-/** The courier label booked for the order: the courier, its waybill and a link to track it. */
+/**
+ * The courier label booked for the order: the courier, its waybill and a link to track it, and
+ * the buyer's courier when another was booked (#19).
+ */
 function CourierLabel({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
   const { shipment } = fulfilment;
   if (!shipment || shipment.cancelled) return null;
+  const instead = shipment.switched_from ? ` · instead of ${shipment.switched_from}` : '';
   return (
     <View>
-      <ListRow title={shipment.courier_name ?? 'Courier'} subtitle={`Waybill ${shipment.waybill}`} />
+      <ListRow title={shipment.courier_name ?? 'Courier'} subtitle={`Waybill ${shipment.waybill}${instead}`} />
       <ListRow
         title="Track shipment"
         trailing={<Text tone="secondary">›</Text>}
@@ -159,13 +164,15 @@ function CourierLabel({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>)
   );
 }
 
-/** What staff do next with the order: Accept / Reject while new, pick it, then book its courier label. */
-function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilment: OrderFulfilment }>) {
+/**
+ * What staff do next with the order: Accept / Reject while new, pick it, then book its courier
+ * label, choosing another courier when the buyer's costs more than Oja tops up (#19).
+ */
+function NextStep({ orderId, fulfilment, currency }: Readonly<{ orderId: string; fulfilment: OrderFulfilment; currency: string }>) {
   const theme = useTheme();
   const router = useRouter();
   const accept = useAcceptOrder(orderId);
   const startPicking = useStartPicking(orderId);
-  const bookLabel = useBookLabel(orderId);
   const handOver = useConfirmHandover(orderId);
   const { state } = fulfilment;
   const openPickList = () => router.push({ pathname: '/orders/[id]/pick', params: { id: orderId } });
@@ -198,13 +205,7 @@ function NextStep({ orderId, fulfilment }: Readonly<{ orderId: string; fulfilmen
     return <Button label="Continue picking" onPress={openPickList} />;
   }
   if (state === 'packed') {
-    return (
-      <Action
-        label={fulfilment.shipment?.cancelled ? 'Rebook courier label' : 'Book courier label'}
-        mutation={bookLabel}
-        onPress={() => bookLabel.mutate()}
-      />
-    );
+    return <BookCourier orderId={orderId} rebook={!!fulfilment.shipment?.cancelled} currency={currency} />;
   }
   if (state === 'ready_for_pickup') {
     return <Button label="Hand over to buyer" onPress={() => router.push({ pathname: '/orders/[id]/collect', params: { id: orderId } })} />;

@@ -178,14 +178,30 @@ export function useRecordPick(orderId: string) {
   });
 }
 
+/** A courier staff choose to book, by Shipbubble's ids for it (#19). */
+export type CourierPick = { courier_id: string; service_code: string };
+
+const bookLabel = (orderId: string, courier?: CourierPick) =>
+  vendorClient.vendor.orders.$id.bookLabel.mutate({ $id: orderId, ...(courier && { courier }) });
+
+/**
+ * A courier staff may book when the one booking picked costs the platform more than the top-up
+ * cap above what the buyer paid (#19): its price, how much more (or less) than the buyer's, and
+ * whether it is within the cap or needs Oja's approval.
+ */
+export type CourierOption = NonNullable<Awaited<ReturnType<typeof bookLabel>>['courier_options']>[number];
+
 /**
  * Books a courier label for a packed order, paid by the platform; or rebooks one whose
- * shipment Shipbubble cancelled. The courier then confirms the pickup.
+ * shipment Shipbubble cancelled. The courier then confirms the pickup. Without a courier, the
+ * buyer's (or the nearest to it) is booked unless it costs more than the top-up cap; then
+ * nothing is booked and `courier_options` come back to choose from (#19). A courier chosen
+ * above the cap waits for Oja's approval (`fulfilment.courier_approval`).
  */
 export function useBookLabel(orderId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => vendorClient.vendor.orders.$id.bookLabel.mutate({ $id: orderId }),
+    mutationFn: (courier?: CourierPick) => bookLabel(orderId, courier),
     onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
   });
 }

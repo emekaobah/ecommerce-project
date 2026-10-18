@@ -2,7 +2,8 @@ import { Button, StatusChip, Text, useTheme } from '@oja/ui';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 
-import { useBookLabel, useOrder } from '@/api/orders';
+import { useOrder } from '@/api/orders';
+import { BookCourier } from '@/orders/courier-choice';
 
 /**
  * Confirms an order is packed. A delivery order next needs a courier label, which staff can book
@@ -13,7 +14,6 @@ export function PackedScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const order = useOrder(id);
-  const bookLabel = useBookLabel(id);
   const pickup = order.data?.fulfilment.method === 'pickup';
   const name = order.data ? `Order #${order.data.display_id}` : 'The order';
 
@@ -37,13 +37,8 @@ export function PackedScreen() {
       <StatusChip label="Packed" tone="success" />
       <Text variant="title">{`${name} is packed`}</Text>
       <Text tone="secondary">Keep it at the counter, and book a courier to collect it.</Text>
-      {bookLabel.error ? <Text tone="danger">{bookLabel.error.message}</Text> : null}
-      <Button
-        label="Book courier label"
-        loading={bookLabel.isPending}
-        onPress={() => bookLabel.mutate(undefined, { onSuccess: () => router.back() })}
-      />
-      <Button label="Back to orders" variant="secondary" disabled={bookLabel.isPending} onPress={() => router.dismissTo('/')} />
+      {order.data ? <BookCourier orderId={id} currency={order.data.currency_code} onBooked={() => router.back()} /> : null}
+      <Button label="Back to orders" variant="secondary" onPress={() => router.dismissTo('/')} />
     </View>
   );
 }
