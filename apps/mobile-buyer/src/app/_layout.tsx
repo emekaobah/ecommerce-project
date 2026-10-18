@@ -11,7 +11,7 @@ import { queryClient } from '@/api/query-client';
 import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
 import { DeliveringToProvider } from '@/delivering-to/delivering-to-provider';
-import { withSentry } from '@/monitoring/sentry';
+import { useSentryNavigation, withSentry } from '@/monitoring/sentry';
 import { usePushRegistration } from '@/push/push-registration';
 import { useOpenTappedPush } from '@/push/use-open-tapped-push';
 import { RegionProvider } from '@/region/region-provider';
@@ -23,6 +23,7 @@ void SplashScreen.preventAutoHideAsync();
 export default withSentry(RootLayout);
 
 function RootLayout() {
+  useSentryNavigation();
   return (
     // The token cache keeps the session in the keychain, so it survives app restarts.
     <ClerkProvider publishableKey={env.clerkPublishableKey} tokenCache={tokenCache}>
