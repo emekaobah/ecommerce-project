@@ -238,7 +238,7 @@ function AddToCart({
       ) : null}
       {add.error ? (
         <Text tone="secondary" accessibilityLiveRegion="polite">
-          Couldn't add this to your cart: {add.error.message}
+          Couldn&apos;t add this to your cart: {add.error.message}
         </Text>
       ) : null}
     </View>
@@ -334,7 +334,7 @@ function MoreFromShop({
     if (suggestions.error) {
       return (
         <View style={{ paddingHorizontal: theme.space.md, gap: theme.space.xs, alignItems: 'flex-start' }}>
-          <Text tone="secondary">Couldn't load more from this shop.</Text>
+          <Text tone="secondary">Couldn&apos;t load more from this shop.</Text>
           <Button label="Try again" variant="link" onPress={() => void suggestions.refetch()} />
         </View>
       );
