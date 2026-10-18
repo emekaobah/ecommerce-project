@@ -28,3 +28,10 @@ The owner chose to keep Bun's isolated linker and force one copy (comment on #9,
 - `expo-doctor` still reports the duplicate check as failed in both apps, with "Your node_modules folder may be corrupted" advice. That's harmless: neither the bundles nor the native builds use the extra copies. It can't be silenced, so ignore that check and read the rest of the report. Deleting `node_modules` won't clear it.
 - A new Expo package with the same cycle will show up in that report too. It is covered as long as it is autolinked (it has native code) or is one of the React packages above. A JS-only package duplicated in the same way would not be pinned. Check the export's source map (`expo export --source-maps`) before trusting a new duplicate.
 - If a later Bun links peer cycles to one copy, the duplicate check may start passing. Nothing else here would change.
+
+## Rechecked on Expo SDK 58 (#49, 2026-10-18)
+
+Bun 1.4.2, `expo` 58.0.14, React 19.3.0, React Native 0.88.0, `expo-doctor` 1.21.5.
+
+- `expo-doctor` passes 19 of 20 checks in both apps. The version check passes. Only the duplicate check fails, for the same peer-cycle reason as above: `expo`, `expo-constants`, `expo-font` and `react@18.3.1` in both apps, `expo-glass-effect` and `expo-linking` in the buyer app, and `@expo/dom-webview` and `@expo/log-box` in the vendor app.
+- `experiments.autolinkingModuleResolution` still pins them. The iOS exports (`expo export -p ios --source-maps`) carry one copy of every Expo package, of React and of React Native. In the buyer bundle, `expo/internal/async-require-module.js` is listed under the app's `node_modules/expo` symlink and the rest of `expo` under its `.bun` path, but both are the same install. The only real duplicate is still `@tanstack/query-core` (5.64.2 for the app, 5.104.0 inside Clerk).
