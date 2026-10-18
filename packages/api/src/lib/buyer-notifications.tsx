@@ -2,6 +2,8 @@ import {
   addressLines,
   buyerStatusPush,
   collectByLabel,
+  courierChangedPush,
+  deliveryEstimate,
   holdReminderPush,
   itemsRemovedPush,
   notCollectedPush,
@@ -29,6 +31,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { ReactElement } from "react"
 import { CheckoutNotPlacedEmail } from "../emails/checkout-not-placed"
 import { CollectedReceiptEmail } from "../emails/collected-receipt"
+import { CourierChangedEmail } from "../emails/courier-changed"
 import { DeliveryReceiptEmail } from "../emails/delivery-receipt"
 import { OrderCancelledEmail } from "../emails/order-cancelled"
 import { OrderConfirmationEmail } from "../emails/order-confirmation"
@@ -40,9 +43,10 @@ import { RefundAccountEmail } from "../emails/refund-account"
 import { RefundByHandEmail } from "../emails/refund-by-hand"
 import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
+import { SHIPBUBBLE_TIMEZONE } from "../modules/shipbubble"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
 import { sendEmail } from "./email"
-import { fulfilmentService, fulfilmentsOf, type Picks } from "./order-fulfilment"
+import { fulfilmentService, fulfilmentsOf, switchedFrom, type Picks } from "./order-fulfilment"
 import { needsAttentionSince } from "./owed-refunds"
 import { perishableProductIds } from "./perishable"
 import { NOT_COLLECTED_NOTE } from "./pickup-hold"
@@ -216,9 +220,12 @@ export async function pushOrderState(scope: Scope, orderId: string, state: Fulfi
     pickup: order.pickup,
   })
   if (!push) return
+  const record = (await fulfilmentsOf(scope, [orderId])).get(orderId)
+  // A label booked with another courier than the buyer chose is told by `tellCourierChanged` instead (#19).
+  if (state === "label_booked" && record?.shipment && switchedFrom(record.shipment)) return
   // An order can reach a state again (a courier label rebooked after the shipper cancelled it):
   // the device is told each time, once.
-  const reachedAt = (await fulfilmentsOf(scope, [orderId])).get(orderId)?.reached?.[state] ?? ""
+  const reachedAt = record?.reached?.[state] ?? ""
   await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
     template: `buyer-order-${state.replaceAll("_", "-")}`,
     ...push,
@@ -226,6 +233,39 @@ export async function pushOrderState(scope: Scope, orderId: string, state: Fulfi
     idempotencyKey: (to) => `buyer-order-${state}:${orderId}:${reachedAt}:${to}`,
     about: `${state} for order ${orderId}`,
   })
+}
+
+/**
+ * Tells the buyer, by push and email, that their order's label was booked with another courier
+ * than they chose at checkout (#19), and when it now arrives, even when no later than before.
+ * Once per booking: a rebook with another courier is told again.
+ */
+export async function tellCourierChanged(scope: Scope, orderId: string): Promise<void> {
+  const shipment = (await fulfilmentsOf(scope, [orderId])).get(orderId)?.shipment
+  const chosen = shipment && switchedFrom(shipment)
+  if (!shipment || !chosen) return
+  const found = await buyerOrder(scope, orderId)
+  if (!found) return
+  const { checkout, order } = found
+  // Days counted as the buyer's order shows them (`buyerDelivery`).
+  const arrives = deliveryEstimate(shipment.delivery_eta_time, new Date(), SHIPBUBBLE_TIMEZONE)
+  const notice = { display_id: order.display_id, shop: order.seller.name, courier: shipment.courier.courier_name, arrives }
+  const key = `courier-changed:${orderId}:${shipment.waybill}`
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "courier-changed",
+      subject: `Your ${PRODUCT_NAME} order #${order.display_id} has a new courier`,
+      body: <CourierChangedEmail {...notice} chosen={chosen.courier_name} />,
+      key,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-courier-changed",
+      ...courierChangedPush(notice),
+      data: orderPushData(checkout, orderId),
+      idempotencyKey: (to) => `buyer-${key}:${to}`,
+      about: `the new courier of order ${orderId}`,
+    }),
+  ])
 }
 
 /** The day of `at` where the order's shop is, as the buyer reads it: "Thursday 15 October". */

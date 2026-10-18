@@ -349,6 +349,22 @@
           "enumItems": [],
           "mappedType": "json"
         },
+        "courier_approval": {
+          "name": "courier_approval",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
         "shipment_id": {
           "name": "shipment_id",
           "type": "text",

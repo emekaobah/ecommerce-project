@@ -67,7 +67,8 @@ export const checkTransitionStep = createStep(
  * Records when the order reached its new state (#25). An order reaching Delivered or Collected,
  * by whichever trigger, may now be paid out, as may one Not collected with perishable lines
  * kept (#32); a shipment cancelled back to Packed may be alerted about again; a pickup order
- * Ready for pickup is issued its code (#12). A new state emits `order_fulfilment.state_changed`
+ * Ready for pickup is issued its code (#12); a label booked clears any courier waiting for
+ * approval (#19). A new state emits `order_fulfilment.state_changed`
  * once the workflow succeeds.
  */
 export const transitionFulfilmentStep = createStep(
@@ -83,6 +84,8 @@ export const transitionFulfilmentStep = createStep(
       reached,
       ...(fulfilment.state === "rejected" && { reject_reason: reject_reason ?? null }),
       ...(shipment && { shipment, shipment_id: shipment.waybill }),
+      // A booked label leaves no courier waiting for Oja's team to approve (#19).
+      ...(fulfilment.state === "label_booked" && { courier_approval: null }),
       // Nothing leaves Delivered or Collected, so this is the transition that reached it.
       ...(fulfilment.state === "delivered" && { payout_eligible_at: new Date(reached.delivered ?? trigger.at) }),
       ...(fulfilment.state === "collected" && { payout_eligible_at: new Date(reached.collected ?? trigger.at) }),
@@ -116,6 +119,7 @@ export const transitionFulfilmentStep = createStep(
         reject_reason: previous.reject_reason,
         shipment: previous.shipment,
         shipment_id: previous.shipment_id,
+        courier_approval: previous.courier_approval,
         reached: previous.reached,
         payout_eligible_at: previous.payout_eligible_at,
         handover_alerted_at: previous.handover_alerted_at,

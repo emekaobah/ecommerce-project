@@ -28,7 +28,7 @@ import { refuseVendorCapture } from "./vendor/payments/no-capture";
 import { showTheShopItsOwnOrder } from "./vendor/orders/shop-view";
 import { courierFulfilmentsByLabelOnly } from "./vendor/orders/labels-only";
 import { hideBuyerPins } from "./vendor/buyer-pins";
-import { VendorCollectOrder, VendorMarkUnavailable, VendorRecordPick, VendorRejectOrder } from "./vendor/orders/validators";
+import { VendorBookLabel, VendorCollectOrder, VendorMarkUnavailable, VendorRecordPick, VendorRejectOrder } from "./vendor/orders/validators";
 import { showTheShopItsOwnPayment } from "./vendor/payments/shop-view";
 import { paystackCartsCompleteByWebhook } from "./store/carts/[id]/checkout/webhook-completes";
 import { StoreCreateWishlist, StoreGetWishlist, StoreMoveWishlistToCart } from "./store/wishlist/validators";
@@ -55,6 +55,7 @@ import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { AdminRefundDelivery } from "./admin/orders/[id]/delivery-refund/validators";
 import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validators";
+import { AdminSetTopUpCap } from "./admin/courier-approvals/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
 import { reportServerErrors } from "./report-server-errors";
@@ -270,6 +271,12 @@ export default defineMiddlewares({
             matcher: "/vendor/orders/:id/reject",
             middlewares: [validateAndTransformBody(VendorRejectOrder)],
         },
+        // Staff may name the courier to book (#19).
+        {
+            method: ["POST"],
+            matcher: "/vendor/orders/:id/book-label",
+            middlewares: [validateAndTransformBody(VendorBookLabel)],
+        },
         {
             method: ["POST"],
             matcher: "/vendor/orders/:id/pick-list/:item_id",
@@ -331,6 +338,12 @@ export default defineMiddlewares({
             middlewares: [validateAndTransformBody(AdminOverrideProductPerishable)],
         },
         // Refunds of delivery (#22): Oja's staff alone, since Oja keeps the delivery fee.
+        // Oja's team set the courier top-up cap (#19).
+        {
+            method: ["POST"],
+            matcher: "/admin/courier-approvals/cap",
+            middlewares: [validateAndTransformBody(AdminSetTopUpCap)],
+        },
         {
             method: ["POST"],
             matcher: "/admin/orders/:id/delivery-refund",

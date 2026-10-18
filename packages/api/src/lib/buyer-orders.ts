@@ -14,6 +14,8 @@ import {
   type FulfilmentView,
   type Picks,
   type PlacedOrder,
+  type Shipment,
+  switchedFrom,
 } from "./order-fulfilment"
 import { refundMade, refusedByPaystack, totalOf } from "./order-refund"
 import { failedSinceLastMade, handedOver, needsAccount, owedRefundsOf, type OwedRefund } from "./owed-refunds"
@@ -82,10 +84,26 @@ export type BuyerOrder = {
   reviews: BuyerReview[]
 }
 
-/** The buyer's chosen rate on the order's Shipbubble method, as checkout saved it. */
-function buyerDelivery(o: { shipping_methods?: ({ data?: Record<string, unknown> | null } | null)[] | null }): OrderDelivery | null {
+/**
+ * The order's delivery as its buyer sees it: the courier booked and when it said it delivers,
+ * with the courier the buyer chose when another was booked (#19); before a booking (or once
+ * Shipbubble cancelled one), the buyer's chosen rate on the order's Shipbubble method, as
+ * checkout saved it.
+ */
+function buyerDelivery(
+  o: { shipping_methods?: ({ data?: Record<string, unknown> | null } | null)[] | null },
+  shipment: Shipment | null | undefined
+): OrderDelivery | null {
+  if (shipment && !shipment.cancelled_at) {
+    return {
+      courier_name: shipment.courier.courier_name,
+      delivery_eta_time: shipment.delivery_eta_time,
+      time_zone: SHIPBUBBLE_TIMEZONE,
+      switched_from: switchedFrom(shipment)?.courier_name ?? null,
+    }
+  }
   const quote = (o.shipping_methods ?? []).map((m) => m?.data?.quote as ShipbubbleQuote | undefined).find((q) => q?.delivery_eta_time)
-  return quote ? { courier_name: quote.courier_name, delivery_eta_time: quote.delivery_eta_time, time_zone: SHIPBUBBLE_TIMEZONE } : null
+  return quote ? { courier_name: quote.courier_name, delivery_eta_time: quote.delivery_eta_time, time_zone: SHIPBUBBLE_TIMEZONE, switched_from: null } : null
 }
 
 /** When the order's closed shop opens, while the order waits for it as New. */
@@ -101,11 +119,20 @@ function shopOpens(state: string, hours: ShopHours | null, now: Date): BuyerOrde
  * An order's fulfilment as its buyer sees it (#25): its state, the courier's tracking link once
  * a label is booked, and its timeline in the buyer's steps. Not who at the shop handed it over.
  */
-export type BuyerFulfilmentView = Omit<FulfilmentView, "handover" | "collection">
+export type BuyerFulfilmentView = Omit<FulfilmentView, "handover" | "collection" | "courier_approval" | "shipment"> & {
+  shipment: Pick<NonNullable<FulfilmentView["shipment"]>, "waybill" | "courier_name" | "tracking_url" | "cancelled"> | null
+}
 
 function buyerFulfilment(record: FulfilmentRecord | undefined, order: PlacedOrder, hours: ShopHours | null): BuyerFulfilmentView {
-  const { handover: _staffOnly, collection: _alsoStaffOnly, ...view } = fulfilmentView(record, order, hours, { audience: "buyer" })
-  return view
+  const {
+    handover: _staffOnly,
+    collection: _alsoStaffOnly,
+    courier_approval: _forOjaToApprove,
+    shipment,
+    ...view
+  } = fulfilmentView(record, order, hours, { audience: "buyer" })
+  // What the courier costs the platform is the shop's and Oja's business, not the buyer's.
+  return { ...view, shipment: shipment && { waybill: shipment.waybill, courier_name: shipment.courier_name, tracking_url: shipment.tracking_url, cancelled: shipment.cancelled } }
 }
 
 /**
@@ -270,7 +297,7 @@ async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Pro
         {
           ...buyerOrder(o, record?.removed ?? {}),
           fulfilment,
-          delivery: fulfilment.method === "delivery" ? buyerDelivery(o) : null,
+          delivery: fulfilment.method === "delivery" ? buyerDelivery(o, record?.shipment) : null,
           shop_opens: shopOpens(fulfilment.state, shopHours, now),
           refund: buyerRefund(refundsOf(o.id)),
           owed_refund: buyerOwedRefund(owed.get(o.id)),

@@ -14,6 +14,7 @@ import {
 import type { InferTypeOf, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { isPickupMethod } from "./collection-point"
+import { sameCourier, type Courier, type CourierApproval } from "./label-booking"
 import { collectByOf, HOLD_LINE_FIELDS, holdLinesOf, type CollectBy, type HoldLine, type OrderLineRow } from "./pickup-hold"
 import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../modules/order-fulfilment"
 import type OrderFulfilment from "../modules/order-fulfilment/models/order-fulfilment"
@@ -113,7 +114,19 @@ export type Shipment = {
   booked_at: string
   /** ISO 8601; when Shipbubble cancelled it. */
   cancelled_at: string | null
+  /** The courier booked, and its price, paid from the platform's wallet (#19). */
+  courier: Courier
+  /** When the booked courier delivers (ISO 8601), as quoted at booking. */
+  delivery_eta_time: string
+  /** The courier the buyer chose at checkout, and what it cost them (#19). */
+  chosen: Courier
+  /** What the booked courier costs above the buyer's checkout price, which the platform pays (negative when less). */
+  difference: number
 }
+
+/** The courier the buyer chose at checkout, when another was booked (#19); null when theirs was. */
+export const switchedFrom = (shipment: Pick<Shipment, "courier" | "chosen">): Courier | null =>
+  sameCourier(shipment.courier, shipment.chosen) ? null : shipment.chosen
 
 export type FulfilmentRecord = {
   id: string
@@ -129,6 +142,8 @@ export type FulfilmentRecord = {
   removed: Picks | null
   accept_reminded_at: Date | null
   shipment: Shipment | null
+  /** A courier staff chose above the top-up cap, waiting for Oja's team to approve it (#19). */
+  courier_approval: CourierApproval | null
   /** The shipment's waybill, for its webhooks to find the order by. */
   shipment_id: string | null
   /** When the order last reached each state; null for an order not moved since this was kept (#25). */
@@ -198,8 +213,22 @@ export type FulfilmentView = {
    * the note given, and when (ISO 8601); null unless cancelled. Not who: staff and buyer alike see it.
    */
   cancellation: Omit<Cancellation, "actor"> | null
-  /** The courier label last booked for the order; `cancelled` once Shipbubble cancelled it, to rebook. */
-  shipment: { waybill: string; courier_name: string | null; tracking_url: string; cancelled: boolean } | null
+  /**
+   * The courier label last booked for the order; `cancelled` once Shipbubble cancelled it, to
+   * rebook. `switched_from`: the buyer's courier at checkout, when another was booked; `price`:
+   * what the buyer's courier cost at checkout, what the booked one costs, and the difference
+   * the platform pays (#19).
+   */
+  shipment: {
+    waybill: string
+    courier_name: string | null
+    tracking_url: string
+    cancelled: boolean
+    switched_from: string | null
+    price: { checkout: number; booked: number; difference: number }
+  } | null
+  /** A courier staff chose above the top-up cap, waiting for Oja's team to approve it (#19); null otherwise. */
+  courier_approval: CourierApproval | null
   /**
    * The handover to the courier, from the courier's confirmation on (null before): the staff
    * member who confirmed it and when, and when the courier reported picking it up (ISO 8601).
@@ -276,8 +305,11 @@ export function fulfilmentView(
           courier_name: shipment.courier_name,
           tracking_url: shipment.tracking_url,
           cancelled: !!shipment.cancelled_at,
+          switched_from: switchedFrom(shipment)?.courier_name ?? null,
+          price: { checkout: shipment.chosen.amount, booked: shipment.courier.amount, difference: shipment.difference },
         }
       : null,
+    courier_approval: record?.courier_approval ?? null,
     handover: handover && {
       staff: handover.staff ? { name: names.get(handover.staff.actor) ?? null, at: handover.staff.at } : null,
       picked_up_at: handover.pickup?.at ?? null,
