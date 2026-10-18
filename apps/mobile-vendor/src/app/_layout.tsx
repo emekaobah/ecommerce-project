@@ -19,6 +19,7 @@ function RootLayout() {
   const session = useSessionState();
   const hydrated = session.status !== 'hydrating';
   const signedIn = session.status === 'signedIn';
+  const choosingShop = session.status === 'choosingShop';
 
   useEffect(() => {
     if (hydrated) SplashScreen.hide();
@@ -31,8 +32,10 @@ function RootLayout() {
       <ThemeProvider theme={vendorTheme}>
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
-          {/* Flipping a guard redirects to the group that is allowed: sign-out lands on sign-in. */}
-          <Stack.Protected guard={signedIn} redirectTo="/sign-in">
+          {/* Flipping a guard redirects to the group that is allowed: sign-out lands on sign-in, and a
+              member who must pick a shop (several shops, none saved or the saved one lost) on the
+              picker, which (auth) shows instead of sign-in. */}
+          <Stack.Protected guard={signedIn} redirectTo={choosingShop ? '/shop-picker' : '/sign-in'}>
             <Stack.Screen name="(app)" />
           </Stack.Protected>
           <Stack.Protected guard={!signedIn} redirectTo="/">
