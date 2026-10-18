@@ -32,10 +32,10 @@ function RootLayout() {
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
           {/* Flipping a guard redirects to the group that is allowed: sign-out lands on sign-in. */}
-          <Stack.Protected guard={signedIn}>
+          <Stack.Protected guard={signedIn} redirectTo="/sign-in">
             <Stack.Screen name="(app)" />
           </Stack.Protected>
-          <Stack.Protected guard={!signedIn}>
+          <Stack.Protected guard={!signedIn} redirectTo="/">
             <Stack.Screen name="(auth)" />
           </Stack.Protected>
         </Stack>
