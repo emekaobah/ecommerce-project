@@ -109,7 +109,7 @@ export class ShipbubbleFulfillmentProviderService extends AbstractFulfillmentPro
 
   /**
    * Books the courier label, paid from the platform's Shipbubble wallet (#24). Only label
-   * booking (`bookLabelWorkflow`) creates Shipbubble fulfilments: it quotes the parcel afresh
+   * booking (`bookLabelWorkflow`) creates Shipbubble fulfilments: its caller quotes the parcel afresh
    * and passes the courier rate to book in the fulfilment's `metadata.shipbubble_rate`. The
    * shipment's id is its waybill number, kept with the tracking link as the fulfilment's label.
    */

@@ -74,6 +74,26 @@
     "settled": "Marked settled.",
     "cancel": "Cancel"
   },
+  "courierApprovals": {
+    "title": "Courier approvals",
+    "description": "Couriers shops chose that cost more than the top-up cap above what the buyer paid for delivery. Approving one books its label at its price now, paid from the platform's Shipbubble wallet; declining one sends the shop back to choose another. The shop never pays the difference.",
+    "loadError": "Could not load the courier approvals.",
+    "empty": "No courier is waiting for approval.",
+    "order": "Order",
+    "courier": "Courier",
+    "price": "Price",
+    "difference": "Above checkout",
+    "arrives": "Arrives {{at}}",
+    "paid": "Buyer paid {{amount}}",
+    "approve": "Approve and book",
+    "decline": "Decline",
+    "approved": "Approved: the label is booked and the buyer told.",
+    "declined": "Declined: the shop chooses another courier.",
+    "cap": "Top-up cap per shipment",
+    "saveCap": "Save",
+    "capSaved": "Top-up cap saved.",
+    "capHint": "The most the platform pays above what the buyer paid for delivery when the courier is booked. A courier costing more waits here for approval."
+  },
   "perishable": {
     "title": "Perishable",
     "loadError": "Could not load whether this is perishable.",

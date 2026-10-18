@@ -19,7 +19,7 @@ export type StatusChipProps = {
 }
 
 /** Always pairs a symbol and a label with colour, so status never relies on colour alone. */
-export function StatusChip({ label, tone = "neutral", symbol = SYMBOLS[tone] }: StatusChipProps) {
+export function StatusChip({ label, tone = "neutral", symbol = SYMBOLS[tone] }: Readonly<StatusChipProps>) {
   const theme = useTheme()
   const { foreground, background } = theme.status[tone]
   return (

@@ -90,18 +90,32 @@ export const etaCountedFrom = (etaTime: string, pickupTime: string | null | unde
   return new Date(pickupTime ? eta + Math.max(0, startsAt.getTime() - Date.parse(pickupTime)) : eta)
 }
 
-/** A delivered order's courier and when checkout said it arrives (ISO 8601), with the timezone its days are counted in. */
-export type OrderDelivery = { courier_name: string; delivery_eta_time: string; time_zone: string }
+/**
+ * A delivered order's courier and when it arrives (ISO 8601), as checkout quoted it or, once a
+ * label is booked, as the booked courier did, with the timezone its days are counted in.
+ * `switched_from`: the courier the buyer chose at checkout, when another was booked (#19).
+ */
+export type OrderDelivery = { courier_name: string; delivery_eta_time: string; time_zone: string; switched_from: string | null }
 
 /** States in which a delivered order has arrived, or won't. */
 const NOT_ARRIVING = new Set<FulfilmentState>(["delivered", "rejected", "cancelled"])
 
 /**
  * "Arrives Wed 7 Oct · GIG Next Day": when the buyer's order arrives, as checkout quoted it
- * (counted from the shop's next opening, ADR 0004). Null once it has arrived or won't, and for
- * an order without a delivery.
+ * (counted from the shop's next opening, ADR 0004) or the booked courier did. Null once it has
+ * arrived or won't, and for an order without a delivery.
  */
 export function orderArrival(state: FulfilmentState, delivery: OrderDelivery | null, now: Date): string | null {
   if (!delivery || NOT_ARRIVING.has(state)) return null
   return `${deliveryEstimate(delivery.delivery_eta_time, now, delivery.time_zone)} · ${delivery.courier_name}`
+}
+
+/**
+ * When the order's label was booked with another courier than the buyer chose at checkout
+ * (#19), which, until the order has arrived: the platform paid any difference. Shown under the
+ * new estimate (`orderArrival`). Null otherwise.
+ */
+export function courierChangedNote(state: FulfilmentState, delivery: OrderDelivery | null): string | null {
+  if (!delivery?.switched_from || NOT_ARRIVING.has(state)) return null
+  return `Your order is now shipping with ${delivery.courier_name} instead of ${delivery.switched_from}, at no extra cost to you.`
 }

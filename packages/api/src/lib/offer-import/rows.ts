@@ -41,6 +41,8 @@ export type ShopOffer = {
   title: string
   /** Its selling price in the sheet's currency, if it has one. */
   price: number | null
+  /** Its sale price in the shop's imported sale prices, which an import changes, if it has one (#46). */
+  sale: number | null
   /** Its private cost price, if the shop gave one. */
   cost: number | null
   /** Units in stock; null when the offer isn't tracked. */
@@ -51,6 +53,7 @@ export type ShopOffer = {
 export type OfferUpdate = {
   offer_id: string
   price: number | null
+  sale: number | null
   cost: number | null
   stock: number | null
 }
@@ -62,6 +65,8 @@ export type ImportOffer = {
   sku: string
   /** Selling price, in major units. */
   price: number
+  /** A sale price below it, kept to this shop's offer; null for none. */
+  sale: number | null
   /** The shop's private cost price, in major units. */
   cost: number | null
   /** Units in stock; null when the sheet doesn't track stock. */
@@ -163,13 +168,15 @@ const skuFrom = (text: string) => trimDash(trimDash(text.toUpperCase().replace(/
  * Reads each row of a shop's sheet into what the import would do with it.
  *
  * - A row for an offer the shop already has (its barcode's product, or, with no
- *   barcode, its SKU) updates that offer's price, cost and stock with whatever
- *   the row gives; anything it leaves out stays as it is.
+ *   barcode, its SKU) updates that offer's price, sale price, cost and stock
+ *   with whatever the row gives; anything it leaves out stays as it is.
  * - A row whose barcode a published catalogue product carries becomes the shop's
  *   new offer on it.
  * - Any other row proposes a new product, carrying whatever the sheet had, and
  *   offers it. A new offer needs a barcode or a title, and a selling price
  *   (docs/design.md, "Minimum to create a row").
+ * - A sale price, which must be below the selling price, puts the shop's own
+ *   offer on sale (#46).
  */
 export function buildOfferImportRows(table: CsvTable, mapping: ImportMapping, context: OfferImportContext): OfferImportRow[] {
   const columns = table.headers
@@ -227,6 +234,21 @@ const failed = ({ row, errors, warnings }: Pick<RowRead, "row" | "errors" | "war
 const belowCost = (price: number, cost: number, currency: string) =>
   `Selling price ${money(price, currency)} is below cost price ${money(cost, currency)}.`
 
+/**
+ * Refuses a row whose sale price isn't below the selling price it discounts: the row's sale
+ * price, or, when the row only changes the selling price, the offer's imported sale price.
+ */
+function checkSale(values: Values, existing: Pick<ShopOffer, "price" | "sale"> | null, currency: string, errors: string[]) {
+  const given = values.get("sale_price") as number | undefined
+  const newPrice = values.get("selling_price") as number | undefined
+  if (given === undefined && newPrice === undefined) return
+  const sale = given ?? existing?.sale ?? null
+  const price = newPrice ?? existing?.price ?? null
+  if (sale === null) return
+  if (price === null) errors.push("A sale price needs a selling price.")
+  else if (sale >= price) errors.push(`Sale price ${money(sale, currency)} must be below the selling price ${money(price, currency)}.`)
+}
+
 /** A row for an offer the shop already has: what it changes, leaving what it doesn't give. */
 function updateRow(read: RowRead, existing: ShopOffer, sheet: SheetState): OfferImportRow {
   const { row, values, errors, warnings } = read
@@ -252,7 +274,7 @@ function updateRow(read: RowRead, existing: ShopOffer, sheet: SheetState): Offer
 }
 
 /** Refuses an update row whose barcode or SKU another row or offer has, or whose offer an earlier row updates. */
-function checkUpdate({ values, errors, warnings }: RowRead, existing: ShopOffer, { codes, columnOf, updatedRows }: SheetState) {
+function checkUpdate({ values, errors, warnings }: RowRead, existing: ShopOffer, { codes, columnOf, updatedRows, context }: SheetState) {
   const barcode = values.get("barcode") as Barcode | undefined
   const given = values.get("sku") as string | undefined
   const repeated = barcode && codes.barcodeError(barcode)
@@ -264,6 +286,7 @@ function checkUpdate({ values, errors, warnings }: RowRead, existing: ShopOffer,
   }
   const earlier = updatedRows.get(existing.id)
   if (earlier !== undefined) errors.push(`${existing.title} is already updated on row ${earlier}.`)
+  checkSale(values, existing, context.currency_code, errors)
 }
 
 /** What a row changes on the offer, said for the shop, and a warning if it leaves the offer selling below cost. */
@@ -275,6 +298,7 @@ function describeUpdate(existing: ShopOffer, values: Values, currency: string) {
   const update: OfferUpdate = {
     offer_id: existing.id,
     price: changed("selling_price", existing.price),
+    sale: changed("sale_price", existing.sale),
     cost: changed("cost_price", existing.cost),
     stock: changed("stock", existing.stock),
   }
@@ -282,6 +306,7 @@ function describeUpdate(existing: ShopOffer, values: Values, currency: string) {
   const stockWas = existing.stock ?? "not tracked"
   const changes = [
     update.price === null ? null : `Price ${was(existing.price)} → ${money(update.price, currency)}`,
+    update.sale === null ? null : `Sale price ${was(existing.sale)} → ${money(update.sale, currency)}`,
     update.cost === null ? null : `Cost price ${was(existing.cost)} → ${money(update.cost, currency)}`,
     // Stock left out of the sheet leaves the offer as it is: untracked stays untracked.
     update.stock === null ? null : `Stock ${stockWas} → ${update.stock}`,
@@ -299,7 +324,7 @@ function describeUpdate(existing: ShopOffer, values: Values, currency: string) {
  * price), with a barcode or SKU another row or offer has, or on a product the
  * catalogue is still reviewing.
  */
-function checkNewOffer({ values, errors }: RowRead, match: CatalogueVariant | undefined, { codes, columnOf }: SheetState) {
+function checkNewOffer({ values, errors }: RowRead, match: CatalogueVariant | undefined, { codes, columnOf, context }: SheetState) {
   const barcode = values.get("barcode") as Barcode | undefined
   const given = values.get("sku") as string | undefined
   const missing = (field: string) => !values.has(field) && !cellFailed(errors, columnOf(field))
@@ -314,6 +339,7 @@ function checkNewOffer({ values, errors }: RowRead, match: CatalogueVariant | un
   }
   const skuError = given && codes.skuError(given)
   if (skuError) errors.push(`${columnOf("sku")}: ${skuError}`)
+  if (values.has("selling_price")) checkSale(values, null, context.currency_code, errors)
 }
 
 /** A row for something the shop doesn't sell yet: an offer on the catalogue's product, or a proposal. */
@@ -323,6 +349,7 @@ function newOfferRow(read: RowRead, match: CatalogueVariant | undefined, sheet: 
   const barcode = values.get("barcode") as Barcode | undefined
   const title = (values.get("title") as string | undefined) ?? null
   const price = values.get("selling_price") as number | undefined
+  const sale = (values.get("sale_price") as number | undefined) ?? null
   const cost = (values.get("cost_price") as number | undefined) ?? null
   const stock = (values.get("stock") as number | undefined) ?? null
   const given = values.get("sku") as string | undefined
@@ -335,7 +362,7 @@ function newOfferRow(read: RowRead, match: CatalogueVariant | undefined, sheet: 
   if (barcode) codes.claimBarcode(barcode, row)
   // Cost is the shop's own business; a sale below it is allowed, but never by accident.
   if (cost !== null && price < cost) warnings.push(belowCost(price, cost, context.currency_code))
-  const offer = { sku, price, cost, stock }
+  const offer = { sku, price, sale, cost, stock }
   const created = { row, errors, warnings, changes: [], update: null }
 
   if (match) {
@@ -361,8 +388,8 @@ function newOfferRow(read: RowRead, match: CatalogueVariant | undefined, sheet: 
 
 /**
  * Reads the sheet for the member importing it. One who may not price the shop's
- * offers neither sees nor sets costs, and can't change offers the shop already
- * has; they may still add new ones.
+ * offers neither sees nor sets costs, can't change offers the shop already has,
+ * and can't put offers on sale; they may still add new ones.
  */
 export function readOfferImportRows(
   table: CsvTable,
@@ -372,7 +399,7 @@ export function readOfferImportRows(
 ): OfferImportRow[] {
   if (member.may_price) return buildOfferImportRows(table, mapping, context)
   const restricted = withoutCosts(mapping, context)
-  return refuseUpdates(buildOfferImportRows(table, restricted.mapping, restricted.context))
+  return refusePricing(buildOfferImportRows(table, restricted.mapping, restricted.context))
 }
 
 /**
@@ -387,13 +414,17 @@ export function withoutCosts(mapping: ImportMapping, context: OfferImportContext
   }
 }
 
-/** Rows as a member who may not price offers may import them: none changes an offer the shop already has. */
-export function refuseUpdates(rows: OfferImportRow[]): OfferImportRow[] {
-  return rows.map((row) =>
-    row.action === "update"
-      ? failed({ row: row.row, errors: ["Only owners and managers can change offers the shop already sells."], warnings: row.warnings }, row.title)
-      : row
-  )
+/**
+ * Rows as a member who may not price offers may import them: none changes an
+ * offer the shop already has, or puts a new one on sale.
+ */
+export function refusePricing(rows: OfferImportRow[]): OfferImportRow[] {
+  const refused = (row: OfferImportRow, error: string) => failed({ row: row.row, errors: [error], warnings: row.warnings }, row.title)
+  return rows.map((row) => {
+    if (row.action === "update") return refused(row, "Only owners and managers can change offers the shop already sells.")
+    if (row.offer && row.offer.sale !== null) return refused(row, "Only owners and managers can put offers on sale.")
+    return row
+  })
 }
 
 /** Whether a column's cell already failed to read, so its field isn't also reported missing. */

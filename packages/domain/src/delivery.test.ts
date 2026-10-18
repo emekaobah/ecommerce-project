@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
+import { courierChangedNote, deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
 import type { ShopHours } from "./shop-hours"
 
 const rate = (id: string, amount: number, delivery_eta_time: string, tracking_level = 5) => ({
@@ -131,7 +131,7 @@ describe("etaCountedFrom", () => {
 
 describe("orderArrival", () => {
   const now = new Date("2026-10-05T21:00:00+01:00")
-  const delivery = { courier_name: "GIG Next Day", delivery_eta_time: "2026-10-07T11:00:00+01:00", time_zone: "Africa/Lagos" }
+  const delivery = { courier_name: "GIG Next Day", delivery_eta_time: "2026-10-07T11:00:00+01:00", time_zone: "Africa/Lagos", switched_from: null }
 
   test("says when a delivered order arrives, as checkout quoted, and by whom", () => {
     expect(orderArrival("new", delivery, now)).toBe("Arrives Wed 7 Oct · GIG Next Day")
@@ -141,5 +141,21 @@ describe("orderArrival", () => {
   test("says nothing once it has arrived or won't, or for an order without a delivery", () => {
     for (const state of ["delivered", "rejected", "cancelled"] as const) expect(orderArrival(state, delivery, now)).toBeNull()
     expect(orderArrival("new", null, now)).toBeNull()
+  })
+})
+
+describe("courierChangedNote", () => {
+  const delivery = { courier_name: "Faramove Same Day", delivery_eta_time: "2026-10-07T11:00:00+01:00", time_zone: "Africa/Lagos" }
+
+  test("says which courier the order now ships with instead of the buyer's, at no more cost to them", () => {
+    expect(courierChangedNote("label_booked", { ...delivery, switched_from: "GIG Next Day" })).toBe(
+      "Your order is now shipping with Faramove Same Day instead of GIG Next Day, at no extra cost to you."
+    )
+  })
+
+  test("says nothing when the buyer's courier was booked, or once the order has arrived", () => {
+    expect(courierChangedNote("label_booked", { ...delivery, switched_from: null })).toBeNull()
+    expect(courierChangedNote("delivered", { ...delivery, switched_from: "GIG Next Day" })).toBeNull()
+    expect(courierChangedNote("new", null)).toBeNull()
   })
 })

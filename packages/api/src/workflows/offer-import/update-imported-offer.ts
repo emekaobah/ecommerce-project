@@ -2,6 +2,7 @@ import { WorkflowResponse, createWorkflow, transform, when } from "@medusajs/fra
 import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
 import type { OfferPriceInput } from "../offer-prices/steps"
 import { updateOfferWorkflow } from "../offer-prices/update-offer"
+import { putOnSaleIfGiven } from "./set-offer-sale-price"
 import { setOfferCostStep } from "./steps"
 
 export type UpdateImportedOfferInput = {
@@ -20,13 +21,15 @@ export type UpdateImportedOfferInput = {
   } | null
   /** The new cost price; null leaves it alone. */
   cost: number | null
+  /** The new sale price, kept to this offer (#46); null leaves any sale as it is. */
+  sale: number | null
 }
 
 /**
  * A re-imported row's changes to an offer the shop already has (#37), all or
  * nothing: its selling price, its stock (an untracked offer starts being
- * tracked once a count is given) and its private cost price. A failing step
- * undoes the ones before it.
+ * tracked once a count is given), its private cost price and its sale price.
+ * A failing step undoes the ones before it.
  */
 export const updateImportedOfferWorkflow = createWorkflow("update-imported-offer", (input: UpdateImportedOfferInput) => {
   when("update-offer", input, (i) => i.prices !== null || i.stock !== null).then(() => {
@@ -69,6 +72,8 @@ export const updateImportedOfferWorkflow = createWorkflow("update-imported-offer
       }))
     )
   })
+
+  putOnSaleIfGiven(input)
 
   return new WorkflowResponse({ id: input.offer_id })
 })

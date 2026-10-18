@@ -31,6 +31,12 @@ const OrderFulfilment = model
     accept_reminded_at: model.dateTime().nullable(),
     /** The courier shipment booked for the order (#24): the latest, also once cancelled. */
     shipment: model.json().nullable(),
+    /**
+     * A courier staff chose that costs the platform more than the top-up cap above the buyer's
+     * checkout price, waiting for Oja's team to approve it (#19). Cleared once a label is booked
+     * or the team declines it.
+     */
+    courier_approval: model.json().nullable(),
     /** The shipment's id with Shipbubble, which its webhooks name. */
     shipment_id: model.text().nullable(),
     /** When the order last reached each state (`@oja/domain`'s `Reached`), for its timeline (#25). */

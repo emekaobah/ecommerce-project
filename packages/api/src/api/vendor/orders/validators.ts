@@ -5,6 +5,12 @@ import { cancelOrderBody } from "../../cancel-order"
 export const VendorRejectOrder = z.object({ reason: z.string().trim().min(1).max(500) })
 export type VendorRejectOrderType = z.infer<typeof VendorRejectOrder>
 
+/** A courier label booking (#19): optionally the courier staff chose, by Shipbubble's ids for it. */
+export const VendorBookLabel = z.object({
+  courier: z.object({ courier_id: z.string().min(1), service_code: z.string().min(1) }).optional(),
+})
+export type VendorBookLabelType = z.infer<typeof VendorBookLabel>
+
 /**
  * A line's pick: `picked` sets how many are picked (a tap), `add` picks that many more (a
  * scan, so scans from two phones both count). Never past the quantity ordered.

@@ -1,6 +1,7 @@
 import type { ILockingModule, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { PaystackRequestError, type PaystackRefundStatus } from "../modules/paystack/client"
+import { notifyOjaTeam } from "./admin-notifications"
 import { askForRefundAccount } from "./buyer-notifications"
 import { errorMessage } from "./errors"
 import { accountRefused, activeBanks, lookupsLimited, requirePaystack } from "./paystack"
@@ -242,11 +243,9 @@ export async function refundNeedsAttention(scope: Scope, refundId: string): Prom
   }
   const description = `Paystack refund ${refund.paystack_refund_id} (${refund.currency_code.toUpperCase()} ${Number(refund.amount)}, transaction ${refund.transaction_reference}) needs the buyer's bank account, and refunds no order to ask its buyer through. Retry it from Paystack's dashboard.`
   scope.resolve(ContainerRegistrationKeys.LOGGER).warn(description)
-  await scope.resolve(Modules.NOTIFICATION).createNotifications({
-    to: "",
-    channel: "feed",
-    template: "admin-ui",
-    data: { title: "Refund needs the buyer's bank account", description },
-    idempotency_key: `refund-needs-attention:${refund.id}:${needsAttentionSince(refund)}`,
+  await notifyOjaTeam(scope, {
+    title: "Refund needs the buyer's bank account",
+    description,
+    key: `refund-needs-attention:${refund.id}:${needsAttentionSince(refund)}`,
   })
 }

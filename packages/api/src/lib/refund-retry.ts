@@ -1,10 +1,11 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import {
   refundOwedWorkflow,
   type RefundOwedInput,
   type RefundOwedResult,
 } from "../workflows/order-fulfilment/workflows/refund-owed"
+import { notifyOjaTeam } from "./admin-notifications"
 import { tellRefundByHand } from "./buyer-notifications"
 import { errorMessage } from "./errors"
 import {
@@ -77,13 +78,7 @@ async function handOver(scope: Scope, owed: OrderOwedRefund): Promise<void> {
   const description = `Order #${displayId} owes its buyer ${owed.currency_code.toUpperCase()} ${amount}. ${why} Send it by hand, then mark it settled under Owed refunds.`
   scope.resolve(ContainerRegistrationKeys.LOGGER).warn(description)
   await Promise.all([
-    scope.resolve(Modules.NOTIFICATION).createNotifications({
-      to: "",
-      channel: "feed",
-      template: "admin-ui",
-      data: { title: `Refund for order #${displayId} to send by hand`, description },
-      idempotency_key: handOverKey(owed),
-    }),
+    notifyOjaTeam(scope, { title: `Refund for order #${displayId} to send by hand`, description, key: handOverKey(owed) }),
     tellRefundByHand(scope, { order_id: owed.order_id, amount }),
   ])
 }

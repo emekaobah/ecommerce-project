@@ -59,6 +59,18 @@ medusaIntegrationTestRunner({
     const owner = async (shop = grocery) => vendorHeaders(api, shop.owner.email, SEED_PASSWORD, await sellerId(shop))
     const staff = async (shop = grocery) => vendorHeaders(api, shop.staff.email, SEED_PASSWORD, await sellerId(shop))
 
+    /** The grocery shop's staff member, given a role made for the test: offers can be read and created, not updated. */
+    const offerCreator = async () => {
+      const container = getContainer()
+      const rbac = container.resolve(Modules.RBAC) as any
+      const policies = await rbac.listRbacPolicies({ key: ["offer:read", "offer:create"] })
+      const [role] = await rbac.createRbacRoles([{ id: "role_test_offer_creator", name: "Offer creator" }])
+      await rbac.createRbacRolePolicies(policies.map((p: { id: string }) => ({ role_id: role.id, policy_id: p.id })))
+      const { data: me } = await api.get(`/vendor/sellers/${await sellerId(grocery)}/members/me`, await staff())
+      await updateMemberRoleWorkflow(container).run({ input: { seller_member_id: me.seller_member.id, role_id: role.id } })
+      return staff()
+    }
+
     const status = (request: Promise<unknown>) =>
       request.then(
         () => 200,
@@ -276,6 +288,166 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("sale price", () => {
+      // Seeded: the gadget shop sells the power bank at ₦24,000, and the lantern at ₦9,800,
+      // which the grocery shop also sells, at ₦10,500 (#46).
+      const gadgets = SEED_SELLERS.find((s) => s.name === "Ikeja Gadget Hub")!
+      const LANTERN_BARCODE = "2000000000121"
+      const SALE_MAPPING = { Item: "title", EAN: "barcode", Price: "selling_price", "Sale price": "sale_price" }
+
+      /** The product's price at each shop as buyers see it in listings: [now, was]. */
+      const listedPrices = async (title: string) => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: keys } = await query.graph({ entity: "api_key", fields: ["token"], filters: { type: "publishable" } })
+        const { data: [region] } = await query.graph({ entity: "region", fields: ["id"] })
+        const { data } = await api.get(`/store/listings?region_id=${region.id}&limit=100`, {
+          headers: { "x-publishable-api-key": keys[0].token },
+        })
+        return Object.fromEntries(
+          data.listings
+            .filter((l: any) => l.product.title === title)
+            .map((l: any) => [l.seller.name, [l.offers[0].calculated_price.calculated_amount, l.offers[0].calculated_price.original_amount]])
+        )
+      }
+      const salePrices = async () => {
+        const headers = await owner()
+        const { data } = await api.get("/vendor/price-lists?fields=id,type,status,prices.amount", headers)
+        return data.price_lists.map((l: any) => [l.type, l.status, l.prices.map((p: any) => p.amount).sort((a: number, b: number) => a - b)])
+      }
+
+      it("puts the importing shop's offers on sale; another shop's offers of the same products are unchanged", async () => {
+        const csv = ["Item,EAN,Price,Sale price", "Power bank,5901234123457,25000,22000", `Lantern,${LANTERN_BARCODE},,9000`].join("\n")
+
+        const { data: preview } = await api.post("/vendor/offer-import/preview", { csv, mapping: SALE_MAPPING }, await owner())
+        expect(preview.rows.map((r: any) => [r.action, r.sale, r.changes])).toEqual([
+          ["offer", 22000, []],
+          ["update", 9000, ["Sale price none → NGN 9,000"]],
+        ])
+
+        const { data } = await api.post("/vendor/offer-import", { csv, mapping: SALE_MAPPING }, await owner())
+        expect(data.results.map((r: any) => r.status)).toEqual(["offered", "updated"])
+
+        expect(await listedPrices("20,000mAh Power Bank")).toEqual({
+          [grocery.name]: [22000, 25000],
+          [gadgets.name]: [24000, 24000],
+        })
+        expect(await listedPrices("Rechargeable LED Lantern")).toEqual({
+          [grocery.name]: [9000, 10500],
+          [gadgets.name]: [9800, 9800],
+        })
+        // The sale is the shop's own price list, which it can change or end in the panel.
+        expect(await salePrices()).toEqual([["sale", "active", [9000, 22000]]])
+      })
+
+      it("changes an offer's sale price on a re-import, rather than adding a second one", async () => {
+        const sheet = (sale: number) => ["Item,EAN,Price,Sale price", `Lantern,${LANTERN_BARCODE},,${sale}`].join("\n")
+        await api.post("/vendor/offer-import", { csv: sheet(9000), mapping: SALE_MAPPING }, await owner())
+
+        const { data: preview } = await api.post("/vendor/offer-import/preview", { csv: sheet(8500), mapping: SALE_MAPPING }, await owner())
+        expect(preview.rows.map((r: any) => r.changes)).toEqual([["Sale price NGN 9,000 → NGN 8,500"]])
+        const { data } = await api.post("/vendor/offer-import", { csv: sheet(8500), mapping: SALE_MAPPING }, await owner())
+        expect(data.results.map((r: any) => r.status)).toEqual(["updated"])
+
+        expect(await listedPrices("Rechargeable LED Lantern")).toEqual({
+          [grocery.name]: [8500, 10500],
+          [gadgets.name]: [9800, 9800],
+        })
+        expect(await salePrices()).toEqual([["sale", "active", [8500]]])
+      })
+
+      it("sets the sale price in the shop's imported sale prices only, leaving its own sales alone", async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: [lantern] } = await query.graph({ entity: "product", fields: ["variants.id"], filters: { title: "Rechargeable LED Lantern" } })
+        const { data: [offer] } = await query.graph({
+          entity: "offer",
+          fields: ["id", "variant_id"],
+          filters: { variant_id: lantern.variants[0].id, seller_id: await sellerId(grocery) },
+        })
+        const headers = await owner()
+        const weekend = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
+        await api.post(
+          "/vendor/price-lists",
+          {
+            title: "Weekend sale",
+            description: "The shop's own sale",
+            type: "sale",
+            status: "active",
+            ends_at: weekend,
+            prices: [{ variant_id: offer.variant_id, amount: 9500, currency_code: "ngn", rules: { offer_id: offer.id } }],
+          },
+          headers
+        )
+        const csv = ["Item,EAN,Price,Sale price", `Lantern,${LANTERN_BARCODE},,9000`].join("\n")
+
+        const { data } = await api.post("/vendor/offer-import", { csv, mapping: SALE_MAPPING }, headers)
+        expect(data.results.map((r: any) => [r.status, r.changes])).toEqual([["updated", ["Sale price none → NGN 9,000"]]])
+
+        const { data: lists } = await api.get("/vendor/price-lists?fields=title,prices.amount", headers)
+        expect(Object.fromEntries(lists.price_lists.map((l: any) => [l.title, l.prices.map((p: any) => p.amount)]))).toEqual({
+          "Weekend sale": [9500],
+          "Imported sale prices": [9000],
+        })
+        expect(await listedPrices("Rechargeable LED Lantern")).toEqual({
+          [grocery.name]: [9000, 10500],
+          [gadgets.name]: [9800, 9800],
+        })
+      })
+
+      it("refuses a row that lowers the selling price to the imported sale price without lowering the sale price", async () => {
+        await api.post("/vendor/offer-import", { csv: ["Item,EAN,Price,Sale price", `Lantern,${LANTERN_BARCODE},,9000`].join("\n"), mapping: SALE_MAPPING }, await owner())
+        const csv = ["Item,EAN,Price,Sale price", `Lantern,${LANTERN_BARCODE},9000,`].join("\n")
+
+        const { data } = await api.post("/vendor/offer-import", { csv, mapping: SALE_MAPPING }, await owner())
+
+        expect(data.results.map((r: any) => [r.status, r.errors])).toEqual([
+          ["skipped", ["Sale price NGN 9,000 must be below the selling price NGN 9,000."]],
+        ])
+        expect(await listedPrices("Rechargeable LED Lantern")).toMatchObject({ [grocery.name]: [9000, 10500] })
+      })
+
+      it("leaves prices as before for a row with no sale price", async () => {
+        const csv = ["Item,EAN,Price,Sale price", "Power bank,5901234123457,25000,", `Lantern,${LANTERN_BARCODE},11000,`].join("\n")
+
+        const { data } = await api.post("/vendor/offer-import", { csv, mapping: SALE_MAPPING }, await owner())
+        expect(data.results.map((r: any) => [r.status, r.changes])).toEqual([
+          ["offered", []],
+          ["updated", ["Price NGN 10,500 → NGN 11,000"]],
+        ])
+
+        expect(await listedPrices("20,000mAh Power Bank")).toEqual({
+          [grocery.name]: [25000, 25000],
+          [gadgets.name]: [24000, 24000],
+        })
+        expect(await listedPrices("Rechargeable LED Lantern")).toEqual({
+          [grocery.name]: [11000, 11000],
+          [gadgets.name]: [9800, 9800],
+        })
+        expect(await salePrices()).toEqual([])
+      })
+
+      it("skips a row whose sale price isn't below its selling price", async () => {
+        const csv = ["Item,EAN,Price,Sale price", "Power bank,5901234123457,25000,25000", `Lantern,${LANTERN_BARCODE},,12000`].join("\n")
+
+        const { data } = await api.post("/vendor/offer-import", { csv, mapping: SALE_MAPPING }, await owner())
+        expect(data.results.map((r: any) => [r.status, r.errors])).toEqual([
+          ["skipped", ["Sale price NGN 25,000 must be below the selling price NGN 25,000."]],
+          ["skipped", ["Sale price NGN 12,000 must be below the selling price NGN 10,500."]],
+        ])
+        expect(await salePrices()).toEqual([])
+      })
+
+      it("is for members who may price the shop's offers", async () => {
+        const csv = ["Item,EAN,Price,Sale price", "Power bank,5901234123457,25000,22000"].join("\n")
+        const creator = await offerCreator()
+
+        const { data } = await api.post("/vendor/offer-import/preview", { csv, mapping: SALE_MAPPING }, creator)
+        expect(data.rows.map((r: any) => [r.action, r.errors])).toEqual([[null, ["Only owners and managers can put offers on sale."]]])
+        const { data: run } = await api.post("/vendor/offer-import", { csv, mapping: SALE_MAPPING }, creator)
+        expect(run.results.map((r: any) => r.status)).toEqual(["skipped"])
+        expect(await salePrices()).toEqual([])
+      })
+    })
+
     describe("cost price", () => {
       const importPowerBank = async () => {
         const { data } = await api.post("/vendor/offer-import", { csv: SHOP_CSV, mapping: SHOP_MAPPING }, await owner())
@@ -304,16 +476,7 @@ medusaIntegrationTestRunner({
       })
 
       it("leaves cost out of the preview for a member who may create offers but not price them", async () => {
-        // A role made for the test: offers can be read and created, not updated.
-        const container = getContainer()
-        const rbac = container.resolve(Modules.RBAC) as any
-        const policies = await rbac.listRbacPolicies({ key: ["offer:read", "offer:create"] })
-        const [role] = await rbac.createRbacRoles([{ id: "role_test_offer_creator", name: "Offer creator" }])
-        await rbac.createRbacRolePolicies(policies.map((p: { id: string }) => ({ role_id: role.id, policy_id: p.id })))
-        const { data: me } = await api.get(`/vendor/sellers/${await sellerId(grocery)}/members/me`, await staff())
-        await updateMemberRoleWorkflow(container).run({ input: { seller_member_id: me.seller_member.id, role_id: role.id } })
-
-        const creator = await staff()
+        const creator = await offerCreator()
         const { data } = await api.post("/vendor/offer-import/preview", { csv: SHOP_CSV, mapping: SHOP_MAPPING }, creator)
         expect(data.rows[0]).toMatchObject({ title: "20,000mAh Power Bank", price: 25000, cost: null })
         // The below-cost warning would give the cost away too. (The column samples echo only their own file.)

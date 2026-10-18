@@ -13,7 +13,7 @@ export type ListRowProps = {
   onPress?: () => void
 }
 
-export function ListRow({ title, subtitle, leading, trailing, onPress }: ListRowProps) {
+export function ListRow({ title, subtitle, leading, trailing, onPress }: Readonly<ListRowProps>) {
   const theme = useTheme()
   return (
     <Pressable

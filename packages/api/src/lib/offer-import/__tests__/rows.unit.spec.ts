@@ -17,6 +17,7 @@ const riceOffer: ShopOffer = {
   variant_id: "variant_rice",
   title: "Ofada Rice 5kg",
   price: 14000,
+  sale: null,
   cost: 11000,
   stock: 5,
 }
@@ -35,7 +36,7 @@ describe("buildOfferImportRows", () => {
       action: "offer",
       errors: [],
       warnings: [],
-      offer: { variant_id: "variant_rice", product_id: "prod_rice", sku: "5901234123457", price: 14500, cost: null, stock: null },
+      offer: { variant_id: "variant_rice", product_id: "prod_rice", sku: "5901234123457", price: 14500, sale: null, cost: null, stock: null },
       proposal: null,
       changes: [],
       update: null,
@@ -53,7 +54,7 @@ describe("buildOfferImportRows", () => {
       action: "propose",
       errors: [],
       warnings: [],
-      offer: { variant_id: null, product_id: null, sku: "4006381333931", price: 2300, cost: null, stock: null },
+      offer: { variant_id: null, product_id: null, sku: "4006381333931", price: 2300, sale: null, cost: null, stock: null },
       changes: [],
       update: null,
       proposal: {
@@ -165,7 +166,7 @@ describe("buildOfferImportRows", () => {
         offer: null,
         proposal: null,
         changes: ["Price NGN 14,000 → NGN 14,500", "Cost price NGN 11,000 → NGN 12,000", "Stock 5 → 8"],
-        update: { offer_id: "offer_rice", price: 14500, cost: 12000, stock: 8 },
+        update: { offer_id: "offer_rice", price: 14500, sale: null, cost: 12000, stock: 8 },
       })
     })
 
@@ -215,6 +216,19 @@ describe("buildOfferImportRows", () => {
         [],
         ["Ofada Rice 5kg is already updated on row 3."],
       ])
+    })
+
+    it("refuses a new selling price at or below the offer's imported sale price, unless the row lowers the sale price too", () => {
+      const onSale = { ...context, offers: [{ ...riceOffer, sale: 13000 }] }
+      const SALE = { ...MAPPING, Sale: "sale_price" }
+      const row = (price: number, sale = "") => rowsOf(`Name,Barcode,Price,Sale\nRice,5901234123457,${price},${sale}\n`, SALE, onSale)[0]
+      const [at, below, both] = [row(13000), row(12000), row(12000, "11000")]
+      const [stockOnly] = rowsOf("SKU,Qty\nRICE-5KG,20\n", { SKU: "sku", Qty: "stock" }, onSale)
+      expect(at.errors).toEqual(["Sale price NGN 13,000 must be below the selling price NGN 13,000."])
+      expect(below.errors).toEqual(["Sale price NGN 13,000 must be below the selling price NGN 12,000."])
+      expect(both).toMatchObject({ errors: [], update: { price: 12000, sale: 11000 } })
+      // A row that leaves the price alone isn't refused over it.
+      expect(stockOnly).toMatchObject({ errors: [], update: { stock: 20 } })
     })
 
     it("keeps the offer's SKU when the sheet gives a new one, saying so", () => {

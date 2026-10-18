@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   buyerStatusPush,
+  courierChangedPush,
   holdReminderPush,
   itemsRemovedPush,
   notCollectedPush,
@@ -269,6 +270,15 @@ describe("pickup pushes (#33)", () => {
       expect(notCollectedPush({ ...notice, refund: 0, kept }).body).toBe(
         "Mama Put Groceries held it, but it wasn't collected in time. Fresh items aren't refunded: 4 of your items."
       )
+    })
+  })
+})
+
+describe("courierChangedPush", () => {
+  test("names the courier now delivering and when it arrives", () => {
+    expect(courierChangedPush({ display_id: 42, shop: "Mama Put Groceries", courier: "Faramove Same Day", arrives: "Arrives tomorrow" })).toEqual({
+      title: "New courier for order #42",
+      body: "Your order from Mama Put Groceries is now shipping with Faramove Same Day. Arrives tomorrow.",
     })
   })
 })

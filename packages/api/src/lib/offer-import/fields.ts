@@ -30,7 +30,27 @@ export const OFFER_IMPORT_FIELDS: OfferImportField[] = [
     label: "Selling price",
     group: "offer",
     kind: "price",
-    aliases: ["price", "selling price", "retail price", "sale price", "unit price", "rrp", "amount"],
+    // Shops often head their selling price "Sale price" (the price they sell at), so it reads as
+    // that; a discount is suggested only from a header that can't mean anything else (#46).
+    aliases: [
+      "price",
+      "selling price",
+      "sale price",
+      "sales price",
+      "selling sale price",
+      "retail price",
+      "unit price",
+      "rrp",
+      "amount",
+      "regular price",
+    ],
+  },
+  {
+    key: "sale_price",
+    label: "Discount (sale) price",
+    group: "offer",
+    kind: "price",
+    aliases: ["discount price", "discounted price", "promo price", "promotional price"],
   },
   {
     key: "cost_price",

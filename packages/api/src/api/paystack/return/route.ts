@@ -5,7 +5,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
  * http(s) `callback_url`, so the app's payment WebView catches this address and never loads it
  * (docs/adr/0003-paystack-payments.md); the page is only for a browser that does.
  */
-export const GET = async (_req: MedusaRequest, res: MedusaResponse) => {
+export const GET = (_req: MedusaRequest, res: MedusaResponse) => {
   res
     .status(200)
     .type("html")

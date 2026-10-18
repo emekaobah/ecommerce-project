@@ -1,8 +1,8 @@
 import type { MedusaNextFunction, MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import type { AuthIdentityDTO, MedusaContainer } from "@medusajs/framework/types"
+import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, generateJwtToken, MedusaError, Modules } from "@medusajs/framework/utils"
 import { createCustomerAccountWorkflow } from "@medusajs/medusa/core-flows"
-import { clerkProfileOf } from "../../modules/clerk-auth/service"
+import { clerkProfileOf, type ClerkProfile } from "../../modules/clerk-auth/service"
 
 const PROVIDER = "clerk"
 /** The Medusa token below only has to outlive the request it is minted for. */
@@ -37,22 +37,25 @@ export async function clerkCustomerAuth(req: MedusaRequest, res: MedusaResponse,
     return
   }
 
-  let customerId: string | undefined
-  try {
-    customerId = await customerFor(req.scope, authIdentity)
-  } catch (error) {
-    // The email belongs to another Clerk user's customer (e.g. a deleted and recreated Clerk account).
-    if ((error as MedusaError).type === MedusaError.Types.DUPLICATE_ERROR) {
-      res.status(409).json({ message: (error as Error).message })
+  let customerId = authIdentity.app_metadata?.customer_id as string | undefined
+  if (!customerId) {
+    const profile = clerkProfileOf(authIdentity)
+    if (!profile.email) {
+      res.status(401).json({
+        message: "The Clerk session token has no email claim. Add it to the session token template (see the API README).",
+      })
       return
     }
-    throw error
-  }
-  if (!customerId) {
-    res.status(401).json({
-      message: "The Clerk session token has no email claim. Add it to the session token template (see the API README).",
-    })
-    return
+    try {
+      customerId = await createCustomerOnce(req.scope, authIdentity.id, { ...profile, email: profile.email })
+    } catch (error) {
+      // The email belongs to another Clerk user's customer (e.g. a deleted and recreated Clerk account).
+      if ((error as MedusaError).type === MedusaError.Types.DUPLICATE_ERROR) {
+        res.status(409).json({ message: (error as Error).message })
+        return
+      }
+      throw error
+    }
   }
 
   const { http } = req.scope.resolve(ContainerRegistrationKeys.CONFIG_MODULE).projectConfig
@@ -75,24 +78,21 @@ export async function clerkCustomerAuth(req: MedusaRequest, res: MedusaResponse,
 }
 
 /**
- * The auth identity's customer, created on first sign-in. Locked per identity so a new
- * buyer's first requests, which the app often sends together, create one customer.
+ * Creates the auth identity's customer on first sign-in. Locked per identity so a new buyer's
+ * first requests, which the app often sends together, create one customer.
  */
-async function customerFor(container: MedusaContainer, authIdentity: AuthIdentityDTO): Promise<string | undefined> {
-  const existing = authIdentity.app_metadata?.customer_id as string | undefined
-  if (existing) return existing
-
-  const { email, first_name, last_name } = clerkProfileOf(authIdentity)
-  if (!email) return undefined
-
-  const locking = container.resolve(Modules.LOCKING)
+function createCustomerOnce(
+  container: MedusaContainer,
+  authIdentityId: string,
+  { email, first_name, last_name }: ClerkProfile & { email: string }
+): Promise<string> {
   const auth = container.resolve(Modules.AUTH)
-  return locking.execute(`clerk-customer:${authIdentity.id}`, async () => {
-    const current = await auth.retrieveAuthIdentity(authIdentity.id)
+  return container.resolve(Modules.LOCKING).execute(`clerk-customer:${authIdentityId}`, async () => {
+    const current = await auth.retrieveAuthIdentity(authIdentityId)
     const created = current.app_metadata?.customer_id as string | undefined
     if (created) return created
     const { result } = await createCustomerAccountWorkflow(container).run({
-      input: { authIdentityId: authIdentity.id, customerData: { email, first_name, last_name } },
+      input: { authIdentityId, customerData: { email, first_name, last_name } },
     })
     return result.id
   })

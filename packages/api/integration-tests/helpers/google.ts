@@ -154,7 +154,7 @@ export function fakeGoogle(port: number) {
   }
 
   const handle = async (req: IncomingMessage): Promise<Reply> => {
-    const url = new URL(req.url ?? "/", "http://fake")
+    const url = new URL(req.url ?? "/", "https://fake")
     if (req.method === "GET" && url.pathname === "/maps/api/geocode/json") {
       // The Geocoding API refuses a bad key with a 200 and a status of its own.
       if (url.searchParams.get("key") !== apiKey) return { status: 200, body: { status: "REQUEST_DENIED", results: [] } }

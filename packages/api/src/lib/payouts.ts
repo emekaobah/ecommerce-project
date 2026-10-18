@@ -1,6 +1,6 @@
 import { PRODUCT_NAME } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { processPayoutForWebhookWorkflow } from "@mercurjs/core/workflows"
 import { PayoutStatus, type PayoutWebhookAction } from "@mercurjs/types"
 import { paystackClient } from "../modules/paystack"
@@ -8,6 +8,7 @@ import { paystackClient } from "../modules/paystack"
 import { fromSubunit, toSubunit, UNSETTLED_REFUND_STATUSES } from "../modules/paystack/client"
 import { payoutStatusOf } from "../modules/paystack-payout/service"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../modules/shop-bank-account"
+import { notifyOjaTeam } from "./admin-notifications"
 import { ojaFundedDiscount, ojaSharesOf, taxRateOf } from "./discount-funding"
 import { fulfilmentService, fulfilmentsOf, givesShareBack, type OrderRefundRecord } from "./order-fulfilment"
 import { owedToBuyerOf, shareLeft, type OrderSummary } from "./order-refund"
@@ -401,13 +402,7 @@ export async function syncPayoutTransfer(scope: MedusaContainer, reference: stri
 async function alertPayoutGaveUp(scope: MedusaContainer, orderId: string) {
   const description = `Order ${orderId}'s payout failed ${MAX_PAYOUT_ATTEMPTS} times and won't be tried again. Check the shop's bank account and pay it by hand.`
   scope.resolve(ContainerRegistrationKeys.LOGGER).warn(description)
-  await scope.resolve(Modules.NOTIFICATION).createNotifications({
-    to: "",
-    channel: "feed",
-    template: "admin-ui",
-    data: { title: "Payout failed", description },
-    idempotency_key: `payout-gave-up:${orderId}`,
-  })
+  await notifyOjaTeam(scope, { title: "Payout failed", description, key: `payout-gave-up:${orderId}` })
 }
 
 /** Where an order's payout is, as staff see it. */

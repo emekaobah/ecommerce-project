@@ -19,47 +19,61 @@ function detectDelimiter(text: string): string {
  * zeros. A byte-order mark is dropped, blank lines skipped, and cells trimmed.
  */
 export function parseCsv(input: string): CsvTable {
-  const text = input.replace(/^﻿/, "")
-  const delimiter = detectDelimiter(text)
+  const text = input.replace(/^\uFEFF/, "")
+  const [headers = [], ...rows] = readRecords(text, detectDelimiter(text))
+  return { headers, rows: rows.map((row) => headers.map((_, i) => row[i] ?? "")) }
+}
+
+/** Every record with a non-blank cell, each cell trimmed. */
+function readRecords(text: string, delimiter: string): string[][] {
   const records: string[][] = []
-  let record: string[] = []
-  let cell = ""
-  let quoted = false
-
-  const endCell = () => {
-    record.push(cell.trim())
-    cell = ""
-  }
-  const endRecord = () => {
-    endCell()
+  let i = 0
+  while (i < text.length) {
+    const record: string[] = []
+    let end: number
+    do {
+      const cell = readCell(text, i, delimiter)
+      record.push(cell.value.trim())
+      end = cell.end
+      i = end + 1
+    } while (text[end] === delimiter)
+    if (text[end] === "\r" && text[end + 1] === "\n") i++
     if (record.some((c) => c !== "")) records.push(record)
-    record = []
   }
+  return records
+}
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i]
-    if (quoted) {
-      if (char === '"' && text[i + 1] === '"') {
-        cell += '"'
-        i++
-      } else if (char === '"') {
-        quoted = false
-      } else {
-        cell += char
-      }
-    } else if (char === '"') {
-      quoted = true
-    } else if (char === delimiter) {
-      endCell()
-    } else if (char === "\n" || char === "\r") {
-      if (char === "\r" && text[i + 1] === "\n") i++
-      endRecord()
+/** The cell starting at `start`, and where it ends: at a delimiter, a line break or the end of the text. */
+function readCell(text: string, start: number, delimiter: string): { value: string; end: number } {
+  let value = ""
+  let i = start
+  while (i < text.length && text[i] !== delimiter && text[i] !== "\n" && text[i] !== "\r") {
+    if (text[i] === '"') {
+      const quoted = readQuoted(text, i + 1)
+      value += quoted.value
+      i = quoted.end
     } else {
-      cell += char
+      value += text[i]
+      i++
     }
   }
-  if (cell !== "" || record.length) endRecord()
+  return { value, end: i }
+}
 
-  const [headers = [], ...rows] = records
-  return { headers, rows: rows.map((row) => headers.map((_, i) => row[i] ?? "")) }
+/** The text of a quoted section opened just before `start`, and the index after its closing quote. */
+function readQuoted(text: string, start: number): { value: string; end: number } {
+  let value = ""
+  let i = start
+  while (i < text.length) {
+    if (text[i] !== '"') {
+      value += text[i]
+      i++
+    } else if (text[i + 1] === '"') {
+      value += '"'
+      i += 2
+    } else {
+      return { value, end: i + 1 }
+    }
+  }
+  return { value, end: i }
 }

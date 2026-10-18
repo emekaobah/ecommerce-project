@@ -123,13 +123,14 @@ export {
   weeklyHoursErrors,
 } from "./shop-hours"
 export type { HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
-export { deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
+export { courierChangedNote, deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
 export type { DeliveryChoice, DeliveryRate, DeliveryTag, OrderDelivery } from "./delivery"
 export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from "./perishable"
 export { pushTarget } from "./push"
 export type { PushTarget } from "./push"
 export {
   buyerStatusPush,
+  courierChangedPush,
   holdReminderPush,
   itemsRemovedPush,
   notCollectedPush,

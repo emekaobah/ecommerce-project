@@ -149,6 +149,14 @@ export function orderCancelledPush({
   return { title: `Order #${display_id} cancelled`, body: `${who}: ${cancelReasonText(cancellation)}.${refunded}` }
 }
 
+/**
+ * The push telling the buyer their order was booked with another courier than they chose at
+ * checkout (#19), and when it now arrives (`deliveryEstimate`).
+ */
+export function courierChangedPush({ display_id, shop, courier, arrives }: { display_id: number; shop: string; courier: string; arrives: string }): BuyerPush {
+  return { title: `New courier for order #${display_id}`, body: `Your order from ${shop} is now shipping with ${courier}. ${arrives}.` }
+}
+
 /** A refund of one of the buyer's orders, as they are told about it: its order, shop and amount. */
 export type RefundNotice = { display_id: number; shop: string; amount: number; currency_code: string }
 

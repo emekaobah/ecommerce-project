@@ -148,6 +148,7 @@ medusaIntegrationTestRunner({
             courier_name: COURIERS.nextDay.courier_name,
             delivery_eta_time: expect.stringMatching(/\+01:00$/),
             time_zone: "Africa/Lagos",
+            switched_from: null,
           })
           expect(Date.parse(closed.delivery.delivery_eta_time)).toBe(collected + COURIERS.nextDay.hours * HOUR)
           expect(closed.shop_opens).toEqual({ at: new Date(`${opensDate}T08:00:00+01:00`).toISOString(), time_zone: "Africa/Lagos" })
