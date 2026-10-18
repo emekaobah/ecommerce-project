@@ -88,7 +88,7 @@ export function ScanScreen() {
             </Text>
           </View>
         ) : (
-          <Text tone="secondary">Point the camera at an item's barcode. Move each item away before scanning the next.</Text>
+          <Text tone="secondary">Point the camera at an item&apos;s barcode. Move each item away before scanning the next.</Text>
         )}
         {recordPick.error ? <Text tone="danger">{recordPick.error.message}</Text> : null}
         {done}

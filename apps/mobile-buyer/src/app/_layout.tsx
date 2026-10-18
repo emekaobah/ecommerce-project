@@ -1,5 +1,6 @@
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
+import { initSentry, useSentryNavigation, withSentry } from '@oja/expo-sentry';
 import { buyerTheme, ThemeProvider } from '@oja/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
@@ -11,11 +12,12 @@ import { queryClient } from '@/api/query-client';
 import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
 import { DeliveringToProvider } from '@/delivering-to/delivering-to-provider';
-import { withSentry } from '@/monitoring/sentry';
 import { usePushRegistration } from '@/push/push-registration';
 import { useOpenTappedPush } from '@/push/use-open-tapped-push';
 import { RegionProvider } from '@/region/region-provider';
 import { useClearCacheOnUserChange } from '@/session/use-clear-cache-on-user-change';
+
+initSentry(env.sentryDsn);
 
 // Keep the splash up until Clerk has restored the session, so guards never see a false "signed out".
 void SplashScreen.preventAutoHideAsync();
@@ -23,6 +25,7 @@ void SplashScreen.preventAutoHideAsync();
 export default withSentry(RootLayout);
 
 function RootLayout() {
+  useSentryNavigation();
   return (
     // The token cache keeps the session in the keychain, so it survives app restarts.
     <ClerkProvider publishableKey={env.clerkPublishableKey} tokenCache={tokenCache}>
@@ -58,6 +61,9 @@ function RootStack() {
     <Stack
       screenOptions={{
         headerTintColor: buyerTheme.colors.ink,
+        // An opaque header: SDK 58's default Liquid Glass header is transparent and lays each
+        // screen's content under it.
+        headerStyle: { backgroundColor: buyerTheme.colors.background },
         // A bare chevron: the tab group has no title, so a labelled back button read "(tabs)".
         headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: buyerTheme.colors.background },

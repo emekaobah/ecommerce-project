@@ -15,6 +15,9 @@ export default function AppLayout() {
     <Stack
       screenOptions={{
         headerTintColor: vendorTheme.colors.ink,
+        // An opaque header: SDK 58's default Liquid Glass header is transparent and lays each
+        // screen's content under it.
+        headerStyle: { backgroundColor: vendorTheme.colors.background },
         contentStyle: { backgroundColor: vendorTheme.colors.background },
       }}>
       {/* Listed first: the first screen declared here is the one the stack opens on. */}

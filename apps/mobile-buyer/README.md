@@ -21,3 +21,7 @@ Maestro flows live in `.maestro/`. With the backend running (with `GOOGLE_MAPS_A
 - `src/region/`: resolves the shopping region from the backend and the device's country.
 - `src/push/`: once a buyer is signed in, asks for notification permission and registers the device's Expo push token (`POST /store/push-tokens`); sign-out removes it first. Tapping a push opens the screen its `url` names. Uses `expo-notifications`, a native module: rebuild the dev build after pulling it. Pushes need a physical device and `EAS_PROJECT_ID` in `.env` (from `eas init`), plus APNs/FCM credentials in EAS; without them the app runs and gets none.
 - `src/config/env.ts`: typed `EXPO_PUBLIC_*` env; the app fails fast if a value is missing.
+
+## Dependencies nothing imports
+
+- `@clerk/expo-native-components`: the native iOS and Android code behind `AuthView` (imported from `@clerk/expo/native-components`). It is an optional peer of `@clerk/expo`, which loads it at runtime and applies its config plugin when it is installed; listing it here is what makes autolinking build it into the app. Without it the app still builds, but sign-in fails at runtime asking for the package. Keep its version in step with `@clerk/expo`.

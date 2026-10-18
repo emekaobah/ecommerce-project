@@ -16,6 +16,9 @@ type CartSession = {
   forgetCart: () => void;
 };
 
+/** A cart with the owner it was restored or started for. */
+type OwnedCart = { owner: CartOwner; cartId: string | null };
+
 const CartContext = createContext<CartSession | null>(null);
 
 /**
@@ -27,20 +30,18 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { isLoaded, userId } = useAuth();
   const { region } = useRegion();
   const owner: CartOwner = userId ?? null;
-  const [cartId, setCartId] = useState<string | null | undefined>(undefined);
+  // Kept with the owner it belongs to, so a cart restored or started for someone else isn't shown.
+  const [restored, setRestored] = useState<OwnedCart | null>(null);
+  const cartId = restored?.owner === owner ? restored.cartId : undefined;
   // One cart per owner, even when adds race before the first cart exists.
   const pendingCart = useRef<Promise<string> | null>(null);
-  // Who the app is shopping for now, so a cart started for someone else isn't shown.
-  const currentOwner = useRef(owner);
-  currentOwner.current = owner;
 
   useEffect(() => {
     if (!isLoaded) return;
     let cancelled = false;
-    setCartId(undefined);
     pendingCart.current = null;
     void cartForOwner(owner).then((id) => {
-      if (!cancelled) setCartId(id);
+      if (!cancelled) setRestored({ owner, cartId: id });
     });
     return () => {
       cancelled = true;
@@ -54,7 +55,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
     pendingCart.current ??= createCart(region.id).then(async (id) => {
       // Saved for whoever it was started for; shown only if they're still the one shopping.
       await saveCartId(owner, id);
-      if (currentOwner.current === owner) setCartId(id);
+      setRestored((shown) => (shown?.owner === owner ? { owner, cartId: id } : shown));
       return id;
     });
     try {
@@ -67,7 +68,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   const forgetCart = useCallback(() => {
     pendingCart.current = null;
-    setCartId(null);
+    setRestored({ owner, cartId: null });
     void forgetCartId(owner);
   }, [owner]);
 

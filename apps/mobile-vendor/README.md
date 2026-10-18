@@ -15,7 +15,7 @@ Maestro flows live in `.maestro/`. `pick-and-pack.yaml` signs in as the seeded g
 
 ## Layout
 
-- `app.config.ts`: name, scheme (`ojavendor://`) and bundle id come from `appIdentity` in `@oja/domain`. The iOS scene life cycle plugin is shared with the buyer app from `@oja/expo-plugins`.
+- `app.config.ts`: name, scheme (`ojavendor://`) and bundle id come from `appIdentity` in `@oja/domain`.
 - `src/app/`: routes only. `(auth)` holds sign-in and the shop picker; `(app)` holds the order list, settings (current shop, switch shop, sign out) and the switch-shop picker. The root layout guards each group on the session.
 - `src/screens/<name>/`: screens rendered by routes.
 - `src/screens/pick/`: the picking checklist, barcode scanner and packed confirmation. The scanner uses `expo-camera`, a native module: rebuild the dev build after pulling it. The iOS simulator has no camera, so scan on a device; ticking by hand works anywhere.

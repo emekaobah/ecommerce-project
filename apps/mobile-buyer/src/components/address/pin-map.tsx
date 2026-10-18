@@ -1,6 +1,6 @@
 import type { Pin } from '@oja/domain';
 import { Button, Text, useTheme } from '@oja/ui';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -32,7 +32,12 @@ export function PinMap({
   // where the map opens: the buyer places the pin themselves.
   const startingPin = (asked: PinRequest | null) => (asked?.zoom === 'place' ? asked.at : null);
   const [pin, setPin] = useState<Pin | null>(() => startingPin(request));
-  useEffect(() => setPin(startingPin(request)), [request]);
+  // A new request starts the pin again, set while rendering so the old pin never shows.
+  const [pinFor, setPinFor] = useState(request);
+  if (pinFor !== request) {
+    setPinFor(request);
+    setPin(startingPin(request));
+  }
 
   const span = request ? SPAN[request.zoom] : SPAN.country;
   return (

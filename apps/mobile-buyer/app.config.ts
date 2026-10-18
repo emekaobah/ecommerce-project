@@ -1,6 +1,5 @@
-// Relative imports of plain-JS modules: Expo's config loader doesn't transpile workspace TypeScript.
+// Relative import of a plain-JS module: Expo's config loader doesn't transpile workspace TypeScript.
 import { appIdentity } from '../../packages/domain/src/app-identity.js';
-import withIosSceneLifecycle from '../../packages/expo-plugins/with-ios-scene-lifecycle.js';
 import type { ExpoConfig } from 'expo/config';
 
 // Name, scheme and bundle id derive from the product-name constant in @oja/domain.
@@ -60,7 +59,6 @@ const config: ExpoConfig = {
         disableAutoUpload: !process.env.SENTRY_AUTH_TOKEN,
       },
     ],
-    withIosSceneLifecycle,
   ],
   // Expo push tokens are issued per EAS project; without one the app runs but gets no pushes.
   extra: { eas: { projectId: process.env.EAS_PROJECT_ID || undefined } },

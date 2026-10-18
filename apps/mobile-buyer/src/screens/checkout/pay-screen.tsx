@@ -30,13 +30,12 @@ export function PayScreen() {
   };
 
   const header = (
-    <Stack.Screen
-      options={{
-        title: 'Pay with Paystack',
-        headerBackVisible: false,
-        headerLeft: cancelButton(() => leave('closed')),
-      }}
-    />
+    <>
+      <Stack.Screen options={{ title: 'Pay with Paystack', headerBackVisible: false }} />
+      <Stack.Toolbar placement="left" asChild>
+        <CancelButton onCancel={() => leave('closed')} />
+      </Stack.Toolbar>
+    </>
   );
 
   if (loadError) {
@@ -73,10 +72,8 @@ export function PayScreen() {
 }
 
 /** The header's Cancel button, which closes Paystack's page. */
-function cancelButton(onCancel: () => void) {
-  return function CancelButton() {
-    return <Button label="Cancel" variant="link" onPress={onCancel} />;
-  };
+function CancelButton({ onCancel }: Readonly<{ onCancel: () => void }>) {
+  return <Button label="Cancel" variant="link" onPress={onCancel} />;
 }
 
 const styles = StyleSheet.create({

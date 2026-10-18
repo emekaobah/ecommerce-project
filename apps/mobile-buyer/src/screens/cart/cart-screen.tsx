@@ -137,7 +137,7 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
         }}>
         {setQuantity.error ? (
           <Text tone="secondary" accessibilityLiveRegion="polite">
-            Couldn't update your cart: {setQuantity.error.message}
+            Couldn&apos;t update your cart: {setQuantity.error.message}
           </Text>
         ) : null}
         {moveShopToOwnCart.error ? (
