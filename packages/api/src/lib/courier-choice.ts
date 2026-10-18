@@ -47,13 +47,15 @@ async function book(scope: MedusaContainer, orderId: string, booking: LabelBooki
 }
 
 /** The order as Oja's team read a courier approval: its number, its shop's name and its currency. */
+type ApprovalOrderRow = { display_id: number; currency_code: string; seller?: { name: string } | null }
+
 async function orderForApproval(scope: MedusaContainer, orderId: string) {
   const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
     entity: "order",
     fields: ["id", "display_id", "currency_code", "seller.name"],
     filters: { id: orderId },
   })
-  const [order] = data
+  const [order] = data as unknown as ApprovalOrderRow[]
   return { display_id: order.display_id, currency_code: order.currency_code, shop: order.seller?.name ?? null }
 }
 
