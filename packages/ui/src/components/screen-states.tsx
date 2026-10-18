@@ -6,12 +6,12 @@ import { Text } from "./text"
 
 // Every data screen designs four states: loading, error, empty and content (ADR 0001).
 
-function Centered({ children }: { children: ReactNode }) {
+function Centered({ children }: Readonly<{ children: ReactNode }>) {
   const theme = useTheme()
   return <View style={[styles.centered, { padding: theme.space.lg, gap: theme.space.md }]}>{children}</View>
 }
 
-export function LoadingState({ label = "Loading…" }: { label?: string }) {
+export function LoadingState({ label = "Loading…" }: Readonly<{ label?: string }>) {
   const theme = useTheme()
   return (
     <Centered>
@@ -26,7 +26,7 @@ export type ErrorStateProps = {
   onRetry?: () => void
 }
 
-export function ErrorState({ title = "Something went wrong", message, onRetry }: ErrorStateProps) {
+export function ErrorState({ title = "Something went wrong", message, onRetry }: Readonly<ErrorStateProps>) {
   return (
     <Centered>
       <Text variant="heading" style={styles.text}>
@@ -48,7 +48,7 @@ export type EmptyStateProps = {
   action?: { label: string; onPress: () => void }
 }
 
-export function EmptyState({ title, message, action }: EmptyStateProps) {
+export function EmptyState({ title, message, action }: Readonly<EmptyStateProps>) {
   return (
     <Centered>
       <Text variant="heading" style={styles.text}>

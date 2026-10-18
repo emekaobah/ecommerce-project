@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native"
 import { useTheme } from "../theme"
-import { Text } from "./text"
+import { Text, type TextTone } from "./text"
 
 export type ButtonVariant = "primary" | "secondary" | "link"
 
@@ -15,17 +15,18 @@ export type ButtonProps = {
   style?: StyleProp<ViewStyle>
 }
 
+const TEXT_TONES: Record<ButtonVariant, TextTone> = { primary: "inverse", secondary: "default", link: "accent" }
+
 /** Primary is a full-width ink fill; secondary is outlined in ink; link is Oja blue text. */
-export function Button({ label, onPress, variant = "primary", detail, disabled, loading, style }: ButtonProps) {
+export function Button({ label, onPress, variant = "primary", detail, disabled, loading, style }: Readonly<ButtonProps>) {
   const theme = useTheme()
   const inactive = disabled || loading
-  const textTone = variant === "primary" ? "inverse" : variant === "link" ? "accent" : "default"
-  const container: ViewStyle =
-    variant === "primary"
-      ? { backgroundColor: theme.colors.ink }
-      : variant === "secondary"
-        ? { borderWidth: 1.5, borderColor: theme.colors.ink }
-        : {}
+  const textTone = TEXT_TONES[variant]
+  const containers: Record<ButtonVariant, ViewStyle> = {
+    primary: { backgroundColor: theme.colors.ink },
+    secondary: { borderWidth: 1.5, borderColor: theme.colors.ink },
+    link: {},
+  }
 
   return (
     <Pressable
@@ -37,7 +38,7 @@ export function Button({ label, onPress, variant = "primary", detail, disabled, 
       style={({ pressed }) => [
         styles.base,
         { minHeight: theme.touchTarget, borderRadius: theme.radius.md, paddingHorizontal: theme.space.md },
-        container,
+        containers[variant],
         (pressed || inactive) && styles.dimmed,
         style,
       ]}

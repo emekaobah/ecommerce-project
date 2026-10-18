@@ -82,7 +82,7 @@ export function OrdersScreen() {
         options={{
           title: seller.data?.name ?? 'Orders',
           headerLeft: AddProductButton,
-          headerRight: () => <Button label="Settings" variant="link" onPress={() => router.push('/settings')} />,
+          headerRight: SettingsButton,
         }}
       />
       {content()}
@@ -100,6 +100,11 @@ function holdLabel(fulfilment: OrderFulfilment, now: Date) {
 function AddProductButton() {
   const router = useRouter();
   return <Button label="Add product" variant="link" onPress={() => router.push('/quick-add')} />;
+}
+
+function SettingsButton() {
+  const router = useRouter();
+  return <Button label="Settings" variant="link" onPress={() => router.push('/settings')} />;
 }
 
 const styles = StyleSheet.create({
