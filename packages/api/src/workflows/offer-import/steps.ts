@@ -1,7 +1,7 @@
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { enrichmentService, storedBySubmitter, type EnrichableField } from "../../lib/enrichment"
-import { loadShopSales } from "../../lib/offer-import/sales"
+import { loadImportedSales } from "../../lib/offer-import/sales"
 import { OFFER_IMPORT_MODULE, type OfferImportModuleService } from "../../modules/offer-import"
 
 /**
@@ -68,17 +68,17 @@ export const createOfferCostStep = createStep(
 
 type SaleInput = { seller_id: string; offer_id: string; currency_code: string }
 
-/** Where an offer's sale price goes: its current sale price if it has one, else the shop's imported sale list, if any. */
-export const findOfferSalePriceStep = createStep("find-offer-sale-price", async (input: SaleInput, { container }) => {
+/** Where an offer's imported sale price goes: its price in the shop's imported sale list, or that list, if the shop has one. */
+export const findImportedSalePriceStep = createStep("find-imported-sale-price", async (input: SaleInput, { container }) => {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const [{ data: [offer] }, sales] = await Promise.all([
     query.graph({ entity: "offer", fields: ["variant_id"], filters: { id: input.offer_id, seller_id: input.seller_id } }),
-    loadShopSales(container, input.seller_id, input.currency_code),
+    loadImportedSales(container, input.seller_id, input.currency_code),
   ])
   if (!offer) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Offer ${input.offer_id} was not found.`)
   return new StepResponse({
     variant_id: offer.variant_id as string,
+    list_id: sales.list_id,
     price: sales.by_offer.get(input.offer_id) ?? null,
-    import_list_id: sales.import_list_id,
   })
 })

@@ -3,25 +3,26 @@ import { ContainerRegistrationKeys, PriceListStatus, PriceListType } from "@medu
 
 type Scope = Pick<MedusaContainer, "resolve">
 
-/** The price list a shop's imported sale prices go in, when its offer isn't already on sale (#46). */
+/** The price list a shop's imported sale prices go in (#46), made the first time an import needs it. */
 export const IMPORTED_SALE_LIST = {
   title: "Imported sale prices",
   description: "Sale prices from your product list imports.",
 }
 
-/** A sale price on one of the shop's offers: a price in one of its price lists, with the offer's `offer_id` rule. */
-export type OfferSalePrice = { id: string; price_list_id: string; amount: number }
+/** A sale price on one of the shop's offers: a price in its imported sale list, with the offer's `offer_id` rule. */
+export type OfferSalePrice = { id: string; amount: number }
 
-export type ShopSales = {
-  /** The sale price buyers see on each offer that has one (its lowest), by offer id. */
+/**
+ * The shop's imported sale prices: its running "Imported sale prices" list, if it has one, and
+ * its prices by offer. An import reads and changes only these, never a sale the shop made itself.
+ */
+export type ImportedSales = {
+  list_id: string | null
   by_offer: Map<string, OfferSalePrice>
-  /** The shop's running list of imported sale prices, if it has one. */
-  import_list_id: string | null
 }
 
 type SaleList = {
   id: string
-  title: string
   starts_at: string | Date | null
   ends_at: string | Date | null
   prices?: { id: string; amount: number; currency_code: string; price_rules?: { attribute: string; value: string }[] | null }[] | null
@@ -32,42 +33,28 @@ const running = (list: SaleList, now: Date) =>
   (!list.starts_at || new Date(list.starts_at) <= now) && (!list.ends_at || new Date(list.ends_at) > now)
 
 /**
- * The shop's running sale prices in the currency, by offer. A shop's sale prices are its active
- * sale price lists' prices, each kept to one of its offers by an `offer_id` rule (#10), so other
- * shops' offers of the same product are never read or changed.
+ * The shop's imported sale prices in the currency, by offer. Each is kept to one of its offers
+ * by an `offer_id` rule (#10), so other shops' offers of the same product are never read or
+ * changed.
  */
-export async function loadShopSales(scope: Scope, sellerId: string, currency: string, now = new Date()): Promise<ShopSales> {
+export async function loadImportedSales(scope: Scope, sellerId: string, currency: string, now = new Date()): Promise<ImportedSales> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: links } = await query.graph({ entity: "price_list_seller", fields: ["price_list_id"], filters: { seller_id: sellerId } })
   const ids = (links as { price_list_id: string }[]).map((l) => l.price_list_id)
-  if (!ids.length) return { by_offer: new Map(), import_list_id: null }
+  if (!ids.length) return { list_id: null, by_offer: new Map() }
 
   const { data } = await query.graph({
     entity: "price_list",
-    fields: [
-      "id",
-      "title",
-      "starts_at",
-      "ends_at",
-      "prices.id",
-      "prices.amount",
-      "prices.currency_code",
-      "prices.price_rules.attribute",
-      "prices.price_rules.value",
-    ],
-    filters: { id: ids, type: PriceListType.SALE, status: PriceListStatus.ACTIVE },
+    fields: ["id", "starts_at", "ends_at", "prices.id", "prices.amount", "prices.currency_code", "prices.price_rules.attribute", "prices.price_rules.value"],
+    filters: { id: ids, title: IMPORTED_SALE_LIST.title, type: PriceListType.SALE, status: PriceListStatus.ACTIVE },
   })
-  const lists = (data as SaleList[]).filter((l) => running(l, now))
+  const list = (data as SaleList[]).find((l) => running(l, now))
+  if (!list) return { list_id: null, by_offer: new Map() }
 
   const byOffer = new Map<string, OfferSalePrice>()
-  for (const list of lists) {
-    for (const price of list.prices ?? []) {
-      const offerId = price.price_rules?.find((r) => r.attribute === "offer_id")?.value
-      if (!offerId || price.currency_code !== currency) continue
-      const amount = Number(price.amount)
-      const lowest = byOffer.get(offerId)
-      if (!lowest || amount < lowest.amount) byOffer.set(offerId, { id: price.id, price_list_id: list.id, amount })
-    }
+  for (const price of list.prices ?? []) {
+    const offerId = price.price_rules?.find((r) => r.attribute === "offer_id")?.value
+    if (offerId && price.currency_code === currency) byOffer.set(offerId, { id: price.id, amount: Number(price.amount) })
   }
-  return { by_offer: byOffer, import_list_id: lists.find((l) => l.title === IMPORTED_SALE_LIST.title)?.id ?? null }
+  return { list_id: list.id, by_offer: byOffer }
 }

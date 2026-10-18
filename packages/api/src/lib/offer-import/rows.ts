@@ -41,7 +41,7 @@ export type ShopOffer = {
   title: string
   /** Its selling price in the sheet's currency, if it has one. */
   price: number | null
-  /** The sale price buyers see on it, if it's on sale. */
+  /** Its sale price in the shop's imported sale prices, which an import changes, if it has one (#46). */
   sale: number | null
   /** Its private cost price, if the shop gave one. */
   cost: number | null
@@ -234,10 +234,17 @@ const failed = ({ row, errors, warnings }: Pick<RowRead, "row" | "errors" | "war
 const belowCost = (price: number, cost: number, currency: string) =>
   `Selling price ${money(price, currency)} is below cost price ${money(cost, currency)}.`
 
-/** Refuses a sale price that isn't below the selling price it discounts. */
-function checkSale(values: Values, price: number | null, currency: string, errors: string[]) {
-  const sale = values.get("sale_price") as number | undefined
-  if (sale === undefined) return
+/**
+ * Refuses a row whose sale price isn't below the selling price it discounts: the row's sale
+ * price, or, when the row only changes the selling price, the offer's imported sale price.
+ */
+function checkSale(values: Values, existing: Pick<ShopOffer, "price" | "sale"> | null, currency: string, errors: string[]) {
+  const given = values.get("sale_price") as number | undefined
+  const newPrice = values.get("selling_price") as number | undefined
+  if (given === undefined && newPrice === undefined) return
+  const sale = given ?? existing?.sale ?? null
+  const price = newPrice ?? existing?.price ?? null
+  if (sale === null) return
   if (price === null) errors.push("A sale price needs a selling price.")
   else if (sale >= price) errors.push(`Sale price ${money(sale, currency)} must be below the selling price ${money(price, currency)}.`)
 }
@@ -279,7 +286,7 @@ function checkUpdate({ values, errors, warnings }: RowRead, existing: ShopOffer,
   }
   const earlier = updatedRows.get(existing.id)
   if (earlier !== undefined) errors.push(`${existing.title} is already updated on row ${earlier}.`)
-  checkSale(values, (values.get("selling_price") as number | undefined) ?? existing.price, context.currency_code, errors)
+  checkSale(values, existing, context.currency_code, errors)
 }
 
 /** What a row changes on the offer, said for the shop, and a warning if it leaves the offer selling below cost. */
@@ -332,7 +339,7 @@ function checkNewOffer({ values, errors }: RowRead, match: CatalogueVariant | un
   }
   const skuError = given && codes.skuError(given)
   if (skuError) errors.push(`${columnOf("sku")}: ${skuError}`)
-  if (values.has("selling_price")) checkSale(values, values.get("selling_price") as number, context.currency_code, errors)
+  if (values.has("selling_price")) checkSale(values, null, context.currency_code, errors)
 }
 
 /** A row for something the shop doesn't sell yet: an offer on the catalogue's product, or a proposal. */

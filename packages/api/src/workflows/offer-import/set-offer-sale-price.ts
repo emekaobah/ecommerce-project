@@ -3,7 +3,7 @@ import { WorkflowResponse, createWorkflow, transform, when } from "@medusajs/fra
 import { createPriceListPricesWorkflow, updatePriceListPricesWorkflow } from "@medusajs/medusa/core-flows"
 import { createSellerPriceListsWorkflow } from "@mercurjs/core/workflows"
 import { IMPORTED_SALE_LIST } from "../../lib/offer-import/sales"
-import { findOfferSalePriceStep } from "./steps"
+import { findImportedSalePriceStep } from "./steps"
 
 export type SetOfferSalePriceInput = {
   seller_id: string
@@ -14,16 +14,16 @@ export type SetOfferSalePriceInput = {
 }
 
 /**
- * Puts one of the shop's offers on sale from an import row (#46). An offer already on sale has
- * that sale price changed; otherwise the price goes in the shop's "Imported sale prices" list,
- * made the first time it's needed. Either way the price carries the offer's `offer_id` rule, so
+ * Puts one of the shop's offers on sale from an import row (#46), in the shop's "Imported sale
+ * prices" list, made the first time it's needed: the offer's price there is changed, or added.
+ * Sales the shop made itself are left alone. The price carries the offer's `offer_id` rule, so
  * only this shop's offer is discounted, not other shops' offers of the same product (#10), and
  * the shop can change or end the sale in its price lists.
  */
 export const setOfferSalePriceWorkflow = createWorkflow("set-offer-sale-price", (input: SetOfferSalePriceInput) => {
-  const current = findOfferSalePriceStep(input)
+  const current = findImportedSalePriceStep(input)
 
-  const made = when("make-imported-sale-list", current, (c) => !c.price && !c.import_list_id).then(() =>
+  const made = when("make-imported-sale-list", current, (c) => !c.list_id).then(() =>
     createSellerPriceListsWorkflow.runAsStep({
       input: transform({ input }, ({ input }) => ({
         seller_id: input.seller_id,
@@ -33,7 +33,7 @@ export const setOfferSalePriceWorkflow = createWorkflow("set-offer-sale-price", 
   )
 
   const sale = transform({ input, current, made }, ({ input, current, made }) => ({
-    list_id: current.price?.price_list_id ?? current.import_list_id ?? made![0].id,
+    list_id: current.list_id ?? made![0].id,
     price: {
       variant_id: current.variant_id,
       amount: input.amount,
