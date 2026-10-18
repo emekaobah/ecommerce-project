@@ -16,6 +16,9 @@ type CartSession = {
   forgetCart: () => void;
 };
 
+/** A cart with the owner it was restored or started for. */
+type OwnedCart = { owner: CartOwner; cartId: string | null };
+
 const CartContext = createContext<CartSession | null>(null);
 
 /**
@@ -28,7 +31,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { region } = useRegion();
   const owner: CartOwner = userId ?? null;
   // Kept with the owner it belongs to, so a cart restored or started for someone else isn't shown.
-  const [restored, setRestored] = useState<{ owner: CartOwner; cartId: string | null } | null>(null);
+  const [restored, setRestored] = useState<OwnedCart | null>(null);
   const cartId = restored?.owner === owner ? restored.cartId : undefined;
   // One cart per owner, even when adds race before the first cart exists.
   const pendingCart = useRef<Promise<string> | null>(null);
