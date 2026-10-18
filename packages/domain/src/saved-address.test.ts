@@ -93,6 +93,17 @@ describe("preselectedAddress", () => {
   test("is none when the default has no pin yet", () => {
     expect(preselectedAddress([{ ...home, metadata: {} }, office], "NG")).toBeNull()
   })
+
+  test("is the address the buyer picked to deliver to on Home or Search (#43)", () => {
+    expect(preselectedAddress([home, office], "NG", "caddr_office")).toEqual({
+      id: "caddr_office",
+      address: checkoutAddressOf(office, "NG")!,
+    })
+  })
+
+  test("is the default again once the picked address is deleted", () => {
+    expect(preselectedAddress([home], "NG", "caddr_office")?.id).toBe("caddr_home")
+  })
 })
 
 describe("addressStep", () => {
@@ -113,6 +124,10 @@ describe("addressStep", () => {
   test("starts with the default while the saved addresses load or the default is being set", () => {
     expect(addressStep({ ...cart(null), saved: undefined })).toBe("starting")
     expect(addressStep({ ...cart(null), saved: [office, home] })).toBe("starting")
+  })
+
+  test("starts with the address picked to deliver to, even without a default", () => {
+    expect(addressStep({ ...cart(null), saved: [office], picked: "caddr_office" })).toBe("starting")
   })
 
   test("without a default offers the saved addresses, or a new one when there are none or they won't load", () => {

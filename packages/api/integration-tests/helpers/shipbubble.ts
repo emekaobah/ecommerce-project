@@ -2,8 +2,10 @@ import { createHmac, randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage, type Server } from "node:http"
 
 /**
- * A courier the fake quotes: its price, and how many hours after the request it delivers, or
- * at a set time of day `arrives.day` days after the request's day in Lagos.
+ * A courier the fake quotes: its price, and how many hours after its collection it delivers, or
+ * at a set time of day `arrives.day` days after the collection's day in Lagos. Like Shipbubble,
+ * the fake says when the courier collects (`pickup_eta_time`) and counts delivery from then: now
+ * for a `pickup_date` of today, `LATER_PICKUP_TIME` on a later one.
  */
 export type FakeCourier = {
   courier_id: string
@@ -66,6 +68,9 @@ export type FakeShipment = { order_id: string; courier: FakeCourier; status: Shi
 
 /** "yyyy-mm-dd HH:mm:ss" in Lagos time, as Shipbubble writes ETAs. */
 const lagosTime = (at: Date) => new Date(at.getTime() + 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ")
+
+/** When couriers collect a parcel picked up on a later day than today, Lagos time. */
+export const LATER_PICKUP_TIME = "09:00:00"
 
 /** "yyyy-mm-dd HH:mm:ss" in Lagos time, `day` days after `now`'s day in Lagos, at `at` (HH:mm:ss). */
 export const lagosDayAt = (now: Date, day: number, at: string) => {
@@ -144,7 +149,9 @@ export function fakeShipbubble(port: number) {
     if (![...codes.values()].includes(body.sender_address_code) || ![...codes.values()].includes(body.reciever_address_code)) {
       return failed(400, "Invalid address code")
     }
-    const now = new Date()
+    const today = lagosTime(new Date()).slice(0, 10)
+    // When the courier collects: now, or the morning of a later pickup date. Delivery counts from then.
+    const collected = body.pickup_date > today ? new Date(`${body.pickup_date}T${LATER_PICKUP_TIME}+01:00`) : new Date()
     const quoted = couriers.map((c) => ({
       courier_id: c.courier_id,
       courier_name: c.courier_name,
@@ -156,11 +163,11 @@ export function fakeShipbubble(port: number) {
       rate_card_currency: "NGN",
       currency: "NGN",
       total: c.amount,
-      pickup_eta_time: lagosTime(now),
+      pickup_eta_time: lagosTime(collected),
       delivery_eta: `Within ${c.hours} hrs`,
       delivery_eta_time: c.arrives
-        ? lagosDayAt(now, c.arrives.day, c.arrives.at)
-        : lagosTime(new Date(now.getTime() + c.hours * 60 * 60 * 1000)),
+        ? lagosDayAt(collected, c.arrives.day, c.arrives.at)
+        : lagosTime(new Date(collected.getTime() + c.hours * 60 * 60 * 1000)),
     }))
     const request_token = `token_${randomUUID()}`
     quotedBy.set(request_token, couriers)

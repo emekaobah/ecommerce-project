@@ -1,4 +1,5 @@
 import { model } from "@medusajs/framework/utils"
+import { HOLD_REMINDERS } from "@oja/domain"
 
 /**
  * Where a seller order is in the fulfilment state machine (`@oja/domain`'s `transition`). An
@@ -45,6 +46,8 @@ const OrderFulfilment = model
     pickup_code_attempts: model.array().nullable(),
     /** When the owner was last alerted that staff and the courier disagree about the handover; daily while they do (#25). */
     handover_alerted_at: model.dateTime().nullable(),
+    /** The last reminder the buyer of a pickup order still to collect had (#33): half-way through its hold, then its last day. */
+    hold_reminded: model.enum([...HOLD_REMINDERS]).nullable(),
   })
   .indexes([{ on: ["state", "placed_at"] }, { on: ["shipment_id"] }])
 

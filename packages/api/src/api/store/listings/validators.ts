@@ -1,7 +1,16 @@
 import { z } from "@medusajs/framework/zod"
 
-export const StoreGetListingParams = z.object({
+/** The region, which delivery estimates are scoped to like a listing. */
+export const StoreGetDeliveryEstimateParams = z.object({
   region_id: z.string(),
+})
+
+export const StoreGetListingParams = StoreGetDeliveryEstimateParams.extend({
+  /**
+   * The signed-in buyer's saved address they are delivering to: shops are measured from its pin
+   * (ADR 0011). Ignored for a guest or an address that isn't theirs.
+   */
+  address_id: z.string().optional(),
 })
 
 export const StoreGetListingsParams = StoreGetListingParams.extend({
@@ -15,9 +24,10 @@ export const StoreGetListingsParams = StoreGetListingParams.extend({
   offset: z.coerce.number().int().min(0).default(0),
 })
 
-/** A shop page's header is scoped to the region like a listing. */
+/** A shop page's header is scoped to the region, and measured from the buyer's address, like a listing. */
 export const StoreGetShopParams = StoreGetListingParams
 
+export type StoreGetDeliveryEstimateParamsType = z.infer<typeof StoreGetDeliveryEstimateParams>
 export type StoreGetShopParamsType = z.infer<typeof StoreGetShopParams>
 export type StoreGetListingParamsType = z.infer<typeof StoreGetListingParams>
 export type StoreGetListingsParamsType = z.infer<typeof StoreGetListingsParams>

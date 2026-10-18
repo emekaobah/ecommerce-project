@@ -21,7 +21,8 @@ export type EmailShopOrder = {
   display_id: number
   shop: string
   lines: EmailLine[]
-  delivery: number
+  /** Its delivery fee; null for an order collected in store (#12). */
+  delivery: number | null
   /** What the buyer paid for it. */
   paid: number
 }
@@ -61,7 +62,7 @@ export function AmountRow({ label, amount, strong = false }: Readonly<{ label: s
   )
 }
 
-/** A shop's order: its lines, delivery and what was paid; `children` say more under its heading. */
+/** A shop's order: its lines, delivery (none when collected) and what was paid; `children` say more under its heading. */
 export function ShopOrder({ order, currency, children }: Readonly<{ order: EmailShopOrder; currency: string; children?: ReactNode }>) {
   const money = (amount: number) => formatMoney(amount, currency)
   return (
@@ -74,7 +75,7 @@ export function ShopOrder({ order, currency, children }: Readonly<{ order: Email
         {order.lines.map((line) => (
           <AmountRow key={line.id} label={`${line.quantity} × ${lineName(line)}`} amount={money(line.total)} />
         ))}
-        <AmountRow label="Delivery" amount={money(order.delivery)} />
+        {order.delivery != null && <AmountRow label="Delivery" amount={money(order.delivery)} />}
         <AmountRow label="Paid" amount={money(order.paid)} strong />
       </Section>
     </Section>
@@ -93,6 +94,58 @@ export function Address({ lines }: Readonly<{ lines: string[] }>) {
       {lines.map((line) => (
         <Text key={line} style={secondary}>
           {line}
+        </Text>
+      ))}
+    </Section>
+  )
+}
+
+/** Where to collect a pickup order (#12): the collection point's address, the shop's word on it, and its hours. */
+export type EmailCollectionPlace = { address: string[]; instructions: string | null; phone: string | null; hours: string[] }
+
+/** Where and when to collect a pickup order. */
+export function CollectFrom({ place }: Readonly<{ place: EmailCollectionPlace }>) {
+  return (
+    <Section style={{ marginTop: "24px" }}>
+      <Text style={{ ...text, fontWeight: 800 }}>Collect from</Text>
+      {place.address.map((line) => (
+        <Text key={line} style={secondary}>
+          {line}
+        </Text>
+      ))}
+      {place.instructions && <Text style={{ ...secondary, marginTop: "8px" }}>{place.instructions}</Text>}
+      {place.phone && <Text style={secondary}>{`Phone: ${place.phone}`}</Text>}
+      {place.hours.length > 0 && (
+        <>
+          <Text style={{ ...text, fontWeight: 800, marginTop: "16px" }}>Opening hours</Text>
+          {place.hours.map((line) => (
+            <Text key={line} style={secondary}>
+              {line}
+            </Text>
+          ))}
+        </>
+      )}
+    </Section>
+  )
+}
+
+/** The code a pickup order is collected with, large, to show at the counter. */
+export function PickupCode({ code }: Readonly<{ code: string }>) {
+  return (
+    <Section style={{ marginTop: "16px" }}>
+      <Text style={secondary}>Your pickup code</Text>
+      <Text style={{ ...text, fontSize: "32px", lineHeight: "40px", fontWeight: 800, letterSpacing: "6px" }}>{code}</Text>
+    </Section>
+  )
+}
+
+/** Lines of an order, each with how many of it, without amounts: what a notice names. */
+export function ItemList({ items }: Readonly<{ items: { title: string; quantity: number }[] }>) {
+  return (
+    <Section style={{ margin: "4px 0 12px" }}>
+      {items.map((item) => (
+        <Text key={item.title} style={secondary}>
+          {`${item.quantity} × ${item.title}`}
         </Text>
       ))}
     </Section>

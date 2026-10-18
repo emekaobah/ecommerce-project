@@ -1,7 +1,12 @@
 import {
   addressLines,
   buyerStatusPush,
+  collectByLabel,
+  holdReminderPush,
   itemsRemovedPush,
+  notCollectedPush,
+  openingHoursLines,
+  orderCollectedPush,
   notPlacedPush,
   appIdentity,
   refundAccountPush,
@@ -13,18 +18,24 @@ import {
   PRODUCT_NAME,
   shopStatus,
   type FulfilmentState,
+  type HoldReminder,
   type RefundAccountReminder,
+  type RemovedItem,
   type RefundNotice,
   type StoredAddress,
 } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { ReactElement } from "react"
 import { CheckoutNotPlacedEmail } from "../emails/checkout-not-placed"
+import { CollectedReceiptEmail } from "../emails/collected-receipt"
 import { DeliveryReceiptEmail } from "../emails/delivery-receipt"
 import { OrderCancelledEmail } from "../emails/order-cancelled"
 import { OrderConfirmationEmail } from "../emails/order-confirmation"
-import type { EmailShopOrder } from "../emails/parts"
+import { NotCollectedEmail } from "../emails/not-collected"
+import type { EmailCollectionPlace, EmailShopOrder } from "../emails/parts"
+import { PickupReminderEmail } from "../emails/pickup-reminder"
+import { ReadyForPickupEmail } from "../emails/ready-for-pickup"
 import { RefundAccountEmail } from "../emails/refund-account"
 import { RefundByHandEmail } from "../emails/refund-by-hand"
 import { renderEmail } from "../emails/render"
@@ -33,13 +44,18 @@ import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "
 import { sendEmail } from "./email"
 import { fulfilmentService, fulfilmentsOf, type Picks } from "./order-fulfilment"
 import { needsAttentionSince } from "./owed-refunds"
+import { perishableProductIds } from "./perishable"
+import { NOT_COLLECTED_NOTE } from "./pickup-hold"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
 import type { StoredNotPlaced } from "./unplaced-checkout"
 
 // What buyers are told about their orders (#5): a confirmation once their checkout is paid and
 // a receipt once a shop's order is delivered, each by email and push, and a push as each shop's
-// order moves on. Tapping a push opens the checkout's order screen in the buyer app.
+// order moves on. A pickup order (#33) is also emailed once Ready, reminded half-way through
+// its hold and on its last day, and sent a receipt once collected or told what is refunded once
+// not collected, each by email and push. Tapping a push opens the checkout's order screen in the
+// buyer app.
 
 type Scope = Pick<MedusaContainer, "resolve">
 
@@ -106,8 +122,28 @@ const emailOrder = (order: BuyerOrder, delivery: Map<string, number>): EmailShop
     quantity: item.quantity,
     total: item.total,
   })),
-  delivery: delivery.get(order.id) ?? 0,
+  delivery: order.fulfilment.method === "pickup" ? null : (delivery.get(order.id) ?? 0),
   paid: order.paid_total,
+})
+
+/** Where to collect a pickup order, as its emails give it; null for a delivered order. */
+function emailCollectionPlace(order: BuyerOrder): EmailCollectionPlace | null {
+  const place = order.pickup
+  if (!place) return null
+  const { address_1, address_2, city, landmark } = place.address
+  return {
+    address: [order.seller.name, [address_1, address_2, city].filter(Boolean).join(", "), landmark].flatMap((line) => (line ? [line] : [])),
+    instructions: place.instructions || null,
+    phone: place.phone,
+    hours: place.weekly ? openingHoursLines(place.weekly) : [],
+  }
+}
+
+/** The data a buyer push about one of their orders carries: the screen it opens, and the order. */
+const orderPushData = (checkout: BuyerCheckout, orderId: string) => ({
+  url: orderScreen(checkout.group.id),
+  order_group_id: checkout.group.id,
+  order_id: orderId,
 })
 
 /**
@@ -186,10 +222,16 @@ export async function pushOrderState(scope: Scope, orderId: string, state: Fulfi
   await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
     template: `buyer-order-${state.replaceAll("_", "-")}`,
     ...push,
-    data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+    data: orderPushData(checkout, orderId),
     idempotencyKey: (to) => `buyer-order-${state}:${orderId}:${reachedAt}:${to}`,
     about: `${state} for order ${orderId}`,
   })
+}
+
+/** The day of `at` where the order's shop is, as the buyer reads it: "Thursday 15 October". */
+async function shopDay(scope: Scope, order: BuyerOrder, at: string | Date) {
+  const hours = (await shopHoursOf(scope, [order.seller.id])).get(order.seller.id)
+  return new Intl.DateTimeFormat("en-GB", { timeZone: hours?.time_zone, weekday: "long", day: "numeric", month: "long" }).format(new Date(at))
 }
 
 /** Emails the buyer their receipt for a shop's order once it is delivered (#5). */
@@ -199,13 +241,7 @@ export async function emailDeliveryReceipt(scope: Scope, orderId: string): Promi
   const { checkout, order } = found
   const record = (await fulfilmentsOf(scope, [orderId])).get(orderId)
   const deliveredAt = record?.reached?.delivered ?? record?.payout_eligible_at ?? new Date()
-  const hours = (await shopHoursOf(scope, [order.seller.id])).get(order.seller.id)
-  const delivered_on = new Intl.DateTimeFormat("en-GB", {
-    timeZone: hours?.time_zone,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date(deliveredAt))
+  const delivered_on = await shopDay(scope, order, deliveredAt)
   await emailBuyer(scope, checkout.email, {
     template: "delivery-receipt",
     subject: `Your ${PRODUCT_NAME} receipt: order #${order.display_id} from ${order.seller.name}`,
@@ -248,7 +284,7 @@ export async function pushItemsRemoved(
   await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
     template: "buyer-order-items-removed",
     ...push,
-    data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+    data: orderPushData(checkout, orderId),
     // Items can be removed from an order more than once: each removal is told once.
     idempotencyKey: (to) => `buyer-order-items-removed:${orderId}:${at}:${to}`,
     about: `the items removed from order ${orderId}`,
@@ -277,7 +313,7 @@ export async function tellOrderCancelled(scope: Scope, { id: orderId, amount }: 
     pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
       template: "buyer-order-cancelled",
       ...orderCancelledPush(notice),
-      data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+      data: orderPushData(checkout, orderId),
       idempotencyKey: (to) => `buyer-${key}:${to}`,
       about: `the cancellation of order ${orderId}`,
     }),
@@ -304,18 +340,29 @@ export async function tellRefundByHand(scope: Scope, { order_id: orderId, amount
     pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
       template: "buyer-refund-by-hand",
       ...refundByHandPush(refund),
-      data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: orderId },
+      data: orderPushData(checkout, orderId),
       idempotencyKey: (to) => `buyer-${key}:${to}`,
       about: `the refund owed on order ${orderId}`,
     }),
   ])
 }
 
+/**
+ * Whether a refund is the one a pickup order's hold expiry made (#32): its buyer was told what
+ * it refunds (`tellNotCollected`), in place of its own push. Any other refund of the order, such
+ * as Oja's team refunding the fresh items it kept, is pushed as usual.
+ */
+async function isNotCollectedRefund(scope: Scope, refund: { refund_id?: string | null }): Promise<boolean> {
+  if (!refund.refund_id) return false
+  const [made] = await scope.resolve(Modules.PAYMENT).listRefunds({ id: refund.refund_id }, { select: ["id", "note"] })
+  return made?.note === NOT_COLLECTED_NOTE
+}
+
 /** Pushes the buyer that a refund of their order has completed: Paystack processed it. */
 export async function pushRefundCompleted(scope: Scope, refundId: string): Promise<void> {
   const [refund] = await fulfilmentService(scope).listOrderRefunds({ id: refundId })
   const found = refund?.order_id ? await buyerOrder(scope, refund.order_id) : null
-  if (!refund || !found) return
+  if (!refund || !found || (await isNotCollectedRefund(scope, refund))) return
   const { checkout, order } = found
   const push = refundCompletedPush({
     display_id: order.display_id,
@@ -326,7 +373,7 @@ export async function pushRefundCompleted(scope: Scope, refundId: string): Promi
   await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
     template: "buyer-refund-completed",
     ...push,
-    data: { url: orderScreen(checkout.group.id), order_group_id: checkout.group.id, order_id: order.id },
+    data: orderPushData(checkout, order.id),
     idempotencyKey: (to) => `buyer-refund-completed:${refund.id}:${to}`,
     about: `the refund ${refund.id}`,
   })
@@ -407,5 +454,160 @@ export async function tellCartNotPlaced(scope: Scope, { cart_id, customer_id, em
         idempotencyKey: (to) => `buyer-checkout-not-placed:${refund_id}:${to}`,
         about: `cart ${cart_id} not being placed`,
       }),
+  ])
+}
+
+/**
+ * Tells the buyer their pickup order is Ready for pickup (#12, #33): the push (`pushOrderState`)
+ * and an email with the code, where to collect, the shop's hours and when to collect by. Once
+ * each, however often it is asked.
+ */
+export async function tellReadyForPickup(scope: Scope, orderId: string): Promise<void> {
+  const found = await buyerOrder(scope, orderId)
+  if (!found) return
+  const { checkout, order } = found
+  const place = emailCollectionPlace(order)
+  const code = order.pickup?.code
+  const collectBy = order.fulfilment.collect_by
+  await Promise.all([
+    pushOrderState(scope, orderId, "ready_for_pickup"),
+    // Collected already: the code is spent, and the receipt follows.
+    place &&
+      code &&
+      emailBuyer(scope, checkout.email, {
+        template: "ready-for-pickup",
+        subject: `Your ${PRODUCT_NAME} order #${order.display_id} from ${order.seller.name} is ready for pickup`,
+        body: (
+          <ReadyForPickupEmail
+            currency={order.currency_code}
+            order={emailOrder(order, checkout.delivery)}
+            code={code}
+            place={place}
+            collect_by={collectBy ? collectByLabel(collectBy.at, new Date(), collectBy.time_zone) : null}
+          />
+        ),
+        key: `ready-for-pickup:${orderId}`,
+      }),
+  ])
+}
+
+/**
+ * Reminds the buyer, by push and email, to collect their pickup order (#33): half-way through
+ * its hold, or on its last day, when to collect by (as of `at`, when the reminder was due) and
+ * what happens if they don't. Nothing once it is no longer Ready for pickup. Once each.
+ */
+export async function remindOfPickupHold(scope: Scope, { id: orderId, reminder, at }: { id: string; reminder: HoldReminder; at: string }) {
+  const found = await buyerOrder(scope, orderId)
+  const collectBy = found?.order.fulfilment.collect_by
+  const place = found && emailCollectionPlace(found.order)
+  if (found?.order.fulfilment.state !== "ready_for_pickup" || !collectBy || !place) return
+  const { checkout, order } = found
+  const onOrder = order.items.filter((i) => i.quantity > 0 && i.product_id).map((i) => i.product_id!)
+  const notice = {
+    display_id: order.display_id,
+    shop: order.seller.name,
+    reminder,
+    collect_by: collectByLabel(collectBy.at, new Date(at), collectBy.time_zone),
+    perishable: (await perishableProductIds(scope, onOrder)).size > 0,
+  }
+  const key = `pickup-${reminder.replace("_", "-")}:${orderId}`
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "pickup-reminder",
+      subject:
+        reminder === "last_day"
+          ? `Last day to collect your ${PRODUCT_NAME} order #${order.display_id}`
+          : `Reminder: your ${PRODUCT_NAME} order #${order.display_id} is waiting for you`,
+      body: <PickupReminderEmail {...notice} place={place} />,
+      key,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-pickup-reminder",
+      ...holdReminderPush(notice),
+      data: orderPushData(checkout, orderId),
+      idempotencyKey: (to) => `buyer-${key}:${to}`,
+      about: `the ${reminder} reminder of pickup order ${orderId}`,
+    }),
+  ])
+}
+
+/** Sends the buyer, by email with a push, their receipt for a pickup order they collected (#33). Once. */
+export async function tellOrderCollected(scope: Scope, orderId: string): Promise<void> {
+  const found = await buyerOrder(scope, orderId)
+  const record = (await fulfilmentsOf(scope, [orderId])).get(orderId)
+  const collection = record?.fulfilment.state === "collected" ? record.fulfilment.collection : null
+  if (!found || !collection) return
+  const { checkout, order } = found
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "collected-receipt",
+      subject: `Your ${PRODUCT_NAME} receipt: order #${order.display_id} from ${order.seller.name}`,
+      body: (
+        <CollectedReceiptEmail
+          group_display_id={checkout.group.display_id}
+          currency={order.currency_code}
+          order={emailOrder(order, checkout.delivery)}
+          refunded={order.refund?.amount ?? 0}
+          collected_on={await shopDay(scope, order, collection.at)}
+          collected_by={collection.collectedBy}
+        />
+      ),
+      key: `collected-receipt:${orderId}`,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-order-collected",
+      ...orderCollectedPush({ display_id: order.display_id, shop: order.seller.name }),
+      data: orderPushData(checkout, orderId),
+      idempotencyKey: (to) => `buyer-order-collected:${orderId}:${to}`,
+      about: `the receipt of order ${orderId}`,
+    }),
+  ])
+}
+
+/**
+ * Tells the buyer, by push and email, that their pickup order wasn't collected in time (#33,
+ * #32): what they are refunded, its non-perishable lines, and the fresh lines that aren't:
+ * `order_fulfilment.not_collected`'s data. The refund it tells of isn't pushed besides when it
+ * completes (`pushRefundCompleted`). Once.
+ */
+export async function tellNotCollected(
+  scope: Scope,
+  { id: orderId, amount, refunded, kept }: { id: string; amount: number; refunded: Picks; kept: Picks }
+): Promise<void> {
+  const found = await buyerOrder(scope, orderId)
+  if (!found) return
+  const { checkout, order } = found
+  // The lines refunded have left the order (#32): their titles are on the line items still.
+  const lines = await scope
+    .resolve(Modules.ORDER)
+    .listOrderLineItems({ id: Object.keys({ ...refunded, ...kept }) }, { select: ["id", "product_title"] })
+  const named = (units: Picks): RemovedItem[] =>
+    Object.entries(units).flatMap(([id, quantity]) => {
+      const line = lines.find((l) => l.id === id)
+      return line && quantity > 0 ? [{ title: line.product_title ?? "Item", quantity }] : []
+    })
+  const notice = {
+    display_id: order.display_id,
+    shop: order.seller.name,
+    refund: amount,
+    currency_code: order.currency_code,
+    refunded: named(refunded),
+    kept: named(kept),
+  }
+  const key = `not-collected:${orderId}`
+  await Promise.all([
+    emailBuyer(scope, checkout.email, {
+      template: "not-collected",
+      subject: `Your ${PRODUCT_NAME} order #${order.display_id} from ${order.seller.name} wasn't collected`,
+      body: <NotCollectedEmail {...notice} />,
+      key,
+    }),
+    pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+      template: "buyer-order-not-collected",
+      ...notCollectedPush(notice),
+      data: orderPushData(checkout, orderId),
+      idempotencyKey: (to) => `buyer-${key}:${to}`,
+      about: `order ${orderId} not being collected`,
+    }),
   ])
 }

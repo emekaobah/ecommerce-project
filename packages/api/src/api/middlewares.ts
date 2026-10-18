@@ -3,7 +3,12 @@ import { authenticate, validateAndTransformBody, validateAndTransformQuery } fro
 import { clerkCustomerAuth } from "./store/clerk-customer-auth";
 import { savedAddressesNeedPins } from "./store/customers/address-pin";
 import { savedAddressesValidatedForDelivery } from "./store/customers/saved-address-delivery";
-import { StoreGetListingParams, StoreGetListingsParams, StoreGetShopParams } from "./store/listings/validators";
+import {
+    StoreGetDeliveryEstimateParams,
+    StoreGetListingParams,
+    StoreGetListingsParams,
+    StoreGetShopParams,
+} from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { StoreMoveShopCartBack, StoreMoveShopToOwnCart } from "./store/carts/[id]/shop-cart/validators";
 import { AdminPreviewCatalogueImport, AdminRunCatalogueImport } from "./admin/catalogue-import/validators";
@@ -41,9 +46,11 @@ import { vendorReadyForPickupMiddlewares } from "./vendor/ready-for-pickup/middl
 import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
+import { vendorPriceListMiddlewares } from "./vendor/price-lists/middlewares";
 import { StoreGetOrderHistory } from "./store/order-history/validators";
 import { StoreRefundAccount } from "./store/refunds/validators";
 import { StoreGetPublishedReviews } from "./store/reviews/validators";
+import { adminVariantPriceMiddlewares } from "./admin/products/no-variant-prices";
 import { AdminOverrideProductPerishable } from "./admin/products/[id]/perishable/validators";
 import { AdminSetCategoryPerishable } from "./admin/product-categories/[id]/perishable/validators";
 import { AdminRefundDelivery } from "./admin/orders/[id]/delivery-refund/validators";
@@ -51,6 +58,7 @@ import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validato
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
 import { reportServerErrors } from "./report-server-errors";
+import { showEachOrderItsOwnPaymentStatus } from "./admin/own-payment-status";
 
 export default defineMiddlewares({
     // The API's own failures go to Sentry before Medusa answers them (#19).
@@ -62,15 +70,22 @@ export default defineMiddlewares({
         { method: ["GET"], matcher: "/store/offers*", middlewares: [onlyLiveShops] },
         { method: ["GET"], matcher: "/store/sellers*", middlewares: [onlyLiveShops] },
         { method: ["GET"], matcher: "/store/products*", middlewares: [onlyLiveShops] },
+        // Listings are for everyone; a signed-in buyer's `address_id` ranks them nearest first (ADR 0011).
         {
             method: ["GET"],
             matcher: "/store/listings",
-            middlewares: [validateAndTransformQuery(StoreGetListingsParams, {})],
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetListingsParams, {}),
+            ],
         },
         {
             method: ["GET"],
             matcher: "/store/listings/:seller_id/:product_id",
-            middlewares: [validateAndTransformQuery(StoreGetListingParams, {})],
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetListingParams, {}),
+            ],
         },
         // Guests are answered too (no estimate), so the product page asks the same way for everyone.
         {
@@ -78,7 +93,7 @@ export default defineMiddlewares({
             matcher: "/store/listings/:seller_id/:product_id/delivery-estimate",
             middlewares: [
                 authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
-                validateAndTransformQuery(StoreGetListingParams, {}),
+                validateAndTransformQuery(StoreGetDeliveryEstimateParams, {}),
             ],
         },
         // Shops' and products' published reviews and ratings, for everyone (#7).
@@ -95,7 +110,10 @@ export default defineMiddlewares({
         {
             method: ["GET"],
             matcher: "/store/shops/:seller_id",
-            middlewares: [validateAndTransformQuery(StoreGetShopParams, {})],
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetShopParams, {}),
+            ],
         },
         {
             method: ["POST"],
@@ -279,6 +297,8 @@ export default defineMiddlewares({
         { matcher: "/vendor/orders*", middlewares: [showTheShopItsOwnOrder] },
         { method: ["POST"], matcher: "/vendor/promotions", middlewares: [shopsDontDiscountDelivery] },
         { method: ["POST"], matcher: "/vendor/promotions/:id", middlewares: [shopsDontDiscountDelivery] },
+        // A shop's sale prices apply to its own offers only, not other shops' of the same product (#10).
+        ...vendorPriceListMiddlewares,
         // A member's device registers for their shops' pushes (#27); Mercur authenticates the member.
         { method: ["POST"], matcher: "/vendor/push-tokens", middlewares: [validateAndTransformBody(PushTokenBody)] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },
@@ -297,6 +317,8 @@ export default defineMiddlewares({
         },
         // A shop's own product list, imported as offers and proposals, and its private cost prices (#37).
         ...vendorOfferImportMiddlewares,
+        // A variant's prices belong to its shops' offers: the operator's product routes can't write them (#15).
+        ...adminVariantPriceMiddlewares,
         // Perishable flags (#69): the operator's alone, so there are no vendor routes for them.
         {
             method: ["POST"],
@@ -320,6 +342,9 @@ export default defineMiddlewares({
             matcher: "/admin/orders/:id/cancel",
             middlewares: [validateAndTransformBody(AdminCancelOrder)],
         },
+        // Each order of a checkout split across shops shows its own payment status (#14).
+        { method: ["GET"], matcher: "/admin/orders*", middlewares: [showEachOrderItsOwnPaymentStatus] },
+        { method: ["GET"], matcher: "/admin/order-groups*", middlewares: [showEachOrderItsOwnPaymentStatus] },
         // Oja's staff settle by hand a refund Paystack can't make (#16).
         {
             method: ["POST"],

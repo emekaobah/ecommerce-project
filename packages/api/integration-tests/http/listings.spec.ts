@@ -3,8 +3,14 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
+import { ADDRESS } from "../helpers/checkout"
+import { fakeClerk } from "../helpers/clerk"
 
 jest.setTimeout(5 * 60 * 1000)
+
+const clerk = fakeClerk()
+// Set before the runner loads medusa-config, which registers the Clerk provider only when a key is set.
+process.env.CLERK_JWT_KEY = clerk.jwtKey
 
 const LANTERN = SEED_PRODUCTS.find((p) => p.title === "Rechargeable LED Lantern")!
 const KAFTAN = SEED_PRODUCTS.find((p) => p.title === "Adire Kaftan")!
@@ -215,6 +221,145 @@ medusaIntegrationTestRunner({
         const { data } = await list({ category_id: await categoryId("Electronics"), limit: 100 })
 
         expect(new Set(data.listings.map((l: any) => l.product.title))).toEqual(new Set(titlesIn("Electronics")))
+      })
+    })
+
+    // Listings measure from the buyer's saved address they deliver to (#43, ADR 0011): name
+    // match, then distance band (under 5 km, 5 to 15, further), then ship time, then distance.
+    describe("nearest first, from the buyer's delivery address", () => {
+      /** A few hundred metres from Computer Village: Ikeja Gadget Hub under 1 km, Iya Bisi about 10.6, Adire House about 21.2. */
+      const NEAR_IKEJA = { latitude: 6.59, longitude: 3.345 }
+      /** Off Lekki-Epe: all three shops 5 to 15 km away; Adire House about 7.5 km, Iya Bisi 8.3, Ikeja Gadget Hub 14.5. */
+      const OFF_LEKKI = { latitude: 6.5, longitude: 3.43 }
+
+      /** A signed-in buyer's request config; a new email is a new buyer. */
+      const buyer = (email: string) => ({
+        headers: { ...headers, authorization: `Bearer ${clerk.sessionToken({ sub: `user_${email}`, email })}` },
+      })
+      /** Saves an address pinned at `pin` to the buyer's account, as the saved-address routes would. */
+      const savedAddress = async (as: { headers: Record<string, string> }, pin: { latitude: number; longitude: number }) => {
+        const { data } = await api.get("/store/customers/me", as)
+        const [address] = await getContainer()
+          .resolve(Modules.CUSTOMER)
+          .createCustomerAddresses([{ ...ADDRESS, customer_id: data.customer.id, metadata: { ...ADDRESS.metadata, ...pin } }])
+        return address.id as string
+      }
+      const listAs = (as: { headers: Record<string, string> }, params: Record<string, string | number> = {}) =>
+        api.get(`/store/listings?${new URLSearchParams({ region_id: regionId, limit: 100, ...params } as any)}`, as)
+      /** Shops in the order their first listing comes. */
+      const shopOrder = (listings: any[]) => [...new Set(listings.map((l) => l.seller.name))]
+
+      it("ranks the nearest band first, ahead of a shop that ships sooner", async () => {
+        const ada = buyer("ada-near-ikeja@oja.test")
+        const addressId = await savedAddress(ada, NEAR_IKEJA)
+        await shipsIn("Adire House", 0)
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+
+        const { data } = await listAs(ada, { address_id: addressId })
+
+        expect(shopOrder(data.listings)).toEqual(["Ikeja Gadget Hub", "Iya Bisi Foodstuff", "Adire House"])
+      })
+
+      it("within a band, ranks the shop that ships soonest, then the nearest", async () => {
+        const ada = buyer("ada-off-lekki@oja.test")
+        const addressId = await savedAddress(ada, OFF_LEKKI)
+        for (const shop of ["Adire House", "Iya Bisi Foodstuff", "Ikeja Gadget Hub"]) await shipsIn(shop, 2)
+
+        const sameShipTime = shopOrder((await listAs(ada, { address_id: addressId })).data.listings)
+        await shipsIn("Ikeja Gadget Hub", 1)
+        const ikejaSooner = shopOrder((await listAs(ada, { address_id: addressId })).data.listings)
+
+        expect(sameShipTime).toEqual(["Adire House", "Iya Bisi Foodstuff", "Ikeja Gadget Hub"])
+        expect(ikejaSooner).toEqual(["Ikeja Gadget Hub", "Adire House", "Iya Bisi Foodstuff"])
+      })
+
+      it("still ranks the best name match first, then by distance, never the cheapest", async () => {
+        const listed = await asListed()
+        const ada = buyer("ada-searches@oja.test")
+        const addressId = await savedAddress(ada, NEAR_IKEJA)
+        // The dearer shop ships sooner, but is further away.
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+
+        const { data } = await listAs(ada, { q: "charge", address_id: addressId })
+        const found = data.listings.map((l: any) => `${l.product.title} @ ${l.seller.name}`)
+
+        // "Charger" starts a word of its name; the rest only hold "charge" inside "Rechargeable".
+        expect(found).toEqual([
+          "25W USB-C Fast Charger @ Ikeja Gadget Hub",
+          "25W USB-C Fast Charger @ Iya Bisi Foodstuff",
+          // Equal on match and distance: the order they were first listed.
+          ...listed.filter((l) =>
+            ["Rechargeable LED Lantern @ Ikeja Gadget Hub", "Rechargeable Standing Fan 16-inch @ Ikeja Gadget Hub"].includes(l)
+          ),
+          "Rechargeable LED Lantern @ Iya Bisi Foodstuff",
+        ])
+      })
+
+      it("tells each listing's shop its rounded distance, and never a shop's coordinates", async () => {
+        const ada = buyer("ada-distances@oja.test")
+        const addressId = await savedAddress(ada, NEAR_IKEJA)
+
+        const { data } = await listAs(ada, { address_id: addressId })
+
+        const distances = Object.fromEntries(data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
+        expect(distances).toEqual({ "Ikeja Gadget Hub": 0, "Iya Bisi Foodstuff": 11, "Adire House": 21 })
+        const body = JSON.stringify(data)
+        for (const { pickup } of SEED_SELLERS) {
+          expect(body).not.toContain(String(pickup.latitude))
+          expect(body).not.toContain(String(pickup.longitude))
+        }
+      })
+
+      it("tells the shop page and the product page the shop's distance too", async () => {
+        const ada = buyer("ada-shop-page@oja.test")
+        const addressId = await savedAddress(ada, NEAR_IKEJA)
+        const seller = await sellerId("Iya Bisi Foodstuff")
+        const lantern = await productId(LANTERN.title)
+
+        const { data: shop } = await api.get(`/store/shops/${seller}?region_id=${regionId}&address_id=${addressId}`, ada)
+        const { data: product } = await api.get(
+          `/store/listings/${seller}/${lantern}?region_id=${regionId}&address_id=${addressId}`,
+          ada
+        )
+
+        expect(shop.shop.distance_km).toBe(11)
+        expect(product.listing.seller.distance_km).toBe(11)
+        expect(JSON.stringify([shop, product])).not.toContain(String(SEED_SELLERS[0].pickup.latitude))
+      })
+
+      it("keeps today's order, with no distance, without an address", async () => {
+        const ada = buyer("ada-no-address@oja.test")
+        await shipsIn("Adire House", 0)
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+
+        const { data } = await listAs(ada)
+
+        expect(shopOrder(data.listings)).toEqual(["Adire House", "Iya Bisi Foodstuff", "Ikeja Gadget Hub"])
+        expect(data.listings.every((l: any) => l.seller.distance_km === null)).toBe(true)
+      })
+
+      it("ignores another buyer's address, and a guest's", async () => {
+        const addressId = await savedAddress(buyer("ada-owner@oja.test"), NEAR_IKEJA)
+        await shipsIn("Adire House", 0)
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+
+        const asBola = (await listAs(buyer("bola-someone-else@oja.test"), { address_id: addressId })).data
+        const asGuest = (await listAs({ headers }, { address_id: addressId })).data
+        const shop = (
+          await api.get(`/store/shops/${await sellerId("Ikeja Gadget Hub")}?region_id=${regionId}&address_id=${addressId}`, {
+            headers,
+          })
+        ).data.shop
+
+        for (const data of [asBola, asGuest]) {
+          expect(shopOrder(data.listings)).toEqual(["Adire House", "Iya Bisi Foodstuff", "Ikeja Gadget Hub"])
+          expect(data.listings.every((l: any) => l.seller.distance_km === null)).toBe(true)
+        }
+        expect(shop.distance_km).toBeNull()
       })
     })
 

@@ -2,8 +2,8 @@ import { model } from "@medusajs/framework/utils"
 
 /**
  * A shop's pause in taking orders (ADR 0004): closed from `starts_at` until resumed or until a
- * set time. Resuming ends it rather than deleting it: the open-hours clocks (accept deadline)
- * need the time it was paused.
+ * set time. Resuming ends it rather than deleting it: the open-hours clocks (the pickup hold,
+ * and the accept deadline of an order placed before it) need the time it was paused.
  */
 const ShopPause = model
   .define("shop_pause", {

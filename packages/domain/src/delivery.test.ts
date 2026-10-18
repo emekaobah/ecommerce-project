@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { deliveryChoices, deliveryEstimate } from "./delivery"
+import { deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
+import type { ShopHours } from "./shop-hours"
 
 const rate = (id: string, amount: number, delivery_eta_time: string, tracking_level = 5) => ({
   id,
@@ -67,5 +68,78 @@ describe("deliveryEstimate", () => {
   test("counts days in the region's timezone, not the device's", () => {
     // 23:30 in Lagos is already the next day in UTC+2 but not in Lagos.
     expect(deliveryEstimate("2026-10-04T23:30:00+01:00", now, lagos)).toBe("Arrives today")
+  })
+})
+
+describe("deliveryStartsAt", () => {
+  // Weeks in October 2026: Monday 5. Lagos is UTC+1 all year.
+  const lagos = (local: string) => new Date(`${local}+01:00`)
+  const weekdays = [{ opens: "08:00", closes: "18:00" }]
+  const shop: ShopHours = {
+    time_zone: "Africa/Lagos",
+    weekly: { mon: weekdays, tue: weekdays, wed: weekdays, thu: weekdays, fri: weekdays, sat: [], sun: [] },
+    exceptions: [],
+    pauses: [],
+  }
+
+  test("an order placed while the shop is open starts now", () => {
+    expect(deliveryStartsAt(shop, lagos("2026-10-05T10:00:00"))).toEqual(lagos("2026-10-05T10:00:00"))
+  })
+
+  test("an order placed outside hours starts at the next opening", () => {
+    expect(deliveryStartsAt(shop, lagos("2026-10-05T21:00:00"))).toEqual(lagos("2026-10-06T08:00:00"))
+    // Friday night waits for Monday morning.
+    expect(deliveryStartsAt(shop, lagos("2026-10-09T19:30:00"))).toEqual(lagos("2026-10-12T08:00:00"))
+  })
+
+  test("an order placed in a closure starts when the shop reopens", () => {
+    const closed = { ...shop, exceptions: [{ starts_on: "2026-10-06", ends_on: "2026-10-06", closed: true, periods: [], note: null }] }
+    expect(deliveryStartsAt(closed, lagos("2026-10-05T21:00:00"))).toEqual(lagos("2026-10-07T08:00:00"))
+  })
+
+  test("a shop without hours, or not set to reopen, starts now", () => {
+    const at = lagos("2026-10-05T21:00:00")
+    expect(deliveryStartsAt(null, at)).toEqual(at)
+    const paused = { ...shop, pauses: [{ starts_at: "2026-10-05T12:00:00+01:00", ends_at: null }] }
+    expect(deliveryStartsAt(paused, at)).toEqual(at)
+  })
+})
+
+describe("etaCountedFrom", () => {
+  const opens = new Date("2026-10-06T08:00:00+01:00")
+
+  test("moves a courier's ETA later by how long before the opening it would collect", () => {
+    expect(etaCountedFrom("2026-10-06T12:00:00+01:00", "2026-10-05T21:00:00+01:00", opens)).toEqual(
+      new Date("2026-10-06T23:00:00+01:00")
+    )
+  })
+
+  test("leaves it as it is when the courier collects at the opening or after", () => {
+    expect(etaCountedFrom("2026-10-07T12:00:00+01:00", "2026-10-06T08:00:00+01:00", opens)).toEqual(
+      new Date("2026-10-07T12:00:00+01:00")
+    )
+    expect(etaCountedFrom("2026-10-08T08:00:00+01:00", "2026-10-07T08:00:00+01:00", opens)).toEqual(
+      new Date("2026-10-08T08:00:00+01:00")
+    )
+  })
+
+  test("leaves it as it is when the courier gives no collection time", () => {
+    expect(etaCountedFrom("2026-10-06T12:00:00+01:00", null, opens)).toEqual(new Date("2026-10-06T12:00:00+01:00"))
+    expect(etaCountedFrom("2026-10-06T12:00:00+01:00", undefined, opens)).toEqual(new Date("2026-10-06T12:00:00+01:00"))
+  })
+})
+
+describe("orderArrival", () => {
+  const now = new Date("2026-10-05T21:00:00+01:00")
+  const delivery = { courier_name: "GIG Next Day", delivery_eta_time: "2026-10-07T11:00:00+01:00", time_zone: "Africa/Lagos" }
+
+  test("says when a delivered order arrives, as checkout quoted, and by whom", () => {
+    expect(orderArrival("new", delivery, now)).toBe("Arrives Wed 7 Oct · GIG Next Day")
+    expect(orderArrival("in_transit", delivery, now)).toBe("Arrives Wed 7 Oct · GIG Next Day")
+  })
+
+  test("says nothing once it has arrived or won't, or for an order without a delivery", () => {
+    for (const state of ["delivered", "rejected", "cancelled"] as const) expect(orderArrival(state, delivery, now)).toBeNull()
+    expect(orderArrival("new", null, now)).toBeNull()
   })
 })

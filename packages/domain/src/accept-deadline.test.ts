@@ -26,12 +26,27 @@ describe("acceptDeadline", () => {
     expect(acceptDeadline(lagos("2026-10-09T20:00:00"), HOURS)).toBe(lagos("2026-10-13T17:00:00"))
   })
 
-  test("waits while the shop is paused, and never comes while it isn't resumed", () => {
+  test("keeps its time when the shop pauses after the order was placed, resumed or not (#18)", () => {
+    // Paused all Monday, or from Monday on: the order still has Saturday 5, Monday 10, nine hours into Tuesday.
     const resumed = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: lagos("2026-10-13T08:00:00") }] }
-    // Paused all Monday: Saturday 5, Tuesday 10, then nine hours into Wednesday.
-    expect(acceptDeadline(lagos("2026-10-09T20:00:00"), resumed)).toBe(lagos("2026-10-14T17:00:00"))
+    expect(acceptDeadline(lagos("2026-10-09T20:00:00"), resumed)).toBe(lagos("2026-10-13T17:00:00"))
     const paused = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: null }] }
-    expect(acceptDeadline(lagos("2026-10-09T20:00:00"), paused)).toBeNull()
+    expect(acceptDeadline(lagos("2026-10-09T20:00:00"), paused)).toBe(lagos("2026-10-13T17:00:00"))
+  })
+
+  test("doesn't count a pause over before the order was placed", () => {
+    const earlier = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-05T08:00:00"), ends_at: lagos("2026-10-06T08:00:00") }] }
+    expect(acceptDeadline(lagos("2026-10-09T20:00:00"), earlier)).toBe(lagos("2026-10-13T17:00:00"))
+  })
+
+  test("still stops over closed hours and closure exceptions", () => {
+    const closedMonday = {
+      ...HOURS,
+      exceptions: [{ starts_on: "2026-10-12", ends_on: "2026-10-12", closed: true, periods: [], note: null }],
+      pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: null }],
+    }
+    // Closed Sunday and the Monday exception: Saturday 5, Tuesday 10, nine hours into Wednesday.
+    expect(acceptDeadline(lagos("2026-10-09T20:00:00"), closedMonday)).toBe(lagos("2026-10-14T17:00:00"))
   })
 
   test("is 24 hours on for a shop without hours", () => {
@@ -78,9 +93,11 @@ describe("acceptReminderDue", () => {
     expect(acceptReminderDue(placed, new Date(lagos("2026-10-13T12:00:00")), HOURS)).toBe(false)
   })
 
-  test("never while the shop is paused for good", () => {
+  test("still comes when the shop pauses for good after the order was placed (#18)", () => {
     const paused = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: null }] }
-    expect(acceptReminderDue(lagos("2026-10-09T20:00:00"), new Date(lagos("2026-10-13T17:00:00")), paused)).toBe(false)
+    // Deadline Tuesday 17:00 as if open: two hours are left at Tuesday 15:00, paused or not.
+    expect(acceptReminderDue(lagos("2026-10-09T20:00:00"), new Date(lagos("2026-10-13T15:00:00")), paused)).toBe(true)
+    expect(acceptReminderDue(lagos("2026-10-09T20:00:00"), new Date(lagos("2026-10-13T14:00:00")), paused)).toBe(false)
   })
 
   test.each([
