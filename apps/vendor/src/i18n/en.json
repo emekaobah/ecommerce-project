@@ -47,7 +47,7 @@
         "variant": "Barcode",
         "offer": "Your offer"
       },
-      "minimum": "A new product needs a barcode or a title, and a selling price; one you already sell needs only its barcode or SKU. Sale price, cost price and stock are optional. A sale price must be below the selling price and discounts only your own offer; it goes in your price lists, where you can change or end the sale. Your cost is visible only to owners and managers.",
+      "minimum": "A new product needs a barcode or a title, and a selling price; one you already sell needs only its barcode or SKU. Discount (sale) price, cost price and stock are optional. A column headed \"Sale price\" imports as your selling price; to put offers on sale, map your discount column to \"Discount (sale) price\". It must be below the selling price and discounts only your own offer; it goes in your price lists, where you can change or end the sale. Your cost is visible only to owners and managers.",
       "preview": "Preview rows"
     },
     "preview": {
