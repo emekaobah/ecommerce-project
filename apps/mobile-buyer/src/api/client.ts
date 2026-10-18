@@ -8,7 +8,7 @@ import { env } from '@/config/env';
  * token and refreshes it before it expires; `fresh` skips the cache after the API rejected one.
  * Guests, and sessions with pending tasks, send none.
  */
-async function clerkSessionToken({ fresh }: { fresh: boolean }): Promise<string | null> {
+function clerkSessionToken({ fresh }: { fresh: boolean }): Promise<string | null> | null {
   const session = getClerkInstance().session;
   return session?.status === 'active' ? session.getToken({ skipCache: fresh }) : null;
 }
