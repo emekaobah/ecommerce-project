@@ -192,9 +192,13 @@ async function ask(source: EnrichmentSource, query: LookupQuery, errors: string[
 async function applyMatch(container: MedusaContainer, state: FillState, configured: ConfiguredSource, match: SourceMatch) {
   const { source } = configured
   const provenance: Provenance = { source: source.id, url: match.url, ...(source.drafts ? { drafted: true as const } : {}) }
+  const needed = neededFields(state)
+  const values = await Promise.all(
+    needed.map((field) => valueOf(container, field, match, source, state.categories, state.errors))
+  )
   let contributed = false
-  for (const field of neededFields(state)) {
-    const value = await valueOf(container, field, match, source, state.categories, state.errors)
+  for (const [i, field] of needed.entries()) {
+    const value = values[i]
     if (value === undefined) continue
     if (field === "images") state.images = value as StoredImage[]
     state.update[field] = value
