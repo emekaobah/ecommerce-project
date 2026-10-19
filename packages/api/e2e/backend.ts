@@ -1,19 +1,18 @@
 import { spawn, type ChildProcess } from "node:child_process"
-import { createServer, type Server } from "node:http"
 import path from "node:path"
 import { loadEnv } from "@medusajs/framework/utils"
 import { Client } from "@medusajs/framework/pg"
 import { fakeGoogle } from "../integration-tests/helpers/google"
-import { fakePaystack } from "../integration-tests/helpers/paystack"
+import { fakePaystack, type SignedWebhook } from "../integration-tests/helpers/paystack"
 import { fakeShipbubble } from "../integration-tests/helpers/shipbubble"
 
 /**
  * The backend the apps' Maestro flows run against (#8): a freshly migrated and seeded database,
  * and Paystack, Shipbubble and Google's address lookup answered by the integration tests' network
- * fakes. On top of the fakes, it serves Paystack's payment page (Pay posts the signed
- * `charge.success` webhook and returns to the app), and confirms each courier pickup a few
- * seconds after its label is booked, as Shipbubble's webhook would. Nothing reaches a real
- * provider; buyers still sign in with the Clerk development instance in `.env`.
+ * fakes. The fake Paystack's payment page posts each paid transaction's `charge.success` webhook
+ * here, and each courier pickup is confirmed a few seconds after its label is booked, as
+ * Shipbubble's webhook would. Nothing reaches a real provider; buyers still sign in with the Clerk
+ * development instance in `.env`.
  */
 
 const API_DIR = path.resolve(__dirname, "..")
@@ -24,11 +23,23 @@ export const BACKEND_URL = `http://localhost:${E2E_PORT}`
 /** A database of its own, dropped and created again on each start. */
 const DATABASE_URL = process.env.E2E_DATABASE_URL ?? "postgres://oja:oja@localhost:5434/oja_e2e"
 
-const PORTS = { paystack: 9101, checkout: 9102, shipbubble: 9103, google: 9104 }
+/** Where each fake listens. */
+const PORTS = {
+  paystack: Number(process.env.E2E_PAYSTACK_PORT ?? 9101),
+  shipbubble: Number(process.env.E2E_SHIPBUBBLE_PORT ?? 9102),
+  google: Number(process.env.E2E_GOOGLE_PORT ?? 9103),
+}
 /** How long after a label is booked the courier confirms the pickup. */
 const CONFIRM_AFTER_MS = 3000
 
 export type E2eBackend = { publishableKey: string; stop: () => Promise<void> }
+
+/** Posts a provider's webhook to the backend, and says so loudly when the backend refuses it. */
+async function postWebhook(route: string, { body, headers }: SignedWebhook) {
+  const res = await fetch(`${BACKEND_URL}${route}`, { method: "POST", body, headers })
+  if (!res.ok) console.error(`\nThe backend refused the webhook to ${route} (${res.status}): ${await res.text()}\n`)
+  return res
+}
 
 /** Starts the fakes, resets and seeds the database, and starts the backend on `E2E_PORT`. */
 export async function startE2eBackend(): Promise<E2eBackend> {
@@ -38,24 +49,24 @@ export async function startE2eBackend(): Promise<E2eBackend> {
     throw new Error("Set CLERK_JWT_KEY (or CLERK_SECRET_KEY) in packages/api/.env: the buyer app signs in with Clerk.")
   }
 
-  const post = (route: string, { body, headers }: { body: string; headers: Record<string, string> }) =>
-    fetch(`${BACKEND_URL}${route}`, { method: "POST", body, headers })
-
   const paystack = fakePaystack(PORTS.paystack, {
     secretKey: "sk_test_oja_e2e",
-    checkoutUrl: `http://127.0.0.1:${PORTS.checkout}`,
+    postWebhook: (webhook) => postWebhook("/hooks/payment/paystack_paystack", webhook),
   })
   const shipbubble = fakeShipbubble(PORTS.shipbubble, {
     apiKey: "sb_sandbox_oja_e2e",
     onLabelBooked: (orderId) => {
-      setTimeout(() => void post("/hooks/shipbubble", shipbubble.webhook(orderId, "confirmed")), CONFIRM_AFTER_MS)
+      setTimeout(() => {
+        postWebhook("/hooks/shipbubble", shipbubble.webhook(orderId, "confirmed")).catch((error: unknown) =>
+          console.error(`\nCouldn't post Shipbubble's pickup confirmation for ${orderId}:`, error)
+        )
+      }, CONFIRM_AFTER_MS)
     },
   })
   const google = fakeGoogle(PORTS.google, { apiKey: "AIza_oja_e2e" })
-  const checkout = paystackCheckout(PORTS.checkout, paystack, (reference) =>
-    post("/hooks/payment/paystack_paystack", paystack.chargeSuccess(reference))
-  )
-  await Promise.all([paystack.start(), shipbubble.start(), google.start(), checkout.start()])
+  const fakes = [paystack, shipbubble, google]
+  const stopFakes = () => Promise.all(fakes.map((f) => f.stop())).then(() => undefined)
+  await Promise.all(fakes.map((f) => f.start()))
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -84,85 +95,31 @@ export async function startE2eBackend(): Promise<E2eBackend> {
     EXPO_ACCESS_TOKEN: "",
   }
 
-  const fakes = [paystack, shipbubble, google, checkout]
-  const stopFakes = () => Promise.all(fakes.map((f) => f.stop())).then(() => undefined)
   let backend: ChildProcess | undefined
+  const stopBackend = () =>
+    new Promise<void>((resolve) => {
+      if (!backend || backend.exitCode != null || backend.signalCode != null) return resolve()
+      backend.once("exit", () => resolve())
+      backend.kill("SIGTERM")
+    })
   try {
     await resetDatabase(DATABASE_URL)
     await run(["db:migrate"], env)
     await run(["exec", "./src/scripts/seed.ts"], env)
     backend = spawn(MEDUSA, ["start", "-p", String(E2E_PORT)], { cwd: API_DIR, env, stdio: "inherit" })
     await waitForHealth(backend)
+    const key = await publishableKey(DATABASE_URL)
+    return {
+      publishableKey: key,
+      stop: async () => {
+        await stopBackend()
+        await stopFakes()
+      },
+    }
   } catch (error) {
-    backend?.kill()
+    await stopBackend()
     await stopFakes()
     throw error
-  }
-
-  return {
-    publishableKey: await publishableKey(DATABASE_URL),
-    stop: async () => {
-      await new Promise<void>((resolve) => {
-        if (backend!.exitCode != null) return resolve()
-        backend!.once("exit", () => resolve())
-        backend!.kill("SIGTERM")
-      })
-      await stopFakes()
-    },
-  }
-}
-
-/**
- * Paystack's payment page for the fake's transactions: one Pay button, which settles the
- * transaction, posts its webhook, and sends the buyer to the checkout's callback URL as Paystack does.
- */
-function paystackCheckout(
-  port: number,
-  paystack: ReturnType<typeof fakePaystack>,
-  sendWebhook: (reference: string) => Promise<Response>
-) {
-  let server: Server | undefined
-  const page = (reference: string) => `<!doctype html>
-<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Paystack</title></head>
-<body style="font-family: -apple-system, sans-serif; padding: 24px">
-<h1>Paystack test checkout</h1>
-<p>NGN ${(paystack.transaction(reference).amount / 100).toLocaleString("en-NG")}</p>
-<form method="post" action="/${encodeURIComponent(reference)}/pay"><button style="font-size: 20px; padding: 12px 24px">Pay</button></form>
-</body></html>`
-
-  const handle = async (method: string, url: string) => {
-    const [, reference, action] = /^\/([^/]+)(\/pay)?$/.exec(url) ?? []
-    const known = reference && (() => {
-      try {
-        return paystack.transaction(decodeURIComponent(reference))
-      } catch {
-        return undefined
-      }
-    })()
-    if (!known) return { status: 404, headers: {}, body: "No such transaction" }
-    if (method === "GET" && !action) return { status: 200, headers: { "content-type": "text/html" }, body: page(known.reference) }
-    if (method === "POST" && action) {
-      paystack.pay(known.reference)
-      const webhook = await sendWebhook(known.reference)
-      if (!webhook.ok) return { status: 502, headers: {}, body: `The backend refused the webhook (${webhook.status})` }
-      const location = `${known.callback_url}?trxref=${known.reference}&reference=${known.reference}`
-      return { status: 302, headers: { location }, body: "" }
-    }
-    return { status: 405, headers: {}, body: "Method not allowed" }
-  }
-
-  return {
-    start: () =>
-      new Promise<void>((resolve) => {
-        server = createServer((req, res) => {
-          void handle(req.method ?? "GET", req.url ?? "/").then(({ status, headers, body }) => {
-            res.writeHead(status, headers)
-            res.end(body)
-          })
-        })
-        server.listen(port, "127.0.0.1", resolve)
-      }),
-    stop: () => new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve())),
   }
 }
 
@@ -188,6 +145,7 @@ async function publishableKey(url: string) {
     const { rows } = await client.query(
       "SELECT token FROM api_key WHERE type = 'publishable' AND revoked_at IS NULL AND deleted_at IS NULL ORDER BY created_at LIMIT 1"
     )
+    if (!rows[0]) throw new Error("The seed made no publishable API key")
     return rows[0].token as string
   } finally {
     await client.end()
@@ -197,19 +155,41 @@ async function publishableKey(url: string) {
 function run(args: string[], env: NodeJS.ProcessEnv) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn(MEDUSA, args, { cwd: API_DIR, env, stdio: "inherit" })
+    child.once("error", reject)
     child.once("exit", (code) => (code === 0 ? resolve() : reject(new Error(`medusa ${args.join(" ")} exited with ${code}`))))
   })
 }
 
-async function waitForHealth(backend: ChildProcess, timeoutMs = 180_000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    if (backend.exitCode != null) throw new Error(`The backend exited with ${backend.exitCode}`)
-    const healthy = await fetch(`${BACKEND_URL}/health`).then((r) => r.ok, () => false)
-    if (healthy) return
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-  }
-  throw new Error(`The backend wasn't healthy on ${BACKEND_URL} after ${timeoutMs / 1000}s`)
+/** Waits for the backend to answer `/health`, or fails as soon as it can't start or exits. */
+function waitForHealth(backend: ChildProcess, timeoutMs = 180_000) {
+  return new Promise<void>((resolve, reject) => {
+    let settled = false
+    const settle = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearInterval(poll)
+      clearTimeout(deadline)
+      backend.off("error", onError)
+      backend.off("exit", onExit)
+      if (error) reject(error)
+      else resolve()
+    }
+    const onError = (error: Error) => settle(new Error(`Couldn't start the backend: ${error.message}`))
+    const onExit = (code: number | null, signal: string | null) =>
+      settle(new Error(`The backend exited with ${code ?? signal} before it was healthy`))
+    backend.once("error", onError)
+    backend.once("exit", onExit)
+    const poll = setInterval(() => {
+      void fetch(`${BACKEND_URL}/health`).then(
+        (r) => r.ok && settle(),
+        () => undefined
+      )
+    }, 1000)
+    const deadline = setTimeout(
+      () => settle(new Error(`The backend wasn't healthy on ${BACKEND_URL} after ${timeoutMs / 1000}s`)),
+      timeoutMs
+    )
+  })
 }
 
 if (require.main === module) {

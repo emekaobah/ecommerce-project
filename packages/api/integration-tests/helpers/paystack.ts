@@ -55,6 +55,25 @@ const UNRESOLVED = "Could not resolve account name. Check parameters or try agai
 /** How Paystack's test mode refuses a bank lookup past its daily allowance (429). */
 const RESOLVE_LIMIT = "Test mode daily limit of 3 live bank resolves exceeded. Use test bank codes 001 or upgrade to live mode."
 
+/** A webhook as Paystack posts it: the JSON body, signed in `x-paystack-signature`. */
+export type SignedWebhook = { body: string; headers: Record<string, string> }
+
+/** An HTTP reply the fake writes as it is. */
+type PageReply = { status: number; headers: Record<string, string>; body: string }
+const page = (status: number, body: string): PageReply => ({
+  status,
+  headers: { "content-type": status === 200 ? "text/html" : "text/plain" },
+  body,
+})
+
+const paymentPage = ({ reference, amount }: { reference: string; amount: number }) => `<!doctype html>
+<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Paystack</title></head>
+<body style="font-family: -apple-system, sans-serif; padding: 24px">
+<h1>Paystack test checkout</h1>
+<p>NGN ${(amount / 100).toLocaleString("en-NG")}</p>
+<form method="post" action="/checkout/${encodeURIComponent(reference)}/pay"><button style="font-size: 20px; padding: 12px 24px">Pay</button></form>
+</body></html>`
+
 type Recipient = {
   recipient_code: string
   type: string
@@ -74,19 +93,24 @@ type Recipient = {
  * `transfer.*` webhooks for, and lists refunds by date, including any a test made by hand
  * (`refundByHand`). A refund a test moved to `needs-attention` can be retried to a bank
  * account at one of `BANKS` (`retries`), and is then processing again.
+ *
+ * A transaction's `authorization_url` opens Paystack's payment page on the fake: one Pay
+ * button, which settles the transaction, hands its signed `charge.success` webhook to
+ * `postWebhook`, and sends the buyer to the transaction's callback URL as Paystack does.
  */
 export function fakePaystack(
   port: number,
   {
     secretKey = `sk_test_${randomUUID().replaceAll("-", "")}`,
-    checkoutUrl = "https://checkout.paystack.test",
+    postWebhook,
   }: {
     /** The secret key the backend must send; a fresh one by default. */
     secretKey?: string
-    /** Where the payment page a transaction's `authorization_url` opens is served. */
-    checkoutUrl?: string
+    /** Delivers the webhook of a transaction paid on the payment page; without it, Pay is refused. */
+    postWebhook?: (webhook: SignedWebhook) => Promise<{ ok: boolean; status: number }>
   } = {}
 ) {
+  const apiUrl = `http://127.0.0.1:${port}`
   const transactions = new Map<string, Transaction>()
   const refunds = new Map<number, Refund>()
   const retries: RefundRetry[] = []
@@ -121,7 +145,7 @@ export function fakePaystack(
       metadata: typeof body.metadata === "string" ? JSON.parse(body.metadata) : body.metadata ?? {},
       status: "abandoned",
     })
-    const authorization_url = `${checkoutUrl}/${reference}`
+    const authorization_url = `${apiUrl}/checkout/${reference}`
     return ok("Authorization URL created", { reference, access_code: `ac_${reference}`, authorization_url })
   }
 
@@ -275,6 +299,25 @@ export function fakePaystack(
     ["POST", /^\/transferrecipient$/, createRecipient],
   ]
 
+  /** Paystack's payment page, which the buyer's browser opens: no secret key, and HTML rather than JSON. */
+  const checkout = async (req: IncomingMessage): Promise<PageReply | undefined> => {
+    const [, reference, pay] = /^\/checkout\/([^/?]+)(\/pay)?$/.exec(req.url ?? "") ?? []
+    if (!reference) return undefined
+    const found = transactions.get(decodeURIComponent(reference))
+    if (!found) return page(404, "No such transaction")
+    if (req.method === "GET" && !pay) return page(200, paymentPage(found))
+    if (req.method !== "POST" || !pay) return page(405, "Method not allowed")
+    if (!postWebhook) return page(501, "This fake Paystack was given no postWebhook")
+    found.status = "success"
+    const delivered = await postWebhook(chargeSuccess(found.reference))
+    if (!delivered.ok) return page(502, `The backend refused the charge.success webhook (${delivered.status})`)
+    if (!found.callback_url) return page(200, "Paid")
+    const back = new URL(found.callback_url)
+    back.searchParams.set("trxref", found.reference)
+    back.searchParams.set("reference", found.reference)
+    return { status: 302, headers: { location: back.toString() }, body: "" }
+  }
+
   const handle = async (req: IncomingMessage): Promise<Reply> => {
     if (req.headers.authorization !== `Bearer ${secretKey}`) return refused(401, "Invalid key")
     for (const [method, path, answer] of routes) {
@@ -290,7 +333,7 @@ export function fakePaystack(
     return found
   }
 
-  const signed = (payload: unknown, signedWith = secretKey) => {
+  const signed = (payload: unknown, signedWith = secretKey): SignedWebhook => {
     const body = JSON.stringify(payload)
     const signature = createHmac("sha512", signedWith).update(body).digest("hex")
     return { body, headers: { "content-type": "application/json", "x-paystack-signature": signature } }
@@ -313,14 +356,25 @@ export function fakePaystack(
 
   return {
     secretKey,
-    apiUrl: `http://127.0.0.1:${port}`,
+    apiUrl,
     start: () =>
       new Promise<void>((resolve) => {
         server = createServer((req, res) => {
-          void handle(req).then(({ status, body }) => {
-            res.writeHead(status, { "content-type": "application/json" })
-            res.end(JSON.stringify(body))
-          })
+          const reply = async (): Promise<PageReply> => {
+            const fromPage = await checkout(req)
+            if (fromPage) return fromPage
+            const { status, body } = await handle(req)
+            return { status, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
+          }
+          reply()
+            .catch((error: unknown): PageReply => {
+              console.error("The fake Paystack failed to answer", req.method, req.url, error)
+              return page(500, String(error))
+            })
+            .then(({ status, headers, body }) => {
+              res.writeHead(status, headers)
+              res.end(body)
+            })
         })
         server.listen(port, "127.0.0.1", resolve)
       }),
