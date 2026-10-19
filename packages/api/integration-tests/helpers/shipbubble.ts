@@ -84,8 +84,18 @@ export const lagosDayAt = (now: Date, day: number, at: string) => {
  * addresses into address codes and quotes `COURIERS` (or `setCouriers`) for any parcel, and
  * records every request for tests to inspect.
  */
-export function fakeShipbubble(port: number) {
-  const apiKey = `sb_sandbox_${randomUUID().replaceAll("-", "")}`
+export function fakeShipbubble(
+  port: number,
+  {
+    apiKey = `sb_sandbox_${randomUUID().replaceAll("-", "")}`,
+    onLabelBooked,
+  }: {
+    /** The API key the backend must send; a fresh one by default. */
+    apiKey?: string
+    /** Told the id (`SB-…`) of each shipment whose label it books. */
+    onLabelBooked?: (orderId: string) => void
+  } = {}
+) {
   const validations: Validation[] = []
   const rateRequests: RateRequest[] = []
   const codes = new Map<string, number>()
@@ -192,6 +202,7 @@ export function fakeShipbubble(port: number) {
       tracking_url: `https://shipbubble.test/orders/tracking/${order_id}`,
     }
     shipments.set(order_id, shipment)
+    onLabelBooked?.(order_id)
     return ok({
       order_id,
       courier: { name: courier.courier_name, email: "courier@shipbubble.test", phone: "08000000000" },

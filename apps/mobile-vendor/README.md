@@ -13,6 +13,16 @@ Expo Router app for shop members. Architecture: [ADR 0001](../../docs/adr/0001-m
 
 Maestro flows live in `.maestro/`. `pick-and-pack.yaml` signs in as the seeded grocery owner (`sign-in.yaml`), accepts the newest new order, picks it (leaving the checklist and coming back keeps the ticks) and packs it. Each run needs a new order for the grocery shop, which `bun run --cwd packages/api demo:order` places without a checkout (unpaid, so don't reject it). With the backend and the dev build running: `maestro test .maestro/pick-and-pack.yaml`. Scanning isn't covered: the simulator has no camera. `quick-add.yaml` signs in as the grocery shop's staff member, types the seeded power bank's barcode and adds it to the shop; run again, it finds it already in the shop. Proposing a product the catalogue lacks needs a photo, so it is checked on a device.
 
+### Against the network fakes
+
+`accept-to-handover.yaml` (#8) signs in as the grocery shop's staff member and takes the newest new order all the way to the courier: accept, pick, pack, book its courier label, and hand it over once the courier confirms the pickup. It is a wiring smoke test against the e2e backend, whose Shipbubble fake confirms each pickup a few seconds after its label is booked (the order shows it within a minute, when it refreshes; the flow waits up to 150 seconds). Like the buyer's, it runs on the iOS simulator only. It needs a paid order with a courier quote, which `demo:order` doesn't give, so run the buyer app's `purchase-from-two-shops.yaml` first, against the same backend (see the buyer app's README):
+
+1. `bun run --cwd packages/api e2e:backend`, left running from the buyer flow.
+2. In this directory: `EXPO_PUBLIC_API_URL=http://localhost:9001 bunx expo start --dev-client` (one Metro at a time: stop the buyer's first), and open the dev build on it. In the dev menu, turn off "Tools button": the floating button can sit over the order screen's buttons and take their taps.
+3. `maestro test .maestro/accept-to-handover.yaml`.
+
+To run it again, run the buyer flow again first (no backend restart needed): each run takes the newest new order, and needs one with a courier quote.
+
 ## Layout
 
 - `app.config.ts`: name, scheme (`ojavendor://`) and bundle id come from `appIdentity` in `@oja/domain`.

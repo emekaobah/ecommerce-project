@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { cartKeys } from '@/api/cart';
 import { useCheckout, useOrderGroup } from '@/api/checkout';
+import { orderKeys } from '@/api/orders';
 import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
 
 /** How long to wait for Paystack's webhook before telling the buyer it's taking a while. */
@@ -35,11 +36,12 @@ export function ConfirmationScreen() {
     router.dismissTo({ pathname: '/checkout', params: { cartId } });
   }, [notPlaced, cartId, queryClient]);
 
-  // The cart is now orders: the next thing added starts a new one.
+  // The cart is now orders: the next thing added starts a new one, and the order list shows them.
   useEffect(() => {
     if (!orderGroupId) return;
     if (paidAppCart) forgetCart();
     void queryClient.invalidateQueries({ queryKey: cartKeys.all });
+    void queryClient.invalidateQueries({ queryKey: orderKeys.all });
   }, [orderGroupId, paidAppCart, forgetCart, queryClient]);
 
   const header = <Stack.Screen options={{ title: orderGroupId ? 'Order placed' : 'Confirming payment', headerBackVisible: false }} />;

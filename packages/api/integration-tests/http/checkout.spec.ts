@@ -26,8 +26,12 @@ import { BEST_VALUE_FEE, fakeShipbubble } from "../helpers/shipbubble"
 jest.setTimeout(5 * 60 * 1000)
 
 const clerk = fakeClerk()
+// Where the backend under test listens, known once the runner has started it.
+let backendUrl: string | undefined
 // A port per test process, so the fake can be named in the config before it is listening.
-const paystack = fakePaystack(47000 + (process.pid % 1000))
+const paystack = fakePaystack(47000 + (process.pid % 1000), {
+  postWebhook: (webhook) => fetch(`${backendUrl}/hooks/payment/paystack_paystack`, { method: "POST", ...webhook }),
+})
 const shipbubble = fakeShipbubble(48000 + (process.pid % 1000))
 // Set before the runner loads medusa-config, which registers each provider only when its key is set.
 process.env.CLERK_JWT_KEY = clerk.jwtKey
@@ -77,6 +81,7 @@ medusaIntegrationTestRunner({
       )
 
     beforeAll(async () => {
+      backendUrl = api.defaults.baseURL
       await Promise.all([paystack.start(), shipbubble.start()])
       await seedDemoData({ container: getContainer(), args: [] } as any)
     })
@@ -185,7 +190,7 @@ medusaIntegrationTestRunner({
 
         const payment = await startPayment(cartId)
 
-        expect(payment.authorization_url).toBe(`https://checkout.paystack.test/${payment.reference}`)
+        expect(payment.authorization_url).toBe(`${paystack.apiUrl}/checkout/${payment.reference}`)
         expect(paystack.transaction(payment.reference)).toMatchObject({
           // Paystack charges in kobo.
           amount: TOTAL * 100,
@@ -193,6 +198,26 @@ medusaIntegrationTestRunner({
           email: "ada@oja.test",
           callback_url: RETURN_URL,
         })
+      })
+
+      it("places the order when the buyer pays on Paystack's page, which returns them to the app", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        const returnUrl = `${RETURN_URL}?cart=${cartId}`
+        const { data } = await api.post(`/store/carts/${cartId}/checkout/payment`, { return_url: returnUrl }, ada())
+        const { reference, authorization_url } = data.payment
+
+        const page = await fetch(authorization_url)
+        expect(page.status).toBe(200)
+        expect(await page.text()).toContain(`NGN ${TOTAL.toLocaleString("en-NG")}`)
+
+        const paid = await fetch(`${authorization_url}/pay`, { method: "POST", redirect: "manual" })
+
+        expect(paid.status).toBe(302)
+        expect(paid.headers.get("location")).toBe(
+          `${RETURN_URL}?cart=${cartId}&trxref=${encodeURIComponent(reference)}&reference=${encodeURIComponent(reference)}`
+        )
+        await orderGroupOf(cartId)
       })
 
       it("only returns the buyer to an http(s) page, which Paystack will redirect to", async () => {

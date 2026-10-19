@@ -276,10 +276,14 @@ medusaIntegrationTestRunner({
         const shopCart = await moveShopToOwnCart(cartId, GROCERY)
         return { cartId, shopCartId: shopCart.id as string }
       }
+      // The cart links to its order group a step before its codes' uses are registered: wait for the
+      // capture, which comes after both, before counting uses.
       const payFor = async (cartId: string) => {
         await buyer.prepare(cartId)
         await pay(cartId)
-        return orderGroup(cartId)
+        const group = await orderGroup(cartId)
+        await buyer.capturedWithin(cartId)
+        return group
       }
 
       it("moves a shop's own code with its items, and counts its use once, when that cart is paid", async () => {

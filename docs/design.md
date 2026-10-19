@@ -195,7 +195,8 @@ Target: independent per-country markets. Cross-border purchasing is out of scope
 
 - Integration tests (Medusa test utils, real Postgres) for everything touching money or shipping: payments, payouts, promo cost bearing, Shipbubble provider, accept/reject + auto-refund, webhook signatures.
 - Unit tests for the order state machine.
-- One Maestro E2E flow per app.
+- Maestro flows per app on the iOS simulator (`apps/*/.maestro`), run by hand against a dev build: one per feature screen, plus one end-to-end flow per app against a backend whose providers are network fakes.
+- Built (#8): `bun run --cwd packages/api e2e:backend` (`packages/api/e2e/backend.ts`) drops, migrates and seeds its own `oja_e2e` database and serves the backend on port 9001 with Paystack, Shipbubble and Google's address lookup answered by the integration tests' fakes (ports 9101 to 9103, each overridable); only Clerk is real. The fake Paystack serves a payment page whose Pay button posts the signed `charge.success` webhook and returns to the transaction's callback URL, and the fake Shipbubble's pickup confirmation is posted 3 seconds after each label is booked. The buyer app's `purchase-from-two-shops.yaml` checks out from two shops and pays on that page; the vendor app's `accept-to-handover.yaml` takes the grocery shop's order from New through picking, packing and label booking to Handed to courier. For it, the vendor app's order screen is checked again every minute while open, so a courier's or buyer's change shows on a device that gets no pushes; the buyer app's order list is refreshed once a checkout becomes orders.
 
 ## Delivery plan
 

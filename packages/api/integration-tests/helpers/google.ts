@@ -79,8 +79,15 @@ export type ReverseGeocodeRequest = { latlng: string | null }
  * and `GOOGLE_GEOCODING_API_URL` point here. It suggests and describes `PLACES`, reverse geocodes
  * a point to the nearest of them, and records every request for tests to inspect.
  */
-export function fakeGoogle(port: number) {
-  const apiKey = `AIza${randomUUID().replaceAll("-", "")}`
+export function fakeGoogle(
+  port: number,
+  {
+    apiKey = `AIza${randomUUID().replaceAll("-", "")}`,
+  }: {
+    /** The API key the backend must send; a fresh one by default. */
+    apiKey?: string
+  } = {}
+) {
   const autocompletes: AutocompleteRequest[] = []
   const details: DetailsRequest[] = []
   const reverseGeocodes: ReverseGeocodeRequest[] = []

@@ -1,0 +1,53 @@
+# Fulfilment staff take a new order all the way to the courier (#8): accept, pick, pack, book its
+# courier label, and hand it over once the courier confirms the pickup. A wiring smoke test against
+# the e2e backend (`bun run --cwd packages/api e2e:backend`), whose Shipbubble fake confirms a
+# pickup a few seconds after its label is booked; see the README. Needs a paid order for the
+# grocery shop with a courier quote: run the buyer app's purchase-from-two-shops.yaml first.
+# Scanning needs a real camera, so lines are ticked by hand.
+appId: com.emekaobah.oja.vendor
+env:
+  MEMBER_EMAIL: grocery.staff@oja.test
+  MEMBER_PASSWORD: supersecret
+  SHOP: Iya Bisi Foodstuff
+---
+- launchApp
+- runFlow:
+    file: sign-in.yaml
+    env:
+      MEMBER_EMAIL: ${MEMBER_EMAIL}
+      MEMBER_PASSWORD: ${MEMBER_PASSWORD}
+      SHOP: ${SHOP}
+- extendedWaitUntil:
+    visible: ${SHOP}
+    timeout: 15000
+# Orders are newest first. A row reads as one label: its title, items and state chip.
+- tapOn: ".*, New · .*"
+- tapOn: "Accept order"
+- tapOn: "Start picking"
+- extendedWaitUntil:
+    visible: "0 of .* picked"
+    timeout: 10000
+- repeat:
+    while:
+      visible: ".*, To pick"
+    commands:
+      - tapOn: ".*, To pick"
+- tapOn: "Mark packed"
+- assertVisible: "Order #.* is packed"
+- tapOn: "Back to orders"
+- tapOn: ".*, Packed"
+- assertVisible: "Packed, ready for a courier label."
+- tapOn: "Book courier label"
+- extendedWaitUntil:
+    visible: "Label booked. Waiting for the courier to confirm the pickup."
+    timeout: 20000
+- assertVisible: ".*Waybill .*"
+# The courier confirms the pickup a few seconds after booking; the order refreshes every minute,
+# so allow two refreshes and a slow simulator.
+- extendedWaitUntil:
+    visible: "Handed to courier"
+    timeout: 150000
+- tapOn: "Handed to courier"
+- extendedWaitUntil:
+    visible: "Handed over by .*. Waiting for the courier to confirm the pickup."
+    timeout: 15000
