@@ -12,6 +12,16 @@ Expo Router app for buyers. Architecture: [ADR 0001](../../docs/adr/0001-mobile-
 
 Maestro flows live in `.maestro/`. With the backend running (with `GOOGLE_MAPS_API_KEY`) and the dev build open: `maestro test .maestro/add-address-by-search.yaml` (an address at checkout) or `maestro test .maestro/saved-addresses.yaml` (Account → Addresses: add, edit, checkout preselects the default, delete). Each flow signs in a Clerk test buyer (`sign-in.yaml`; a development instance accepts `+clerk_test` emails with code 424242), signing up on the first run. In a dev build, first turn off "Tools button" in the dev menu: the floating button sits over checkout's "Change" and takes its taps.
 
+### Against the network fakes
+
+`purchase-from-two-shops.yaml` (#8) buys from two shops in one checkout: rice from Iya Bisi Foodstuff and a surge protector from Ikeja Gadget Hub, delivered to an address found by search and paid on Paystack's page. It is a wiring smoke test against a backend whose Paystack, Shipbubble and Google address lookup are the integration tests' network fakes, so it moves no money and needs no provider keys:
+
+1. `bun run --cwd packages/api e2e:backend`. It drops and recreates the `oja_e2e` database (`E2E_DATABASE_URL`, default the Docker Postgres from `bun run db:up`), migrates and seeds it, starts the fakes, and serves the backend on port 9001 (`E2E_PORT`). The fake Paystack's page has one Pay button, which posts the signed `charge.success` webhook. Buyers still sign in with Clerk, so `packages/api/.env` needs `CLERK_JWT_KEY` (or `CLERK_SECRET_KEY`); its other provider keys are overridden. When ready it prints the Metro command, with the fresh database's publishable key.
+2. In this directory, start Metro with what it printed: `EXPO_PUBLIC_API_URL=http://localhost:9001 EXPO_PUBLIC_PUBLISHABLE_KEY=<printed key> bunx expo start --dev-client`, and open the dev build on it.
+3. `maestro test .maestro/purchase-from-two-shops.yaml`.
+
+It leaves a paid order at each shop, which the vendor app's `accept-to-handover.yaml` takes on. The dev build must match the code: a build older than its native modules crashed opening the pin map (react-native-maps asserting on its props), so rebuild (`bunx expo run:ios`) after pulling native changes.
+
 ## Layout
 
 - `app.config.ts`: name, scheme (`oja://`) and bundle id come from `appIdentity` in `@oja/domain`.

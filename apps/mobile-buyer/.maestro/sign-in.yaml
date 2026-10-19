@@ -25,6 +25,8 @@ appId: com.emekaobah.oja.buyer
           visible:
             id: "clerk.auth.signUp.password"
           timeout: 15000
+      # Typed while the page still slides in, the password loses all but its first character.
+      - waitForAnimationToEnd
       - tapOn:
           id: "clerk.auth.signUp.password"
       - inputText: ${BUYER_PASSWORD}

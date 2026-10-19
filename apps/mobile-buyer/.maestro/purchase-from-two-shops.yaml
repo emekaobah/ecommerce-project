@@ -1,0 +1,144 @@
+# A buyer buys from two shops in one checkout (#8): rice from Iya Bisi Foodstuff and a surge
+# protector from Ikeja Gadget Hub, delivered to an address found by search, paid on Paystack's
+# page. A wiring smoke test against the e2e backend (`bun run --cwd packages/api e2e:backend`),
+# whose fakes answer Paystack, Shipbubble and Google; see the README. Leaves a new order at each
+# shop for the vendor app's handover flow. A buyer of its own, signed up on the first run.
+appId: com.emekaobah.oja.buyer
+env:
+  BUYER_EMAIL: maestro-purchase+clerk_test@example.com
+  BUYER_PASSWORD: Maestro-Purchase-Test-2026!
+---
+- launchApp:
+    permissions:
+      location: inuse
+# Start as a guest: checkout asks a guest to sign in.
+- tapOn: "Account"
+- runFlow:
+    when:
+      visible: "Sign out"
+    commands:
+      - tapOn: "Sign out"
+      - extendedWaitUntil:
+          notVisible: "Sign out"
+          timeout: 15000
+
+# One item from each shop.
+- tapOn: "Search"
+- tapOn: "Search products"
+- inputText: "Ofada"
+# Search puts the keyboard away, which would otherwise take the first tap.
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "Ofada Rice 5kg.*"
+    timeout: 10000
+- tapOn: "Ofada Rice 5kg.*"
+- tapOn: "Add to cart.*"
+- extendedWaitUntil:
+    visible: "View cart"
+    timeout: 10000
+# The header's back button (Maestro's `back` is Android's).
+- tapOn: "Back"
+- tapOn: "Clear search"
+- tapOn: "Search products"
+- inputText: "Surge"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "6-Way Surge Protector.*"
+    timeout: 10000
+- tapOn: "6-Way Surge Protector.*"
+- tapOn: "Add to cart.*"
+- tapOn: "View cart"
+- assertVisible: "Iya Bisi Foodstuff"
+- assertVisible: "Ikeja Gadget Hub"
+- tapOn: "Checkout.*"
+- runFlow:
+    file: sign-in.yaml
+    env:
+      BUYER_EMAIL: ${BUYER_EMAIL}
+      BUYER_PASSWORD: ${BUYER_PASSWORD}
+# Signed in, the cart is the buyer's; checkout from it again.
+- tapOn: "Checkout.*"
+- extendedWaitUntil:
+    visible: "Delivery address"
+    timeout: 15000
+
+# An address saved by an earlier run is preselected; find the address by search otherwise.
+- runFlow:
+    when:
+      notVisible: "Pay with Paystack.*"
+    commands:
+      - runFlow:
+          when:
+            visible: "Search for an address"
+          commands:
+            - tapOn: "Search for an address"
+      - tapOn:
+          id: "address-search"
+      - inputText: "Akin Adesola"
+      # iOS introduces swipe typing once, over the suggestions.
+      - runFlow:
+          when:
+            visible: "Speed up your typing.*"
+          commands:
+            - tapOn: "Continue"
+      - extendedWaitUntil:
+          visible: "3 Akin Adesola Street.*"
+          timeout: 15000
+      - tapOn: "3 Akin Adesola Street.*"
+      - extendedWaitUntil:
+          visible: "Confirm the delivery spot"
+          timeout: 15000
+      - tapOn: "Confirm pin"
+      # The field, not its label above it.
+      - tapOn:
+          text: "First name"
+          index: 1
+      - eraseText
+      - inputText: "Ada"
+      - tapOn:
+          text: "Last name"
+          index: 1
+      - eraseText
+      - inputText: "Obi"
+      - scrollUntilVisible:
+          element: "Use this address"
+      - tapOn:
+          text: "Phone number"
+          index: 1
+      - eraseText
+      - inputText: "08031234567"
+      # The landmark last: its keyboard has a return key, which puts the keyboard away.
+      - tapOn:
+          text: "Landmark / directions for the rider (optional)"
+          index: 1
+      - eraseText
+      - inputText: "Opposite the Mobil station"
+      - pressKey: Enter
+      - scrollUntilVisible:
+          element: "Use this address"
+      - tapOn: "Use this address"
+
+# Each shop's delivery is quoted (best value preselected); one payment covers both.
+- extendedWaitUntil:
+    visible: "Pay with Paystack.*"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Pay with Paystack.*"
+- tapOn: "Pay with Paystack.*"
+# The fake's payment page, in the app's WebView.
+- extendedWaitUntil:
+    visible: "Paystack test checkout"
+    timeout: 20000
+- tapOn: "Pay"
+
+# Paystack's webhook places one order per shop.
+- extendedWaitUntil:
+    visible: "Thanks, your order is placed"
+    timeout: 60000
+- assertVisible: "Iya Bisi Foodstuff"
+- assertVisible: "Ikeja Gadget Hub"
+# The order list shows the new checkout: one row, both shops' orders waiting for the shop.
+- tapOn: "View orders"
+- extendedWaitUntil:
+    visible: "2 shops, .*, Waiting for the shop, .*, Waiting for the shop"
+    timeout: 60000
