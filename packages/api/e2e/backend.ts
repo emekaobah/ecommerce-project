@@ -37,7 +37,7 @@ export type E2eBackend = { publishableKey: string; stop: () => Promise<void> }
 /** Posts a provider's webhook to the backend, and says so loudly when the backend refuses it. */
 async function postWebhook(route: string, { body, headers }: SignedWebhook) {
   const res = await fetch(`${BACKEND_URL}${route}`, { method: "POST", body, headers })
-  if (!res.ok) console.error(`\nThe backend refused the webhook to ${route} (${res.status}): ${await res.text()}\n`)
+  if (!res.ok) console.error(`\nThe backend refused the webhook to ${route} (${res.status}); its log says why.\n`)
   return res
 }
 

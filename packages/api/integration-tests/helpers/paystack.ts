@@ -366,9 +366,9 @@ export function fakePaystack(
             const { status, body } = await handle(req)
             return { status, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }
           }
-          reply()
+          void reply()
             .catch((error: unknown): PageReply => {
-              console.error("The fake Paystack failed to answer", req.method, req.url, error)
+              console.error("The fake Paystack failed to answer a request", error)
               return page(500, String(error))
             })
             .then(({ status, headers, body }) => {
