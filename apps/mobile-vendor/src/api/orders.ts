@@ -79,9 +79,12 @@ export function useReadyOrders(sellerId: string | undefined) {
   });
 }
 
-/** One of the shop's orders. */
+/**
+ * One of the shop's orders. Checked again every minute while on screen, so what the courier or
+ * the buyer did (a pickup confirmed, an order collected) shows up on a device that gets no pushes.
+ */
 export function useOrder(orderId: string) {
-  return useQuery({ queryKey: orderKeys.detail(orderId), queryFn: () => fetchOrder(orderId) });
+  return useQuery({ queryKey: orderKeys.detail(orderId), queryFn: () => fetchOrder(orderId), refetchInterval: 60_000 });
 }
 
 /** Accepts a new order; the shop then picks and packs it. */
