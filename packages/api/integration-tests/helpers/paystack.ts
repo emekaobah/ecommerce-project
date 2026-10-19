@@ -75,8 +75,18 @@ type Recipient = {
  * (`refundByHand`). A refund a test moved to `needs-attention` can be retried to a bank
  * account at one of `BANKS` (`retries`), and is then processing again.
  */
-export function fakePaystack(port: number) {
-  const secretKey = `sk_test_${randomUUID().replaceAll("-", "")}`
+export function fakePaystack(
+  port: number,
+  {
+    secretKey = `sk_test_${randomUUID().replaceAll("-", "")}`,
+    checkoutUrl = "https://checkout.paystack.test",
+  }: {
+    /** The secret key the backend must send; a fresh one by default. */
+    secretKey?: string
+    /** Where the payment page a transaction's `authorization_url` opens is served. */
+    checkoutUrl?: string
+  } = {}
+) {
   const transactions = new Map<string, Transaction>()
   const refunds = new Map<number, Refund>()
   const retries: RefundRetry[] = []
@@ -111,7 +121,7 @@ export function fakePaystack(port: number) {
       metadata: typeof body.metadata === "string" ? JSON.parse(body.metadata) : body.metadata ?? {},
       status: "abandoned",
     })
-    const authorization_url = `https://checkout.paystack.test/${reference}`
+    const authorization_url = `${checkoutUrl}/${reference}`
     return ok("Authorization URL created", { reference, access_code: `ac_${reference}`, authorization_url })
   }
 
