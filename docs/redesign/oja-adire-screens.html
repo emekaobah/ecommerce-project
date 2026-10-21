@@ -118,87 +118,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .step i{width:30px; height:28px; display:grid; place-items:center; font-style:normal}
 .step .ico{width:14px; height:14px}
 
-/* ---------- Direction A: Monochrome, finished ---------- */
-.A{--p-bg:#FFFFFF; --p-ink:#000000; --p-muted:#545454; --p-tile:#F3F3F3; --p-line:#E2E2E2; --p-blue:#0B5CFF; --p-deal:#FFC043;
-  --p-tab:#FFFFFF; --p-tabink:#545454; --p-tabon:#000000; --p-btn:#000000; --p-btnink:#FFFFFF; --p-btnr:12px; --p-body:"Manrope", system-ui, sans-serif}
-.A .h-top{padding:4px 16px 10px; display:grid; gap:10px}
-.A .addr{font-size:12px; color:var(--p-muted); display:flex; gap:4px; align-items:center}
-.A .addr b{color:var(--p-ink); font-weight:700}
-.A .search{height:42px; border-radius:999px; background:var(--p-tile); display:flex; align-items:center; gap:8px; padding:0 14px; color:var(--p-muted); font-weight:600}
-.A .chips{display:flex; gap:8px; padding:0 16px 12px; overflow:hidden}
-.A .chip{flex:none; height:32px; padding:0 14px; border-radius:999px; background:var(--p-tile); display:flex; align-items:center; font-weight:700; font-size:12.5px}
-.A .chip.on{background:#000; color:#fff}
-.A .sec{padding:6px 16px 8px; display:flex; justify-content:space-between; align-items:baseline}
-.A .sec h5{margin:0; font-size:17px; font-weight:800; letter-spacing:-.01em}
-.A .sec a{font-size:12px; font-weight:700; color:var(--p-ink); text-decoration:underline}
-.A .shops{display:flex; gap:10px; padding:0 16px 14px; overflow:hidden}
-.A .shopc{flex:none; width:196px; display:grid; gap:6px}
-.A .shopc .ph{height:96px; border-radius:12px; overflow:hidden; background:var(--p-tile)}
-.A .shopc b{font-size:13.5px; font-weight:800}
-.A .shopc small{font-size:11.5px; color:var(--p-muted)}
-.A .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px 10px; padding:0 16px}
-.A .pcard{display:grid; gap:4px}
-.A .pcard .ph{position:relative; aspect-ratio:1; border-radius:12px; overflow:hidden; background:var(--p-tile)}
-.A .add{position:absolute; right:8px; bottom:8px; width:30px; height:30px; border-radius:50%; background:#fff; display:grid; place-items:center; box-shadow:0 2px 8px rgba(0,0,0,.18)}
-.A .add .ico{width:16px; height:16px; stroke-width:2.4}
-.A .pcard .p{font-weight:800; font-size:14px}
-.A .pcard .n{font-size:12px; font-weight:600}
-.A .pcard .s{font-size:11px; color:var(--p-muted)}
-.A .deal{background:var(--p-deal); font-size:10px; font-weight:800; padding:2px 6px; border-radius:4px; position:absolute; left:8px; top:8px}
-/* A product */
-.A .hero{height:290px; background:var(--p-tile); position:relative}
-.A .hero .tb{position:absolute; top:6px; left:12px; right:12px; display:flex; justify-content:space-between}
-.A .round{width:36px; height:36px; border-radius:50%; background:#fff; display:grid; place-items:center}
-.A .dotsx{position:absolute; bottom:10px; left:0; right:0; display:flex; justify-content:center; gap:5px}
-.A .dotsx i{width:6px; height:6px; border-radius:50%; background:#000; opacity:.25}
-.A .dotsx i:first-child{opacity:1}
-.A .pd{padding:14px 16px; display:grid; gap:12px}
-.A .pd h4{margin:0; font-size:21px; font-weight:800; letter-spacing:-.01em; line-height:1.15}
-.A .price{font-size:20px; font-weight:800}
-.A .rating{font-size:12px; color:var(--p-muted); display:flex; gap:4px; align-items:center}
-.A .rowline{display:flex; gap:10px; align-items:center; padding:10px 0; border-top:1px solid var(--p-line)}
-.A .rowline .av{width:34px; height:34px; border-radius:50%; overflow:hidden; background:var(--p-tile); flex:none}
-.A .rowline b{font-size:13px; display:block}
-.A .rowline small{font-size:11.5px; color:var(--p-muted)}
-.A .open{color:#1E7A4C; font-weight:700}
-/* A cart */
-.A .ttl{padding:6px 16px 4px; font-size:26px; font-weight:800; letter-spacing:-.02em}
-.A .shopgrp{padding:10px 16px; border-bottom:8px solid var(--p-tile); display:grid; gap:10px}
-.A .shopgrp .hd{display:flex; gap:10px; align-items:center}
-.A .shopgrp .hd .av{width:30px; height:30px; border-radius:50%; overflow:hidden; flex:none}
-.A .shopgrp .hd b{font-size:14px; font-weight:800}
-.A .shopgrp .hd small{display:block; font-size:11px; color:var(--p-muted)}
-.A .line .step{height:28px} .A .line .step i{width:24px} .A .line .step b{width:20px}
-.A .line{display:grid; grid-template-columns:52px 1fr auto; gap:10px; align-items:center}
-.A .line .ph{width:56px; height:56px; border-radius:10px; overflow:hidden; background:var(--p-tile)}
-.A .line b{font-size:12.5px; font-weight:700; display:block}
-.A .line small{font-size:12px; font-weight:800}
-.A .dlv{display:flex; justify-content:space-between; font-size:11.5px; color:var(--p-muted); background:var(--p-tile); border-radius:8px; padding:8px 10px}
-.A .dlv b{color:var(--p-ink)}
-.A .closed{font-size:11px; font-weight:700; display:inline-flex; gap:4px; align-items:center; color:#8A5A00}
-/* A vendor */
-.A .vh{padding:4px 16px 10px; display:flex; justify-content:space-between; align-items:center}
-.A .vh b{font-size:20px; font-weight:800; letter-spacing:-.01em}
-.A .vh small{display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; color:#1E7A4C}
-.A .vh small i{width:8px; height:8px; border-radius:50%; background:#1E7A4C}
-.A .seg{display:flex; gap:6px; padding:0 16px 12px}
-.A .seg span{flex:1; border:1.5px solid var(--p-line); border-radius:10px; padding:7px 6px; display:grid; gap:0; font-size:10.5px; font-weight:700; color:var(--p-muted)}
-.A .seg span b{font-size:18px; color:var(--p-ink)}
-.A .seg span.on{border-color:#000; color:#000}
-.A .oc{margin:0 16px 10px; border:1.5px solid var(--p-line); border-radius:14px; padding:12px; display:grid; gap:8px}
-.A .oc.urgent{border-color:#000}
-.A .oc .top{display:flex; justify-content:space-between; align-items:center}
-.A .oc .top b{font-size:15px; font-weight:800}
-.A .stchip{font-size:10.5px; font-weight:800; padding:3px 8px; border-radius:999px; display:inline-flex; gap:4px; align-items:center}
-.A .bar{height:4px; border-radius:2px; background:var(--p-tile); overflow:hidden}
-.A .bar i{display:block; height:100%; background:#000}
-.A .oc .items{font-size:12px; color:var(--p-muted)}
-.A .oc .act{display:flex; gap:8px}
-.A .btn{flex:1; height:40px; border-radius:10px; display:grid; place-items:center; font-weight:800; font-size:13px}
-.A .btn.pri{background:#000; color:#fff}
-.A .btn.sec2{border:1.5px solid var(--p-line)}
-
-/* ---------- Direction B: Adire ---------- */
+/* ---------- Adire ---------- */
 .B{--p-bg:#FFFFFF; --p-ink:#12162B; --p-muted:#5B6178; --p-tile:#EEF0F7; --p-line:#DDE1EE; --p-indigo:#1B2559; --p-indigo2:#2E3D8F; --p-sun:#F2B33D; --p-leaf:#1E7A4C;
   --p-tab:#FFFFFF; --p-tabink:#5B6178; --p-tabon:#1B2559; --p-btn:#1B2559; --p-btnink:#FFFFFF; --p-btnr:16px; --p-body:"Manrope", system-ui, sans-serif}
 .B .disp{font-family:"Bricolage Grotesque", "Manrope", sans-serif}
@@ -288,31 +208,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .scanbtn .s1{flex:1; background:var(--p-indigo); color:#fff}
 .B .scanbtn .s2{width:110px; background:var(--p-tile); color:var(--p-ink)}
 
-/* ---------- Direction C: Market Day ---------- */
-.C{--p-bg:#FFFFFF; --p-ink:#111111; --p-muted:#5A5A5A; --p-tile:#F4F2EE; --p-line:#E6E3DD; --p-sun:#FFD23F; --p-tomato:#E8432E; --p-palm:#F2892B; --p-leaf:#2E8B57; --p-indigo:#3346D3; --p-berry:#C2367A;
-  --p-tab:#111111; --p-tabink:#9A9A9A; --p-tabon:#FFD23F; --p-btn:#111111; --p-btnink:#FFFFFF; --p-btnr:999px; --p-body:"Manrope", system-ui, sans-serif}
-.C .chunk{font-family:"Unbounded", "Manrope", sans-serif}
-.C .scr.suntop{background:var(--p-sun)}
-.C .sunband{background:var(--p-sun); padding:2px 16px 18px; display:grid; gap:10px}
-.C .logo{font-family:"Unbounded", sans-serif; font-weight:800; font-size:26px; letter-spacing:-.02em}
-.C .addr{font-size:12px; font-weight:700; display:flex; gap:4px; align-items:center}
-.C .search{height:46px; border-radius:999px; background:#fff; display:flex; align-items:center; gap:8px; padding:0 16px; color:var(--p-muted); font-weight:700; border:2px solid #111}
-.C .tiles{display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:14px 16px 6px}
-.C .tile{height:96px; border-radius:22px; position:relative; overflow:hidden; color:#fff; padding:12px}
-.C .tile b{font-family:"Unbounded", sans-serif; font-size:13px; font-weight:800; position:relative; z-index:1; line-height:1.15; display:block; max-width:70%}
-.C .tile .ph{position:absolute; right:-14px; bottom:-14px; width:84px; height:84px; border-radius:50%; overflow:hidden; border:3px solid rgba(255,255,255,.85)}
-.C .t1{background:var(--p-tomato)} .C .t2{background:var(--p-palm)} .C .t3{background:var(--p-indigo)} .C .t4{background:var(--p-berry)}
-.C .sec{padding:12px 16px 8px; display:flex; justify-content:space-between; align-items:center}
-.C .sec h5{margin:0; font-family:"Unbounded", sans-serif; font-size:15px; font-weight:800}
-.C .timer{font-size:11px; font-weight:800; background:#111; color:var(--p-sun); padding:4px 9px; border-radius:999px}
-.C .rail{display:flex; gap:10px; padding:0 16px; overflow:hidden}
-.C .dc{flex:none; width:128px; display:grid; gap:4px}
-.C .dc .ph{height:128px; border-radius:20px; overflow:hidden; background:var(--p-tile); position:relative}
-.C .dc .off{position:absolute; left:8px; top:8px; background:var(--p-sun); color:#111; font-weight:800; font-size:10px; padding:3px 7px; border-radius:999px}
-.C .dc .p{font-weight:800; font-size:14px}
-.C .dc .was{font-size:11px; color:var(--p-muted); text-decoration:line-through; margin-left:4px; font-weight:600}
-.C .dc .n{font-size:11.5px; font-weight:600}
-.C .tabbar{background:#111}
 /* C product */
 .C .scr.palmtop{background:var(--p-palm)}
 .C .phero{background:var(--p-palm); height:300px; position:relative; display:grid; place-items:center}
@@ -1357,9 +1252,9 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 <div class="wrap">
 
 <header class="top">
-  <span class="eyebrow">Oja · Adire direction · screen catalogue · 20 Oct 2026</span>
+  <span class="eyebrow">Oja · Adire · screen catalogue · 20 Oct 2026</span>
   <h1>Oja in Adire</h1>
-  <p class="lede">Every screen of the buyer and vendor apps in the chosen direction: Adire's indigo, pattern and shop-first structure, with four ideas taken from Market Day. Forty screens, laid out in the order people move through them.</p>
+  <p class="lede">Every screen of the buyer and vendor apps in the chosen direction: Adire's indigo, pattern and shop-first structure. Laid out in the order people move through them.</p>
   <div class="meta"><span>Routes are from <code>apps/mobile-buyer/src/app</code> and <code>apps/mobile-vendor/src/app</code></span><span>Imagery: generated for these mockups</span></div>
   <nav class="toc" aria-label="Sections">
     <a href="#system">System</a><a href="#dark">Dark mode</a><a href="#a11y">Accessibility</a><a href="#b-arrive">Buyer · arrive</a><a href="#b-home">Home, full scroll</a><a href="#b-discover">Discover</a><a href="#b-decide">Decide</a><a href="#b-product">Product, full scroll</a><a href="#b-buy">Buy</a><a href="#b-after">After purchase</a><a href="#b-orders">Orders, full scroll</a><a href="#b-account">Account</a><a href="#v-access">Vendor · access</a><a href="#v-triage">Triage</a><a href="#v-pick">Pick and pack</a><a href="#v-hand">Hand over</a><a href="#v-shop">Shop controls</a><a href="#states">States</a>
@@ -1371,7 +1266,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   <div class="stack col">
     <span class="eyebrow">The system</span>
     <h2>Indigo for the brand, colour only where it means something</h2>
-    <p>Adire's rules from the exploration hold. The Market Day borrowings are marked <span class="cap-tag">From Market Day</span> on the screens that use them.</p>
+    <p></p>
   </div>
   <div class="sys">
     <div class="sysc">
@@ -1416,16 +1311,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <li>Reviews show an average and count, with no star breakdown or photos. Reject reasons are free text, as the vendor app has them today.</li>
       </ul>
     </div>
-    <div class="sysc">
-      <h3>Taken from Market Day</h3>
-      <ul>
-        <li><b>Full-screen new-order takeover</b> with a sound, redrawn in indigo with a pulsing accept clock.</li>
-        <li><b>Quantity pills</b> on the pick list that turn leaf when picked and ember when short.</li>
-        <li><b>Sale prices crossed out</b> and the "10% off at this shop" badge in sun, both already sent by the listings.</li>
-      </ul>
-      <div class="compbox B">
-        <span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>New</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Open</span><span class="chip c-ind"><svg class="ico"><use href="#i-box"/></svg>Packed</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>2h left</span><span class="chip c-bad"><svg class="ico"><use href="#i-x"/></svg>Rejected</span><span class="qp ok">2/2</span><span class="qp short">0/2</span><span class="dealb" style="position:static">10% off at this shop</span>
-      </div>
+    
     </div>
   </div>
 
@@ -1675,7 +1561,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="bsheet">
           <span class="grab"></span>
           <h4>Where should we deliver?</h4>
-          <p>We'll show shops that deliver there, with real arrival dates.</p>
+          <p>We'll show shops that deliver there.</p>
           <div class="inp ph"><svg class="ico"><use href="#i-search"/></svg>Street, estate or area</div>
           <span class="btn pri"><svg class="ico"><use href="#i-locate"/></svg>Use my current location</span>
           <span class="btn sec">Enter it later</span>
@@ -2011,7 +1897,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="lrow"><svg class="ico"><use href="#i-truck"/></svg><div><b>Iya Bisi · Thu 23 Oct</b><small>Adire House · Wed 29 Oct</small></div><span class="chev">Change</span></div>
         <div class="pad" style="padding-top:12px">
           <div class="inp" style="border-color:var(--p-leaftext)"><svg class="ico"><use href="#i-tag"/></svg><b>LAGOS2K</b><span class="chip c-go" style="margin-left:auto"><svg class="ico"><use href="#i-check"/></svg>−₦2,000</span></div>
-          <span class="hint">Applied to Iya Bisi Foodstuff. One code per shop.</span>
+          <span class="hint">Applied to Iya Bisi Foodstuff.</span>
           <div class="sumrow"><span>Items</span><b class="num">₦47,700</b></div>
           <div class="sumrow"><span>Delivery</span><b class="num">₦3,900</b></div>
           <div class="sumrow"><span>Promo LAGOS2K</span><b class="num" style="color:var(--p-leaftext)">−₦2,000</b></div>
@@ -2037,7 +1923,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
         <div class="lbl2">What happens next</div>
         <div class="tl">
-          <div><i class="on"></i><div><b>Iya Bisi Foodstuff accepts</b><small>Within 24 open hours</small></div><time>Today</time></div>
+          <div><i class="on"></i><div><b>Iya Bisi Foodstuff accepts</b><small>Waiting for the shop</small></div><time>Today</time></div>
           <div><i></i><div><b>Rice and garri arrive</b><small>Thu 23 Oct, by the courier you chose</small></div><time>Thu</time></div>
           <div><i></i><div><b>Adire House prepares your kaftan</b><small>When it opens, Mon 10am</small></div><time>Mon</time></div>
           <div><i></i><div><b>Kaftan arrives</b><small>Wed 29 Oct</small></div><time>Wed</time></div>
@@ -2173,7 +2059,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="bigstars" style="padding:8px 0 2px"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></div>
           <p style="margin:0;text-align:center;font-size:11.5px;color:var(--p-muted);font-weight:700">Good</p>
           <div class="ta">Clean rice, no stones. The rider called ahead, which helped.</div>
-                    <span class="hint">Your first name and last initial show with the review. The shop can reply.</span>
+                    <span class="hint">Shown as Tolu A.</span>
         </div>
       </div>
       <div class="cta"><span>Post review</span></div>
@@ -2261,7 +2147,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="myrev">
             <div class="mhd"><span class="ph mth"><img class="img" src="img/cat-earbuds.jpg" alt=""></span><div><b>Wireless Earbuds</b><small>Ikeja Gadget Hub</small></div><span class="end more">···</span></div>
             <div class="between"><span class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></span><span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>Waiting</span></div>
-            <p>Clear sound and the case charges fast. Left bud is a little loose.</p><p class="mnote">Waiting for moderation. Other buyers will see it once we've checked it.</p>
+            <p>Clear sound and the case charges fast. Left bud is a little loose.</p>
             <small class="mdate">Edited 19 Oct</small>
           </div><div class="myrev">
             <div class="mhd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Shop</small></div><span class="end more">···</span></div>
@@ -2440,7 +2326,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>Tap to tick</small></div><span class="qp" style="margin-left:auto">0/1</span></div>
       </div>
       <div class="scanbtn"><span class="s1"><svg class="ico"><use href="#i-scan"/></svg>Scan item</span><span class="s2">Packed</span></div>
-    </div></div><figcaption class="ph-cap"><b>Pick list.</b> <span class="cap-tag">From Market Day</span>Quantity pills turn leaf when picked and ember when short; tap a line to tick it, or open it to mark items short (long-press is only a shortcut).<span class="route">(app)/orders/[id]/pick.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Pick list.</b> Quantity pills turn leaf when picked and ember when short; tap a line to tick it, or open it to mark items short (long-press is only a shortcut).<span class="route">(app)/orders/[id]/pick.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr">
       <div class="cam"><img src="img/scan.jpg" alt=""></div>
@@ -2500,7 +2386,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="pad" style="padding-top:12px">
           <div class="opt on"><span class="rb"></span><div><b>GIG Logistics</b><small>Arrives Thu 23 Oct, as the buyer chose</small></div><span class="pr">Paid</span></div>
           <div class="lrow" style="padding:8px 0"><svg class="ico"><use href="#i-box"/></svg><div><b>1 parcel · about 16 kg</b><small>Weights from the products</small></div><span class="chev">Edit</span></div>
-          <div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>The buyer paid ₦1,800 for this delivery at checkout.</span></div>
         </div>
       </div>
       <div class="cta"><span>Book courier label</span><svg class="ico"><use href="#i-fwd"/></svg></div>
@@ -2523,7 +2408,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div><i class="now"></i><div><b>Handed to courier</b><small>Tap when the rider takes the parcel</small></div><time></time></div>
           <div><i></i><div><b>Picked up</b><small>GIG confirms on their side</small></div><time></time></div>
         </div>
-        <div class="pad"><div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>The order moves on when <b>both</b> you and GIG confirm the handover.</span></div></div>
       </div>
       <div class="cta"><span>Handed to courier</span><svg class="ico"><use href="#i-check"/></svg></div>
     </div></div><figcaption class="ph-cap"><b>Handover.</b> A timeline that shows which half of the handover is still missing, with the staff tap as the one primary button.<span class="route">(app)/orders/[id]/index.tsx</span></figcaption></figure>
@@ -2539,12 +2423,11 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div><i class="now"></i><div><b>Handed to courier</b><small>Tap when the rider takes the parcel</small></div><time></time></div>
           <div><i></i><div><b>Picked up</b><small>GIG confirms on their side</small></div><time></time></div>
         </div>
-        <div class="pad"><div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>The order moves on when <b>both</b> you and GIG confirm the handover.</span></div></div>
       </div>
       <div class="cta"><span>Handed to courier</span><svg class="ico"><use href="#i-check"/></svg></div>
     
       <div class="dim"></div>
-      <div class="bsheet csheet"><span class="grab"></span><h4>Handed the parcel to GIG?</h4><p class="cbody">Only once the rider has taken it. The order moves on when GIG confirms on their side too.</p><span class="btn pri">Yes, handed over</span><span class="btn sec">Not yet</span></div>
+      <div class="bsheet csheet"><span class="grab"></span><h4>Handed the parcel to GIG?</h4><p class="cbody">Only once the rider has taken the parcel.</p><span class="btn pri">Yes, handed over</span><span class="btn sec">Not yet</span></div>
     </div></div><figcaption class="ph-cap"><b>Confirm handover.</b> One check before recording it, because it can't be undone and the rider may not have arrived. <span class="cap-tag">New</span> The app records the tap straight away today.<span class="route">(app)/orders/[id]/index.tsx · new</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
@@ -2584,7 +2467,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
         <div class="pad" style="padding-top:12px">
           <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.jpg" alt=""></span><div><b>Power Bank 20,000mAh</b><small>×1</small></div><span class="qp ok">1/1</span></div>
-          <div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>This order now counts towards your shop's payout.</span></div>
         </div>
       </div>
       <div class="cta"><span>Back to orders</span></div>
@@ -2611,7 +2493,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Add a product</b></div>
         <div class="pad">
           <div style="display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center"><span style="width:96px;height:96px;border-radius:16px;overflow:hidden;background:var(--p-tile)"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Found in catalogue</span><b style="display:block;font-size:14px;margin-top:8px">Ijebu Garri 4kg</b><small style="font-size:11.5px;color:var(--p-muted)" class="num">Barcode 6150123456789</small></div></div>
-          <div class="field"><label for="qp1">Your price</label><div class="inp focus" id="qp1">₦ 5,200</div><span class="hint">Buyers see this price under your shop's name.</span></div>
+          <div class="field"><label for="qp1">Your price</label><div class="inp focus" id="qp1">₦ 5,200</div></div>
           <div class="field"><label for="qs1">In stock</label><div class="inp" id="qs1">24</div></div>
           <div class="note2"><svg class="ico"><use href="#i-camera"/></svg><span><b>Add your own photo?</b> Square, on a plain background, the whole product in view.</span></div>
         </div>
@@ -2623,7 +2505,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="hero2" style="padding-top:24px"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <span class="ok"><svg class="ico"><use href="#i-check"/></svg></span>
           <h4>Ijebu Garri 4kg is in your shop</h4>
-          <p>Buyers can order it now. Your shop owner can see you added it.</p>
+          <p>Buyers can order it now.</p>
         </div>
         <div class="pad" style="padding-top:16px">
           <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small class="num">₦5,200 · 24 in stock</small></div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>On sale</span></div>
@@ -2637,7 +2519,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="bigt">Settings</div>
         <div class="card2"><div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Open until 7pm · 2 orders waiting</small></div></div>
           <div class="between"><div><b style="font-size:13px">Taking orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Turn off to pause the shop now</small></div><span class="sw2"></span></div>
-          <div class="between" style="padding-top:8px"><div><b style="font-size:13px">Full-screen new orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Off shows a banner instead. Saved on this phone.</small></div><span class="sw2"></span></div>
+          <div class="between" style="padding-top:8px"><div><b style="font-size:13px">Full-screen new orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Off shows a banner instead.</small></div><span class="sw2"></span></div>
         </div>
         <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-swap"/></svg></span><div><b>Switch shop</b><small>You work at 2 shops</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
                 <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-clock"/></svg></span><div><b>Opening hours</b><small>Edit in the vendor panel on the web</small></div><span class="chev"><svg class="ico"><use href="#i-share"/></svg></span></div>
@@ -2665,7 +2547,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="bigt">Settings</div>
         <div class="card2"><div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Open until 7pm · 2 orders waiting</small></div></div>
           <div class="between"><div><b style="font-size:13px">Taking orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Turn off to pause the shop now</small></div><span class="sw2"></span></div>
-          <div class="between" style="padding-top:8px"><div><b style="font-size:13px">Full-screen new orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Off shows a banner instead. Saved on this phone.</small></div><span class="sw2"></span></div>
+          <div class="between" style="padding-top:8px"><div><b style="font-size:13px">Full-screen new orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Off shows a banner instead.</small></div><span class="sw2"></span></div>
         </div>
         <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-swap"/></svg></span><div><b>Switch shop</b><small>You work at 2 shops</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
                 <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-clock"/></svg></span><div><b>Opening hours</b><small>Edit in the vendor panel on the web</small></div><span class="chev"><svg class="ico"><use href="#i-share"/></svg></span></div>
@@ -2682,7 +2564,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="pad" style="padding-top:12px">
           <div class="field"><label for="cr">Reason the buyer will see</label><div class="ta" id="cr">Our supplier didn't deliver the rice this week. Sorry for the trouble.</div></div>
           <div class="note2 warn"><svg class="ico"><use href="#i-info"/></svg><span><b>Chidi O. gets a full refund of ₦19,700.</b> Stock goes back to your shelves. This can't be undone.</span></div>
-          <span class="hint">Only owners and managers can cancel an accepted order.</span>
         </div>
       </div>
       <div class="cta" style="background:var(--p-redfill)"><span>Cancel and refund ₦19,700</span></div>
@@ -2753,7 +2634,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="empty">
           <span class="emblem"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><svg class="ico"><use href="#i-box"/></svg></span>
           <h4>No orders yet</h4>
-          <p>When you buy something, you can follow every shop's part of the order here.</p>
+          <p>Your orders will show up here.</p>
           <span class="btn pri" style="width:100%;margin-top:8px">Browse shops near you</span>
         </div>
       </div>
@@ -2788,7 +2669,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="empty" style="padding-top:120px">
           <span class="spin" role="progressbar" aria-label="Confirming your payment with Paystack"></span>
           <h4 style="font-size:18px">Confirming your payment</h4>
-          <p>Paystack is telling us your payment went through. This usually takes a few seconds.</p>
+          <p>This usually takes a few seconds.</p>
         </div>
       </div>
     </div></div><figcaption class="ph-cap"><b>Confirming payment.</b> The one place a spinner, not a skeleton: there is no layout to preview, only a wait to explain.<span class="route">checkout/confirmation.tsx</span></figcaption></figure>
@@ -2848,7 +2729,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="empty" style="padding-top:40px">
           <span class="emblem"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><svg class="ico"><use href="#i-bell"/></svg></span>
           <h4>No orders yet</h4>
-          <p>New orders show up here, with a sound and a vibration.</p>
+          <p>New orders show up here.</p>
         </div>
       </div>
     </div></div><figcaption class="ph-cap"><b>Orders, nothing to accept.</b> Each stage has its own line: Ready says "Orders ready for their buyers to collect show up here."<span class="route">(app)/index.tsx</span></figcaption></figure>
