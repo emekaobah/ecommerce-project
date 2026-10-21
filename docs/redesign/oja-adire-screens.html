@@ -1208,6 +1208,11 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 /* shop replies: a uniform mist block, indented one step, like the other fills (no quote bar) */
 .B .reply{border-left:0; border-radius:12px; margin-left:12px; padding:12px; background:var(--p-tile); color:var(--p-muted); line-height:1.5}
 .B .reply b{color:var(--p-ink)}
+
+/* stage counts: four equal tiles; numbers never wrap; above 99 shows 99+ */
+.B .seg{grid-template-columns:repeat(4,minmax(0,1fr))}
+.B .seg span{min-width:0}
+.B .seg span b{white-space:nowrap; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:clip}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -2255,7 +2260,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="act"><span class="btn sec">Details</span><span class="btn pri">Accept</span></div>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Orders.</b> Stage counts, the open state in the header, a light divider between orders. The outline around each time chip drains as the 24-hour accept window runs down, and turns ember under four hours.<span class="route">(app)/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Orders.</b> Stage counts (four equal tiles; counts above 99 show as 99+, and the stage itself lists every order), the open state in the header, a light divider between orders. The outline around each time chip drains as the 24-hour accept window runs down, and turns ember under four hours.<span class="route">(app)/index.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="takeover"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
