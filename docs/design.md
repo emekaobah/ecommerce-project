@@ -40,7 +40,7 @@ Visual direction: **Adire** (chosen 2026-10-20 in the redesign; supersedes the e
   - Dark: secondary and placeholder `#B4B4BC`; ember text `#F0A474`; red text `#F2938A`; primary button `#3D4DBB`; selected background `#2A2A30`.
   - Control outlines: `#80869E` light, `#7A7A83` dark.
 - **Touch targets:** at least 44pt hit area. The add button on product tiles is drawn at about 36pt and get the 44pt hit area in code via `hitSlop`.
-- **Interruptions:** the new-order takeover has "Not now" (2.2.4), and a phone-only setting turns it into a banner (3.2.5). This is the only addition AAA required, and it needs no backend change.
+- **Interruptions:** the new-order takeover has two actions, Accept order and View order (reject from there), with "Not now" in its corner (2.2.4), and a phone-only setting turns it into a banner (3.2.5). This is the only addition AAA required, and it needs no backend change.
 - **Focus:** focused fields get a 2px outline.
 - **Paragraphs:** 1.5 line height.
 - **Gestures:** every action has a non-gesture route.

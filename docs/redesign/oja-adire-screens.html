@@ -1213,6 +1213,20 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .seg{grid-template-columns:repeat(4,minmax(0,1fr))}
 .B .seg span{min-width:0}
 .B .seg span b{white-space:nowrap; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:clip}
+
+/* new-order takeover: two actions, Not now in the corner, item rows like order detail */
+.B .tktop{display:flex; justify-content:space-between; align-items:flex-start}
+.B .notnow{font-size:13px; font-weight:800; color:#fff; opacity:.9; min-height:32px; display:flex; align-items:center; padding:0 4px}
+.B .tkrows{display:grid; gap:12px}
+.B .tkrow{display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:12px; align-items:center}
+.B .tkrow .ph{width:40px; height:40px; border-radius:12px; overflow:hidden; background:#fff}
+.B .tkrow .ph img{width:100%; height:100%; object-fit:contain; padding:10%; box-sizing:border-box}
+.B .tkrow b{display:block; font-size:13px; color:#fff}
+.B .tkrow small{font-size:11.5px; color:rgba(255,255,255,.85)}
+.B .tkrow .qp{background:rgba(255,255,255,.16); color:#fff}
+.B .tkact{margin-top:auto; display:grid; gap:8px}
+.B .tkact .acc{height:52px; margin:0}
+.B .viewo{height:48px; border-radius:16px; background:rgba(255,255,255,.14); color:#fff; display:grid; place-items:center; font-size:14px; font-weight:800}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -1498,7 +1512,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 <tr><th>1.4.9 Images of text</th><td class="now">No text is drawn into images. Product photos may show packaging, but names and prices are always real text.</td><td><span class="res pass">Pass</span></td></tr>
 <tr><th>2.1.3 Keyboard (no exception)</th><td class="now">Every action works without a gesture. Marking items short has a visible button, with long-press only as a shortcut. The map pin can be set by search or current location instead of dragging.</td><td><span class="res fixed">Fixed</span></td></tr>
 <tr><th>2.2.3 No timing</th><td class="now">The 24-hour accept clock is a real-time business event, which this criterion allows. Nothing else is timed.</td><td><span class="res pass">Pass</span></td></tr>
-<tr><th>2.2.4 Interruptions</th><td class="now">The new-order takeover has "Not now", which sends the order to the queue. Staff can switch it to a banner in Settings.</td><td><span class="res fixed">Fixed</span></td></tr>
+<tr><th>2.2.4 Interruptions</th><td class="now">The new-order takeover has "Not now" in its corner, which sends the order to the queue. Staff can switch it to a banner in Settings.</td><td><span class="res fixed">Fixed</span></td></tr>
 <tr><th>2.2.5 Re-authenticating</th><td class="now">When a session expires, the cart, checkout step and pick progress must survive signing in again.</td><td><span class="res impl">Build</span></td></tr>
 <tr><th>2.2.6 Timeouts</th><td class="now">The pickup counter's lockout states the time it ends. No data is lost to inactivity, because carts are saved on the account.</td><td><span class="res pass">Pass</span></td></tr>
 <tr><th>2.3.2 Three flashes</th><td class="now">The alarm ring fades over 1.6 seconds. It never flashes.</td><td><span class="res pass">Pass</span></td></tr>
@@ -2264,19 +2278,17 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="takeover"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
-        <div class="alarm"><span><svg class="ico"><use href="#i-bell"/></svg></span></div>
+        <div class="tktop"><div class="alarm"><span><svg class="ico"><use href="#i-bell"/></svg></span></div><span class="notnow">Not now</span></div>
         <span class="lbl">New order · #1044 · delivery</span>
         <div class="big">3 items,<br><span class="num">₦32,500</span></div>
-        <div class="tlist">
-          <div><span>2 × Ofada Rice 5kg</span><span class="num">₦29,000</span></div>
-          <div><span>1 × Fresh Tomatoes 1kg</span><span class="num">₦3,500</span></div>
-          <div class="dimmer"><span>Perishable · courier by tomorrow</span></div>
+        <div class="tkrows">
+          <div class="tkrow"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦29,000</small></div><span class="qp">×2</span></div>
+          <div class="tkrow"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>Perishable · <span class="num">₦3,500</span></small></div><span class="qp">×1</span></div>
         </div>
-        <div class="clock"><svg class="ico"><use href="#i-clock"/></svg>Accept within 23h 58m of open time</div>
-        <div class="acc">Accept order</div>
-        <div class="rej2"><span>Not now</span><span>Details or reject</span></div>
+        <div class="clock"><svg class="ico"><use href="#i-clock"/></svg>Accept within 23h 58m</div>
+        <div class="tkact"><span class="acc">Accept order</span><span class="viewo">View order</span></div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>New order.</b> The whole screen takes over in indigo with a sound and a vibration. "Not now" sends it to the queue, and staff can switch the takeover to a banner in Settings.<span class="route">push → (app)/orders/[id]</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>New order.</b> The whole screen takes over in indigo with a sound and a vibration. Two choices: Accept order, or View order to check the lines or reject it there. "Not now" sits in the corner like dismissing a notification and sends the order to the queue; staff can switch the takeover to a banner in Settings.<span class="route">push → (app)/orders/[id]</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
