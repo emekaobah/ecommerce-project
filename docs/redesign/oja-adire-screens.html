@@ -1298,6 +1298,17 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .acctcard .mono{width:40px; height:40px; border-radius:12px; flex:none}
 .B .acctcard b{display:block; font-size:14px} .B .acctcard small{color:var(--p-muted); font-size:11.5px}
 .B .row2 .chip{margin-left:auto}
+
+/* product buy bar: quantity beside Add to cart, both pinned */
+.B .buybar{position:absolute; left:16px; right:16px; bottom:16px; display:grid; grid-template-columns:auto 1fr; gap:8px; z-index:4}
+.B .qstep{display:flex; align-items:center; height:52px; border-radius:16px; background:var(--p-surface); box-shadow:inset 0 0 0 1.5px var(--p-ctl)}
+.B .qstep i{width:40px; height:52px; display:grid; place-items:center; color:var(--p-ink)}
+.B .qstep i .ico{width:16px; height:16px}
+.B .qstep b{min-width:20px; text-align:center; font-size:14px; font-weight:800}
+.B .addbtn{height:52px; border-radius:16px; background:var(--p-indigo); color:#fff; display:flex; align-items:center; justify-content:space-between; padding:0 16px; font-size:14px; font-weight:800; white-space:nowrap; min-width:0}
+.B .addbtn.sec2{background:var(--p-tile); color:var(--p-accent); justify-content:center}
+.phone.tall .buybar{position:sticky; margin:0 16px; left:auto; right:auto; bottom:16px}
+.B .qstep i{width:32px} .B .addbtn{font-size:14px; gap:8px} .B .addbtn.sec2{font-size:13px}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -1802,7 +1813,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="pd">
           <span class="shopline"><span class="av">IB</span>Iya Bisi Foodstuff · ★ 4.8</span>
           <h4>Ofada Rice, 5kg</h4>
-          <div class="between"><span class="price num">₦14,500</span><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
+          <span class="price num">₦14,500</span>
           <div class="facts">
             <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-truck"/></svg></span><b>Thu 23 Oct</b>from ₦1,800</div>
             <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><b>Pick up today</b>Surulere · free</div>
@@ -1810,8 +1821,24 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           
         </div>
       </div>
-      <div class="cta"><span>Add to cart</span><span class="num">₦14,500</span></div>
-    </div></div><figcaption class="ph-cap"><b>Product.</b> One shop's offer, first screen. The whole page is in "Product, full scroll" below.<span class="route">product/[id].tsx</span></figcaption></figure>
+      <div class="buybar"><span class="qstep"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span><span class="addbtn"><span>Add</span><span class="num">₦14,500</span></span></div>
+    </div></div><figcaption class="ph-cap"><b>Product.</b> One shop's offer, first screen. Quantity sits in the sticky bar beside Add, and the button's price follows it (2 → ₦29,000). The whole page is in "Product, full scroll" below.<span class="route">product/[id].tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb" style="background:var(--p-tile)"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body">
+        <div class="hero" style="height:228px"><img class="img" src="img/cat-rice.jpg" alt=""><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div></div>
+        <div class="pd">
+          <span class="shopline"><span class="av">IB</span>Iya Bisi Foodstuff · ★ 4.8</span>
+          <h4>Ofada Rice, 5kg</h4>
+          <span class="price num">₦14,500</span>
+          <div class="facts">
+            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-truck"/></svg></span><b>Thu 23 Oct</b>from ₦1,800</div>
+            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><b>Pick up today</b>Surulere · free</div>
+          </div>
+          
+        </div>
+      </div>
+      <div class="buybar incart"><span class="qstep"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>2</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span><span class="addbtn sec2"><span>In cart · View cart</span></span></div>
+    </div></div><figcaption class="ph-cap"><b>Product, in your cart.</b> After adding, the bar shows the quantity already in the cart and changes it there, so a second tap never adds a duplicate line. "View cart" goes straight to it.<span class="route">product/[id].tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -1839,7 +1866,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   </div>
 </section>
 <section id="b-product">
-  <div class="flow-h"><h3>Product, full scroll</h3><p>Everything the product screen holds, top to bottom, with the fold marked. Add to cart stays pinned to the bottom while the page scrolls.</p></div>
+  <div class="flow-h"><h3>Product, full scroll</h3><p>Everything the product screen holds, top to bottom, with the fold marked. The buy bar (quantity and Add to cart) stays pinned to the bottom while the page scrolls.</p></div>
   <div class="homegrid">
     <figure class="ph-wrap"><div class="phone B tall"><div class="scr"><div class="sb" style="background:var(--p-tile)"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -1848,7 +1875,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="pd">
           <span class="shopline"><span class="av">IB</span>Iya Bisi Foodstuff · ★ 4.8 (212)</span>
           <h4>Ofada Rice, 5kg</h4>
-          <div class="between"><span class="price num">₦14,500</span><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
+          <span class="price num">₦14,500</span>
           <div class="vchips" role="radiogroup" aria-label="Size"><span>2kg</span><span class="on">5kg</span><span>10kg</span></div>
           <div class="facts">
             <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-truck"/></svg></span><b>Thu 23 Oct</b>from ₦1,800</div>
@@ -1870,14 +1897,14 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
         <div class="fold"><span>First screen ends here</span></div>
       </div>
-      <div class="cta"><span>Add to cart</span><span class="num">₦14,500</span></div>
+      <div class="buybar"><span class="qstep"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span><span class="addbtn"><span>Add</span><span class="num">₦14,500</span></span></div>
     </div></div></figure>
 
     <div class="homenotes">
       <h4>What each part is, and where its data comes from</h4>
       <ol>
         <li><b>Photos.</b> Every image the product has, swiped sideways, with dots for position. Save sits in the header. <span class="src2"><code>product.images</code> · wishlist toggle</span></li>
-        <li><b>Summary.</b> Name, this shop's price (a sale shows crossed out, with the shop's deal badge), the shop and its rating, and quantity. A closed shop shows when it reopens, and Add to cart is disabled. <span class="src2"><code>offerPrice</code> · <code>ShopRating</code> · <code>ShopStatusBadge</code></span></li>
+        <li><b>Summary.</b> Name, this shop's unit price (a sale shows crossed out, with the shop's deal badge), and the shop and its rating. Quantity lives in the sticky bar with Add to cart. A closed shop shows when it reopens, and Add to cart is disabled. <span class="src2"><code>offerPrice</code> · <code>ShopRating</code> · <code>ShopStatusBadge</code></span></li>
         <li><b>Size.</b> One chip per variant this shop offers; the price and button follow the choice. Hidden when there's only one. <span class="src2"><code>offers[].variant_title</code></span></li>
         <li><b>Delivery and pickup.</b> The shop's best-value courier date and fee to the buyer's address, or its dispatch time ("Ships in 2 days") when there's no address yet. Pickup shows only where the shop has a collection point. <span class="src2"><code>useDeliveryEstimate</code> · <code>leadtime_to_ship</code></span></li>
         <li><b>Description.</b> The catalogue description, when there is one. <span class="src2"><code>product.description</code></span></li>
