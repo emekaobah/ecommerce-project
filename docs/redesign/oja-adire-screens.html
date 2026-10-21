@@ -1280,6 +1280,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .shopsum small{overflow:hidden; text-overflow:ellipsis}
 .B .cta{left:16px; right:16px}
 .B .act2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .B .act2 .btn{min-width:0} .B .act2 .btn.sec .ico{display:none}
+
+/* shop groups with item lines: shop badge matches the item photos, so shop and item names share one text column */
+.B .card2:has(.lines) .hd .mono{width:48px; height:48px; border-radius:12px; font-size:14px; flex:none}
+.B .card2:has(.lines) .hd{gap:8px}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
