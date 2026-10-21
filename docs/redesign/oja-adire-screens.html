@@ -1344,7 +1344,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <li><b>Full-screen new-order takeover</b> with a sound, redrawn in indigo with a pulsing accept clock.</li>
         <li><b>Quantity pills</b> on the pick list that turn leaf when picked and ember when short.</li>
         <li><b>Sale prices crossed out</b> and the "10% off at this shop" badge in sun, both already sent by the listings.</li>
-        <li><b>Side-by-side delivery cards</b> when a shop offers two or three options.</li>
       </ul>
       <div class="compbox B">
         <span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>New</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Open</span><span class="chip c-ind"><svg class="ico"><use href="#i-box"/></svg>Packed</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>2h left</span><span class="chip c-bad"><svg class="ico"><use href="#i-x"/></svg>Rejected</span><span class="qp ok">2/2</span><span class="qp short">0/2</span><span class="dealb" style="position:static">10% off at this shop</span>
@@ -1873,11 +1872,9 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="prog"><i class="on"></i><i class="on"></i><i></i></div>
         <div class="card2" style="gap:8px">
           <div class="hd"><span class="mono" style="width:26px;height:26px;font-size:10px;border-radius:8px">IB</span><b>Iya Bisi Foodstuff</b><small class="end">2 items</small></div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
-            <div class="radio on" style="display:grid;gap:2px;padding:8px;font-size:10.5px;color:var(--p-muted)"><b style="font-size:12px;color:var(--p-ink)">Best value</b>Thu 23<b class="disp num" style="font-size:13px;color:var(--p-ink)">₦1,800</b></div>
-            <div class="radio" style="display:grid;gap:2px;padding:8px;font-size:10.5px;color:var(--p-muted)"><b style="font-size:12px;color:var(--p-ink)">Fastest</b>Tomorrow<b class="disp num" style="font-size:13px;color:var(--p-ink)">₦3,400</b></div>
-            <div class="radio" style="display:grid;gap:2px;padding:8px;font-size:10.5px;color:var(--p-muted)"><b style="font-size:12px;color:var(--p-ink)">Pick up</b>Today 2pm<b class="disp" style="font-size:13px;color:var(--p-ink)">Free</b></div>
-          </div>
+          <div class="opt on"><span class="rb"></span><div><b>Best value · Thu 23 Oct</b><small>GIG Logistics</small></div><span class="pr num">₦1,800</span></div>
+          <div class="opt"><span class="rb"></span><div><b>Fastest · Tomorrow</b><small>Kwik</small></div><span class="pr num">₦3,400</span></div>
+          <div class="opt"><span class="rb"></span><div><b>Pick up · today from 2pm</b><small>At the shop in Surulere · 1.2 km</small></div><span class="pr">Free</span></div>
         </div>
         <div class="card2" style="gap:8px">
           <div class="hd"><span class="mono" style="width:26px;height:26px;font-size:10px;border-radius:8px">AH</span><b>Adire House</b><small class="end">1 item</small></div>
@@ -1887,7 +1884,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="pad"><div class="sumrow"><span>Delivery, 2 shops</span><b class="num">₦3,900</b></div></div>
       </div>
       <div class="cta"><span>Continue</span><span class="num">₦51,600</span></div>
-    </div></div><figcaption class="ph-cap"><b>Delivery.</b> <span class="cap-tag">From Market Day</span>Side-by-side cards when a shop has up to three options; stacked rows when an option needs a note.<span class="route">checkout/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Delivery.</b> One list per shop, the same for every shop: each option is a row with its date, its courier or pickup place, and its price, with the best value selected. Rows have room for a note like "Prepared when it opens".<span class="route">checkout/index.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
