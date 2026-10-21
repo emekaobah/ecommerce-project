@@ -519,6 +519,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .codebox{display:flex; gap:8px; justify-content:center}
 .B .codebox span{width:38px; height:48px; border-radius:12px; border:1.5px solid var(--p-line); display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:800}
 .B .codebox span.f{border-color:var(--p-indigo); box-shadow:0 0 0 3px #E3E6F3}
+.B .codebox.fit{gap:6px}
+.B .codebox.fit span{flex:1; width:auto; min-width:0}
 .B .keys{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 16px}
 .B .keys span{height:42px; border-radius:12px; background:var(--p-tile); display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-size:18px; font-weight:700}
 .B .keys span.n{background:transparent}
@@ -992,12 +994,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .ocard .t > div{min-width:0; flex:1}
 
 /* orders tabs (option B) */
-.B .otabs{display:grid; grid-template-columns:1fr 1fr; margin:0 16px 4px; border-bottom:1px solid #E4E6EE}
-.D .otabs{border-bottom-color:#2A2A2F}
-.B .otabs span{display:flex; align-items:center; justify-content:center; gap:8px; height:44px; font-size:13px; font-weight:700; color:var(--p-muted)}
-.B .otabs span.on{color:var(--p-ink); box-shadow:inset 0 -2.5px 0 var(--p-indigo)}
-.B .otabs em{font-style:normal; font-size:11.5px; font-weight:800; min-width:20px; height:20px; padding:0 8px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; color:var(--p-muted)}
-.B .otabs span.on em{background:var(--p-indigo); color:#fff}
 
 /* cart: per-shop subtotal and single-shop checkout */
 .B .shopsum{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding-top:12px; margin-top:4px; border-top:1px dashed var(--p-line)}
@@ -1208,7 +1204,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     <div class="sysc">
       <h3>Built only on what exists</h3>
       <ul>
-        <li>Every screen uses data the buyer app, vendor app and backend already have, except the ones marked <span class="cap-tag">New</span>: My reviews and the Handed to courier confirm need app work only; Order again and the Ongoing / Past order tabs also need backend changes (the tabs are filed as #54).</li>
+        <li>Every screen uses data the buyer app, vendor app and backend already have, except the ones marked <span class="cap-tag">New</span>: My reviews and the Handed to courier confirm need app work only; Order again and the In progress / Past order sections also need backend changes (filed as #54).</li>
         <li>Deals are shown the way the backend has them: a shop's sale price crossed out, and its automatic promotion as a badge. There's no deals feed or countdown, because sale end dates don't reach the buyer.</li>
         <li>Shops and categories have no images, so shops use monograms and the pattern, and categories are name chips.</li>
         <li>Search matches product names only, so it has no filters or sort. Listings come nearest first.</li>
@@ -1455,10 +1451,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       </ul>
     </div>
     <div class="sysc">
-      <h3>Android, and the tab bar <span class="cap-tag">Decision</span></h3>
+      <h3>Android, and the tab bar</h3>
       <ul>
         <li>On Android, values are in dp, the same numbers as pt. The layout runs edge to edge under transparent system bars. The system back gesture does what the header's back button does, and press feedback is a ripple.</li>
-        <li>Both apps use native tabs (<code>NativeTabs</code>): Liquid Glass on iOS 26 and Material on Android. Native tabs can't take the drawn floating bar's 24pt corners and custom fill, and they draw their icons from SF Symbols and Material Symbols, not Lucide. <b>Recommended:</b> keep native tabs, and accept that the five tab icons are the platform's while every other icon is Lucide. The alternative is a custom tab bar drawn in JavaScript: it matches the mockup and uses Lucide throughout, but it loses the native look, behaviour and accessibility for free.</li>
+        <li>Both apps use native tabs (<code>NativeTabs</code>): Liquid Glass on iOS 26 and Material on Android. Native tabs can't take the drawn floating bar's 24pt corners and custom fill, and they draw their icons from SF Symbols and Material Symbols, not Lucide. <b>Decided:</b> keep native tabs. The five tab icons are the platform's; every other icon is Lucide. The drawn tab bar shows order, labels and icons only.</li>
       </ul>
     </div>
   </div>
@@ -1704,7 +1700,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="band"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <div class="between"><div class="addr"><svg class="ico"><use href="#i-pin"/></svg>14 Bode Thomas St, Surulere<svg class="ico"><use href="#i-down"/></svg></div><svg class="ico"><use href="#i-bell"/></svg></div>
           <div class="greet disp">Good morning, Tolu.<br>What are we buying?</div>
-          <div class="search"><svg class="ico"><use href="#i-search"/></svg>Search shops and products</div>
+          <div class="search"><svg class="ico"><use href="#i-search"/></svg>Search products</div>
         </div>
         <div class="sheet">
           <div class="cchips"><span class="fchip on">All</span><span class="fchip">Foodstuff</span><span class="fchip">Fresh food</span><span class="fchip">Fashion</span><span class="fchip">Gadgets</span></div>
@@ -1748,7 +1744,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="band"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <div class="between"><div class="addr"><svg class="ico"><use href="#i-pin"/></svg>14 Bode Thomas St, Surulere<svg class="ico"><use href="#i-down"/></svg></div><svg class="ico"><use href="#i-bell"/></svg></div>
           <div class="greet disp">Good morning, Tolu.<br>What are we buying?</div>
-          <div class="search"><svg class="ico"><use href="#i-search"/></svg>Search shops and products</div>
+          <div class="search"><svg class="ico"><use href="#i-search"/></svg>Search products</div>
         </div>
         <div class="sheet">
           <div class="cchips"><span class="fchip on">All</span><span class="fchip">Foodstuff</span><span class="fchip">Fresh food</span><span class="fchip">Fashion</span><span class="fchip">Gadgets</span></div>
@@ -2065,7 +2061,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="bigt">Orders</div>
-        <div class="otabs"><span class="on">Ongoing <em>4</em></span><span>Past <em>12</em></span></div>
+        <div class="pad" style="padding-bottom:4px"><div class="search" style="background:var(--p-tile)"><svg class="ico"><use href="#i-search"/></svg>Search your orders</div></div>
+        <div class="sec"><h5>In progress</h5></div>
         <div class="ocard">
           <div class="t"><div><b>2 shops</b><small>Today · 4 items · OJ-2410 · ₦49,600</small></div><svg class="ico"><use href="#i-fwd"/></svg></div>
           <div class="thumbs"><span><img class="img" src="img/cat-rice.jpg" alt=""></span><span><img class="img" src="img/cat-garri.jpg" alt=""></span><span><img class="img" src="img/cat-kaftan.jpg" alt="" style="object-position:top"></span></div>
@@ -2083,7 +2080,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>Orders.</b> Two tabs, Ongoing and Past, with counts; it opens on Ongoing when anything is in progress, otherwise on Past. One row per checkout, titled with its shop (or "2 shops"); each shop's state shows as chips, and anything waiting on the buyer is in ember. A delivered or collected order swaps its chevron for Order again, which opens the same sheet as on the order; tapping the row still opens the order.<span class="route">(tabs)/orders.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Orders.</b> One list in two sections: In progress at the top, then Past. With nothing in progress, the list starts at Past, under one search field that covers every order. One row per checkout, titled with its shop (or "2 shops"); each shop's state shows as chips, and anything waiting on the buyer is in ember. A delivered or collected order swaps its chevron for Order again, which opens the same sheet as on the order; tapping the row still opens the order.<span class="route">(tabs)/orders.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-bg2)">
@@ -2192,12 +2189,13 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   </div>
 </section>
 <section id="b-orders">
-  <div class="flow-h"><h3>Orders, full scroll</h3><p>The Ongoing tab for a buyer with a few weeks of orders, top to bottom, with the fold marked. The Past tab follows.</p></div>
+  <div class="flow-h"><h3>Orders, full scroll</h3><p>A buyer with a few weeks of orders, top to bottom, with the fold marked: In progress, then Past.</p></div>
   <div class="homegrid">
     <figure class="ph-wrap"><div class="phone B tall"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="bigt">Orders</div>
-        <div class="otabs"><span class="on">Ongoing <em>4</em></span><span>Past <em>12</em></span></div>
+        <div class="pad" style="padding-bottom:4px"><div class="search" style="background:var(--p-tile)"><svg class="ico"><use href="#i-search"/></svg>Search your orders</div></div>
+        <div class="sec"><h5>In progress</h5></div>
         <div class="ocard">
           <div class="t"><div><b>2 shops</b><small>Today · 4 items · OJ-2410</small></div><b class="num" style="font-size:13px">₦49,600</b></div>
           <div class="thumbs"><span><img class="img" src="img/cat-rice.jpg" alt=""></span><span><img class="img" src="img/cat-garri.jpg" alt=""></span><span><img class="img" src="img/cat-kaftan.jpg" alt=""></span></div>
@@ -2218,7 +2216,11 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="thumbs"><span><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span></div>
           <div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund needs your bank</span></div></div>
         </div>
-        <div class="endnote">That's everything in progress. Finished orders are in Past.</div>
+        <div class="sec"><h5>Past</h5></div>
+        <div class="ocard"><div class="t"><div><b>Adire House</b><small>20 Sep · 1 item · ₦28,000</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-kaftan.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Collected</span></div></div></div>
+        <div class="ocard"><div class="t"><div><b>Ikeja Gadget Hub</b><small>9 Sep · 1 item</small></div><b class="num" style="font-size:13px">₦18,500</b></div><div class="thumbs"><span><img class="img" src="img/cat-earbuds.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-mute"><svg class="ico"><use href="#i-x"/></svg>Rejected by the shop</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Refunded</span></div></div></div>
+        <div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>28 Aug · 4 items · ₦31,200</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-rice.jpg" alt=""></span><span><img class="img" src="img/cat-garri.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div></div></div>
+        <div class="endnote">Older orders load as you scroll.</div>
         <div class="fold"><span>First screen ends here</span></div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
@@ -2232,21 +2234,22 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <li><b>Photos.</b> The first items' thumbnails, so a buyer finds an order by what was in it. <span class="src2"><code>items.thumbnail</code></span></li>
         <li><b>Status chips.</b> Each shop's own state, in the same words as the order: Waiting for the shop, Packed, On its way, Ready for pickup, Delivered, Collected, Rejected by the shop, Refunded. Anything waiting on the buyer is ember. <span class="src2"><code>OrderStatusChips</code></span></li>
         <li><b>Order again.</b> Replaces the total on a delivered or collected order (the total moves to the meta line). Opens the Order again sheet. <span class="src2">designed, not built</span></li>
-        <li><b>Ongoing and Past tabs.</b> Ongoing holds anything not finished: waiting for the shop, being prepared, packed, on its way, ready for pickup, or waiting on the buyer (like a refund that needs bank details); a checkout split across shops stays here until every shop is done. Past holds delivered, collected, rejected, cancelled and refunded, with Order again and search by item. Each tab shows its count; the screen opens on Ongoing when anything is in progress, otherwise on Past. <span class="src2">needs <code>GET /store/order-history?state=active|past</code> and <code>?q=</code>, not built</span></li>
-        <li><b>End of list.</b> Ongoing is short and loads whole. Past loads more as the buyer scrolls. <span class="src2"><code>limit</code> · <code>offset</code></span></li>
+        <li><b>In progress and Past sections.</b> In progress holds anything not finished: waiting for the shop, being prepared, packed, on its way, ready for pickup, or waiting on the buyer (like a refund that needs bank details). A checkout split across shops stays here until every shop is done. Past holds delivered, collected, rejected, cancelled and refunded checkouts, with Order again. A section with nothing in it doesn't show. <span class="src2">needs the order-history route to return each checkout's phase, filtered on the server, not built</span></li>
+        <li><b>Search your orders.</b> Searches by item ("palm oil") across both sections. Results are one list, newest first, with the same rows. <span class="src2">needs <code>?q=</code>, not built</span></li>
+        <li><b>End of list.</b> In progress is short and loads whole. Past loads more as the buyer scrolls. <span class="src2"><code>limit</code> · <code>offset</code></span></li>
       </ol>
       <h4>Orders and order history are the same list</h4>
       <ul>
-        <li>The Orders tab is the buyer's whole order history: active orders sit at the top because they're newest, finished ones follow. There is no separate history screen.</li>
+        <li>The Orders tab is the buyer's whole order history: in-progress orders sit at the top even when an older checkout is still waiting, finished ones follow. There is no separate history screen.</li>
         <li>Tapping a row opens that checkout's order detail, with each shop's part.</li>
         <li>Pull to refresh; it also refreshes itself every minute while open.</li>
       </ul>
     </div>
   </div>
 
-  <div id="orders-compare" class="stack" style="margin-top:32px">
-    <div class="flow-h"><h3>The Past tab</h3><p>Finished orders, newest first, with search by item and Order again. Both tabs need the order-history route to filter by state (filed as emekaobah/ecommerce-project#54).</p></div>
-    <div class="phones"><figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div><div class="body"><div class="bigt">Orders</div><div class="otabs"><span>Ongoing <em>4</em></span><span class="on">Past <em>12</em></span></div><div class="pad" style="padding-bottom:4px"><div class="search"><svg class="ico"><use href="#i-search"/></svg>Search past orders by item</div></div><div class="ocard"><div class="t"><div><b>Adire House</b><small>20 Sep · 1 item · ₦28,000</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-kaftan.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Collected</span></div></div></div><div class="ocard"><div class="t"><div><b>Ikeja Gadget Hub</b><small>9 Sep · 1 item</small></div><b class="num" style="font-size:13px">₦18,500</b></div><div class="thumbs"><span><img class="img" src="img/cat-earbuds.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-mute"><svg class="ico"><use href="#i-x"/></svg>Rejected by the shop</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Refunded</span></div></div></div><div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>28 Aug · 4 items · ₦31,200</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-rice.jpg" alt=""></span><span><img class="img" src="img/cat-garri.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div></div></div></div><div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div></div></div><figcaption class="ph-cap"><b>Past tab.</b> <span class="cap-tag">New</span> Finished orders only, with Order again on each, and search by item ("palm oil") once the route takes a search term.<span class="route">needs ?state=past and ?q= on order-history</span></figcaption></figure></div>
+  <div id="orders-search" class="stack" style="margin-top:32px">
+    <div class="flow-h"><h3>Searching orders</h3><p>One search across every order, in progress or past. Results drop the sections and list matching checkouts newest first.</p></div>
+    <div class="phones"><figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div><div class="body"><div class="bigt">Orders</div><div class="pad" style="padding-bottom:4px"><div class="search" style="background:var(--p-tile);color:var(--p-ink)"><svg class="ico"><use href="#i-search"/></svg>palm oil<span style="margin-left:auto;color:var(--p-muted)"><svg class="ico"><use href="#i-x"/></svg></span></div></div><div class="endnote" style="padding:8px 16px;text-align:left">2 orders with "palm oil"</div><div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>Tue 14 Oct · 2 items · OJ-2366</small></div><b class="num" style="font-size:13px">₦18,400</b></div><div class="thumbs"><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-ind"><svg class="ico"><use href="#i-truck"/></svg>On its way</span></div></div></div><div class="ocard"><div class="t"><div><b>Iya Bisi Foodstuff</b><small>Thu 2 Oct · 3 items · OJ-2301 · ₦24,800</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund needs your bank</span></div></div></div></div><div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div></div></div><figcaption class="ph-cap"><b>Search results.</b> <span class="cap-tag">New</span> Matches item names in any order. No match: "No orders with "palm oil". Try another item." Clearing the search brings back the sections.<span class="route">needs ?q= on order-history</span></figcaption></figure></div>
   </div>
 </section>
 
@@ -2443,8 +2446,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="big">Picking · 3 of 5</div>
           <div class="ring" style="display:flex;gap:12px;align-items:center;font-size:11.5px"><span style="flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden"><i style="display:block;height:100%;width:60%;background:#F2B33D"></i></span><b>60%</b></div>
         </div>
-        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Scanned</small></div><span class="qp ok" style="margin-left:auto">2/2</span></div>
-        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small>Ticked</small></div><span class="qp ok" style="margin-left:auto">1/1</span></div>
+        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Picked</small></div><span class="qp ok" style="margin-left:auto">2/2</span></div>
+        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small>Picked</small></div><span class="qp ok" style="margin-left:auto">1/1</span></div>
         <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small style="color:var(--p-embertext)">1 not available</small></div><span class="qp short" style="margin-left:auto">0/2</span></div>
         <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>Tap to tick</small></div><span class="qp" style="margin-left:auto">0/1</span></div>
       </div>
@@ -2556,30 +2559,33 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
         <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
-          <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Collect an order</span></div>
-          <div class="big">Enter the buyer's code</div>
-        </div>
-        <div class="pad" style="padding-top:16px;gap:16px">
-          <div class="codebox"><span>4</span><span>8</span><span>2</span><span>9</span><span class="f"></span><span></span></div>
-          <span class="btn sec"><svg class="ico"><use href="#i-scan"/></svg>Scan their QR instead</span>
-        </div>
-        <div class="keys" style="padding-top:12px"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span class="n"></span><span>0</span><span class="n">⌫</span></div>
-      </div>
-    </div></div><figcaption class="ph-cap"><b>Pickup counter.</b> Six boxes and a keypad, or the camera. After five wrong codes: "Too many tries. Try again at 3:15pm."<span class="route">(app)/orders/[id]/collect.tsx</span></figcaption></figure>
-    <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
-      <div class="body" style="background:var(--p-surface)">
-        <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
-          <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Collect an order</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Code correct</span></div>
-          <div class="big">Hand over to Tolu A.</div>
+          <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1039</span></div>
+          <div class="big">Hand over this order</div>
         </div>
         <div class="pad" style="padding-top:16px;gap:12px">
           <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.jpg" alt=""></span><div><b>Power Bank 20,000mAh</b><small>× 1</small></div></div>
-          <p style="margin:0;font-size:13px;color:var(--p-muted);line-height:1.5">Hand over everything on the order. Whoever has the code can collect it.</p>
-          <div class="field"><label for="who">Who is collecting?</label><div class="inp focus" id="who">Tolu</div></div>
+          <div class="field"><label for="who">Who is collecting?</label><div class="inp" id="who">Tolu</div></div>
+          <div class="field"><label>The buyer's 6-digit code</label><div class="codebox fit"><span>4</span><span>8</span><span>2</span><span>9</span><span class="f"></span><span></span></div></div>
+          <span class="btn sec"><svg class="ico"><use href="#i-scan"/></svg>Scan their QR instead</span>
         </div>
       </div>
-      <div class="cstack"><span class="btn pri">Hand over order</span><span class="btn sec">Enter the code again</span></div>
-    </div></div><figcaption class="ph-cap"><b>Hand over.</b> After a correct code: what to hand over and who is collecting, so the shop has a record. "Enter the code again" goes back if the wrong order came up.<span class="route">(app)/orders/[id]/collect.tsx</span></figcaption></figure>
+      <div class="cta"><span>Hand over order</span></div>
+    </div></div><figcaption class="ph-cap"><b>Pickup counter.</b> One step: staff check the items, type who is collecting, then enter the buyer's code or scan their QR. "Hand over order" checks the code and records the handover together, so there's no separate "code correct" step. The phone's number pad types the code.<span class="route">(app)/orders/[id]/collect.tsx · POST /vendor/orders/:id/collect</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body" style="background:var(--p-surface)">
+        <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
+          <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1039</span></div>
+          <div class="big">Hand over this order</div>
+        </div>
+        <div class="pad" style="padding-top:16px;gap:12px">
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.jpg" alt=""></span><div><b>Power Bank 20,000mAh</b><small>× 1</small></div></div>
+          <div class="field"><label for="who2">Who is collecting?</label><div class="inp" id="who2">Tolu</div></div>
+          <div class="field"><label>The buyer's 6-digit code</label><div class="codebox fit"><span style="border-color:var(--p-bad)">4</span><span style="border-color:var(--p-bad)">8</span><span style="border-color:var(--p-bad)">2</span><span style="border-color:var(--p-bad)">9</span><span style="border-color:var(--p-bad)">1</span><span style="border-color:var(--p-bad)">6</span></div><span class="hint" style="color:var(--p-bad);display:flex;gap:4px;align-items:center;font-size:11.5px;font-weight:700"><svg class="ico" style="width:14px;height:14px"><use href="#i-alert"/></svg>That code doesn't match this order. Check it with the buyer.</span></div>
+          <span class="btn sec"><svg class="ico"><use href="#i-scan"/></svg>Scan their QR instead</span>
+        </div>
+      </div>
+      <div class="cta"><span>Hand over order</span></div>
+    </div></div><figcaption class="ph-cap"><b>Wrong code.</b> Nothing is handed over. After five wrong codes in 15 minutes: "Too many wrong codes. Try again at 3:15pm."<span class="route">(app)/orders/[id]/collect.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
@@ -2618,11 +2624,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div style="display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center"><span style="width:96px;height:96px;border-radius:16px;overflow:hidden;background:var(--p-tile)"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Found in catalogue</span><b style="display:block;font-size:14px;margin-top:8px">Ijebu Garri 4kg</b><small style="font-size:11.5px;color:var(--p-muted)" class="num">Barcode 6150123456789</small></div></div>
           <div class="field"><label for="qp1">Your price</label><div class="inp focus" id="qp1">₦ 5,200</div></div>
           <div class="field"><label for="qs1">In stock</label><div class="inp" id="qs1">24</div></div>
-          <div class="note2"><svg class="ico"><use href="#i-camera"/></svg><span><b>Add your own photo?</b> Square, on a plain background, the whole product in view.</span></div>
         </div>
       </div>
       <div class="cta"><span>Add to my shop</span></div>
-    </div></div><figcaption class="ph-cap"><b>Quick-add.</b> Scan, find, price, done; the photo standard is taught right where photos are made.<span class="route">(app)/quick-add/[barcode].tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Quick-add.</b> Scan, find, price, done. A product found in the catalogue keeps the catalogue's photos, so there's nothing to photograph.<span class="route">(app)/quick-add/[barcode].tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
         <div class="hero2" style="padding-top:24px"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
@@ -2701,7 +2706,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="band" style="padding-bottom:20px"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <div class="between"><div class="addr"><svg class="ico"><use href="#i-pin"/></svg>14 Bode Thomas St, Surulere<svg class="ico"><use href="#i-down"/></svg></div><svg class="ico"><use href="#i-bell"/></svg></div>
           <div class="greet disp">Good morning, Tolu.<br>What are we buying?</div>
-          <div class="search"><svg class="ico"><use href="#i-search"/></svg>Search shops and products</div>
+          <div class="search"><svg class="ico"><use href="#i-search"/></svg>Search products</div>
         </div>
         <div style="display:flex;gap:8px;padding:16px 16px 0"><i class="sk" style="width:44px;height:32px;border-radius:999px;"></i><i class="sk" style="width:84px;height:32px;border-radius:999px;"></i><i class="sk" style="width:84px;height:32px;border-radius:999px;"></i><i class="sk" style="width:70px;height:32px;border-radius:999px;"></i></div>
         <div style="padding:24px 16px 4px"><i class="sk" style="width:40%;height:16px;border-radius:8px;"></i></div>
