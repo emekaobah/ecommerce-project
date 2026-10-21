@@ -1390,29 +1390,29 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   </div>
 
   <div class="sysc">
-    <h3>Icons <span class="cap-tag">Proposed</span></h3>
-    <p class="note">The drawn glyphs are stand-ins. Build with SF Symbols on iOS and Material Symbols on Android through <code>expo-symbols</code> (<code>SymbolView</code> with <code>name={{ ios, android }}</code>), the same symbol sets the tab bars already use (<code>sf=</code> and <code>md=</code>). Sizes: 24pt default (drawn 18), 22pt in add buttons (16), 20pt in steps (14), 16pt in chips (12). Use SF weight medium and Material weight 500, to match the drawn 1.8 stroke.</p>
+    <h3>Icons: Lucide</h3>
+    <p class="note">Every icon comes from <a href="https://lucide.dev">Lucide</a> through <code>lucide-react-native</code>, which needs <code>react-native-svg</code>. Neither app has either package yet. The drawn glyphs already follow Lucide's grid: 24-unit box, outline, round caps and joins. So the build swaps each one for its Lucide match, in the same place and at the same weight.</p>
+    <ul>
+      <li><b>Sizes:</b> 24pt by default (drawn 18), 22pt in add buttons (16), 20pt in steps (14), 16pt in chips (12).</li>
+      <li><b>Stroke:</b> <code>strokeWidth</code> 1.8 by default, 2.4 in add buttons and 2.2 in chips, as drawn. Lucide's own default is 2. Don't set <code>absoluteStrokeWidth</code>, so the stroke scales with the size, as it does in the mockups.</li>
+      <li><b>Colour:</b> <code>color</code> takes a colour token, usually <code>ink</code>, <code>muted</code> or <code>onPrimary</code>. Filled states (a saved heart, rating stars) set <code>fill</code> to the same token.</li>
+      <li>One <code>Icon</code> component in <code>@oja/ui</code> wraps Lucide, so size, stroke and colour come from tokens, and icon-only buttons always carry a spoken label.</li>
+    </ul>
     <div class="tbl"><table style="min-width:760px">
-      <thead><tr><th>Drawn</th><th>iOS (SF Symbols)</th><th>Android (Material Symbols)</th><th>Drawn</th><th>iOS (SF Symbols)</th><th>Android (Material Symbols)</th></tr></thead>
+      <thead><tr><th>Drawn</th><th>Lucide</th><th>Drawn</th><th>Lucide</th><th>Drawn</th><th>Lucide</th></tr></thead>
       <tbody>
-        <tr><td>home</td><td>house</td><td>home</td><td>search</td><td>magnifyingglass</td><td>search</td></tr>
-        <tr><td>bag</td><td>bag</td><td>shopping_bag</td><td>box</td><td>shippingbox</td><td>package_2</td></tr>
-        <tr><td>user</td><td>person</td><td>person</td><td>pin</td><td>mappin</td><td>location_on</td></tr>
-        <tr><td>down</td><td>chevron.down</td><td>keyboard_arrow_down</td><td>back</td><td>chevron.left</td><td>arrow_back</td></tr>
-        <tr><td>fwd</td><td>chevron.right</td><td>chevron_right</td><td>x</td><td>xmark</td><td>close</td></tr>
-        <tr><td>heart</td><td>heart / heart.fill</td><td>favorite</td><td>share</td><td>square.and.arrow.up</td><td>share</td></tr>
-        <tr><td>plus</td><td>plus</td><td>add</td><td>minus</td><td>minus</td><td>remove</td></tr>
-        <tr><td>star</td><td>star.fill</td><td>star</td><td>truck</td><td>truck.box</td><td>local_shipping</td></tr>
-        <tr><td>clock</td><td>clock</td><td>schedule</td><td>shield</td><td>checkmark.shield</td><td>verified_user</td></tr>
-        <tr><td>check</td><td>checkmark</td><td>check</td><td>scan</td><td>barcode.viewfinder</td><td>barcode_scanner</td></tr>
-        <tr><td>store</td><td>storefront</td><td>storefront</td><td>bell</td><td>bell</td><td>notifications</td></tr>
-        <tr><td>camera</td><td>camera</td><td>photo_camera</td><td>tag</td><td>tag</td><td>sell</td></tr>
-        <tr><td>logout</td><td>rectangle.portrait.and.arrow.right</td><td>logout</td><td>swap</td><td>arrow.left.arrow.right</td><td>swap_horiz</td></tr>
-        <tr><td>mail</td><td>envelope</td><td>mail</td><td>locate</td><td>location</td><td>my_location</td></tr>
-        <tr><td>alert</td><td>exclamationmark.triangle</td><td>warning</td><td>refresh</td><td>arrow.clockwise</td><td>refresh</td></tr>
-        <tr><td>cloud-off</td><td>icloud.slash</td><td>cloud_off</td><td>info</td><td>info.circle</td><td>info</td></tr>
-        <tr><td>flash</td><td>bolt</td><td>flash_on</td><td>lock</td><td>lock</td><td>lock</td></tr>
-        <tr><td>filter</td><td>line.3.horizontal.decrease</td><td>filter_list</td><td>edit</td><td>pencil</td><td>edit</td></tr>
+        <tr><td>home</td><td><code>House</code></td><td>search</td><td><code>Search</code></td><td>bag</td><td><code>ShoppingBag</code></td></tr>
+        <tr><td>box</td><td><code>Package</code></td><td>user</td><td><code>User</code></td><td>pin</td><td><code>MapPin</code></td></tr>
+        <tr><td>down</td><td><code>ChevronDown</code></td><td>back</td><td><code>ChevronLeft</code></td><td>fwd</td><td><code>ChevronRight</code></td></tr>
+        <tr><td>x</td><td><code>X</code></td><td>heart</td><td><code>Heart</code></td><td>share</td><td><code>Share</code></td></tr>
+        <tr><td>plus</td><td><code>Plus</code></td><td>minus</td><td><code>Minus</code></td><td>star</td><td><code>Star</code></td></tr>
+        <tr><td>truck</td><td><code>Truck</code></td><td>clock</td><td><code>Clock</code></td><td>shield</td><td><code>ShieldCheck</code></td></tr>
+        <tr><td>check</td><td><code>Check</code></td><td>scan</td><td><code>ScanBarcode</code></td><td>store</td><td><code>Store</code></td></tr>
+        <tr><td>bell</td><td><code>Bell</code></td><td>camera</td><td><code>Camera</code></td><td>tag</td><td><code>Tag</code></td></tr>
+        <tr><td>logout</td><td><code>LogOut</code></td><td>swap</td><td><code>ArrowLeftRight</code></td><td>mail</td><td><code>Mail</code></td></tr>
+        <tr><td>locate</td><td><code>LocateFixed</code></td><td>alert</td><td><code>TriangleAlert</code></td><td>refresh</td><td><code>RefreshCw</code></td></tr>
+        <tr><td>cloud-off</td><td><code>CloudOff</code></td><td>info</td><td><code>Info</code></td><td>flash</td><td><code>Zap</code></td></tr>
+        <tr><td>lock</td><td><code>Lock</code></td><td>filter</td><td><code>ListFilter</code></td><td>edit</td><td><code>Pencil</code></td></tr>
       </tbody>
     </table></div>
   </div>
@@ -1458,7 +1458,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <h3>Android, and the tab bar <span class="cap-tag">Decision</span></h3>
       <ul>
         <li>On Android, values are in dp, the same numbers as pt. The layout runs edge to edge under transparent system bars. The system back gesture does what the header's back button does, and press feedback is a ripple.</li>
-        <li>Both apps use native tabs (<code>NativeTabs</code>): Liquid Glass on iOS 26 and Material on Android. Native tabs can't take the drawn floating bar's 24pt corners and custom fill. <b>Recommended:</b> keep native tabs, and read the drawn tab bar as showing order, labels and icons only.</li>
+        <li>Both apps use native tabs (<code>NativeTabs</code>): Liquid Glass on iOS 26 and Material on Android. Native tabs can't take the drawn floating bar's 24pt corners and custom fill, and they draw their icons from SF Symbols and Material Symbols, not Lucide. <b>Recommended:</b> keep native tabs, and accept that the five tab icons are the platform's while every other icon is Lucide. The alternative is a custom tab bar drawn in JavaScript: it matches the mockup and uses Lucide throughout, but it loses the native look, behaviour and accessibility for free.</li>
       </ul>
     </div>
   </div>
