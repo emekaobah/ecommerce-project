@@ -87,7 +87,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .pc h4{margin:0; font-size:13px; font-family:var(--f-mono); text-transform:uppercase; letter-spacing:.06em; font-weight:500}
 @media (max-width:560px){ .pc{grid-template-columns:1fr} }
 .pill{justify-self:start; display:inline-block; font-family:var(--f-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding:4px 10px; border-radius:999px; background:var(--accent-soft); color:var(--accent)}
-.phones{display:flex; gap:22px; overflow-x:auto; padding:8px 4px 18px; scroll-snap-type:x proximity}
+.phones{display:flex; gap:24px; overflow-x:auto; padding:8px 4px 16px; scroll-snap-type:x proximity}
 .ph-wrap{flex:0 0 auto; display:grid; gap:10px; scroll-snap-align:start}
 .ph-cap{font-size:13px; color:var(--muted); max-width:300px; line-height:1.45}
 .ph-cap b{color:var(--fg)}
@@ -96,7 +96,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .note{font-size:14px; color:var(--muted); border-left:3px solid var(--line); padding-left:14px}
 
 /* ============ PHONE SHELL (a fixed rendering of app screens; colours scoped per direction) ============ */
-.phone{width:300px; height:640px; border-radius:40px; padding:9px; background:#0D0E12; box-shadow:0 1px 0 #2a2c33 inset, 0 24px 48px -24px rgba(10,12,20,.45)}
+.phone{width:300px; height:640px; border-radius:40px; padding:8px; background:#0D0E12; box-shadow:0 1px 0 #2a2c33 inset, 0 24px 48px -24px rgba(10,12,20,.45)}
 .scr{position:relative; width:100%; height:100%; border-radius:32px; overflow:hidden; background:var(--p-bg); color:var(--p-ink); font-family:var(--p-body); font-size:13px; line-height:1.35}
 .sb{height:38px; display:flex; justify-content:space-between; align-items:center; padding:0 24px 0 28px; font-weight:700; font-size:13px; font-family:-apple-system, "SF Pro Text", system-ui, sans-serif; position:relative; z-index:3}
 .sb .dots{display:flex; gap:5px; align-items:center}
@@ -202,86 +202,86 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B{--p-bg:#FFFFFF; --p-ink:#12162B; --p-muted:#5B6178; --p-tile:#EEF0F7; --p-line:#DDE1EE; --p-indigo:#1B2559; --p-indigo2:#2E3D8F; --p-sun:#F2B33D; --p-leaf:#1E7A4C;
   --p-tab:#FFFFFF; --p-tabink:#5B6178; --p-tabon:#1B2559; --p-btn:#1B2559; --p-btnink:#FFFFFF; --p-btnr:16px; --p-body:"Manrope", system-ui, sans-serif}
 .B .disp{font-family:"Bricolage Grotesque", "Manrope", sans-serif}
-.B .band{background:var(--p-indigo); color:#fff; position:relative; overflow:hidden; padding:2px 16px 16px; display:grid; gap:10px}
+.B .band{background:var(--p-indigo); color:#fff; position:relative; overflow:hidden; padding:2px 16px 16px; display:grid; gap:8px}
 .B .band svg.pat{position:absolute; inset:0; width:100%; height:100%; opacity:.5}
 .B .band > *{position:relative}
 .B .scr.bandtop{background:var(--p-indigo)}
 .B .scr.bandtop .sb{color:#fff}
 .B .greet{font-size:22px; font-weight:800; letter-spacing:-.01em; line-height:1.1}
-.B .addr{display:flex; gap:6px; align-items:center; font-size:12px; opacity:.9}
-.B .search{height:44px; border-radius:14px; background:#fff; color:var(--p-muted); display:flex; align-items:center; gap:8px; padding:0 14px; font-weight:600}
-.B .sheet{background:#fff; border-radius:22px 22px 0 0; margin-top:-14px; position:relative; padding-top:14px}
-.B .cats{display:flex; gap:12px; padding:0 16px 14px; overflow:hidden}
-.B .cat{flex:none; width:60px; display:grid; justify-items:center; gap:5px; font-size:11px; font-weight:700}
+.B .addr{display:flex; gap:8px; align-items:center; font-size:11.5px; opacity:.9}
+.B .search{height:44px; border-radius:12px; background:#fff; color:var(--p-muted); display:flex; align-items:center; gap:8px; padding:0 16px; font-weight:600}
+.B .sheet{background:#fff; border-radius:20px 20px 0 0; margin-top:-16px; position:relative; padding-top:16px}
+.B .cats{display:flex; gap:12px; padding:0 16px 16px; overflow:hidden}
+.B .cat{flex:none; width:60px; display:grid; justify-items:center; gap:4px; font-size:11.5px; font-weight:700}
 .B .cat .ph{width:60px; height:60px; border-radius:50%; overflow:hidden; background:var(--p-tile); border:2px solid #fff; box-shadow:0 0 0 1.5px var(--p-line)}
-.B .sec{padding:4px 16px 10px; display:flex; justify-content:space-between; align-items:baseline}
-.B .sec h5{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:19px; font-weight:800; letter-spacing:-.01em}
-.B .sec a{font-size:12px; font-weight:700; color:var(--p-indigo2); text-decoration:none}
+.B .sec{padding:4px 16px 8px; display:flex; justify-content:space-between; align-items:baseline}
+.B .sec h5{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:18px; font-weight:800; letter-spacing:-.01em}
+.B .sec a{font-size:11.5px; font-weight:700; color:var(--p-indigo2); text-decoration:none}
 .B .shops{display:flex; gap:12px; padding:0 16px 16px; overflow:hidden}
-.B .shopc{flex:none; width:210px; border-radius:18px; overflow:hidden; border:1px solid var(--p-line); background:#fff}
+.B .shopc{flex:none; width:210px; border-radius:16px; overflow:hidden; border:1px solid var(--p-line); background:#fff}
 .B .shopc .ph{height:92px; position:relative}
 .B .shopc .av{position:absolute; left:12px; bottom:-16px; width:36px; height:36px; border-radius:12px; background:var(--p-indigo); color:#fff; display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:14px; border:2px solid #fff}
-.B .shopc .tx{padding:20px 12px 12px; display:grid; gap:3px}
+.B .shopc .tx{padding:20px 12px 12px; display:grid; gap:4px}
 .B .shopc b{font-size:14px; font-weight:800}
-.B .shopc small{font-size:11px; color:var(--p-muted); display:flex; gap:6px; align-items:center}
+.B .shopc small{font-size:11.5px; color:var(--p-muted); display:flex; gap:8px; align-items:center}
 .B .stat{font-size:10.5px; font-weight:800; color:var(--p-leaf); display:inline-flex; gap:4px; align-items:center}
 .B .stat i{width:6px; height:6px; border-radius:50%; background:currentColor}
-.B .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 10px; padding:0 16px}
-.B .pcard{display:grid; gap:3px}
-.B .pcard .ph{aspect-ratio:1; border-radius:18px; overflow:hidden; background:var(--p-tile); position:relative}
+.B .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 8px; padding:0 16px}
+.B .pcard{display:grid; gap:4px}
+.B .pcard .ph{aspect-ratio:1; border-radius:16px; overflow:hidden; background:var(--p-tile); position:relative}
 .B .pcard .p{font-weight:800; font-size:14px}
-.B .pcard .n{font-size:12px; font-weight:600}
-.B .add{position:absolute; right:8px; bottom:8px; width:30px; height:30px; border-radius:10px; background:var(--p-indigo); color:#fff; display:grid; place-items:center}
+.B .pcard .n{font-size:11.5px; font-weight:600}
+.B .add{position:absolute; right:8px; bottom:8px; width:30px; height:30px; border-radius:12px; background:var(--p-indigo); color:#fff; display:grid; place-items:center}
 .B .add .ico{width:16px; height:16px; stroke-width:2.4}
 /* B product */
-.B .hero{height:240px; background:var(--p-tile); position:relative; border-radius:0 0 28px 28px; overflow:hidden}
+.B .hero{height:240px; background:var(--p-tile); position:relative; border-radius:0 0 24px 24px; overflow:hidden}
 .B .hero .tb{position:absolute; top:4px; left:12px; right:12px; display:flex; justify-content:space-between; z-index:2}
 .B .round{width:36px; height:36px; border-radius:12px; background:#fff; display:grid; place-items:center}
-.B .pd{padding:12px 16px; display:grid; gap:10px}
-.B .shopline{display:inline-flex; gap:8px; align-items:center; font-size:12px; font-weight:700; color:var(--p-indigo2)}
-.B .shopline .av{width:22px; height:22px; border-radius:7px; background:var(--p-indigo); color:#fff; display:grid; place-items:center; font-size:10px; font-family:"Bricolage Grotesque", sans-serif}
-.B .pd h4{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:24px; font-weight:800; letter-spacing:-.015em; line-height:1.05}
+.B .pd{padding:12px 16px; display:grid; gap:8px}
+.B .shopline{display:inline-flex; gap:8px; align-items:center; font-size:11.5px; font-weight:700; color:var(--p-indigo2)}
+.B .shopline .av{width:22px; height:22px; border-radius:8px; background:var(--p-indigo); color:#fff; display:grid; place-items:center; font-size:10.5px; font-family:"Bricolage Grotesque", sans-serif}
+.B .pd h4{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:800; letter-spacing:-.015em; line-height:1.05}
 .B .price{font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:800}
 .B .facts{display:grid; grid-template-columns:1fr 1fr; gap:8px}
-.B .fact{background:var(--p-tile); border-radius:14px; padding:10px; display:grid; gap:2px; font-size:11px; color:var(--p-muted)}
+.B .fact{background:var(--p-tile); border-radius:12px; padding:8px; display:grid; gap:2px; font-size:11.5px; color:var(--p-muted)}
 .B .fact b{font-size:13px; color:var(--p-ink)}
-.B .trust{display:flex; gap:10px; align-items:flex-start; font-size:11.5px; color:var(--p-muted); border:1px dashed var(--p-line); border-radius:14px; padding:10px}
+.B .trust{display:flex; gap:8px; align-items:flex-start; font-size:11.5px; color:var(--p-muted); border:1px dashed var(--p-line); border-radius:12px; padding:8px}
 .B .trust .ico{color:var(--p-leaf)}
 .B .trust b{color:var(--p-ink)}
 /* B checkout */
-.B .hdr{display:flex; align-items:center; gap:10px; padding:2px 16px 10px}
+.B .hdr{display:flex; align-items:center; gap:8px; padding:2px 16px 8px}
 .B .hdr b{font-family:"Bricolage Grotesque", sans-serif; font-size:20px; font-weight:800}
 .B .prog{display:flex; gap:4px; padding:0 16px 12px}
 .B .prog i{flex:1; height:4px; border-radius:2px; background:var(--p-line)}
 .B .prog i.on{background:var(--p-indigo)}
-.B .card{margin:0 16px 8px; border:1px solid var(--p-line); border-radius:18px; padding:10px; display:grid; gap:6px}
+.B .card{margin:0 16px 8px; border:1px solid var(--p-line); border-radius:16px; padding:8px; display:grid; gap:8px}
 .B .card .lbl{font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--p-muted)}
-.B .opt{display:grid; grid-template-columns:18px 1fr auto; gap:8px; align-items:center; padding:6px 10px; border-radius:12px; border:1.5px solid var(--p-line); font-size:12px}
+.B .opt{display:grid; grid-template-columns:18px 1fr auto; gap:8px; align-items:center; padding:8px 8px; border-radius:12px; border:1.5px solid var(--p-line); font-size:11.5px}
 .B .opt.on{border-color:var(--p-indigo); background:#F4F5FB}
 .B .opt .rb{width:16px; height:16px; border-radius:50%; border:1.5px solid var(--p-line)}
 .B .opt.on .rb{border:5px solid var(--p-indigo)}
-.B .opt b{display:block; font-size:12.5px}
-.B .opt small{color:var(--p-muted); font-size:11px}
-.B .opt .pr{font-weight:800; font-size:12.5px}
-.B .tot{margin:0 16px; display:grid; gap:4px; font-size:12px; color:var(--p-muted)}
+.B .opt b{display:block; font-size:13px}
+.B .opt small{color:var(--p-muted); font-size:11.5px}
+.B .opt .pr{font-weight:800; font-size:13px}
+.B .tot{margin:0 16px; display:grid; gap:4px; font-size:11.5px; color:var(--p-muted)}
 .B .tot div{display:flex; justify-content:space-between}
-.B .tot .big{color:var(--p-ink); font-weight:800; font-size:14px; padding-top:6px; border-top:1px solid var(--p-line)}
+.B .tot .big{color:var(--p-ink); font-weight:800; font-size:14px; padding-top:8px; border-top:1px solid var(--p-line)}
 /* B vendor pick list */
-.B .vband{background:var(--p-indigo); color:#fff; padding:2px 16px 14px; position:relative; overflow:hidden; display:grid; gap:8px}
+.B .vband{background:var(--p-indigo); color:#fff; padding:2px 16px 16px; position:relative; overflow:hidden; display:grid; gap:8px}
 .B .vband > *{position:relative}
 .B .vband .pat{position:absolute; inset:0; width:100%; height:100%; opacity:.45}
-.B .vband .big{font-family:"Bricolage Grotesque", sans-serif; font-size:24px; font-weight:800; line-height:1.05}
-.B .ring{display:flex; gap:12px; align-items:center; font-size:12px}
+.B .vband .big{font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:800; line-height:1.05}
+.B .ring{display:flex; gap:12px; align-items:center; font-size:11.5px}
 .B .ring .meter{flex:1; height:8px; border-radius:4px; background:rgba(255,255,255,.2); overflow:hidden}
 .B .ring .meter i{display:block; height:100%; width:60%; background:var(--p-sun)}
-.B .pick{display:grid; grid-template-columns:24px 50px 1fr auto; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--p-line)}
+.B .pick{display:grid; grid-template-columns:24px 50px 1fr auto; gap:8px; align-items:center; padding:8px 16px; border-bottom:1px solid var(--p-line)}
 .B .pick .cb{width:24px; height:24px; border-radius:8px; border:2px solid var(--p-line); display:grid; place-items:center}
 .B .pick.done .cb{background:var(--p-leaf); border-color:var(--p-leaf); color:#fff}
 .B .pick.done .nm{text-decoration:line-through; color:var(--p-muted)}
 .B .pick .ph{width:50px; height:50px; border-radius:12px; overflow:hidden; background:var(--p-tile)}
 .B .pick b{font-size:13px; display:block}
-.B .pick small{font-size:11px; color:var(--p-muted)}
-.B .pick .q{font-family:"Bricolage Grotesque", sans-serif; font-size:16px; font-weight:800}
+.B .pick small{font-size:11.5px; color:var(--p-muted)}
+.B .pick .q{font-family:"Bricolage Grotesque", sans-serif; font-size:14px; font-weight:800}
 .B .pick.short .q{color:#A1520E}
 .B .scanbtn{position:absolute; left:12px; right:12px; bottom:14px; display:flex; gap:8px; z-index:4}
 .B .scanbtn span{height:52px; border-radius:16px; display:flex; align-items:center; justify-content:center; gap:8px; font-weight:800; font-size:14px}
@@ -385,30 +385,30 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .steal ul{margin:0; padding-left:18px; color:var(--muted); font-size:15px; display:grid; gap:4px}
 
 /* B: search */
-.B .sbar{padding:2px 16px 10px; display:grid; gap:10px}
-.B .sfield{height:44px; border-radius:14px; border:1.5px solid var(--p-indigo); display:flex; align-items:center; gap:8px; padding:0 12px; font-weight:700}
-.B .sfield .x{margin-left:auto; color:var(--p-muted); font-size:16px}
-.B .fchips{display:flex; gap:6px; overflow:hidden}
-.B .fchip{flex:none; height:30px; padding:0 12px; border-radius:10px; background:var(--p-tile); display:flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700}
+.B .sbar{padding:2px 16px 8px; display:grid; gap:8px}
+.B .sfield{height:44px; border-radius:12px; border:1.5px solid var(--p-indigo); display:flex; align-items:center; gap:8px; padding:0 12px; font-weight:700}
+.B .sfield .x{margin-left:auto; color:var(--p-muted); font-size:14px}
+.B .fchips{display:flex; gap:8px; overflow:hidden}
+.B .fchip{flex:none; height:30px; padding:0 12px; border-radius:12px; background:var(--p-tile); display:flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700}
 .B .fchip.on{background:var(--p-indigo); color:#fff}
-.B .mono{width:32px; height:32px; border-radius:10px; background:var(--p-indigo); color:#fff; display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:12px; flex:none}
-.B .rshop{padding:10px 16px 4px; display:flex; gap:10px; align-items:center}
-.B .rshop b{font-size:13.5px; display:block}
-.B .rshop small{font-size:11px; color:var(--p-muted); display:flex; gap:6px; align-items:center}
-.B .rshop .more{margin-left:auto; font-size:12px; font-weight:700; color:var(--p-indigo2)}
-.B .rrail{display:flex; gap:10px; padding:6px 16px 12px; overflow:hidden}
-.B .rc{flex:none; width:118px; display:grid; gap:3px}
+.B .mono{width:32px; height:32px; border-radius:12px; background:var(--p-indigo); color:#fff; display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:11.5px; flex:none}
+.B .rshop{padding:8px 16px 4px; display:flex; gap:8px; align-items:center}
+.B .rshop b{font-size:13px; display:block}
+.B .rshop small{font-size:11.5px; color:var(--p-muted); display:flex; gap:8px; align-items:center}
+.B .rshop .more{margin-left:auto; font-size:11.5px; font-weight:700; color:var(--p-indigo2)}
+.B .rrail{display:flex; gap:8px; padding:8px 16px 12px; overflow:hidden}
+.B .rc{flex:none; width:118px; display:grid; gap:4px}
 .B .rc .ph{height:118px; border-radius:16px; overflow:hidden; background:var(--p-tile)}
 .B .rc .p{font-weight:800; font-size:13px}
 .B .rc .n{font-size:11.5px; font-weight:600}
 .B .divider{height:8px; background:var(--p-tile)}
 /* B: tracking */
-.B .tcard{margin:0 16px 10px; border:1px solid var(--p-line); border-radius:18px; padding:12px; display:grid; gap:9px; background:#fff}
+.B .tcard{margin:0 16px 8px; border:1px solid var(--p-line); border-radius:16px; padding:12px; display:grid; gap:8px; background:#fff}
 .B .tcard .hd{display:flex; gap:8px; align-items:center}
 .B .tcard .hd b{font-size:13px; display:block}
-.B .tcard .hd small{font-size:11px; color:var(--p-muted)}
-.B .tcard .mono{width:28px; height:28px; border-radius:9px; font-size:11px}
-.B .tag{margin-left:auto; font-size:10.5px; font-weight:800; padding:4px 9px; border-radius:999px; background:var(--p-tile); color:var(--p-indigo); white-space:nowrap}
+.B .tcard .hd small{font-size:11.5px; color:var(--p-muted)}
+.B .tcard .mono{width:28px; height:28px; border-radius:8px; font-size:11.5px}
+.B .tag{margin-left:auto; font-size:10.5px; font-weight:800; padding:4px 8px; border-radius:999px; background:var(--p-tile); color:var(--p-indigo); white-space:nowrap}
 .B .tag.go{background:#E3F2EA; color:var(--p-leaf)}
 .B .tsteps{display:flex; align-items:center}
 .B .tsteps i{width:12px; height:12px; border-radius:50%; background:var(--p-line); flex:none}
@@ -416,27 +416,27 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .tsteps i.now{background:#fff; border:3px solid var(--p-leaf)}
 .B .tsteps s{flex:1; height:2px; background:var(--p-line)}
 .B .tsteps s.on{background:var(--p-leaf)}
-.B .tlab{display:flex; justify-content:space-between; font-size:10px; color:var(--p-muted); font-weight:700}
-.B .bcode{background:var(--p-indigo); color:#fff; border-radius:16px; padding:10px; display:grid; grid-template-columns:76px 1fr; gap:12px; align-items:center; position:relative; overflow:hidden}
+.B .tlab{display:flex; justify-content:space-between; font-size:10.5px; color:var(--p-muted); font-weight:700}
+.B .bcode{background:var(--p-indigo); color:#fff; border-radius:16px; padding:8px; display:grid; grid-template-columns:76px 1fr; gap:12px; align-items:center; position:relative; overflow:hidden}
 .B .bcode > *{position:relative}
 .B .bcode .pat{position:absolute; inset:0; width:100%; height:100%; opacity:.35}
-.B .bcode .qr{width:76px; height:76px; background:#fff; border-radius:10px; padding:6px}
+.B .bcode .qr{width:76px; height:76px; background:#fff; border-radius:12px; padding:8px}
 .B .bcode b{font-family:"Bricolage Grotesque", sans-serif; font-size:22px; letter-spacing:.08em; white-space:nowrap}
 .B .bcode small{display:block; font-size:10.5px; opacity:.85; line-height:1.35}
 /* B: new-order takeover */
 .B .scr.indigo{background:var(--p-indigo); color:#fff}
-.B .na{position:absolute; inset:38px 0 0; padding:10px 18px 18px; display:flex; flex-direction:column; gap:14px; overflow:hidden}
+.B .na{position:absolute; inset:38px 0 0; padding:8px 16px 16px; display:flex; flex-direction:column; gap:16px; overflow:hidden}
 .B .na .pat{position:absolute; inset:0; width:100%; height:100%; opacity:.35}
 .B .na > :not(.pat){position:relative}
-.B .na .lbl{font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; opacity:.85}
-.B .na .big{font-family:"Bricolage Grotesque", sans-serif; font-size:32px; font-weight:800; line-height:1}
-.B .na .money{font-family:"Bricolage Grotesque", sans-serif; font-size:24px; font-weight:800}
-.B .na .list{background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); border-radius:18px; padding:12px; display:grid; gap:8px; font-size:12.5px}
+.B .na .lbl{font-size:11.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; opacity:.85}
+.B .na .big{font-family:"Bricolage Grotesque", sans-serif; font-size:34px; font-weight:800; line-height:1}
+.B .na .money{font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:800}
+.B .na .list{background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); border-radius:16px; padding:12px; display:grid; gap:8px; font-size:13px}
 .B .na .list div{display:flex; justify-content:space-between}
-.B .na .dl{display:grid; gap:6px; font-size:12px; font-weight:700}
+.B .na .dl{display:grid; gap:8px; font-size:11.5px; font-weight:700}
 .B .na .meter{height:8px; border-radius:4px; background:rgba(255,255,255,.2); overflow:hidden}
 .B .na .meter i{display:block; height:100%; width:98%; background:var(--p-sun)}
-.B .na .acc{margin-top:auto; height:60px; border-radius:18px; background:#fff; color:var(--p-indigo); display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:18px}
+.B .na .acc{margin-top:auto; height:60px; border-radius:16px; background:#fff; color:var(--p-indigo); display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:18px}
 .B .na .rej{text-align:center; font-weight:700; font-size:13px; opacity:.85}
 
 /* C: search */
@@ -512,16 +512,16 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
 /* generic B parts */
 .B .disp{font-family:"Bricolage Grotesque", "Manrope", sans-serif}
-.B .navh{display:flex; align-items:center; gap:10px; padding:2px 16px 10px}
+.B .navh{display:flex; align-items:center; gap:8px; padding:2px 16px 8px}
 .B .navh b{font-family:"Bricolage Grotesque", sans-serif; font-size:20px; font-weight:800}
 .B .navh .r{margin-left:auto; display:flex; gap:12px; align-items:center}
-.B .bigt{font-family:"Bricolage Grotesque", sans-serif; font-size:26px; font-weight:800; letter-spacing:-.015em; line-height:1.05; padding:2px 16px 10px}
-.B .lbl2{padding:14px 16px 6px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--p-muted)}
-.B .lrow{display:flex; gap:12px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--p-line)}
+.B .bigt{font-family:"Bricolage Grotesque", sans-serif; font-size:26px; font-weight:800; letter-spacing:-.015em; line-height:1.05; padding:2px 16px 8px}
+.B .lbl2{padding:16px 16px 8px; font-size:10.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--p-muted)}
+.B .lrow{display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--p-line)}
 .B .lrow .ic{width:36px; height:36px; border-radius:12px; background:var(--p-tile); display:grid; place-items:center; color:var(--p-indigo); flex:none}
-.B .lrow b{font-size:13.5px; display:block}
+.B .lrow b{font-size:13px; display:block}
 .B .lrow small{font-size:11.5px; color:var(--p-muted); display:block}
-.B .lrow .chev{margin-left:auto; color:var(--p-muted); display:flex; align-items:center; gap:6px; font-size:12px}
+.B .lrow .chev{margin-left:auto; color:var(--p-muted); display:flex; align-items:center; gap:8px; font-size:11.5px}
 .B .btn{height:48px; border-radius:16px; display:flex; align-items:center; justify-content:center; gap:8px; font-weight:800; font-size:14px}
 .B .btn.pri{background:var(--p-indigo); color:#fff}
 .B .btn.sec{background:var(--p-tile); color:var(--p-ink)}
@@ -530,23 +530,23 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .btn.danger{background:#B42318; color:#fff}
 .B .btn.dtext{color:#B42318; background:#FBEAE8}
 .B .btn.leaf{background:var(--p-leaf); color:#fff}
-.B .pad{padding:0 16px; display:grid; gap:10px}
-.B .field{display:grid; gap:5px}
-.B .field label{font-size:11px; font-weight:700; color:var(--p-muted)}
+.B .pad{padding:0 16px; display:grid; gap:8px}
+.B .field{display:grid; gap:4px}
+.B .field label{font-size:11.5px; font-weight:700; color:var(--p-muted)}
 .B .field label em{font-style:normal; font-weight:600; opacity:.8}
-.B .inp{height:46px; border:1.5px solid var(--p-line); border-radius:14px; padding:0 12px; display:flex; align-items:center; gap:8px; font-weight:600; font-size:13px}
+.B .inp{height:46px; border:1.5px solid var(--p-line); border-radius:12px; padding:0 12px; display:flex; align-items:center; gap:8px; font-weight:600; font-size:13px}
 .B .inp.focus{border-color:var(--p-indigo); box-shadow:0 0 0 3px #E3E6F3}
 .B .inp.ph{color:#9AA0B4}
-.B .hint{font-size:11px; color:var(--p-muted)}
-.B .ta{min-height:84px; border:1.5px solid var(--p-line); border-radius:14px; padding:10px 12px; font-size:12.5px; line-height:1.45}
+.B .hint{font-size:11.5px; color:var(--p-muted)}
+.B .ta{min-height:84px; border:1.5px solid var(--p-line); border-radius:12px; padding:8px 12px; font-size:13px; line-height:1.45}
 .B .dim{position:absolute; inset:0; background:rgba(18,22,43,.5); z-index:5}
-.B .bsheet{position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:24px 24px 0 0; padding:8px 16px 18px; display:grid; gap:10px; z-index:6}
+.B .bsheet{position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:24px 24px 0 0; padding:8px 16px 16px; display:grid; gap:8px; z-index:6}
 .B .grab{width:36px; height:4px; border-radius:2px; background:var(--p-line); justify-self:center}
 .B .bsheet h4{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:20px; font-weight:800; line-height:1.15}
-.B .bsheet p{margin:0; font-size:12.5px; color:var(--p-muted)}
-.B .toast{position:absolute; left:12px; right:12px; top:44px; background:#12162B; color:#fff; border-radius:14px; padding:10px 12px; font-size:12px; display:flex; gap:8px; align-items:center; z-index:7; font-weight:600}
+.B .bsheet p{margin:0; font-size:13px; color:var(--p-muted)}
+.B .toast{position:absolute; left:12px; right:12px; top:44px; background:#12162B; color:#fff; border-radius:12px; padding:8px 12px; font-size:11.5px; display:flex; gap:8px; align-items:center; z-index:7; font-weight:600}
 .B .toast .ico{color:#8FD3AE}
-.B .chip{font-size:10.5px; font-weight:800; padding:4px 9px; border-radius:999px; display:inline-flex; gap:4px; align-items:center; white-space:nowrap}
+.B .chip{font-size:10.5px; font-weight:800; padding:4px 8px; border-radius:999px; display:inline-flex; gap:4px; align-items:center; white-space:nowrap}
 .B .chip .ico{width:12px; height:12px; stroke-width:2.2}
 .B .c-new{background:#FDF1D8; color:#7A4E00}
 .B .c-go{background:#E3F2EA; color:var(--p-leaf)}
@@ -557,90 +557,90 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .qp{font-family:"Bricolage Grotesque", sans-serif; font-size:14px; font-weight:800; min-width:46px; height:32px; border-radius:999px; display:grid; place-items:center; background:var(--p-tile); padding:0 8px}
 .B .qp.ok{background:var(--p-leaf); color:#fff}
 .B .qp.short{background:#B4531A; color:#fff}
-.B .cd{font-size:11px; font-weight:800; background:var(--p-sun); color:#12162B; padding:4px 9px; border-radius:999px; white-space:nowrap}
-.B .emblem{width:112px; height:112px; border-radius:34px; background:var(--p-indigo); position:relative; overflow:hidden; display:grid; place-items:center; color:#fff}
+.B .cd{font-size:11.5px; font-weight:800; background:var(--p-sun); color:#12162B; padding:4px 8px; border-radius:999px; white-space:nowrap}
+.B .emblem{width:112px; height:112px; border-radius:24px; background:var(--p-indigo); position:relative; overflow:hidden; display:grid; place-items:center; color:#fff}
 .B .emblem .pat{position:absolute; inset:0; width:100%; height:100%; opacity:.55}
 .B .emblem .ico{width:40px; height:40px; position:relative; stroke-width:1.6}
 .B .empty{display:grid; justify-items:center; text-align:center; gap:12px; padding:56px 28px 0}
 .B .empty h4{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:800}
 .B .empty p{margin:0; color:var(--p-muted); font-size:13px}
-.B .sw2{width:44px; height:26px; border-radius:13px; background:var(--p-leaf); position:relative; flex:none}
+.B .sw2{width:44px; height:26px; border-radius:12px; background:var(--p-leaf); position:relative; flex:none}
 .B .sw2::after{content:""; position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:50%; background:#fff}
 .B .sw2.off{background:#C9CDDA}
 .B .sw2.off::after{right:auto; left:3px}
 .B .rb2{width:18px; height:18px; border-radius:50%; border:1.5px solid var(--p-line); flex:none}
 .B .rb2.on{border:5px solid var(--p-indigo)}
-.B .radio{display:flex; gap:10px; align-items:center; padding:11px 12px; border:1.5px solid var(--p-line); border-radius:14px; font-size:13px; font-weight:600}
+.B .radio{display:flex; gap:8px; align-items:center; padding:12px 12px; border:1.5px solid var(--p-line); border-radius:12px; font-size:13px; font-weight:600}
 .B .radio.on{border-color:var(--p-indigo); background:#F4F5FB}
-.B .avatar{width:56px; height:56px; border-radius:18px; background:var(--p-sun); color:#12162B; display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:20px; flex:none}
-.B .mono{width:32px; height:32px; border-radius:10px; background:var(--p-indigo); color:#fff; display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:12px; flex:none}
+.B .avatar{width:56px; height:56px; border-radius:16px; background:var(--p-sun); color:#12162B; display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:20px; flex:none}
+.B .mono{width:32px; height:32px; border-radius:12px; background:var(--p-indigo); color:#fff; display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:11.5px; flex:none}
 .B .mono.lg{width:52px; height:52px; border-radius:16px; font-size:18px; border:3px solid #fff}
-.B .sumrow{display:flex; justify-content:space-between; font-size:12.5px; color:var(--p-muted)}
+.B .sumrow{display:flex; justify-content:space-between; font-size:13px; color:var(--p-muted)}
 .B .sumrow b{color:var(--p-ink)}
-.B .sumrow.total{font-size:15px; color:var(--p-ink); font-weight:800; border-top:1px solid var(--p-line); padding-top:8px}
+.B .sumrow.total{font-size:14px; color:var(--p-ink); font-weight:800; border-top:1px solid var(--p-line); padding-top:8px}
 .B .sumrow.total b{font-family:"Bricolage Grotesque", sans-serif; font-size:18px}
-.B .note2{display:flex; gap:8px; align-items:flex-start; font-size:11.5px; color:var(--p-muted); background:var(--p-tile); border-radius:12px; padding:9px 10px}
+.B .note2{display:flex; gap:8px; align-items:flex-start; font-size:11.5px; color:var(--p-muted); background:var(--p-tile); border-radius:12px; padding:8px 8px}
 .B .note2 .ico{width:16px; height:16px; flex:none; color:var(--p-indigo)}
 .B .note2.warn{background:#FBEDE3; color:#7A3A12}
 .B .note2.warn .ico{color:#B4531A}
 .B .note2 b{color:inherit}
-.B .lines{display:grid; gap:10px}
-.B .ln{display:grid; grid-template-columns:48px 1fr auto; gap:10px; align-items:center}
+.B .lines{display:grid; gap:8px}
+.B .ln{display:grid; grid-template-columns:48px 1fr auto; gap:8px; align-items:center}
 .B .ln .ph{width:48px; height:48px; border-radius:12px; overflow:hidden; background:var(--p-tile)}
-.B .ln b{font-size:12.5px; display:block}
-.B .ln small{font-size:11px; color:var(--p-muted)}
-.B .ln .pr{font-weight:800; font-size:12.5px}
+.B .ln b{font-size:13px; display:block}
+.B .ln small{font-size:11.5px; color:var(--p-muted)}
+.B .ln .pr{font-weight:800; font-size:13px}
 .B .step{border-color:var(--p-line)}
-.B .card2{margin:0 16px 10px; border:1px solid var(--p-line); border-radius:18px; padding:12px; display:grid; gap:10px; background:#fff}
+.B .card2{margin:0 16px 8px; border:1px solid var(--p-line); border-radius:16px; padding:12px; display:grid; gap:8px; background:#fff}
 .B .card2 .hd{display:flex; gap:8px; align-items:center}
-.B .card2 .hd b{font-size:13.5px; display:block}
-.B .card2 .hd small{font-size:11px; color:var(--p-muted); display:block}
+.B .card2 .hd b{font-size:13px; display:block}
+.B .card2 .hd small{font-size:11.5px; color:var(--p-muted); display:block}
 .B .card2 .hd .end{margin-left:auto}
 .B .scrollfade{position:absolute; left:0; right:0; bottom:0; height:96px; background:linear-gradient(rgba(255,255,255,0), #fff 60%); z-index:3}
 
 /* sign in */
 .B .signin{position:absolute; inset:0; display:flex; flex-direction:column}
-.B .signin .top{flex:1; background:var(--p-indigo); color:#fff; position:relative; overflow:hidden; padding:70px 22px 26px; display:flex; flex-direction:column; justify-content:flex-end; gap:10px}
+.B .signin .top{flex:1; background:var(--p-indigo); color:#fff; position:relative; overflow:hidden; padding:72px 24px 24px; display:flex; flex-direction:column; justify-content:flex-end; gap:8px}
 .B .signin .top .pat{position:absolute; inset:0; width:100%; height:100%; opacity:.5}
 .B .signin .top > :not(.pat){position:relative}
 .B .wordmark{font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:44px; letter-spacing:-.03em; line-height:1}
-.B .signin .top p{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:24px; font-weight:700; line-height:1.1}
-.B .signin .bot{padding:18px 16px 24px; display:grid; gap:10px; background:#fff}
-.B .signin .bot small{text-align:center; font-size:11px; color:var(--p-muted)}
-.B .glyph{width:18px; height:18px; border-radius:50%; display:grid; place-items:center; font-size:11px; font-weight:800}
+.B .signin .top p{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:700; line-height:1.1}
+.B .signin .bot{padding:16px 16px 24px; display:grid; gap:8px; background:#fff}
+.B .signin .bot small{text-align:center; font-size:11.5px; color:var(--p-muted)}
+.B .glyph{width:18px; height:18px; border-radius:50%; display:grid; place-items:center; font-size:11.5px; font-weight:800}
 
 /* shop page */
 .B .cover{height:150px; position:relative}
 .B .cover .tb{position:absolute; top:4px; left:12px; right:12px; display:flex; justify-content:space-between}
-.B .shophd{padding:0 16px 10px; margin-top:-26px; position:relative; display:grid; gap:6px}
+.B .shophd{padding:0 16px 8px; margin-top:-24px; position:relative; display:grid; gap:8px}
 .B .shophd h4{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:800; line-height:1.05}
-.B .shophd .meta2{display:flex; flex-wrap:wrap; gap:6px; font-size:11.5px; color:var(--p-muted); align-items:center}
-.B .tabs{display:flex; gap:18px; padding:0 16px; border-bottom:1px solid var(--p-line); font-size:13px; font-weight:700; color:var(--p-muted)}
-.B .tabs span{padding:10px 0}
+.B .shophd .meta2{display:flex; flex-wrap:wrap; gap:8px; font-size:11.5px; color:var(--p-muted); align-items:center}
+.B .tabs{display:flex; gap:16px; padding:0 16px; border-bottom:1px solid var(--p-line); font-size:13px; font-weight:700; color:var(--p-muted)}
+.B .tabs span{padding:8px 0}
 .B .tabs span.on{color:var(--p-ink); box-shadow:inset 0 -2.5px 0 var(--p-indigo)}
 
 /* category */
-.B .subcats{display:flex; gap:6px; padding:0 16px 10px; overflow:hidden}
-.B .fchip{flex:none; height:30px; padding:0 12px; border-radius:10px; background:var(--p-tile); display:flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700}
+.B .subcats{display:flex; gap:8px; padding:0 16px 8px; overflow:hidden}
+.B .fchip{flex:none; height:30px; padding:0 12px; border-radius:12px; background:var(--p-tile); display:flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700}
 .B .fchip.on{background:var(--p-indigo); color:#fff}
-.B .sortrow{display:flex; justify-content:space-between; align-items:center; padding:0 16px 10px; font-size:11.5px; color:var(--p-muted); font-weight:700}
+.B .sortrow{display:flex; justify-content:space-between; align-items:center; padding:0 16px 8px; font-size:11.5px; color:var(--p-muted); font-weight:700}
 .B .sortrow span{display:flex; gap:4px; align-items:center; color:var(--p-ink)}
-.B .pcard .s{font-size:11px; color:var(--p-muted)}
+.B .pcard .s{font-size:11.5px; color:var(--p-muted)}
 
 /* reviews */
-.B .rsum{display:grid; grid-template-columns:auto 1fr; gap:14px; padding:0 16px 12px; align-items:center}
+.B .rsum{display:grid; grid-template-columns:auto 1fr; gap:16px; padding:0 16px 12px; align-items:center}
 .B .rsum .big{font-family:"Bricolage Grotesque", sans-serif; font-size:44px; font-weight:800; line-height:1}
 .B .bars{display:grid; gap:4px; font-size:10.5px; color:var(--p-muted)}
-.B .bars div{display:grid; grid-template-columns:10px 1fr; gap:6px; align-items:center}
+.B .bars div{display:grid; grid-template-columns:10px 1fr; gap:8px; align-items:center}
 .B .bars i{height:6px; border-radius:3px; background:var(--p-tile); position:relative; overflow:hidden; display:block}
 .B .bars i::after{content:""; position:absolute; inset:0 auto 0 0; width:var(--w); background:var(--p-indigo)}
-.B .rev{padding:12px 16px; border-top:1px solid var(--p-line); display:grid; gap:6px; font-size:12.5px}
+.B .rev{padding:12px 16px; border-top:1px solid var(--p-line); display:grid; gap:8px; font-size:13px}
 .B .rev .who{display:flex; justify-content:space-between; font-size:11.5px; color:var(--p-muted)}
 .B .rev .who b{color:var(--p-ink)}
 .B .stars{display:flex; gap:2px; color:var(--p-indigo)}
 .B .stars .ico{width:13px; height:13px; fill:currentColor; stroke:none}
 .B .stars .ico.e{fill:#D5D9E6}
-.B .reply{margin-left:10px; padding:8px 10px; border-left:3px solid var(--p-indigo); background:var(--p-tile); border-radius:0 10px 10px 0; font-size:11.5px; color:var(--p-muted)}
+.B .reply{margin-left:8px; padding:8px 8px; border-left:3px solid var(--p-indigo); background:var(--p-tile); border-radius:0 12px 12px 0; font-size:11.5px; color:var(--p-muted)}
 .B .reply b{color:var(--p-ink)}
 
 /* wishlist */
@@ -651,67 +651,67 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .mapwrap{position:absolute; inset:0}
 .B .mapwrap .tb{position:absolute; top:44px; left:12px; right:12px; display:flex; justify-content:space-between; z-index:2}
 .B .mpin{position:absolute; left:50%; top:34%; transform:translate(-50%,-100%); display:grid; justify-items:center; z-index:2}
-.B .mpin .bubble{background:#12162B; color:#fff; font-size:11px; font-weight:700; padding:6px 10px; border-radius:10px; margin-bottom:6px; white-space:nowrap}
+.B .mpin .bubble{background:#12162B; color:#fff; font-size:11.5px; font-weight:700; padding:8px 8px; border-radius:12px; margin-bottom:8px; white-space:nowrap}
 .B .mpin .head{width:34px; height:34px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); background:var(--p-indigo); display:grid; place-items:center; box-shadow:0 6px 14px rgba(27,37,89,.35)}
 .B .mpin .head i{width:12px; height:12px; border-radius:50%; background:#fff}
 .B .mpin .shadow{width:14px; height:5px; border-radius:50%; background:rgba(0,0,0,.25); margin-top:4px}
 .B .locate{position:absolute; right:14px; top:300px; width:40px; height:40px; border-radius:12px; background:#fff; display:grid; place-items:center; box-shadow:0 4px 12px rgba(0,0,0,.15); z-index:2; color:var(--p-indigo)}
 
 /* pay */
-.B .webv{margin:0 16px; height:330px; border:1.5px dashed var(--p-line); border-radius:18px; display:grid; place-items:center; text-align:center; padding:20px; color:var(--p-muted); font-size:12px; background:#FAFBFD}
+.B .webv{margin:0 16px; height:330px; border:1.5px dashed var(--p-line); border-radius:16px; display:grid; place-items:center; text-align:center; padding:20px; color:var(--p-muted); font-size:11.5px; background:#FAFBFD}
 .B .webv b{display:block; color:var(--p-ink); font-size:13px; margin-bottom:4px}
 
 /* confirmation, pickup, collected */
-.B .hero2{background:var(--p-indigo); color:#fff; position:relative; overflow:hidden; padding:18px 18px 26px; display:grid; gap:8px}
+.B .hero2{background:var(--p-indigo); color:#fff; position:relative; overflow:hidden; padding:16px 16px 24px; display:grid; gap:8px}
 .B .hero2 .pat{position:absolute; inset:0; width:100%; height:100%; opacity:.5}
 .B .hero2 > :not(.pat){position:relative}
-.B .hero2 .ok{width:52px; height:52px; border-radius:18px; background:var(--p-leaf); display:grid; place-items:center}
+.B .hero2 .ok{width:52px; height:52px; border-radius:16px; background:var(--p-leaf); display:grid; place-items:center}
 .B .hero2 .ok .ico{width:28px; height:28px; stroke-width:2.6; color:#fff}
 .B .hero2 h4{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:28px; font-weight:800; line-height:1.05}
-.B .hero2 p{margin:0; font-size:12.5px; opacity:.85}
+.B .hero2 p{margin:0; font-size:13px; opacity:.85}
 .B .scr.leafs{background:var(--p-leaf); color:#fff}
 .B .hero2.leaf{background:var(--p-leaf)}
-.B .bigqr{width:180px; height:180px; background:#fff; border-radius:22px; padding:14px; justify-self:center}
+.B .bigqr{width:180px; height:180px; background:#fff; border-radius:20px; padding:16px; justify-self:center}
 .B .digits{font-family:"Bricolage Grotesque", sans-serif; font-size:34px; font-weight:800; letter-spacing:.14em; text-align:center}
 
 /* orders list */
-.B .ocard{margin:0 16px 10px; border:1px solid var(--p-line); border-radius:18px; padding:12px; display:grid; gap:10px}
+.B .ocard{margin:0 16px 8px; border:1px solid var(--p-line); border-radius:16px; padding:12px; display:grid; gap:8px}
 .B .ocard .t{display:flex; justify-content:space-between; align-items:center}
 .B .ocard .t b{font-size:14px}
-.B .ocard .t small{display:block; font-size:11px; color:var(--p-muted)}
-.B .thumbs{display:flex; gap:6px}
+.B .ocard .t small{display:block; font-size:11.5px; color:var(--p-muted)}
+.B .thumbs{display:flex; gap:8px}
 .B .thumbs span{width:44px; height:44px; border-radius:12px; overflow:hidden; background:var(--p-tile)}
-.B .thumbs em{width:44px; height:44px; border-radius:12px; background:var(--p-tile); display:grid; place-items:center; font-style:normal; font-weight:800; font-size:12px; color:var(--p-muted)}
-.B .ocard .st{display:flex; flex-wrap:wrap; gap:6px}
+.B .thumbs em{width:44px; height:44px; border-radius:12px; background:var(--p-tile); display:grid; place-items:center; font-style:normal; font-weight:800; font-size:11.5px; color:var(--p-muted)}
+.B .ocard .st{display:flex; flex-wrap:wrap; gap:8px}
 
 /* review form */
 .B .bigstars{display:flex; gap:8px; justify-content:center; color:var(--p-indigo)}
 .B .bigstars .ico{width:34px; height:34px; fill:currentColor; stroke:none}
 .B .bigstars .ico.e{fill:#D5D9E6}
 .B .addph{display:flex; gap:8px}
-.B .addph span{width:64px; height:64px; border-radius:14px; overflow:hidden; background:var(--p-tile)}
-.B .addph em{width:64px; height:64px; border-radius:14px; border:1.5px dashed var(--p-line); display:grid; place-items:center; color:var(--p-muted); font-style:normal}
+.B .addph span{width:64px; height:64px; border-radius:12px; overflow:hidden; background:var(--p-tile)}
+.B .addph em{width:64px; height:64px; border-radius:12px; border:1.5px dashed var(--p-line); display:grid; place-items:center; color:var(--p-muted); font-style:normal}
 
 /* account */
-.B .acct{display:flex; gap:12px; align-items:center; padding:4px 16px 14px}
+.B .acct{display:flex; gap:12px; align-items:center; padding:4px 16px 16px}
 .B .acct b{font-family:"Bricolage Grotesque", sans-serif; font-size:20px; display:block}
 .B .acct small{font-size:11.5px; color:var(--p-muted)}
 
 /* vendor */
-.B .vtop{padding:2px 16px 10px; display:flex; justify-content:space-between; align-items:center; gap:10px}
-.B .vtop b{font-family:"Bricolage Grotesque", sans-serif; font-size:19px; font-weight:800; display:block; line-height:1.1}
-.B .vtop small{font-size:11px; color:var(--p-muted)}
-.B .openpill{display:flex; align-items:center; gap:6px; height:32px; padding:0 12px; border-radius:999px; background:#E3F2EA; color:var(--p-leaf); font-weight:800; font-size:12px; white-space:nowrap}
+.B .vtop{padding:2px 16px 8px; display:flex; justify-content:space-between; align-items:center; gap:8px}
+.B .vtop b{font-family:"Bricolage Grotesque", sans-serif; font-size:18px; font-weight:800; display:block; line-height:1.1}
+.B .vtop small{font-size:11.5px; color:var(--p-muted)}
+.B .openpill{display:flex; align-items:center; gap:8px; height:32px; padding:0 12px; border-radius:999px; background:#E3F2EA; color:var(--p-leaf); font-weight:800; font-size:11.5px; white-space:nowrap}
 .B .openpill i{width:8px; height:8px; border-radius:50%; background:currentColor}
-.B .seg{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:0 16px 12px}
-.B .seg span{border:1.5px solid var(--p-line); border-radius:12px; padding:7px 7px; display:grid; font-size:10px; font-weight:700; color:var(--p-muted); line-height:1.2}
+.B .seg{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:0 16px 12px}
+.B .seg span{border:1.5px solid var(--p-line); border-radius:12px; padding:8px 8px; display:grid; font-size:10.5px; font-weight:700; color:var(--p-muted); line-height:1.2}
 .B .seg span b{font-family:"Bricolage Grotesque", sans-serif; font-size:20px; color:var(--p-ink)}
 .B .seg span.on{border-color:var(--p-indigo); background:#F4F5FB; color:var(--p-indigo)}
-.B .vcard{margin:0 16px 10px; border:1.5px solid var(--p-line); border-radius:18px; padding:12px; display:grid; gap:8px}
+.B .vcard{margin:0 16px 8px; border:1.5px solid var(--p-line); border-radius:16px; padding:12px; display:grid; gap:8px}
 .B .vcard.urgent{border-color:#B4531A}
 .B .vcard .t{display:flex; justify-content:space-between; align-items:center; gap:8px}
-.B .vcard .t b{font-family:"Bricolage Grotesque", sans-serif; font-size:16px}
-.B .vcard .items{font-size:12px; color:var(--p-muted)}
+.B .vcard .t b{font-family:"Bricolage Grotesque", sans-serif; font-size:14px}
+.B .vcard .items{font-size:11.5px; color:var(--p-muted)}
 .B .dbar{height:5px; border-radius:3px; background:var(--p-tile); overflow:hidden}
 .B .dbar i{display:block; height:100%; background:var(--p-sun)}
 .B .vcard.urgent .dbar i{background:#B4531A}
@@ -720,37 +720,37 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .vband2{background:var(--p-indigo); color:#fff; padding:2px 16px 16px; position:relative; overflow:hidden; display:grid; gap:8px}
 .B .vband2 .pat{position:absolute; inset:0; width:100%; height:100%; opacity:.45}
 .B .vband2 > :not(.pat){position:relative}
-.B .vband2 .big{font-family:"Bricolage Grotesque", sans-serif; font-size:24px; font-weight:800; line-height:1.05}
-.B .vband2 .row2{display:flex; justify-content:space-between; font-size:12px; align-items:center}
+.B .vband2 .big{font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:800; line-height:1.05}
+.B .vband2 .row2{display:flex; justify-content:space-between; font-size:11.5px; align-items:center}
 .B .tl{display:grid; padding:4px 16px 0}
-.B .tl > div{display:grid; grid-template-columns:18px 1fr auto; gap:10px; padding-bottom:12px; position:relative; font-size:12px}
+.B .tl > div{display:grid; grid-template-columns:18px 1fr auto; gap:8px; padding-bottom:12px; position:relative; font-size:11.5px}
 .B .tl > div::before{content:""; position:absolute; left:8px; top:16px; bottom:0; width:2px; background:var(--p-line)}
 .B .tl > div:last-child::before{display:none}
 .B .tl i{width:18px; height:18px; border-radius:50%; background:var(--p-line); display:grid; place-items:center; position:relative; z-index:1}
 .B .tl i.on{background:var(--p-leaf)}
 .B .tl i.now{background:#fff; border:3px solid var(--p-leaf)}
 .B .tl i.on::after{content:""; width:6px; height:6px; border-radius:50%; background:#fff}
-.B .tl b{display:block; font-size:12.5px}
-.B .tl small{color:var(--p-muted); font-size:11px}
-.B .tl time{font-size:11px; color:var(--p-muted)}
+.B .tl b{display:block; font-size:13px}
+.B .tl small{color:var(--p-muted); font-size:11.5px}
+.B .tl time{font-size:11.5px; color:var(--p-muted)}
 .B .cam{position:absolute; inset:0; background:#0b0c10}
 .B .cam img{width:100%; height:100%; object-fit:cover; object-position:center}
-.B .reticle{position:absolute; left:26px; right:26px; top:190px; height:140px; border-radius:18px; box-shadow:0 0 0 999px rgba(0,0,0,.5); border:3px solid #fff}
+.B .reticle{position:absolute; left:26px; right:26px; top:190px; height:140px; border-radius:16px; box-shadow:0 0 0 999px rgba(0,0,0,.5); border:3px solid #fff}
 .B .scanline{position:absolute; left:34px; right:34px; top:258px; height:2px; background:var(--p-sun); box-shadow:0 0 12px var(--p-sun)}
 .B .camtop{position:absolute; top:44px; left:14px; right:14px; display:flex; justify-content:space-between; color:#fff; z-index:2; align-items:center; font-weight:700; font-size:13px}
 .B .camtop span.r{width:38px; height:38px; border-radius:12px; background:rgba(255,255,255,.18); display:grid; place-items:center}
-.B .camcard{position:absolute; left:12px; right:12px; bottom:16px; background:#fff; border-radius:20px; padding:12px; display:grid; gap:10px; z-index:2}
-.B .codebox{display:flex; gap:6px; justify-content:center}
+.B .camcard{position:absolute; left:12px; right:12px; bottom:16px; background:#fff; border-radius:20px; padding:12px; display:grid; gap:8px; z-index:2}
+.B .codebox{display:flex; gap:8px; justify-content:center}
 .B .codebox span{width:38px; height:48px; border-radius:12px; border:1.5px solid var(--p-line); display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-size:22px; font-weight:800}
 .B .codebox span.f{border-color:var(--p-indigo); box-shadow:0 0 0 3px #E3E6F3}
-.B .keys{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:0 16px}
+.B .keys{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0 16px}
 .B .keys span{height:42px; border-radius:12px; background:var(--p-tile); display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-size:18px; font-weight:700}
 .B .keys span.n{background:transparent}
-.B .picker{margin:0 16px 10px; border:1.5px solid var(--p-line); border-radius:18px; overflow:hidden}
+.B .picker{margin:0 16px 8px; border:1.5px solid var(--p-line); border-radius:16px; overflow:hidden}
 .B .picker .ph{height:84px}
-.B .picker .tx{padding:10px 12px; display:flex; gap:10px; align-items:center}
+.B .picker .tx{padding:8px 12px; display:flex; gap:8px; align-items:center}
 .B .picker .tx b{font-size:14px; display:block}
-.B .picker .tx small{font-size:11px; color:var(--p-muted)}
+.B .picker .tx small{font-size:11.5px; color:var(--p-muted)}
 .B .picker.on{border-color:var(--p-indigo); box-shadow:0 0 0 3px #E3E6F3}
 
 .B .hero2 .ok[style*="#fff"] .ico{color:var(--p-leaf)}
@@ -762,22 +762,22 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .signin .top .pat{opacity:.55; -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 28%,transparent 58%); mask-image:linear-gradient(180deg,#000 0%,#000 28%,transparent 58%)}
 .B .band .pat, .B .vband2 .pat, .B .hero2 .pat{opacity:.5; -webkit-mask-image:linear-gradient(90deg,transparent 0%,transparent 45%,#000 100%); mask-image:linear-gradient(90deg,transparent 0%,transparent 45%,#000 100%)}
 /* indigo new-order takeover */
-.B .takeover{position:absolute; inset:38px 0 0; padding:6px 18px 18px; display:flex; flex-direction:column; gap:12px; color:#fff; overflow:hidden}
+.B .takeover{position:absolute; inset:38px 0 0; padding:8px 16px 16px; display:flex; flex-direction:column; gap:12px; color:#fff; overflow:hidden}
 .B .takeover .pat{position:absolute; inset:-38px 0 0; width:100%; height:calc(100% + 38px); opacity:.55; -webkit-mask-image:linear-gradient(180deg,#000 0%,transparent 30%); mask-image:linear-gradient(180deg,#000 0%,transparent 30%)}
 .B .takeover > :not(.pat){position:relative}
-.B .alarm{width:76px; height:76px; border-radius:50%; display:grid; place-items:center; background:conic-gradient(var(--p-sun) 0 98%, rgba(255,255,255,.2) 0); margin-top:6px}
+.B .alarm{width:76px; height:76px; border-radius:50%; display:grid; place-items:center; background:conic-gradient(var(--p-sun) 0 98%, rgba(255,255,255,.2) 0); margin-top:8px}
 .B .alarm span{width:62px; height:62px; border-radius:50%; background:var(--p-indigo); display:grid; place-items:center}
 .B .alarm .ico{width:28px; height:28px; color:#fff}
 .B .alarm::after{content:""; position:absolute; inset:-6px; border-radius:50%; border:2px solid var(--p-sun); animation:alarmPulse 1.6s ease-out infinite}
 @keyframes alarmPulse{from{transform:scale(.92); opacity:.9} to{transform:scale(1.3); opacity:0}}
 @media (prefers-reduced-motion: reduce){ .B .alarm::after{animation:none; opacity:.5} }
-.B .takeover .lbl{font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; opacity:.85}
+.B .takeover .lbl{font-size:11.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; opacity:.85}
 .B .takeover .big{font-family:"Bricolage Grotesque", sans-serif; font-size:34px; font-weight:800; line-height:1.02}
-.B .takeover .tlist{background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); border-radius:18px; padding:12px; display:grid; gap:8px; font-size:12.5px}
+.B .takeover .tlist{background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); border-radius:16px; padding:12px; display:grid; gap:8px; font-size:13px}
 .B .takeover .tlist div{display:flex; justify-content:space-between}
 .B .takeover .tlist .dimmer{opacity:.8}
-.B .takeover .clock{display:flex; gap:8px; align-items:center; font-size:12px; font-weight:700}
-.B .takeover .acc{margin-top:auto; height:62px; border-radius:18px; background:#fff; color:var(--p-indigo); display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:19px}
+.B .takeover .clock{display:flex; gap:8px; align-items:center; font-size:11.5px; font-weight:700}
+.B .takeover .acc{margin-top:auto; height:62px; border-radius:16px; background:#fff; color:var(--p-indigo); display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:18px}
 .B .takeover .rej{text-align:center; font-weight:700; font-size:13px; opacity:.88}
 
 /* full-scroll Home */
@@ -791,44 +791,44 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .phone.tall{height:auto}
 .phone.tall .scr{height:auto}
 .phone.tall .body{position:relative; inset:auto; padding-bottom:84px}
-.B .hmark{position:absolute; right:-34px; width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--surface); font-family:var(--f-mono); font-size:11px; display:none; place-items:center}
+.B .hmark{position:absolute; right:-34px; width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--surface); font-family:var(--f-mono); font-size:11.5px; display:none; place-items:center}
 .B .sheet{position:relative}
 .B .fold{position:absolute; left:0; right:0; top:564px; border-top:2px dashed #F2B33D; z-index:3; pointer-events:none}
-.B .fold span{position:absolute; right:10px; top:-11px; background:#F2B33D; color:#12162B; font-size:10px; font-weight:800; padding:3px 8px; border-radius:999px}
+.B .fold span{position:absolute; right:10px; top:-11px; background:#F2B33D; color:#12162B; font-size:10.5px; font-weight:800; padding:4px 8px; border-radius:999px}
 .B .again{display:grid; gap:8px; padding:0 16px 16px}
-.B .ag{display:grid; grid-template-columns:48px 1fr auto; gap:10px; align-items:center; border:1px solid var(--p-line); border-radius:16px; padding:8px}
+.B .ag{display:grid; grid-template-columns:48px 1fr auto; gap:8px; align-items:center; border:1px solid var(--p-line); border-radius:16px; padding:8px}
 .B .ag .ph{width:48px; height:48px; border-radius:12px; overflow:hidden; background:var(--p-tile)}
-.B .ag b{font-size:12.5px; display:block}
-.B .ag small{font-size:11px; color:var(--p-muted)}
-.B .add2{width:34px; height:34px; border-radius:11px; background:var(--p-indigo); color:#fff; display:grid; place-items:center}
+.B .ag b{font-size:13px; display:block}
+.B .ag small{font-size:11.5px; color:var(--p-muted)}
+.B .add2{width:34px; height:34px; border-radius:12px; background:var(--p-indigo); color:#fff; display:grid; place-items:center}
 .B .add2 .ico{width:16px; height:16px; stroke-width:2.4}
-.B .hrail{display:flex; gap:10px; padding:0 16px 16px; overflow:hidden}
-.B .hc{flex:none; width:122px; display:grid; gap:3px}
-.B .hc .ph{height:122px; border-radius:18px; overflow:hidden; background:var(--p-tile); position:relative}
-.B .hc .off{position:absolute; left:8px; top:8px; background:var(--p-sun); color:#12162B; font-weight:800; font-size:10px; padding:3px 7px; border-radius:999px}
-.B .hc .p{font-weight:800; font-size:13.5px}
+.B .hrail{display:flex; gap:8px; padding:0 16px 16px; overflow:hidden}
+.B .hc{flex:none; width:122px; display:grid; gap:4px}
+.B .hc .ph{height:122px; border-radius:16px; overflow:hidden; background:var(--p-tile); position:relative}
+.B .hc .off{position:absolute; left:8px; top:8px; background:var(--p-sun); color:#12162B; font-weight:800; font-size:10.5px; padding:4px 8px; border-radius:999px}
+.B .hc .p{font-weight:800; font-size:13px}
 .B .hc .p s{font-weight:600; color:var(--p-muted); font-size:10.5px}
 .B .hc .n{font-size:11.5px; font-weight:600}
-.B .feature{margin:18px 16px 0; height:190px; border-radius:22px; overflow:hidden; position:relative}
-.B .feature .ftx{position:absolute; inset:auto 0 0 0; padding:40px 14px 14px; background:linear-gradient(rgba(18,22,43,0), rgba(18,22,43,.88) 45%); color:#fff; display:grid; gap:4px; justify-items:start}
-.B .feature .ftx b{font-family:"Bricolage Grotesque", sans-serif; font-size:19px; line-height:1.1}
+.B .feature{margin:16px 16px 0; height:190px; border-radius:20px; overflow:hidden; position:relative}
+.B .feature .ftx{position:absolute; inset:auto 0 0 0; padding:40px 16px 16px; background:linear-gradient(rgba(18,22,43,0), rgba(18,22,43,.88) 45%); color:#fff; display:grid; gap:4px; justify-items:start}
+.B .feature .ftx b{font-family:"Bricolage Grotesque", sans-serif; font-size:18px; line-height:1.1}
 .B .feature .ftx small{font-size:11.5px; opacity:.9}
-.B .promise{margin:16px 16px 0; background:var(--p-tile); border-radius:18px; padding:12px; display:grid; gap:10px}
-.B .promise div{display:flex; gap:10px; align-items:center; font-size:12px; color:var(--p-muted)}
+.B .promise{margin:16px 16px 0; background:var(--p-tile); border-radius:16px; padding:12px; display:grid; gap:8px}
+.B .promise div{display:flex; gap:8px; align-items:center; font-size:11.5px; color:var(--p-muted)}
 .B .promise .ico{color:var(--p-indigo); width:18px; height:18px}
 .B .promise b{color:var(--p-ink)}
-.B .endnote{text-align:center; font-size:12px; color:var(--p-muted); padding:22px 16px 8px}
+.B .endnote{text-align:center; font-size:11.5px; color:var(--p-muted); padding:24px 16px 8px}
 .B .endnote b{color:var(--p-indigo2)}
 .B .grid{padding-bottom:4px}
 
 /* supported-only Home parts */
-.B .cchips{display:flex; gap:6px; padding:0 16px 12px; overflow:hidden}
+.B .cchips{display:flex; gap:8px; padding:0 16px 12px; overflow:hidden}
 .B .lrow.gh{border:0; padding:8px 16px 2px}
 .B .rrail .rc .ph{position:relative}
 .B .rc .p s{font-weight:600; color:var(--p-muted); font-size:10.5px}
-.B .rc .add{position:absolute; right:6px; bottom:6px; width:28px; height:28px; border-radius:9px; background:var(--p-indigo); color:#fff; display:grid; place-items:center}
+.B .rc .add{position:absolute; right:6px; bottom:6px; width:28px; height:28px; border-radius:8px; background:var(--p-indigo); color:#fff; display:grid; place-items:center}
 .B .rc .add .ico{width:15px; height:15px; stroke-width:2.4}
-.B .dealb{position:absolute; left:6px; top:6px; background:var(--p-sun); color:#12162B; font-size:9.5px; font-weight:800; padding:3px 7px; border-radius:999px; white-space:nowrap}
+.B .dealb{position:absolute; left:6px; top:6px; background:var(--p-sun); color:#12162B; font-size:10.5px; font-weight:800; padding:4px 8px; border-radius:999px; white-space:nowrap}
 .src2{display:block; font-family:var(--f-mono); font-size:11.5px; color:var(--muted); margin-top:2px}
 .src2 code{font-family:inherit}
 
@@ -925,7 +925,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .D .note2.warn .ico{color:#F0A474}
 .D .stat{color:var(--p-leaftext)}
 /* AAA: postpone interruptions, focus appearance, text spacing */
-.B .takeover .rej2{display:flex; justify-content:space-between; font-weight:700; font-size:13px; padding:0 6px}
+.B .takeover .rej2{display:flex; justify-content:space-between; font-weight:700; font-size:13px; padding:0 8px}
 .B .takeover .rej2 span{min-height:32px; display:flex; align-items:center}
 .B .inp.focus, .B .codebox span.f, .B .picker.on{border-width:2px}
 .B .rev, .B .note2, .B .trust, .B .bsheet p, .B .empty p, .B .pd p, .B .shophd .meta2, .B .hero2 p{line-height:1.5}
@@ -978,7 +978,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .imglab{display:grid; gap:6px; font-size:14.5px; color:var(--muted); max-width:46ch}
 .imglab b{color:var(--fg); font-size:16px}
 .imglab .res{justify-self:start}
-.tiles4{display:flex; gap:10px; padding:12px; border-radius:12px; overflow-x:auto}
+.tiles4{display:flex; gap:8px; padding:12px; border-radius:12px; overflow-x:auto}
 .tiles4.lightbg{background:#FFFFFF}
 .tiles4.darkbg{background:#111113}
 .tiles4 .t{flex:none; width:110px; height:110px; border-radius:16px; overflow:hidden; display:block}
@@ -1025,7 +1025,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 /* no divider lines: spacing and grouping separate rows (4pt grid) */
 .B .pick, .B .lrow, .B .rev, .B .tabs{border-top:0; border-bottom:0}
 .B .pick{padding:12px 16px}
-.B .lrow{padding:14px 16px}
+.B .lrow{padding:16px 16px}
 .B .rev{padding:16px}
 .B .rev + .rev{padding-top:8px}
 .B .divider{height:16px; background:none; border:0}
@@ -1056,7 +1056,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .D .seg span.on b{color:#fff}
 
 /* add button: 26px drawn (about 36pt), 44pt hit area in code (hitSlop), which is what WCAG 2.5.5 measures */
-.B .add, .B .rc .add{width:26px; height:26px; border-radius:9px; right:6px; bottom:6px}
+.B .add, .B .rc .add{width:26px; height:26px; border-radius:8px; right:6px; bottom:6px}
 .B .add .ico, .B .rc .add .ico{width:14px; height:14px}
 .B .save{width:26px; height:26px}
 .B .save .ico{width:14px; height:14px}
@@ -1101,12 +1101,12 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .D .vcard .chip.c-warn{background:#30221A}
 
 /* order lists: 24 between orders, tight inside (proximity groups each order) */
-.B .vcard, .B .vcard.urgent, .B .ocard{padding:20px 0 24px; gap:6px}
+.B .vcard, .B .vcard.urgent, .B .ocard{padding:20px 0 24px; gap:8px}
 .B .vcard:first-of-type, .B .ocard:first-of-type{padding-top:8px}
-.B .vcard .t b{font-size:17px}
+.B .vcard .t b{font-size:18px}
 .B .vcard .items{margin-top:2px}
-.B .vcard .act{margin-top:10px}
-.B .ocard .st{margin-top:6px}
+.B .vcard .act{margin-top:8px}
+.B .ocard .st{margin-top:8px}
 .B .vcard .act .btn{display:grid; place-items:center; padding:0; line-height:1}
 
 /* states: skeletons, spinner, quiet error emblem */
@@ -1117,7 +1117,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 @media (prefers-reduced-motion: reduce){ .B .sk::after, .B .spin{animation:none} }
 .B .spin{width:44px; height:44px; border-radius:50%; border:4px solid var(--p-tile); border-top-color:var(--p-indigo); animation:spin 0.9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.B .emblem.quiet{background:var(--p-tile); color:var(--p-accent); width:88px; height:88px; border-radius:28px}
+.B .emblem.quiet{background:var(--p-tile); color:var(--p-accent); width:88px; height:88px; border-radius:24px}
 .B .emblem.quiet .ico{width:34px; height:34px}
 .B .empty .btn{display:flex; align-items:center; justify-content:center; gap:8px}
 .B .empty .btn .ico{width:16px; height:16px}
@@ -1129,30 +1129,30 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .D .rev + .rev{border-top-color:#2A2A2F}
 
 /* product full scroll */
-.B .gdots{position:absolute; left:0; right:0; bottom:12px; display:flex; justify-content:center; gap:6px; z-index:2}
+.B .gdots{position:absolute; left:0; right:0; bottom:12px; display:flex; justify-content:center; gap:8px; z-index:2}
 .B .gdots i{width:6px; height:6px; border-radius:50%; background:rgba(18,22,43,.25)}
 .B .gdots i.on{background:var(--p-indigo); width:16px; border-radius:3px}
 .B .vchips{display:flex; gap:8px}
-.B .vchips span{height:32px; padding:0 14px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; font-size:12.5px; font-weight:700}
+.B .vchips span{height:32px; padding:0 16px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; font-size:13px; font-weight:700}
 .B .vchips span.on{background:var(--p-indigo); color:#fff}
 .B .pdesc{margin:4px 0 0; font-size:13px; line-height:1.5; color:var(--p-ink)}
 .B .psec{padding:24px 16px 0; display:grid; gap:12px}
 .B .psec h5{margin:0; font-family:"Bricolage Grotesque", sans-serif; font-size:18px; font-weight:800}
-.B .psec .lnk, .B .credit .lnk{color:var(--p-accent); font-weight:700; font-size:12.5px}
-.B .dtable{display:grid; grid-template-columns:96px 1fr; gap:10px 12px; margin:0; font-size:12.5px}
+.B .psec .lnk, .B .credit .lnk{color:var(--p-accent); font-weight:700; font-size:13px}
+.B .dtable{display:grid; grid-template-columns:96px 1fr; gap:8px 12px; margin:0; font-size:13px}
 .B .dtable dt{color:var(--p-muted)}
 .B .dtable dd{margin:0; font-weight:600}
 .B .rline{display:flex; align-items:center; gap:8px}
-.B .rline b{font-size:24px}
+.B .rline b{font-size:22px}
 .B .rline small{color:var(--p-muted); font-size:11.5px}
 .B .psec .rev{margin:0; padding:12px 0}
-.B .psec .rev p{margin:0; font-size:12.5px; line-height:1.5}
-.B .psec .rev time{font-size:11px; color:var(--p-muted)}
-.B .credit{font-size:11px; color:var(--p-muted)}
+.B .psec .rev p{margin:0; font-size:13px; line-height:1.5}
+.B .psec .rev time{font-size:11.5px; color:var(--p-muted)}
+.B .credit{font-size:11.5px; color:var(--p-muted)}
 .phone.tall .cta{position:sticky; bottom:16px}
 
 /* accept clock: the outline around the time chip drains instead of a separate bar */
-.B .tchip{position:relative; display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 12px; border-radius:999px; font-size:11.5px; font-weight:800; color:#714800; background:#FDF1D8; white-space:nowrap; flex:none}
+.B .tchip{position:relative; display:inline-flex; align-items:center; gap:4px; height:30px; padding:0 12px; border-radius:999px; font-size:11.5px; font-weight:800; color:#714800; background:#FDF1D8; white-space:nowrap; flex:none}
 .B .tchip .ico{width:13px; height:13px}
 .B .tchip.urgent{color:#84391A; background:#FBEDE3}
 .B .tring{position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none}
@@ -1170,67 +1170,99 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
 /* my reviews */
 .B .seg2{display:flex; gap:8px; padding:0 16px 8px}
-.B .seg2 span{height:32px; padding:0 12px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; font-size:12px; font-weight:700}
+.B .seg2 span{height:32px; padding:0 12px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; font-size:11.5px; font-weight:700}
 .B .seg2 span.on{background:var(--p-indigo); color:#fff}
-.B .myrev{margin:0 16px; padding:16px 0; display:grid; gap:8px; font-size:12.5px}
+.B .myrev{margin:0 16px; padding:16px 0; display:grid; gap:8px; font-size:13px}
 .B .myrev + .myrev{border-top:1px solid #E4E6EE}
 .D .myrev + .myrev{border-top-color:#2A2A2F}
-.B .myrev .mhd{display:flex; gap:10px; align-items:center}
+.B .myrev .mhd{display:flex; gap:8px; align-items:center}
 .B .myrev .mhd > div{flex:1; min-width:0}
 .B .myrev .mhd b{display:block; font-size:13px}
-.B .myrev .mhd small{color:var(--p-muted); font-size:11px}
-.B .myrev .mth{width:36px; height:36px; border-radius:10px; flex:none; overflow:hidden}
-.B .myrev .mono{width:36px; height:36px; border-radius:10px}
+.B .myrev .mhd small{color:var(--p-muted); font-size:11.5px}
+.B .myrev .mth{width:36px; height:36px; border-radius:12px; flex:none; overflow:hidden}
+.B .myrev .mono{width:36px; height:36px; border-radius:12px}
 .B .myrev .more{font-weight:800; letter-spacing:2px; color:var(--p-muted); width:32px; text-align:center}
 .B .myrev p{margin:0; line-height:1.5}
 .B .myrev .mnote{color:var(--p-muted); font-size:11.5px}
-.B .myrev .mdate{color:var(--p-muted); font-size:11px}
+.B .myrev .mdate{color:var(--p-muted); font-size:11.5px}
 
 /* order again */
-.B .oagain{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800; color:var(--p-accent); min-height:32px}
+.B .oagain{display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:800; color:var(--p-accent); min-height:32px}
 .B .oagain .ico{width:15px; height:15px}
 .B .act2{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px}
-.B .act2 .btn{display:flex; align-items:center; justify-content:center; gap:6px; height:44px; font-size:13px}
+.B .act2 .btn{display:flex; align-items:center; justify-content:center; gap:8px; height:44px; font-size:13px}
 .B .act2 .btn .ico{width:15px; height:15px}
 .B .rsub{color:var(--p-muted); font-size:11.5px; margin-top:-4px}
-.B .rline{display:grid; grid-template-columns:24px 44px 1fr auto; gap:10px; align-items:center; font-size:12.5px}
+.B .rline{display:grid; grid-template-columns:24px 44px 1fr auto; gap:8px; align-items:center; font-size:13px}
 .B .rline .ph{width:44px; height:44px; border-radius:12px; overflow:hidden; background:var(--p-ptile)}
 .B .rline .ph img{width:100%; height:100%; object-fit:contain; padding:10%; box-sizing:border-box}
 .B .rline b{display:block; font-size:13px}
-.B .rline small{color:var(--p-muted); font-size:11px}
-.B .rline .rnote{display:block; color:var(--p-embertext); font-size:11px; font-weight:700; margin-top:2px}
+.B .rline small{color:var(--p-muted); font-size:11.5px}
+.B .rline .rnote{display:block; color:var(--p-embertext); font-size:11.5px; font-weight:700; margin-top:2px}
 .B .rline.off{opacity:.55}
-.B .rcb{width:22px; height:22px; border-radius:7px; border:1.5px solid var(--p-ctl); display:grid; place-items:center; color:#fff}
+.B .rcb{width:22px; height:22px; border-radius:8px; border:1.5px solid var(--p-ctl); display:grid; place-items:center; color:#fff}
 .B .rcb.on{background:var(--p-indigo); border-color:var(--p-indigo)}
 .B .rcb .ico{width:14px; height:14px}
 .B .addall{display:flex; justify-content:space-between; align-items:center; padding:0 16px; height:52px; margin-top:4px}
 
-.B .opill{display:inline-flex; align-items:center; gap:5px; height:32px; padding:0 12px; border-radius:999px; background:var(--p-tile); color:var(--p-accent); font-size:12px; font-weight:800; white-space:nowrap}
+.B .opill{display:inline-flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:999px; background:var(--p-tile); color:var(--p-accent); font-size:11.5px; font-weight:800; white-space:nowrap}
 .B .opill .ico{width:14px; height:14px}
 .B .act2 .btn{white-space:nowrap; padding:0 8px}
 
 /* orders full scroll */
-.B .omonth{padding:16px 16px 0; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--p-muted)}
+.B .omonth{padding:16px 16px 0; font-size:11.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--p-muted)}
 .B .oshoprow{display:grid; gap:4px}
-.B .oshop{color:var(--p-muted); font-size:11px; font-weight:700}
+.B .oshop{color:var(--p-muted); font-size:11.5px; font-weight:700}
 .B .ocard .t > div{min-width:0; flex:1}
 
 /* orders tabs (option B) */
 .B .otabs{display:grid; grid-template-columns:1fr 1fr; margin:0 16px 4px; border-bottom:1px solid #E4E6EE}
 .D .otabs{border-bottom-color:#2A2A2F}
-.B .otabs span{display:flex; align-items:center; justify-content:center; gap:6px; height:44px; font-size:13px; font-weight:700; color:var(--p-muted)}
+.B .otabs span{display:flex; align-items:center; justify-content:center; gap:8px; height:44px; font-size:13px; font-weight:700; color:var(--p-muted)}
 .B .otabs span.on{color:var(--p-ink); box-shadow:inset 0 -2.5px 0 var(--p-indigo)}
-.B .otabs em{font-style:normal; font-size:11px; font-weight:800; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; color:var(--p-muted)}
+.B .otabs em{font-style:normal; font-size:11.5px; font-weight:800; min-width:20px; height:20px; padding:0 8px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; color:var(--p-muted)}
 .B .otabs span.on em{background:var(--p-indigo); color:#fff}
 
 /* cart: per-shop subtotal and single-shop checkout */
 .B .shopsum{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding-top:12px; margin-top:4px; border-top:1px dashed var(--p-line)}
 .B .shopsum b{display:block; font-size:13px}
-.B .shopsum small{color:var(--p-muted); font-size:11px}
+.B .shopsum small{color:var(--p-muted); font-size:11.5px}
 .B .shopsum .r{display:grid; justify-items:end; gap:2px}
-.B .shopsum .lnk{color:var(--p-accent); font-size:12px; font-weight:800; min-height:32px; display:flex; align-items:center}
-.B .cartsum{gap:6px}
+.B .shopsum .lnk{color:var(--p-accent); font-size:11.5px; font-weight:800; min-height:32px; display:flex; align-items:center}
+.B .cartsum{gap:8px}
 .B .shopsum .lnk{white-space:nowrap} .B .shopsum > div:first-child{min-width:0}
+
+/* ============ System: one title size per role, three button heights ============
+   Titles: tab root 26 (.bigt) · screen with a name 22 (vendor shop, product, band headline) · pushed screen 20 (.navh/.hdr) · section 18
+   Moments: confirmation 28 (.hero2) · takeover 34 · pickup digits 44
+   Buttons: sticky main 52 · standard 48 · in-list 44 */
+.B .vtop b{font-size:22px; line-height:1.15}
+.B .pd h4{font-size:22px}
+.B .hero2 h4{font-size:28px}
+.B .btn{height:48px}
+.B .cta{height:52px}
+.B .vcard .act .btn, .B .act2 .btn, .B .card2 .btn{height:44px}
+.B :is(.big,.bigt,.greet,.price,.disp,h4,h5) b{font-weight:inherit}
+
+.B .tabbar{border-radius:24px}
+.B .tabbar span{font-size:10.5px}
+.B .cta, .B .cta span{font-size:14px; font-weight:800}
+.B .sumrow.total b{font-size:18px; font-weight:800}
+.B .inp b{font-weight:inherit}
+.B :is(h4,h5,.bigt,.big,.greet,.price,.navh b,.hdr b,.vtop b,.signin .top p,.wordmark,.t b.num,.rline b.num){font-weight:800}
+.B .ocard .t b, .B .card2 .hd b{font-weight:800}
+
+/* system scales */
+.sysgrid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr)); gap:16px; margin-top:16px}
+.splist{display:grid; gap:8px}
+.sprow{display:grid; grid-template-columns:32px 150px 1fr; gap:12px; align-items:center; font-size:13px; color:var(--muted)}
+.sprow code{font-family:var(--f-mono); font-size:12px; color:var(--fg)}
+.sprow i{height:12px; border-radius:3px; background:#4050C0; display:block}
+.tylist{display:grid; gap:10px}
+.tyrow{display:grid; grid-template-columns:96px 1fr; gap:2px 12px; align-items:baseline}
+.tyrow code{font-family:var(--f-mono); font-size:11.5px; color:var(--muted); grid-row:span 2}
+.tyrow .tyu{font-size:12px; color:var(--muted)}
+.tyrow .tys{color:var(--fg); line-height:1.15; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -1348,6 +1380,29 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="compbox B">
         <span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>New</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Open</span><span class="chip c-ind"><svg class="ico"><use href="#i-box"/></svg>Packed</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>2h left</span><span class="chip c-bad"><svg class="ico"><use href="#i-x"/></svg>Rejected</span><span class="qp ok">2/2</span><span class="qp short">0/2</span><span class="dealb" style="position:static">10% off at this shop</span>
       </div>
+    </div>
+  </div>
+
+  <div class="sysgrid2" id="sys-scale">
+    <div class="sysc">
+      <h3>Spacing: a 4pt grid</h3>
+      <p class="note">Every padding, margin and gap on every screen is one of these. Mockup px; 1px here is about 1.4pt on a phone.</p>
+      <div class="splist"><div class="sprow"><code>4</code><i style="width:12px"></i><span>Icon to label, chip padding</span></div><div class="sprow"><code>8</code><i style="width:24px"></i><span>Between chips and tiles; inside a row</span></div><div class="sprow"><code>12</code><i style="width:36px"></i><span>Card padding; between rows; grid columns</span></div><div class="sprow"><code>16</code><i style="width:48px"></i><span>Screen gutter; between grid rows</span></div><div class="sprow"><code>20</code><i style="width:60px"></i><span>Under a band; between orders</span></div><div class="sprow"><code>24</code><i style="width:72px"></i><span>Above a section heading; between groups</span></div><div class="sprow"><code>32</code><i style="width:96px"></i><span>Around confirmations</span></div><div class="sprow"><code>48</code><i style="width:144px"></i><span>Empty and error states, top</span></div></div>
+    </div>
+    <div class="sysc">
+      <h3>Type: 11 sizes, four weights</h3>
+      <p class="note">Bricolage Grotesque for display (18 and up), Manrope for everything else. Weights 400, 600, 700 and 800 only.</p>
+      <div class="tylist"><div class="tyrow"><code>44 / 800</code><span class="tyu">Pickup digits</span><span class="tys" style="font-size:44px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif">482 913</span></div><div class="tyrow"><code>34 / 800</code><span class="tyu">Takeover moment</span><span class="tys" style="font-size:34px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif">3 items</span></div><div class="tyrow"><code>28 / 800</code><span class="tyu">Confirmation</span><span class="tys" style="font-size:28px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif">Order placed</span></div><div class="tyrow"><code>26 / 800</code><span class="tyu">Tab root title</span><span class="tys" style="font-size:26px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif">Orders</span></div><div class="tyrow"><code>22 / 800</code><span class="tyu">Screen with a name, band headline</span><span class="tys" style="font-size:22px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif">Ofada Rice, 5kg</span></div><div class="tyrow"><code>20 / 800</code><span class="tyu">Pushed screen title</span><span class="tys" style="font-size:20px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif">Review and pay</span></div><div class="tyrow"><code>18 / 800</code><span class="tyu">Section heading, totals</span><span class="tys" style="font-size:18px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif">Near you</span></div><div class="tyrow"><code>14 / 800</code><span class="tyu">Names, prices, buttons</span><span class="tys" style="font-size:14px;font-weight:800;font-family:Manrope,sans-serif">Iya Bisi Foodstuff · ₦14,500</span></div><div class="tyrow"><code>13 / 400–700</code><span class="tyu">Body, row titles</span><span class="tys" style="font-size:13px;font-weight:400;font-family:Manrope,sans-serif">Stone-free and properly sorted.</span></div><div class="tyrow"><code>11.5 / 400–700</code><span class="tyu">Meta, secondary</span><span class="tys" style="font-size:11.5px;font-weight:400;font-family:Manrope,sans-serif">Sat 18 Oct · 1 item</span></div><div class="tyrow"><code>10.5 / 600–800</code><span class="tyu">Labels, chips, tab bar</span><span class="tys" style="font-size:10.5px;font-weight:800;font-family:Manrope,sans-serif">READY FOR PICKUP</span></div></div>
+    </div>
+    <div class="sysc">
+      <h3>Corners, controls and hierarchy</h3>
+      <ul>
+        <li><b>Corners:</b> 8 chips and small tiles · 12 rows, inputs, product tiles · 16 cards and buttons · 20 sheets' inner cards · 24 sheets and the tab bar · full for pills and avatars.</li>
+        <li><b>Buttons:</b> 52 sticky main action · 48 standard · 44 inside a list row. Every hit area is at least 44pt.</li>
+        <li><b>One title per screen</b>, sized by role: tab root 26, a screen named after a thing (shop, product) 22, pushed screens 20. Never two display sizes competing at the top.</li>
+        <li><b>Order of emphasis</b> on every screen: title, then the one primary action (indigo, bottom), then section headings (18), then row titles (13–14 bold), then meta (11.5 muted). Colour is reserved for state, never for emphasis alone.</li>
+        <li><b>Grouping:</b> space first (tight inside a group, 20–24 between groups), then a light divider for lists, never boxes inside boxes.</li>
+      </ul>
     </div>
   </div>
 </section>
@@ -1552,7 +1607,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="top"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <span class="wordmark">oja</span>
           <p>Your neighbourhood<br>shops, in one app.</p>
-          <span style="font-size:12.5px;opacity:.85">Shop the stores around you. Get it delivered, or pick it up on your way.</span>
+          <span style="font-size:13px;opacity:.85">Shop the stores around you. Get it delivered, or pick it up on your way.</span>
         </div>
         <div class="bot">
           <span class="btn dark"><span class="glyph" style="background:var(--p-surface);color:#000">A</span>Continue with Apple</span>
@@ -1566,7 +1621,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
-        <div class="band" style="padding-bottom:30px"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
+        <div class="band" style="padding-bottom:32px"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <div class="between"><div class="addr"><svg class="ico"><use href="#i-pin"/></svg>Add a delivery address<svg class="ico"><use href="#i-down"/></svg></div><svg class="ico"><use href="#i-bell"/></svg></div>
           <div class="greet disp">Ẹ káàbọ̀.<br>What are we buying?</div>
         </div>
@@ -1649,21 +1704,21 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="sbar" style="padding:2px 16px 10px;display:grid;gap:10px">
+        <div class="sbar" style="padding:2px 16px 8px;display:grid;gap:8px">
           <div class="inp focus"><svg class="ico"><use href="#i-search"/></svg>rice<span style="margin-left:auto;color:var(--p-muted)">×</span></div>
                   </div>
         <div class="lbl2" style="padding-top:2px">2 shops · 5 products</div>
         <div class="lrow" style="border:0;padding-bottom:4px"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1.2 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div>
-        <div class="rrail" style="display:flex;gap:10px;padding:6px 16px 12px;overflow:hidden">
-          <div class="rc" style="flex:none;width:118px;display:grid;gap:3px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦14,500</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
-          <div class="rc" style="flex:none;width:118px;display:grid;gap:3px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦5,200</span><span style="font-size:11.5px;font-weight:600">Ijebu Garri 4kg</span></div>
-          <div class="rc" style="flex:none;width:118px;display:grid;gap:3px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-beans.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦6,800</span><span style="font-size:11.5px;font-weight:600">Honey Beans 2kg</span></div>
+        <div class="rrail" style="display:flex;gap:8px;padding:8px 16px 12px;overflow:hidden">
+          <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦14,500</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
+          <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦5,200</span><span style="font-size:11.5px;font-weight:600">Ijebu Garri 4kg</span></div>
+          <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-beans.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦6,800</span><span style="font-size:11.5px;font-weight:600">Honey Beans 2kg</span></div>
         </div>
         <div style="height:8px;background:var(--p-tile)"></div>
         <div class="lrow" style="border:0;padding-bottom:4px"><span class="mono">MN</span><div><b>Mama Ngozi Provisions</b><small><span class="stat"><i></i>Open</span> · closes 8pm · 5.6 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div>
-        <div style="display:flex;gap:10px;padding:6px 16px 12px;overflow:hidden">
-          <div style="flex:none;width:118px;display:grid;gap:3px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦13,900</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
-          <div style="flex:none;width:118px;display:grid;gap:3px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦9,200</span><span style="font-size:11.5px;font-weight:600">Red Palm Oil 3L</span></div>
+        <div style="display:flex;gap:8px;padding:8px 16px 12px;overflow:hidden">
+          <div style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦13,900</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
+          <div style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦9,200</span><span style="font-size:11.5px;font-weight:600">Red Palm Oil 3L</span></div>
         </div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span class="on"><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
@@ -1727,7 +1782,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Reviews</b></div>
         <div class="rsum">
-          <div><span class="big">4.7</span><div class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg></div><span style="font-size:11px;color:var(--p-muted)">38 reviews</span></div>
+          <div><span class="big">4.7</span><div class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg></div><span style="font-size:11.5px;color:var(--p-muted)">38 reviews</span></div>
           </div>
         <div class="rev"><div class="who"><b>Adaeze O.</b><span>12 Oct</span></div><div class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg></div>Stone-free and properly sorted. Arrived the next morning, well sealed.</div>
         <div class="rev"><div class="who"><b>Kunle B.</b><span>3 Oct</span></div><div class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></div>Good rice, but the bag was smaller than I expected for the price.<div class="reply"><b>Iya Bisi Foodstuff replied:</b> It's a full 5kg; we've added the weight to the photo. Thank you!</div></div>
@@ -1843,7 +1898,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="emblem"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><svg class="ico"><use href="#i-bag"/></svg></span>
           <h4>Nothing in your cart yet</h4>
           <p>Start with the shops open near you, or pick up where you left off in your saved items.</p>
-          <span class="btn pri" style="width:100%;margin-top:6px">Browse shops near you</span>
+          <span class="btn pri" style="width:100%;margin-top:8px">Browse shops near you</span>
           <span class="btn sec" style="width:100%">See your saved items</span>
         </div>
       </div>
@@ -1856,7 +1911,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="mapwrap" style="pointer-events:none"><div class="tb"><span class="round" style="background:var(--p-surface)"><svg class="ico"><use href="#i-back"/></svg></span><span class="chip c-ind" style="background:var(--p-surface);height:36px;padding:0 12px">Step 1 of 3</span></div></div>
       <div class="mpin"><span class="bubble">Drag the map to your gate</span><span class="head"><i></i></span><span class="shadow"></span></div>
       <span class="locate"><svg class="ico"><use href="#i-locate"/></svg></span>
-      <div class="bsheet" style="gap:9px">
+      <div class="bsheet" style="gap:8px">
         <span class="grab"></span>
         <h4>14 Bode Thomas Street</h4>
         <p>Surulere, Lagos · pin checked with the courier</p>
@@ -1868,16 +1923,16 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="hdr"><svg class="ico"><use href="#i-back"/></svg><b>Delivery</b><span style="margin-left:auto;font-size:11px;color:var(--p-muted);font-weight:700">Step 2 of 3</span></div>
+        <div class="hdr"><svg class="ico"><use href="#i-back"/></svg><b>Delivery</b><span style="margin-left:auto;font-size:11.5px;color:var(--p-muted);font-weight:700">Step 2 of 3</span></div>
         <div class="prog"><i class="on"></i><i class="on"></i><i></i></div>
         <div class="card2" style="gap:8px">
-          <div class="hd"><span class="mono" style="width:26px;height:26px;font-size:10px;border-radius:8px">IB</span><b>Iya Bisi Foodstuff</b><small class="end">2 items</small></div>
+          <div class="hd"><span class="mono" style="width:26px;height:26px;font-size:10.5px;border-radius:8px">IB</span><b>Iya Bisi Foodstuff</b><small class="end">2 items</small></div>
           <div class="opt on"><span class="rb"></span><div><b>Best value · Thu 23 Oct</b><small>GIG Logistics</small></div><span class="pr num">₦1,800</span></div>
           <div class="opt"><span class="rb"></span><div><b>Fastest · Tomorrow</b><small>Kwik</small></div><span class="pr num">₦3,400</span></div>
           <div class="opt"><span class="rb"></span><div><b>Pick up · today from 2pm</b><small>At the shop in Surulere · 1.2 km</small></div><span class="pr">Free</span></div>
         </div>
         <div class="card2" style="gap:8px">
-          <div class="hd"><span class="mono" style="width:26px;height:26px;font-size:10px;border-radius:8px">AH</span><b>Adire House</b><small class="end">1 item</small></div>
+          <div class="hd"><span class="mono" style="width:26px;height:26px;font-size:10.5px;border-radius:8px">AH</span><b>Adire House</b><small class="end">1 item</small></div>
           <div class="opt on"><span class="rb"></span><div><b>Best value · Wed 29 Oct</b><small>Prepared when it opens Mon 10am</small></div><span class="pr num">₦2,100</span></div>
           <div class="opt"><span class="rb"></span><div><b>Fastest · Tue 28 Oct</b><small>Kwik</small></div><span class="pr num">₦3,900</span></div>
         </div>
@@ -1888,7 +1943,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="hdr"><svg class="ico"><use href="#i-back"/></svg><b>Review and pay</b><span style="margin-left:auto;font-size:11px;color:var(--p-muted);font-weight:700">Step 3 of 3</span></div>
+        <div class="hdr"><svg class="ico"><use href="#i-back"/></svg><b>Review and pay</b><span style="margin-left:auto;font-size:11.5px;color:var(--p-muted);font-weight:700">Step 3 of 3</span></div>
         <div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i></div>
         <div class="lrow" style="padding-top:4px"><svg class="ico"><use href="#i-pin"/></svg><div><b>14 Bode Thomas St, Surulere</b><small>Blue gate opposite the pharmacy</small></div><span class="chev">Change</span></div>
         <div class="lrow"><svg class="ico"><use href="#i-truck"/></svg><div><b>Iya Bisi · Thu 23 Oct</b><small>Adire House · Wed 29 Oct</small></div><span class="chev">Change</span></div>
@@ -1978,10 +2033,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     </div></div><figcaption class="ph-cap"><b>Order detail.</b> Per-shop progress, and a missing item explained with the refund amount and when it lands.<span class="route">order/[id].tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>OJ-2301</b></span><span style="font-size:12px;font-weight:700;color:var(--p-accent)">Receipt</span></div>
+        <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>OJ-2301</b></span><span style="font-size:11.5px;font-weight:700;color:var(--p-accent)">Receipt</span></div>
         <div class="card2">
           <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Delivered Thu 2 Oct</small></div><span class="end chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div>
-          <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:12.5px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:12.5px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:12.5px">₦9,200</b></div></div>
+          <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:13px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:13px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:13px">₦9,200</b></div></div>
           <div class="sumrow"><span>Paid, with delivery</span><b class="num">₦24,800</b></div>
           <div class="act2"><span class="btn pri"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span><span class="btn sec"><svg class="ico"><use href="#i-star"/></svg>Write a review</span></div>
         </div>
@@ -1989,10 +2044,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     </div></div><figcaption class="ph-cap"><b>Delivered order.</b> Each shop's part of the order gets Order again once it is delivered or collected, beside Write a review. An order across shops has one per shop, because each shop delivers on its own.<span class="route">order/[id].tsx · new</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>OJ-2301</b></span><span style="font-size:12px;font-weight:700;color:var(--p-accent)">Receipt</span></div>
+        <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>OJ-2301</b></span><span style="font-size:11.5px;font-weight:700;color:var(--p-accent)">Receipt</span></div>
         <div class="card2">
           <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Delivered Thu 2 Oct</small></div><span class="end chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div>
-          <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:12.5px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:12.5px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:12.5px">₦9,200</b></div></div>
+          <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:13px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:13px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:13px">₦9,200</b></div></div>
           <div class="sumrow"><span>Paid, with delivery</span><b class="num">₦24,800</b></div>
           <div class="act2"><span class="btn pri"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span><span class="btn sec"><svg class="ico"><use href="#i-star"/></svg>Write a review</span></div>
         </div>
@@ -2011,9 +2066,9 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
-        <div class="hero2" style="padding-bottom:22px;gap:12px"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
-          <div class="row2" style="display:flex;justify-content:space-between;font-size:12px"><span class="row"><svg class="ico"><use href="#i-back"/></svg>OJ-2398</span><span class="chip c-go" style="background:var(--p-surface)"><svg class="ico"><use href="#i-store"/></svg>Ready</span></div>
-          <h4 style="font-size:24px">Show this at Ikeja Gadget Hub</h4>
+        <div class="hero2" style="padding-bottom:24px;gap:12px"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
+          <div class="row2" style="display:flex;justify-content:space-between;font-size:11.5px"><span class="row"><svg class="ico"><use href="#i-back"/></svg>OJ-2398</span><span class="chip c-go" style="background:var(--p-surface)"><svg class="ico"><use href="#i-store"/></svg>Ready</span></div>
+          <h4 style="font-size:22px">Show this at Ikeja Gadget Hub</h4>
           <span class="bigqr"><svg viewBox="0 0 21 21" aria-label="Pickup QR code" style="width:100%;height:100%"><path fill="#1B2559" d="M0 0h7v7H0zM1 1v5h5V1zM2 2h3v3H2zM14 0h7v7h-7zm1 1v5h5V1zm1 1h3v3h-3zM0 14h7v7H0zm1 1v5h5v-5zm1 1h3v3H2zM9 0h2v2H9zm2 2h2v2h-2zM8 4h2v3H8zm4 1h1v3h-1zM9 9h3v1H9zm-1 2h2v2H8zm6-3h2v2h-2zm4 1h3v2h-3zM9 14h2v2H9zm3-1h3v3h-3zm4 1h2v2h-2zm2 2h3v2h-3zm-6 3h3v2h-3zm5 0h2v2h-2zM0 9h2v2H0zm3 0h2v3H3z"/></svg></span>
           <span class="digits num">482 913</span>
         </div>
@@ -2027,7 +2082,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Refund</b></div>
         <div class="pad">
           <span class="chip c-warn" style="justify-self:start"><svg class="ico"><use href="#i-info"/></svg>Needs your bank details</span>
-          <div class="disp" style="font-size:30px;font-weight:800" class="num">₦3,500</div>
+          <div class="disp" style="font-size:28px;font-weight:800" class="num">₦3,500</div>
           <p style="margin:0;font-size:13px;color:var(--p-muted)">For Fresh Tomatoes 1kg in OJ-2301. Your card's bank couldn't take the money back, so we'll send it to a bank account instead.</p>
           <div class="field"><label for="bk">Bank</label><div class="inp" id="bk">GTBank<svg class="ico"><use href="#i-down"/></svg></div></div>
           <div class="field"><label for="ac">Account number</label><div class="inp focus num" id="ac">0123456789</div><span class="hint" style="color:var(--p-leaftext);font-weight:700">ADEYEMI TOLULOPE</span></div>
@@ -2042,8 +2097,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="navh"><svg class="ico"><use href="#i-x"/></svg><b>Review</b></div>
         <div class="pad">
           <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Iya Bisi Foodstuff · delivered Thu</small></div></div>
-          <div class="bigstars" style="padding:10px 0 2px"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></div>
-          <p style="margin:0;text-align:center;font-size:12px;color:var(--p-muted);font-weight:700">Good</p>
+          <div class="bigstars" style="padding:8px 0 2px"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></div>
+          <p style="margin:0;text-align:center;font-size:11.5px;color:var(--p-muted);font-weight:700">Good</p>
           <div class="ta">Clean rice, no stones. The rider called ahead, which helped.</div>
                     <span class="hint">Your first name and last initial show with the review. The shop can reply.</span>
         </div>
@@ -2234,7 +2289,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1044</span><span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>23h 58m</span></div>
           <div class="big">New · delivery</div>
-          <span style="font-size:12px;opacity:.85">For Tolu A. · Surulere · courier by tomorrow</span>
+          <span style="font-size:11.5px;opacity:.85">For Tolu A. · Surulere · courier by tomorrow</span>
         </div>
         <div class="pad" style="padding-top:12px">
           <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Delivery</small></div><span class="qp">×2</span></div>
@@ -2269,7 +2324,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1042</span><span style="font-weight:700">Courier 4pm</span></div>
           <div class="big">Picking · 3 of 5</div>
-          <div class="ring" style="display:flex;gap:12px;align-items:center;font-size:12px"><span style="flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden"><i style="display:block;height:100%;width:60%;background:#F2B33D"></i></span><b>60%</b></div>
+          <div class="ring" style="display:flex;gap:12px;align-items:center;font-size:11.5px"><span style="flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden"><i style="display:block;height:100%;width:60%;background:#F2B33D"></i></span><b>60%</b></div>
         </div>
         <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Scanned</small></div><span class="qp ok" style="margin-left:auto">2/2</span></div>
         <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small>Ticked</small></div><span class="qp ok" style="margin-left:auto">1/1</span></div>
@@ -2300,7 +2355,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="grab"></span>
           <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>2 ordered</small></div></div>
           <h4>How many can't you supply?</h4>
-          <div style="display:flex;justify-content:center;align-items:center;gap:22px;padding:6px 0"><span class="round" style="width:48px;height:48px;border-radius:16px;background:var(--p-tile);display:grid;place-items:center"><svg class="ico"><use href="#i-minus"/></svg></span><span class="disp" style="font-size:40px;font-weight:800">1</span><span class="round" style="width:48px;height:48px;border-radius:16px;background:var(--p-tile);display:grid;place-items:center"><svg class="ico"><use href="#i-plus"/></svg></span></div>
+          <div style="display:flex;justify-content:center;align-items:center;gap:24px;padding:8px 0"><span class="round" style="width:48px;height:48px;border-radius:16px;background:var(--p-tile);display:grid;place-items:center"><svg class="ico"><use href="#i-minus"/></svg></span><span class="disp" style="font-size:40px;font-weight:800">1</span><span class="round" style="width:48px;height:48px;border-radius:16px;background:var(--p-tile);display:grid;place-items:center"><svg class="ico"><use href="#i-plus"/></svg></span></div>
           <div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>The buyer is told and refunded <b>₦3,500</b> automatically when you finish packing.</span></div>
           <span class="btn pri">Mark 1 not available</span>
         </div>
@@ -2310,7 +2365,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Refund to the buyer</b></div>
         <div class="pad" style="gap:16px">
-          <p style="margin:0;color:var(--p-muted);font-size:12.5px;line-height:1.5">These come off the order, and the buyer is refunded what they paid for them. You then pick and pack the rest.</p>
+          <p style="margin:0;color:var(--p-muted);font-size:13px;line-height:1.5">These come off the order, and the buyer is refunded what they paid for them. You then pick and pack the rest.</p>
           <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>1 of 2 unavailable</small></div><span class="qp short">1/2</span></div>
           <div class="sumrow total"><span>Refund to the buyer</span><b class="num">₦3,500</b></div>
         </div>
@@ -2354,7 +2409,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1042</span><span>Waybill GIG-58210</span></div>
           <div class="big">Courier on the way</div>
         </div>
-        <div class="tl" style="padding-top:14px">
+        <div class="tl" style="padding-top:16px">
           <div><i class="on"></i><div><b>Label booked</b><small>GIG Logistics · 1 parcel</small></div><time>1:12pm</time></div>
           <div><i class="on"></i><div><b>Courier confirmed</b><small>GIG accepted the pickup</small></div><time>1:40pm</time></div>
           <div><i class="now"></i><div><b>Handed to courier</b><small>Tap when the rider takes the parcel</small></div><time></time></div>
@@ -2371,7 +2426,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Collect an order</span></div>
           <div class="big">Enter the buyer's code</div>
         </div>
-        <div class="pad" style="padding-top:16px;gap:14px">
+        <div class="pad" style="padding-top:16px;gap:16px">
           <div class="codebox"><span>4</span><span>8</span><span>2</span><span>9</span><span class="f"></span><span></span></div>
           <span class="btn sec"><svg class="ico"><use href="#i-scan"/></svg>Scan their QR instead</span>
         </div>
@@ -2414,7 +2469,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Add a product</b></div>
         <div class="pad">
-          <div style="display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center"><span style="width:96px;height:96px;border-radius:18px;overflow:hidden;background:var(--p-tile)"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Found in catalogue</span><b style="display:block;font-size:15px;margin-top:6px">Ijebu Garri 4kg</b><small style="font-size:11px;color:var(--p-muted)" class="num">Barcode 6150123456789</small></div></div>
+          <div style="display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center"><span style="width:96px;height:96px;border-radius:16px;overflow:hidden;background:var(--p-tile)"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Found in catalogue</span><b style="display:block;font-size:14px;margin-top:8px">Ijebu Garri 4kg</b><small style="font-size:11.5px;color:var(--p-muted)" class="num">Barcode 6150123456789</small></div></div>
           <div class="field"><label for="qp1">Your price</label><div class="inp focus" id="qp1">₦ 5,200</div><span class="hint">Buyers see this price under your shop's name.</span></div>
           <div class="field"><label for="qs1">In stock</label><div class="inp" id="qs1">24</div></div>
           <div class="note2"><svg class="ico"><use href="#i-camera"/></svg><span><b>Add your own photo?</b> Square, on a plain background, the whole product in view.</span></div>
@@ -2433,7 +2488,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small class="num">₦5,200 · 24 in stock</small></div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>On sale</span></div>
         </div>
       </div>
-      <div class="cta" style="flex-direction:column;height:auto;gap:0;padding:0;background:none;box-shadow:none"></div>
       <div style="position:absolute;left:16px;right:16px;bottom:16px;display:grid;gap:8px"><span class="btn pri" style="width:100%;height:52px"><svg class="ico"><use href="#i-scan"/></svg>Scan another</span><span class="btn sec" style="width:100%">Back to orders</span></div>
     </div></div><figcaption class="ph-cap"><b>Added.</b> Scan another is the main action, because quick-add usually happens shelf by shelf. A product new to the catalogue reads "Sent for review" with an In review chip: the catalogue team checks it before it goes on sale at the shop's price.<span class="route">(app)/quick-add/done.tsx</span></figcaption></figure>
 
@@ -2441,8 +2495,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="bigt">Settings</div>
         <div class="card2"><div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Open until 7pm · 2 orders waiting</small></div></div>
-          <div class="between"><div><b style="font-size:13.5px">Taking orders</b><small style="display:block;font-size:11px;color:var(--p-muted)">Turn off to pause the shop now</small></div><span class="sw2"></span></div>
-          <div class="between" style="padding-top:10px"><div><b style="font-size:13.5px">Full-screen new orders</b><small style="display:block;font-size:11px;color:var(--p-muted)">Off shows a banner instead. Saved on this phone.</small></div><span class="sw2"></span></div>
+          <div class="between"><div><b style="font-size:13px">Taking orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Turn off to pause the shop now</small></div><span class="sw2"></span></div>
+          <div class="between" style="padding-top:8px"><div><b style="font-size:13px">Full-screen new orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Off shows a banner instead. Saved on this phone.</small></div><span class="sw2"></span></div>
         </div>
         <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-swap"/></svg></span><div><b>Switch shop</b><small>You work at 2 shops</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
                 <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-clock"/></svg></span><div><b>Opening hours</b><small>Edit in the vendor panel on the web</small></div><span class="chev"><svg class="ico"><use href="#i-share"/></svg></span></div>
@@ -2490,11 +2544,11 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="search"><svg class="ico"><use href="#i-search"/></svg>Search shops and products</div>
         </div>
         <div style="display:flex;gap:8px;padding:16px 16px 0"><i class="sk" style="width:44px;height:32px;border-radius:999px;"></i><i class="sk" style="width:84px;height:32px;border-radius:999px;"></i><i class="sk" style="width:84px;height:32px;border-radius:999px;"></i><i class="sk" style="width:70px;height:32px;border-radius:999px;"></i></div>
-        <div style="padding:24px 16px 4px"><i class="sk" style="width:40%;height:16px;border-radius:6px;"></i></div>
-        <div style="display:flex;gap:12px;align-items:center;padding:12px 16px 8px"><i class="sk" style="width:32px;height:32px;border-radius:10px;"></i><div style="display:grid;gap:6px;flex:1"><i class="sk" style="width:55%;height:12px;border-radius:6px;"></i><i class="sk" style="width:75%;height:10px;border-radius:6px;"></i></div></div>
-        <div style="display:flex;gap:10px;padding:4px 16px 16px;overflow:hidden"><div style="display:grid;gap:6px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:6px;"></i><i class="sk" style="width:85%;height:10px;border-radius:6px;"></i></div><div style="display:grid;gap:6px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:6px;"></i><i class="sk" style="width:85%;height:10px;border-radius:6px;"></i></div><div style="display:grid;gap:6px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:6px;"></i><i class="sk" style="width:85%;height:10px;border-radius:6px;"></i></div></div>
-        <div style="display:flex;gap:12px;align-items:center;padding:12px 16px 8px"><i class="sk" style="width:32px;height:32px;border-radius:10px;"></i><div style="display:grid;gap:6px;flex:1"><i class="sk" style="width:55%;height:12px;border-radius:6px;"></i><i class="sk" style="width:75%;height:10px;border-radius:6px;"></i></div></div>
-        <div style="display:flex;gap:10px;padding:4px 16px 16px;overflow:hidden"><div style="display:grid;gap:6px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:6px;"></i><i class="sk" style="width:85%;height:10px;border-radius:6px;"></i></div><div style="display:grid;gap:6px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:6px;"></i><i class="sk" style="width:85%;height:10px;border-radius:6px;"></i></div><div style="display:grid;gap:6px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:6px;"></i><i class="sk" style="width:85%;height:10px;border-radius:6px;"></i></div></div>
+        <div style="padding:24px 16px 4px"><i class="sk" style="width:40%;height:16px;border-radius:8px;"></i></div>
+        <div style="display:flex;gap:12px;align-items:center;padding:12px 16px 8px"><i class="sk" style="width:32px;height:32px;border-radius:12px;"></i><div style="display:grid;gap:8px;flex:1"><i class="sk" style="width:55%;height:12px;border-radius:8px;"></i><i class="sk" style="width:75%;height:10px;border-radius:8px;"></i></div></div>
+        <div style="display:flex;gap:8px;padding:4px 16px 16px;overflow:hidden"><div style="display:grid;gap:8px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:8px;"></i><i class="sk" style="width:85%;height:10px;border-radius:8px;"></i></div><div style="display:grid;gap:8px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:8px;"></i><i class="sk" style="width:85%;height:10px;border-radius:8px;"></i></div><div style="display:grid;gap:8px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:8px;"></i><i class="sk" style="width:85%;height:10px;border-radius:8px;"></i></div></div>
+        <div style="display:flex;gap:12px;align-items:center;padding:12px 16px 8px"><i class="sk" style="width:32px;height:32px;border-radius:12px;"></i><div style="display:grid;gap:8px;flex:1"><i class="sk" style="width:55%;height:12px;border-radius:8px;"></i><i class="sk" style="width:75%;height:10px;border-radius:8px;"></i></div></div>
+        <div style="display:flex;gap:8px;padding:4px 16px 16px;overflow:hidden"><div style="display:grid;gap:8px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:8px;"></i><i class="sk" style="width:85%;height:10px;border-radius:8px;"></i></div><div style="display:grid;gap:8px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:8px;"></i><i class="sk" style="width:85%;height:10px;border-radius:8px;"></i></div><div style="display:grid;gap:8px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:8px;"></i><i class="sk" style="width:85%;height:10px;border-radius:8px;"></i></div></div>
       </div>
       <div class="tabbar"><span class="on"><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
     </div></div><figcaption class="ph-cap"><b>Home, loading.</b> The band, address and search are known on the phone, so they show at once; only the listings shimmer, in the shapes they will fill. Under Reduce Motion the shimmer is still.<span class="route">(tabs)/index.tsx</span></figcaption></figure>
@@ -2502,9 +2556,9 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div style="height:250px;background:var(--p-tile);position:relative"><i class="sk" style="position:absolute;inset:0;border-radius:0"></i>
           <span class="round" style="position:absolute;left:16px;top:8px"><svg class="ico"><use href="#i-back"/></svg></span></div>
-        <div class="pd" style="gap:12px"><i class="sk" style="width:45%;height:12px;border-radius:6px;"></i><i class="sk" style="width:80%;height:22px;border-radius:8px;"></i><i class="sk" style="width:35%;height:22px;border-radius:8px;"></i>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><i class="sk" style="width:100%;height:64px;border-radius:14px;"></i><i class="sk" style="width:100%;height:64px;border-radius:14px;"></i></div>
-          <i class="sk" style="width:100%;height:54px;border-radius:14px;"></i>
+        <div class="pd" style="gap:12px"><i class="sk" style="width:45%;height:12px;border-radius:8px;"></i><i class="sk" style="width:80%;height:22px;border-radius:8px;"></i><i class="sk" style="width:35%;height:22px;border-radius:8px;"></i>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><i class="sk" style="width:100%;height:64px;border-radius:12px;"></i><i class="sk" style="width:100%;height:64px;border-radius:12px;"></i></div>
+          <i class="sk" style="width:100%;height:54px;border-radius:12px;"></i>
         </div>
       </div>
       <div class="cta" style="opacity:.45"><span>Add to cart</span><span class="num">—</span></div>
@@ -2519,7 +2573,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="emblem quiet"><svg class="ico"><use href="#i-cloud-off"/></svg></span>
           <h4>Couldn't reach the store</h4>
           <p>Check your connection and try again. Anything in your cart is saved.</p>
-          <span class="btn pri" style="width:100%;margin-top:6px"><svg class="ico"><use href="#i-refresh"/></svg>Try again</span>
+          <span class="btn pri" style="width:100%;margin-top:8px"><svg class="ico"><use href="#i-refresh"/></svg>Try again</span>
           
         </div>
       </div>
@@ -2532,7 +2586,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="emblem"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><svg class="ico"><use href="#i-search"/></svg></span>
           <h4>No results for “garri powder”</h4>
           <p>Check the spelling, or try fewer or shorter words.</p>
-          <span class="btn sec" style="width:100%;margin-top:6px">Clear search</span>
+          <span class="btn sec" style="width:100%;margin-top:8px">Clear search</span>
         </div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span class="on"><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
@@ -2544,7 +2598,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="emblem"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><svg class="ico"><use href="#i-box"/></svg></span>
           <h4>No orders yet</h4>
           <p>When you buy something, you can follow every shop's part of the order here.</p>
-          <span class="btn pri" style="width:100%;margin-top:6px">Browse shops near you</span>
+          <span class="btn pri" style="width:100%;margin-top:8px">Browse shops near you</span>
         </div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
@@ -2556,7 +2610,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="emblem"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><svg class="ico"><use href="#i-store"/></svg></span>
           <h4>Shop closed</h4>
           <p>This shop isn't selling in your area right now.</p>
-          <span class="btn sec" style="width:100%;margin-top:6px">Back to shops near you</span>
+          <span class="btn sec" style="width:100%;margin-top:8px">Back to shops near you</span>
         </div>
       </div>
     </div></div><figcaption class="ph-cap"><b>Shop closed.</b> A shop link that no longer works for this address, from a share or an old order.<span class="route">seller/[id].tsx</span></figcaption></figure>
@@ -2567,7 +2621,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="emblem quiet"><svg class="ico"><use href="#i-cloud-off"/></svg></span>
           <h4>Couldn't open Paystack</h4>
           <p>The payment page didn't load. You haven't been charged.</p>
-          <span class="btn pri" style="width:100%;margin-top:6px"><svg class="ico"><use href="#i-refresh"/></svg>Try again</span>
+          <span class="btn pri" style="width:100%;margin-top:8px"><svg class="ico"><use href="#i-refresh"/></svg>Try again</span>
           <span class="btn sec" style="width:100%">Back to checkout</span>
         </div>
       </div>
@@ -2589,14 +2643,14 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="emblem quiet"><svg class="ico"><use href="#i-clock"/></svg></span>
           <h4>Still confirming your payment</h4>
           <p>Paystack hasn't confirmed it yet. If you were charged, your order appears in Orders as soon as it's confirmed. If you didn't finish paying, go back to checkout and pay again.</p>
-          <span class="btn pri" style="width:100%;margin-top:6px"><svg class="ico"><use href="#i-refresh"/></svg>Check again</span>
+          <span class="btn pri" style="width:100%;margin-top:8px"><svg class="ico"><use href="#i-refresh"/></svg>Check again</span>
           <span class="btn sec" style="width:100%">Back to checkout</span>
         </div>
       </div>
     </div></div><figcaption class="ph-cap"><b>Still confirming.</b> Waiting stays the first choice: paying again too soon could charge twice.<span class="route">checkout/confirmation.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>Review and pay</b></span><small style="color:var(--p-muted);font-size:11px;font-weight:700">Step 3 of 3</small></div>
+        <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>Review and pay</b></span><small style="color:var(--p-muted);font-size:11.5px;font-weight:700">Step 3 of 3</small></div>
         <div class="pad">
           <div class="sumrow"><span>Items</span><b class="num">₦47,700</b></div>
           <div class="sumrow"><span>Delivery</span><b class="num">₦3,900</b></div>
@@ -2609,7 +2663,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     </div></div><figcaption class="ph-cap"><b>Payment not completed.</b> Leaving Paystack brings the buyer back here with what happened above the button. Closing the page instead says: "If you finished paying, your order appears in Orders once Paystack confirms it."<span class="route">checkout/index.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>Review and pay</b></span><small style="color:var(--p-muted);font-size:11px;font-weight:700">Step 3 of 3</small></div>
+        <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>Review and pay</b></span><small style="color:var(--p-muted);font-size:11.5px;font-weight:700">Step 3 of 3</small></div>
         <div class="pad">
           <div class="note2 warn" role="status"><svg class="ico"><use href="#i-alert"/></svg><span><b>Your order wasn't placed.</b> Iya Bisi Foodstuff sold out of Ofada Rice 5kg while you were paying, so you've been refunded ₦49,600. A refund can take a few days to reach your card.</span></div>
           <div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>Ofada Rice 5kg is no longer in your cart. The total below is what you'll pay if you order again.</span></div>
@@ -2625,9 +2679,9 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="vtop"><div><b>Iya Bisi Foodstuff</b><small>Mon 20 Oct · open until 7pm</small></div><span class="openpill"><i></i>Open</span></div>
         <div class="seg"><span class="on"><b>·</b>To accept</span><span><b>·</b>Picking</span><span><b>·</b>Ready</span><span><b>·</b>Out</span></div>
         <div style="display:grid;gap:8px;padding:20px 0 24px;margin:0 16px;border-bottom:1px solid #E4E6EE">
-          <div class="between"><i class="sk" style="width:45%;height:16px;border-radius:6px;"></i><i class="sk" style="width:72px;height:24px;border-radius:999px;"></i></div><i class="sk" style="width:80%;height:11px;border-radius:6px;"></i>
+          <div class="between"><i class="sk" style="width:45%;height:16px;border-radius:8px;"></i><i class="sk" style="width:72px;height:24px;border-radius:999px;"></i></div><i class="sk" style="width:80%;height:11px;border-radius:8px;"></i>
           <div style="display:flex;gap:8px;margin-top:8px"><i class="sk" style="width:50%;height:42px;border-radius:12px;"></i><i class="sk" style="width:50%;height:42px;border-radius:12px;"></i></div></div><div style="display:grid;gap:8px;padding:20px 0 24px;margin:0 16px;border-bottom:1px solid #E4E6EE">
-          <div class="between"><i class="sk" style="width:45%;height:16px;border-radius:6px;"></i><i class="sk" style="width:72px;height:24px;border-radius:999px;"></i></div><i class="sk" style="width:80%;height:11px;border-radius:6px;"></i>
+          <div class="between"><i class="sk" style="width:45%;height:16px;border-radius:8px;"></i><i class="sk" style="width:72px;height:24px;border-radius:999px;"></i></div><i class="sk" style="width:80%;height:11px;border-radius:8px;"></i>
           <div style="display:flex;gap:8px;margin-top:8px"><i class="sk" style="width:50%;height:42px;border-radius:12px;"></i><i class="sk" style="width:50%;height:42px;border-radius:12px;"></i></div></div>
       </div>
     </div></div><figcaption class="ph-cap"><b>Orders, loading.</b> The shop's name and open state come from the session, so they show at once; counts and orders fill in.<span class="route">(app)/index.tsx</span></figcaption></figure>
@@ -2649,7 +2703,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="emblem quiet"><svg class="ico"><use href="#i-cloud-off"/></svg></span>
           <h4>Couldn't load the pick list</h4>
           <p>Check your connection and try again. Nothing you've picked is lost.</p>
-          <span class="btn pri" style="width:100%;margin-top:6px"><svg class="ico"><use href="#i-refresh"/></svg>Try again</span>
+          <span class="btn pri" style="width:100%;margin-top:8px"><svg class="ico"><use href="#i-refresh"/></svg>Try again</span>
           
         </div>
       </div>
