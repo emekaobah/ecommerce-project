@@ -1222,6 +1222,15 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .otabs span.on{color:var(--p-ink); box-shadow:inset 0 -2.5px 0 var(--p-indigo)}
 .B .otabs em{font-style:normal; font-size:11px; font-weight:800; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; color:var(--p-muted)}
 .B .otabs span.on em{background:var(--p-indigo); color:#fff}
+
+/* cart: per-shop subtotal and single-shop checkout */
+.B .shopsum{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding-top:12px; margin-top:4px; border-top:1px dashed var(--p-line)}
+.B .shopsum b{display:block; font-size:13px}
+.B .shopsum small{color:var(--p-muted); font-size:11px}
+.B .shopsum .r{display:grid; justify-items:end; gap:2px}
+.B .shopsum .lnk{color:var(--p-accent); font-size:12px; font-weight:800; min-height:32px; display:flex; align-items:center}
+.B .cartsum{gap:6px}
+.B .shopsum .lnk{white-space:nowrap} .B .shopsum > div:first-child{min-width:0}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -1809,22 +1818,24 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="bigt">Cart</div>
         <div class="card2">
-          <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Open · closes 7pm</small></div><span class="end" style="font-weight:800;letter-spacing:2px">···</span></div>
+          <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Open · closes 7pm</small></div></div>
           <div class="lines">
             <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦14,500</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
             <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small class="num">₦5,200</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
           </div>
+          <div class="shopsum"><div><b>Subtotal (2 items)</b><small>+ delivery at checkout</small></div><div class="r"><b class="num">₦19,700</b><span class="lnk">Checkout this shop</span></div></div>
         </div>
         <div class="card2">
-          <div class="hd"><span class="mono">AH</span><div><b>Adire House</b><small>Closed now · prepared when it opens Mon 10am</small></div><span class="end" style="font-weight:800;letter-spacing:2px">···</span></div>
+          <div class="hd"><span class="mono">AH</span><div><b>Adire House</b><small>Closed now · prepared when it opens Mon 10am</small></div></div>
           <div class="lines">
             <div class="ln"><span class="ph"><img class="img" src="img/cat-kaftan.jpg" alt="" style="object-position:top"></span><div><b>Adire Kaftan · M</b><small class="num">₦28,000</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
           </div>
+          <div class="shopsum"><div><b>Subtotal (1 item)</b><small>+ delivery at checkout</small></div><div class="r"><b class="num">₦28,000</b><span class="lnk">Checkout this shop</span></div></div>
         </div>
-        <div class="pad"><div class="sumrow"><span>Items from 2 shops</span><b class="num">₦47,700</b></div><div class="sumrow"><span>Delivery</span><span>Chosen per shop at checkout</span></div></div>
+        <div class="pad cartsum"><div class="sumrow"><span>Iya Bisi Foodstuff</span><b class="num">₦19,700</b></div><div class="sumrow"><span>Adire House</span><b class="num">₦28,000</b></div><div class="sumrow total"><span>Items total</span><b class="num">₦47,700</b></div></div>
       </div>
-      <div class="cta"><span>Checkout</span><span class="num">₦47,700</span></div>
-    </div></div><figcaption class="ph-cap"><b>Cart.</b> Grouped by shop with each shop's open state; delivery is priced at checkout, as today. "Pay for this shop only" lives in the ··· menu.<span class="route">(tabs)/cart.tsx</span></figcaption></figure>
+      <div class="cta"><span>Checkout 2 shops</span><span class="num">₦47,700</span></div>
+    </div></div><figcaption class="ph-cap"><b>Cart.</b> Grouped by shop, like Etsy: each shop ends with its own subtotal and a "Checkout this shop" link, which pays for that shop alone and leaves the rest in the cart (shown only when the cart has more than one shop). The main button checks out every shop and says how many. Delivery is priced per shop at checkout, as today.<span class="route">(tabs)/cart.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
