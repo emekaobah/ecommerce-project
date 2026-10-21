@@ -3,7 +3,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Unbounded:wght@600;800&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
 <style>
 /* Layout: a long-form review. Text column ~68ch, wide bands for phone strips that scroll sideways on small screens. */
 :root{
@@ -208,76 +208,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .scanbtn .s1{flex:1; background:var(--p-indigo); color:#fff}
 .B .scanbtn .s2{width:110px; background:var(--p-tile); color:var(--p-ink)}
 
-/* C product */
-.C .scr.palmtop{background:var(--p-palm)}
-.C .phero{background:var(--p-palm); height:300px; position:relative; display:grid; place-items:center}
-.C .phero .circ{width:220px; height:220px; border-radius:50%; overflow:hidden; border:6px solid rgba(255,255,255,.9)}
-.C .phero .tb{position:absolute; top:4px; left:12px; right:12px; display:flex; justify-content:space-between}
-.C .round{width:36px; height:36px; border-radius:50%; background:#fff; display:grid; place-items:center}
-.C .phero .lab{position:absolute; left:16px; bottom:14px; background:#111; color:#fff; font-size:10.5px; font-weight:800; padding:5px 10px; border-radius:999px}
-.C .pd{padding:16px; display:grid; gap:12px}
-.C .pd h4{margin:0; font-family:"Unbounded", sans-serif; font-size:20px; font-weight:800; line-height:1.15}
-.C .price{font-family:"Unbounded", sans-serif; font-size:24px; font-weight:800}
-.C .badges{display:flex; gap:6px; flex-wrap:wrap}
-.C .badges span{font-size:11px; font-weight:800; padding:6px 10px; border-radius:999px; background:var(--p-tile)}
-.C .shoprow{display:flex; gap:10px; align-items:center; border:2px solid #111; border-radius:18px; padding:10px}
-.C .shoprow .av{width:36px; height:36px; border-radius:50%; overflow:hidden; flex:none}
-.C .shoprow b{font-size:13px; display:block}
-.C .shoprow small{font-size:11px; color:var(--p-muted)}
-/* C tracking */
-.C .tr-h{padding:2px 16px 10px; display:grid; gap:4px}
-.C .tr-h small{font-size:11px; font-weight:700; color:var(--p-muted)}
-.C .tr-h b{font-family:"Unbounded", sans-serif; font-size:20px; font-weight:800; line-height:1.1}
-.C .ord{margin:0 16px 10px; border-radius:20px; padding:12px; display:grid; gap:10px; background:var(--p-tile)}
-.C .ord .hd{display:flex; gap:8px; align-items:center}
-.C .ord .hd .av{width:28px; height:28px; border-radius:50%; overflow:hidden; flex:none}
-.C .ord .hd b{font-size:13px}
-.C .ord .hd small{display:block; font-size:11px; color:var(--p-muted)}
-.C .ord .hd .st{margin-left:auto; font-size:10.5px; font-weight:800; padding:4px 9px; border-radius:999px; background:#111; color:#fff; white-space:nowrap}
-.C .track{display:grid; grid-template-columns:repeat(5,1fr); gap:4px}
-.C .track i{height:6px; border-radius:3px; background:var(--p-line)}
-.C .track i.on{background:var(--p-leaf)}
-.C .track-l{display:flex; justify-content:space-between; font-size:10px; color:var(--p-muted); font-weight:700}
-.C .code{display:grid; grid-template-columns:76px 1fr; gap:12px; align-items:center; background:#111; color:#fff; border-radius:16px; padding:10px}
-.C .code .qr{width:76px; height:76px; background:#fff; border-radius:8px; padding:6px}
-.C .code b{font-family:"Unbounded", sans-serif; font-size:17px; letter-spacing:.08em; white-space:nowrap; color:var(--p-sun)}
-.C .code small{display:block; font-size:10.5px; opacity:.8; line-height:1.35}
-/* C vendor new order */
-.C .scr.alert{background:var(--p-leaf); color:#fff}
-.C .na{position:absolute; inset:38px 0 0; padding:10px 18px 18px; display:flex; flex-direction:column; gap:14px}
-.C .na .lbl{font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; opacity:.85}
-.C .na .big{font-family:"Unbounded", sans-serif; font-size:30px; font-weight:800; line-height:1.05}
-.C .na .money{font-family:"Unbounded", sans-serif; font-size:22px; font-weight:800; color:var(--p-sun)}
-.C .na .list{background:rgba(255,255,255,.12); border-radius:18px; padding:12px; display:grid; gap:8px; font-size:12.5px}
-.C .na .list div{display:flex; justify-content:space-between}
-.C .na .clock{display:flex; gap:8px; align-items:center; font-size:12px; font-weight:700}
-.C .na .acc{margin-top:auto; height:64px; border-radius:999px; background:#fff; color:#111; display:flex; align-items:center; justify-content:center; font-family:"Unbounded", sans-serif; font-weight:800; font-size:17px}
-.C .na .rej{text-align:center; font-weight:800; font-size:13px; opacity:.9}
-
-/* ============ B vs C head-to-head ============ */
-.vs-row{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:20px 32px; align-items:start; padding-top:28px; border-top:1px solid var(--line)}
-.vs-row:first-of-type{border-top:0; padding-top:0}
-.vs-lab{display:grid; gap:10px; min-width:0; max-width:46ch}
-.vs-lab h3{font-size:24px}
-.vs-lab dl{margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 10px; font-size:14.5px}
-.vs-lab dt{font-family:var(--f-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding-top:3px; color:var(--muted)}
-.vs-lab dd{margin:0; color:var(--muted)}
-.vs-lab dd b{color:var(--fg)}
-.edge{justify-self:start; font-family:var(--f-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding:4px 10px; border-radius:999px; background:var(--accent-soft); color:var(--accent)}
-.edge.c{background:var(--warn-soft); color:var(--warn)}
-.edge.tie{background:var(--line); color:var(--fg)}
-.vs-pair{display:flex; gap:22px; overflow-x:auto; padding:4px 4px 12px; min-width:0}
-.vs-pair > div{flex:0 0 auto; display:grid; gap:8px; justify-items:center}
-.vs-pair .who{font-family:var(--f-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
-@media (max-width:1000px){ .vs-row{grid-template-columns:minmax(0,1fr)} }
-.score td.b, .score td.c{width:30%}
-.score .win{font-weight:700; color:var(--fg)}
-.score .mark{font-family:var(--f-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap}
-.cx{display:inline-flex; align-items:center; gap:6px; font-family:var(--f-mono); font-size:12px; margin:2px 8px 2px 0}
-.cx i{width:14px; height:14px; border-radius:4px; display:inline-block; border:1px solid var(--line)}
-.steal{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr)); gap:16px}
-.steal > div{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px; display:grid; gap:8px}
-.steal ul{margin:0; padding-left:18px; color:var(--muted); font-size:15px; display:grid; gap:4px}
 
 /* B: search */
 .B .sbar{padding:2px 16px 8px; display:grid; gap:8px}
@@ -334,55 +264,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .na .acc{margin-top:auto; height:60px; border-radius:16px; background:#fff; color:var(--p-indigo); display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:18px}
 .B .na .rej{text-align:center; font-weight:700; font-size:13px; opacity:.85}
 
-/* C: search */
-.C .sq{background:var(--p-sun); padding:2px 16px 14px; display:grid; gap:10px}
-.C .fch{display:flex; gap:6px; overflow:hidden}
-.C .fch span{flex:none; height:30px; padding:0 12px; border-radius:999px; border:2px solid #111; display:flex; align-items:center; font-size:11.5px; font-weight:800; background:#fff}
-.C .fch span.on{background:#111; color:var(--p-sun)}
-.C .rshop{padding:14px 16px 8px; display:flex; gap:10px; align-items:center}
-.C .rshop .av{width:32px; height:32px; border-radius:50%; overflow:hidden; flex:none}
-.C .rshop b{font-family:"Unbounded", sans-serif; font-size:12.5px; display:block}
-.C .rshop small{font-size:11px; color:var(--p-muted); font-weight:700}
-.C .rshop .more{margin-left:auto; width:30px; height:30px; border-radius:50%; background:#111; color:#fff; display:grid; place-items:center}
-.C .rshop .more .ico{width:14px; height:14px}
-/* C: checkout */
-.C .hdr{display:flex; align-items:center; gap:10px; padding:2px 16px 8px}
-.C .hdr b{font-family:"Unbounded", sans-serif; font-size:18px; font-weight:800}
-.C .stp{display:flex; gap:6px; padding:0 16px 12px}
-.C .stp span{flex:1; height:28px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; font-size:10.5px; font-weight:800; color:var(--p-muted)}
-.C .stp span.on{background:#111; color:var(--p-sun)}
-.C .stp span.done{background:var(--p-leaf); color:#fff}
-.C .ck{margin:0 16px 10px; background:var(--p-tile); border-radius:20px; padding:12px; display:grid; gap:8px}
-.C .ck .hd{display:flex; gap:8px; align-items:center; font-weight:800; font-size:13px}
-.C .ck .hd .av{width:26px; height:26px; border-radius:50%; overflow:hidden; flex:none}
-.C .ck .hd small{margin-left:auto; font-size:10.5px; color:var(--p-muted)}
-.C .opts{display:grid; grid-template-columns:repeat(3,1fr); gap:6px}
-.C .o{border-radius:14px; background:#fff; padding:8px 7px; display:grid; gap:2px; font-size:10px; color:var(--p-muted); border:2px solid transparent; line-height:1.25}
-.C .o b{font-size:11.5px; color:#111}
-.C .o.on{border-color:#111}
-.C .o .pr{font-family:"Unbounded", sans-serif; font-size:11.5px; color:#111; font-weight:800}
-.C .ctot{margin:2px 16px 0; display:flex; justify-content:space-between; align-items:baseline}
-.C .ctot span{font-size:12px; font-weight:700; color:var(--p-muted)}
-.C .ctot b{font-family:"Unbounded", sans-serif; font-size:22px}
-/* C: pick list */
-.C .pkh{background:var(--p-sun); padding:2px 16px 14px; display:grid; gap:8px}
-.C .pkh .top{display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:800}
-.C .pkh .big{font-family:"Unbounded", sans-serif; font-size:22px; font-weight:800; line-height:1.1}
-.C .segbar{display:grid; grid-template-columns:repeat(5,1fr); gap:4px}
-.C .segbar i{height:10px; border-radius:5px; background:rgba(17,17,17,.15)}
-.C .segbar i.on{background:#111}
-.C .pk{display:grid; grid-template-columns:52px 1fr auto; gap:10px; align-items:center; margin:8px 16px 0; padding:8px; border-radius:18px; background:var(--p-tile)}
-.C .pk .ph{width:52px; height:52px; border-radius:14px; overflow:hidden}
-.C .pk b{font-size:13px; display:block}
-.C .pk small{font-size:11px; color:var(--p-muted); font-weight:700}
-.C .pk .q{font-family:"Unbounded", sans-serif; font-size:14px; font-weight:800; min-width:46px; height:34px; border-radius:999px; display:grid; place-items:center; background:#fff; padding:0 8px}
-.C .pk.done{background:#E4F2EA}
-.C .pk.done .q{background:var(--p-leaf); color:#fff}
-.C .pk.short .q{background:var(--p-tomato); color:#fff}
-.C .scan2{position:absolute; left:12px; right:12px; bottom:14px; display:flex; gap:8px; z-index:4}
-.C .scan2 span{height:56px; border-radius:999px; display:flex; align-items:center; justify-content:center; gap:8px; font-weight:800; font-size:14px}
-.C .scan2 .s1{flex:1; background:#111; color:var(--p-sun)}
-.C .scan2 .s2{width:110px; background:#fff; border:2px solid #111}
 
 /* ============ Adire catalogue additions ============ */
 .flow{display:grid; gap:18px; padding-top:8px}
@@ -1289,7 +1170,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   <p class="lede">Every screen of the buyer and vendor apps in the chosen direction: Adire's indigo, pattern and shop-first structure. Laid out in the order people move through them.</p>
   <div class="meta"><span>Routes are from <code>apps/mobile-buyer/src/app</code> and <code>apps/mobile-vendor/src/app</code></span><span>Imagery: generated for these mockups</span></div>
   <nav class="toc" aria-label="Sections">
-    <a href="#system">System</a><a href="#dark">Dark mode</a><a href="#a11y">Accessibility</a><a href="#b-arrive">Buyer · arrive</a><a href="#b-home">Home, full scroll</a><a href="#b-discover">Discover</a><a href="#b-decide">Decide</a><a href="#b-product">Product, full scroll</a><a href="#b-buy">Buy</a><a href="#b-after">After purchase</a><a href="#b-orders">Orders, full scroll</a><a href="#b-account">Account</a><a href="#v-access">Vendor · access</a><a href="#v-triage">Triage</a><a href="#v-pick">Pick and pack</a><a href="#v-hand">Hand over</a><a href="#v-shop">Shop controls</a><a href="#states">States</a>
+    <a href="#system">System</a><a href="#foundations">Foundations</a><a href="#dark">Dark mode</a><a href="#a11y">Accessibility</a><a href="#b-arrive">Buyer · arrive</a><a href="#b-home">Home, full scroll</a><a href="#b-discover">Discover</a><a href="#b-decide">Decide</a><a href="#b-product">Product, full scroll</a><a href="#b-buy">Buy</a><a href="#b-after">After purchase</a><a href="#b-orders">Orders, full scroll</a><a href="#b-account">Account</a><a href="#v-access">Vendor · access</a><a href="#v-triage">Triage</a><a href="#v-pick">Pick and pack</a><a href="#v-hand">Hand over</a><a href="#v-shop">Shop controls</a><a href="#states">States</a>
   </nav>
 </header>
 
@@ -1341,7 +1222,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   <div class="sysgrid2" id="sys-scale">
     <div class="sysc">
       <h3>Spacing: a 4pt grid</h3>
-      <p class="note">Every padding, margin and gap on every screen is one of these. Mockup px; 1px here is about 1.4pt on a phone.</p>
+      <p class="note">Every padding, margin and gap on every screen is one of these. Mockup px; Foundations gives each value in device points.</p>
       <div class="splist"><div class="sprow"><code>4</code><i style="width:12px"></i><span>Icon to label, chip padding</span></div><div class="sprow"><code>8</code><i style="width:24px"></i><span>Between chips and tiles; inside a row</span></div><div class="sprow"><code>12</code><i style="width:36px"></i><span>Card padding; between rows; grid columns</span></div><div class="sprow"><code>16</code><i style="width:48px"></i><span>Screen gutter; between grid rows</span></div><div class="sprow"><code>20</code><i style="width:60px"></i><span>Under a band; between orders</span></div><div class="sprow"><code>24</code><i style="width:72px"></i><span>Above a section heading; between groups</span></div><div class="sprow"><code>32</code><i style="width:96px"></i><span>Around confirmations</span></div><div class="sprow"><code>48</code><i style="width:144px"></i><span>Empty and error states, top</span></div></div>
     </div>
     <div class="sysc">
@@ -1357,6 +1238,227 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <li><b>One title per screen</b>, sized by role: tab root 26, a screen named after a thing (shop, product) 22, pushed screens 20. Never two display sizes competing at the top.</li>
         <li><b>Order of emphasis</b> on every screen: title, then the one primary action (indigo, bottom), then section headings (18), then row titles (13–14 bold), then meta (11.5 muted). Colour is reserved for state, never for emphasis alone.</li>
         <li><b>Grouping:</b> space first (tight inside a group, 20–24 between groups), then a light divider for lists, never boxes inside boxes.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- FOUNDATIONS -->
+<section id="foundations">
+  <div class="stack col">
+    <span class="eyebrow">Foundations</span>
+    <h2>The values to build from, in device points</h2>
+    <p>The screens are drawn at mockup scale: a 393pt iPhone screen is 282px wide, so <b>1 mockup px = 1.394pt</b>. Every value below is already converted, so nobody measures a mockup. They become the tokens in <code>packages/ui/src/tokens.ts</code>, and screens use tokens only, never raw values. Items marked <span class="cap-tag">Proposed</span> aren't drawn in the mockups; they're the recommended default until agreed. Items marked <span class="cap-tag">Decision</span> need a choice before the build.</p>
+  </div>
+
+  <div class="sysc">
+    <h3>Scale: check on a device first <span class="cap-tag">Decision</span></h3>
+    <ul>
+      <li>At 1.394, body text is 18pt and the sticky main button is 72pt tall. iOS's own defaults are 17pt and about 50pt. That fits the AAA target and the vendor app's counter use, but it's large for the buyer app.</li>
+      <li>Before the tokens are locked, put Home, Product and the vendor Orders list on a real phone at this scale. Then either keep it, or apply one factor to every size so the proportions stay the same.</li>
+    </ul>
+  </div>
+
+  <div class="sysgrid2">
+    <div class="sysc">
+      <h3>Spacing</h3>
+      <p class="note">Mockup px × 1.394, snapped to a 4pt grid on the device.</p>
+      <div class="tbl"><table style="min-width:0">
+        <thead><tr><th>Token</th><th>Mockup</th><th>Device</th><th>Used for</th></tr></thead>
+        <tbody>
+          <tr><td><code>space.1</code></td><td>4</td><td><b>4pt</b></td><td>Icon to label, chip padding</td></tr>
+          <tr><td><code>space.2</code></td><td>8</td><td><b>12pt</b></td><td>Between chips and tiles; inside a row</td></tr>
+          <tr><td><code>space.3</code></td><td>12</td><td><b>16pt</b></td><td>Card padding; between rows</td></tr>
+          <tr><td><code>space.4</code></td><td>16</td><td><b>24pt</b></td><td>Screen gutter; between grid rows</td></tr>
+          <tr><td><code>space.5</code></td><td>20</td><td><b>28pt</b></td><td>Under a band; between orders</td></tr>
+          <tr><td><code>space.6</code></td><td>24</td><td><b>32pt</b></td><td>Above a section heading; between groups</td></tr>
+          <tr><td><code>space.8</code></td><td>32</td><td><b>44pt</b></td><td>Around confirmations</td></tr>
+          <tr><td><code>space.12</code></td><td>48</td><td><b>68pt</b></td><td>Empty and error states, top</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="sysc">
+      <h3>Type</h3>
+      <p class="note">Bricolage Grotesque 800 for display, Manrope 400 to 800 for text. Line height is 1.1× for display and 1.4× for text.</p>
+      <div class="tbl"><table style="min-width:0">
+        <thead><tr><th>Token</th><th>Mockup</th><th>Device</th><th>Used for</th></tr></thead>
+        <tbody>
+          <tr><td><code>display.xxl</code></td><td>44 / 800</td><td><b>61pt</b></td><td>Pickup digits</td></tr>
+          <tr><td><code>display.xl</code></td><td>34 / 800</td><td><b>47pt</b></td><td>Takeover moment</td></tr>
+          <tr><td><code>display.lg</code></td><td>28 / 800</td><td><b>39pt</b></td><td>Confirmation</td></tr>
+          <tr><td><code>title.root</code></td><td>26 / 800</td><td><b>36pt</b></td><td>Tab root title</td></tr>
+          <tr><td><code>title.named</code></td><td>22 / 800</td><td><b>31pt</b></td><td>Shop or product name, band headline</td></tr>
+          <tr><td><code>title.pushed</code></td><td>20 / 800</td><td><b>28pt</b></td><td>Pushed screen title</td></tr>
+          <tr><td><code>heading</code></td><td>18 / 800</td><td><b>25pt</b></td><td>Section heading, totals</td></tr>
+          <tr><td><code>strong</code></td><td>14 / 800</td><td><b>20pt</b></td><td>Names, prices, buttons</td></tr>
+          <tr><td><code>body</code></td><td>13 / 400–700</td><td><b>18pt</b></td><td>Body, row titles</td></tr>
+          <tr><td><code>meta</code></td><td>11.5 / 400–700</td><td><b>16pt</b></td><td>Meta, secondary</td></tr>
+          <tr><td><code>label</code></td><td>10.5 / 600–800</td><td><b>15pt</b></td><td>Labels, chips, tab bar</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="sysc">
+      <h3>Corners, sizes, lines</h3>
+      <div class="tbl"><table style="min-width:0">
+        <thead><tr><th>Token</th><th>Mockup</th><th>Device</th></tr></thead>
+        <tbody>
+          <tr><td><code>radius.sm</code> chips, small tiles</td><td>8</td><td><b>12pt</b></td></tr>
+          <tr><td><code>radius.md</code> rows, inputs, product tiles</td><td>12</td><td><b>16pt</b></td></tr>
+          <tr><td><code>radius.lg</code> cards, buttons</td><td>16</td><td><b>22pt</b></td></tr>
+          <tr><td><code>radius.xl</code> cards inside sheets</td><td>20</td><td><b>28pt</b></td></tr>
+          <tr><td><code>radius.sheet</code> sheets</td><td>24</td><td><b>34pt</b></td></tr>
+          <tr><td><code>control.main</code> sticky main action</td><td>52</td><td><b>72pt</b></td></tr>
+          <tr><td><code>control.md</code> standard button, input</td><td>48</td><td><b>68pt</b></td></tr>
+          <tr><td><code>control.row</code> button in a list row</td><td>44</td><td><b>60pt</b></td></tr>
+          <tr><td>Minimum hit area</td><td></td><td><b>44pt</b>, using <code>hitSlop</code> where the drawn shape is smaller</td></tr>
+          <tr><td><code>line</code> dividers, card edges</td><td>1</td><td><b>1pt</b> (a hairline isn't scaled)</td></tr>
+          <tr><td><code>line.input</code> input and option outlines</td><td>1.5</td><td><b>2pt</b></td></tr>
+          <tr><td><code>line.tab</code> selected tab underline</td><td>2.5</td><td><b>3pt</b></td></tr>
+          <tr><td><code>ring</code> focus ring, outside the shape</td><td>3</td><td><b>4pt</b></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="sysc">
+    <h3>Colour tokens, light and dark</h3>
+    <p class="note">These are the values the screens actually render, read from their final styles. Status chip pairs are in the Accessibility table. Sun is the same in both themes and always takes dark text.</p>
+    <div class="tbl"><table style="min-width:760px">
+      <thead><tr><th>Token</th><th>Light</th><th>Dark</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td><code>bg</code></td><td>#FFFFFF</td><td>#111113</td><td>Page</td></tr>
+        <tr><td><code>bgGrouped</code></td><td>#F7F8FC</td><td>#111113</td><td>Page behind grouped cards</td></tr>
+        <tr><td><code>raised</code></td><td>#FFFFFF</td><td>#1C1C1F</td><td>Cards, inputs, sheets, tab bar</td></tr>
+        <tr><td><code>tile</code></td><td>#EEF0F7</td><td>#26262A</td><td>Mist: secondary buttons, fact boxes, chips, skeletons</td></tr>
+        <tr><td><code>productTile</code></td><td>#FFFFFF</td><td>#FFFFFF</td><td>Behind product photos, in both themes</td></tr>
+        <tr><td><code>productTileLine</code></td><td>#E4E6EE</td><td>none</td><td>Inset edge of a product tile</td></tr>
+        <tr><td><code>line</code></td><td>#DDE1EE</td><td>#333338</td><td>Dividers, card edges</td></tr>
+        <tr><td><code>control</code></td><td>#80869E</td><td>#7A7A83</td><td>Input and checkbox outlines (3:1)</td></tr>
+        <tr><td><code>ink</code></td><td>#12162B</td><td>#F2F2F4</td><td>Text</td></tr>
+        <tr><td><code>muted</code></td><td>#494F66</td><td>#B4B4BC</td><td>Secondary text, placeholders</td></tr>
+        <tr><td><code>band</code></td><td>#1B2559</td><td>#1B2559</td><td>Brand band, takeover</td></tr>
+        <tr><td><code>primary</code> / <code>onPrimary</code></td><td>#1B2559 / #FFFFFF</td><td>#3D4DBB / #FFFFFF</td><td>Main button</td></tr>
+        <tr><td><code>accent</code></td><td>#1B2559</td><td>#AEB8FF</td><td>Selection outlines, active tab, ratings</td></tr>
+        <tr><td><code>link</code></td><td>#2E3D8F</td><td>#AEB8FF</td><td>Links, pattern strokes</td></tr>
+        <tr><td><code>selected</code></td><td>#F4F5FB</td><td>#2A2A30</td><td>Fill of a selected option</td></tr>
+        <tr><td><code>ring</code></td><td>#E3E6F3</td><td>#3A3F66</td><td>Focus ring</td></tr>
+        <tr><td><code>tabInactive</code></td><td>#5B6178</td><td>#B4B4BC</td><td>Unselected tab labels</td></tr>
+        <tr><td><code>sun</code></td><td>#F2B33D</td><td>#F2B33D</td><td>Deal badges, progress</td></tr>
+        <tr><td><code>leaf</code> / <code>leafText</code></td><td>#186441 / #165A3C</td><td>#186441 / #6FD6A0</td><td>Open, done, picked</td></tr>
+        <tr><td><code>ember</code> / <code>emberText</code></td><td>#90411A / #84391A</td><td>#90411A / #F0A474</td><td>Needs attention, deadlines under 4 hours</td></tr>
+        <tr><td><code>danger</code> / <code>dangerText</code> / <code>dangerBg</code></td><td>#AA2318 / #962218 / #FBEAE8</td><td>#AA2318 / #F2938A / #3A1717</td><td>Destructive buttons, errors</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="sysgrid2">
+    <div class="sysc">
+      <h3>Elevation</h3>
+      <ul>
+        <li><b>Light:</b> flat. Surfaces are separated by a 1pt <code>line</code> or a <code>tile</code> fill, never by shadows.</li>
+        <li><b>Dark:</b> lighter greys instead of shadows: <code>bg</code>, then <code>raised</code>, then <code>tile</code>.</li>
+        <li><b>Floating only:</b> the map's locate button and pin, and the save heart on a photo, get a soft shadow (y 4, blur 12, black at 15%; the heart y 1, blur 3). Nothing else floats.</li>
+        <li>A scrim behind sheets: black at 60%.</li>
+      </ul>
+    </div>
+    <div class="sysc">
+      <h3>Fonts</h3>
+      <ul>
+        <li>Bundle Bricolage Grotesque (700, 800) and Manrope (400, 600, 700, 800) with <code>expo-font</code>, which both apps already have. Both fonts are under the SIL Open Font License.</li>
+        <li>Android needs one family name per weight (<code>Manrope_700Bold</code>), so map each token to a family, not to <code>fontWeight</code>.</li>
+        <li>Prices and codes use tabular figures (<code>fontVariant: ['tabular-nums']</code>), so totals line up.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sysc">
+    <h3>Component states <span class="cap-tag">Proposed</span></h3>
+    <p class="note">The mockups draw each component at rest. States follow one rule each, so every component behaves alike.</p>
+    <div class="tbl"><table style="min-width:900px">
+      <thead><tr><th>Component</th><th>Pressed</th><th>Disabled</th><th>Loading</th><th>Focus / selected</th></tr></thead>
+      <tbody>
+        <tr><th>Main button</th><td>Fill darkens: <code>ink</code> overlay at 12% (white at 12% in dark). Android uses a ripple in that colour.</td><td><code>tile</code> fill, <code>muted</code> label. No fading by opacity. Announced as disabled.</td><td>A spinner replaces the label, the width stays the same, and the button can't be pressed. A pay button keeps its price beside the spinner.</td><td>Focus: a 4pt <code>ring</code> outside the shape.</td></tr>
+        <tr><th>Secondary button (Mist)</th><td>Same overlay on <code>tile</code></td><td>As the main button</td><td>As the main button, with an <code>ink</code> spinner</td><td>As the main button</td></tr>
+        <tr><th>Destructive button</th><td>Same overlay on <code>danger</code></td><td>As the main button</td><td>As the main button</td><td>As the main button</td></tr>
+        <tr><th>Row (list, order, setting)</th><td>The row fills with <code>tile</code> edge to edge</td><td><code>muted</code> text, no chevron</td><td>The row's skeleton</td><td>Focus ring inset 2pt</td></tr>
+        <tr><th>Filter chip, segment, tab</th><td>Overlay at 12%</td><td>Not used</td><td>Not used</td><td>Selected: <code>primary</code> fill and white label for chips; a 3pt <code>accent</code> underline for tabs</td></tr>
+        <tr><th>Option card, radio</th><td>Overlay at 12%</td><td><code>muted</code> text, with the reason shown under the option</td><td>Not used</td><td>Selected: 2pt <code>accent</code> outline and <code>selected</code> fill</td></tr>
+        <tr><th>Input</th><td>Not used</td><td><code>tile</code> fill, no outline</td><td>Not used</td><td>Focus: <code>accent</code> outline and a 4pt <code>ring</code>. Error: <code>danger</code> outline, with the message under it in <code>dangerText</code> after an alert icon</td></tr>
+        <tr><th>Pick-list tick</th><td>Overlay at 12%</td><td>Locked once packed</td><td>Not used</td><td>Ticked: <code>leaf</code> fill with a check. Short: <code>ember</code></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="sysc">
+    <h3>Icons <span class="cap-tag">Proposed</span></h3>
+    <p class="note">The drawn glyphs are stand-ins. Build with SF Symbols on iOS and Material Symbols on Android through <code>expo-symbols</code> (<code>SymbolView</code> with <code>name={{ ios, android }}</code>), the same symbol sets the tab bars already use (<code>sf=</code> and <code>md=</code>). Sizes: 24pt default (drawn 18), 22pt in add buttons (16), 20pt in steps (14), 16pt in chips (12). Use SF weight medium and Material weight 500, to match the drawn 1.8 stroke.</p>
+    <div class="tbl"><table style="min-width:760px">
+      <thead><tr><th>Drawn</th><th>iOS (SF Symbols)</th><th>Android (Material Symbols)</th><th>Drawn</th><th>iOS (SF Symbols)</th><th>Android (Material Symbols)</th></tr></thead>
+      <tbody>
+        <tr><td>home</td><td>house</td><td>home</td><td>search</td><td>magnifyingglass</td><td>search</td></tr>
+        <tr><td>bag</td><td>bag</td><td>shopping_bag</td><td>box</td><td>shippingbox</td><td>package_2</td></tr>
+        <tr><td>user</td><td>person</td><td>person</td><td>pin</td><td>mappin</td><td>location_on</td></tr>
+        <tr><td>down</td><td>chevron.down</td><td>keyboard_arrow_down</td><td>back</td><td>chevron.left</td><td>arrow_back</td></tr>
+        <tr><td>fwd</td><td>chevron.right</td><td>chevron_right</td><td>x</td><td>xmark</td><td>close</td></tr>
+        <tr><td>heart</td><td>heart / heart.fill</td><td>favorite</td><td>share</td><td>square.and.arrow.up</td><td>share</td></tr>
+        <tr><td>plus</td><td>plus</td><td>add</td><td>minus</td><td>minus</td><td>remove</td></tr>
+        <tr><td>star</td><td>star.fill</td><td>star</td><td>truck</td><td>truck.box</td><td>local_shipping</td></tr>
+        <tr><td>clock</td><td>clock</td><td>schedule</td><td>shield</td><td>checkmark.shield</td><td>verified_user</td></tr>
+        <tr><td>check</td><td>checkmark</td><td>check</td><td>scan</td><td>barcode.viewfinder</td><td>barcode_scanner</td></tr>
+        <tr><td>store</td><td>storefront</td><td>storefront</td><td>bell</td><td>bell</td><td>notifications</td></tr>
+        <tr><td>camera</td><td>camera</td><td>photo_camera</td><td>tag</td><td>tag</td><td>sell</td></tr>
+        <tr><td>logout</td><td>rectangle.portrait.and.arrow.right</td><td>logout</td><td>swap</td><td>arrow.left.arrow.right</td><td>swap_horiz</td></tr>
+        <tr><td>mail</td><td>envelope</td><td>mail</td><td>locate</td><td>location</td><td>my_location</td></tr>
+        <tr><td>alert</td><td>exclamationmark.triangle</td><td>warning</td><td>refresh</td><td>arrow.clockwise</td><td>refresh</td></tr>
+        <tr><td>cloud-off</td><td>icloud.slash</td><td>cloud_off</td><td>info</td><td>info.circle</td><td>info</td></tr>
+        <tr><td>flash</td><td>bolt</td><td>flash_on</td><td>lock</td><td>lock</td><td>lock</td></tr>
+        <tr><td>filter</td><td>line.3.horizontal.decrease</td><td>filter_list</td><td>edit</td><td>pencil</td><td>edit</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="sysgrid2">
+    <div class="sysc">
+      <h3>Motion <span class="cap-tag">Proposed</span></h3>
+      <ul>
+        <li><b>Drawn:</b> the new-order alarm ring pulses every 1.6s, ease-out, scaling from 0.92 to 1.3 as it fades. The skeleton shimmer sweeps every 1.4s, ease-in-out. The spinner turns once every 0.9s.</li>
+        <li><b>Sheets</b> (confirm steps, Order again, Not available) open with the platform's own sheet presentation (Expo Router <code>formSheet</code>), not a custom animation.</li>
+        <li><b>Press:</b> feedback shows at once and fades over 100ms. Buttons don't change size.</li>
+        <li><b>Tabs and segments:</b> the underline slides over 200ms, ease-out, and the content cross-fades over 150ms.</li>
+        <li><b>Lists:</b> a row added or removed (an accepted order, a ticked line) animates its layout over 200ms.</li>
+        <li><b>Takeover:</b> fades in over 250ms, full screen.</li>
+        <li><b>Toasts</b> slide up over 200ms and leave after 4s.</li>
+        <li><b>Reduce Motion:</b> no slides or pulses. Everything cross-fades, and the alarm ring holds still.</li>
+      </ul>
+    </div>
+    <div class="sysc">
+      <h3>Haptics <span class="cap-tag">Proposed</span></h3>
+      <p class="note">Uses <code>expo-haptics</code>, which neither app has yet.</p>
+      <ul>
+        <li><b>Success:</b> order placed, order accepted, packed, handed over, collected, review posted.</li>
+        <li><b>Selection:</b> a line ticked or scanned on the pick list, a quantity stepped, an option chosen.</li>
+        <li><b>Warning:</b> a barcode that matches no line, a pickup code that's wrong.</li>
+        <li><b>New order:</b> a repeating heavy pattern paired with the alarm sound, until Accept, View order or Not now.</li>
+        <li><b>None:</b> on ordinary navigation, scrolling or tab switches.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sysgrid2">
+    <div class="sysc">
+      <h3>Phone sizes and text size <span class="cap-tag">Proposed</span></h3>
+      <ul>
+        <li><b>Baseline:</b> 393pt wide (iPhone 15 and 16). Layouts stretch to fill wider phones (430pt); there's no maximum width. Tablets are out of scope for v1.</li>
+        <li><b>Small phones</b> (375pt, and Android at 360dp): the gutter stays 24pt, the product grid stays two columns with narrower tiles, and rails keep scrolling. Below 375pt, the vendor stage tiles go from 4 across to 2 by 2.</li>
+        <li><b>Larger system text:</b> text follows the phone's text-size setting. Rows grow taller, and names, prices and chips wrap instead of truncating. Buttons grow with their label. Display sizes (28pt and up) scale to at most 1.3×. The tab bar follows the platform's own limit.</li>
+        <li>Respect safe areas on every edge. The sticky main action sits above the home indicator.</li>
+      </ul>
+    </div>
+    <div class="sysc">
+      <h3>Android, and the tab bar <span class="cap-tag">Decision</span></h3>
+      <ul>
+        <li>On Android, values are in dp, the same numbers as pt. The layout runs edge to edge under transparent system bars. The system back gesture does what the header's back button does, and press feedback is a ripple.</li>
+        <li>Both apps use native tabs (<code>NativeTabs</code>): Liquid Glass on iOS 26 and Material on Android. Native tabs can't take the drawn floating bar's 24pt corners and custom fill. <b>Recommended:</b> keep native tabs, and read the drawn tab bar as showing order, labels and icons only.</li>
       </ul>
     </div>
   </div>
@@ -1435,7 +1537,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <span>Primary button</span><span><i style="background:#1B2559"></i></span><span><i style="background:#3D4DBB"></i> <code>#3D4DBB</code></span>
         <span>Links, accents</span><span><i style="background:#2E3D8F"></i></span><span><i style="background:#AEB8FF"></i> <code>#AEB8FF</code></span>
         <span>Text</span><span><i style="background:#12162B"></i></span><span><i style="background:#F2F2F4"></i> <code>#F2F2F4</code></span>
-        <span>Secondary text</span><span><i style="background:#5B6178"></i></span><span><i style="background:#B4B4BC"></i> <code>#B4B4BC</code></span>
+        <span>Secondary text</span><span><i style="background:#494F66"></i></span><span><i style="background:#B4B4BC"></i> <code>#B4B4BC</code></span>
       </div>
     </div>
     <div class="sysc">
