@@ -1285,6 +1285,19 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .card2:has(.lines) .hd .mono{width:48px; height:48px; border-radius:12px; font-size:14px; flex:none}
 .B .card2:has(.lines) .hd{gap:8px}
 .phone.tall .cta{margin:0 16px; left:auto; right:auto; bottom:16px}
+
+/* confirm sheets */
+.B .csheet{gap:12px; padding:8px 16px 16px}
+.B .csheet h4{margin:4px 0 0; font-family:"Bricolage Grotesque",sans-serif; font-size:20px; font-weight:800}
+.B .cbody{margin:0; font-size:13px; line-height:1.5; color:var(--p-muted)}
+.B .csheet .btn{width:100%}
+.B .cstack{position:absolute; left:16px; right:16px; bottom:16px; display:grid; gap:8px}
+.B .cstack .btn{width:100%}
+.B .cstack .btn.pri{height:52px}
+.B .acctcard{display:flex; gap:12px; align-items:center; background:var(--p-tile); border-radius:12px; padding:12px}
+.B .acctcard .mono{width:40px; height:40px; border-radius:12px; flex:none}
+.B .acctcard b{display:block; font-size:14px} .B .acctcard small{color:var(--p-muted); font-size:11.5px}
+.B .row2 .chip{margin-left:auto}
 </style>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
@@ -2113,6 +2126,17 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       </div>
       <div class="cta"><span>Send refund to this account</span></div>
     </div></div><figcaption class="ph-cap"><b>Refund needing attention.</b> Says why in plain words and fixes it on the spot, with the account name read back.<span class="route">refund/[id].tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body">
+        <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Refund</b></div>
+        <div class="pad" style="gap:16px">
+          <div class="disp num" style="font-size:28px;font-weight:800">₦3,500</div>
+          <div class="acctcard"><span class="mono">GT</span><div><b>ADEYEMI TOLULOPE</b><small>GTBank · account ending 6789</small></div></div>
+          <p style="margin:0;font-size:13px;line-height:1.5">Is this the account to send your ₦3,500 refund to?</p>
+        </div>
+      </div>
+      <div class="cstack"><span class="btn pri"><span>Send ₦3,500 to this account</span></span><span class="btn sec">Change the details</span></div>
+    </div></div><figcaption class="ph-cap"><b>Confirm the account.</b> The name the bank returned, the bank and the last four digits, and one question before any money moves.<span class="route">refund/[id].tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -2235,6 +2259,41 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="pad"><span class="btn sec"><svg class="ico"><use href="#i-plus"/></svg>Add an address</span></div>
       </div>
     </div></div><figcaption class="ph-cap"><b>Addresses.</b> Named places with the rider's landmark shown, one default.<span class="route">addresses/index.tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body">
+        <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Addresses</b></div>
+        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-home"/></svg></span><div><b>Home</b><small>14 Bode Thomas St, Surulere</small></div><span class="end chip c-ind">Default</span></div><span class="hint">Blue gate opposite the pharmacy</span></div>
+        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><div><b>Office</b><small>3 Adeola Odeku St, Victoria Island</small></div><span class="end"><svg class="ico"><use href="#i-edit"/></svg></span></div><span class="hint">Reception, 4th floor</span></div>
+        <div class="pad"><span class="btn sec"><svg class="ico"><use href="#i-plus"/></svg>Add an address</span></div>
+      </div>
+    
+      <div class="dim"></div>
+      <div class="bsheet csheet"><span class="grab"></span><h4>Delete this address?</h4><p class="cbody">14 Bode Thomas St, Surulere</p><span class="btn danger">Delete</span><span class="btn sec">Cancel</span></div>
+    </div></div><figcaption class="ph-cap"><b>Delete address.</b> A sheet, not a system alert, so it matches the app: the address being deleted, then Delete in red and Cancel. Orders already placed keep their address.<span class="route">addresses/index.tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body">
+        <div class="bigt">Orders</div>
+        <div class="empty">
+          <span class="emblem"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><svg class="ico"><use href="#i-user"/></svg></span>
+          <h4>Your orders</h4>
+          <p>Sign in to see and track your orders.</p>
+          <span class="btn pri" style="width:100%;margin-top:4px">Sign in</span>
+        </div>
+      </div>
+      <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
+    </div></div><figcaption class="ph-cap"><b>Orders, signed out.</b> The tab stays visible for guests and says what signing in gives them.<span class="route">(tabs)/orders.tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body">
+        <div class="bigt">Account</div>
+        <div class="empty">
+          <span class="emblem"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><svg class="ico"><use href="#i-user"/></svg></span>
+          <h4>Sign in to Oja</h4>
+          <p>Check out, track your orders and save favourites.</p>
+          <span class="btn pri" style="width:100%;margin-top:4px">Sign in</span>
+        </div>
+      </div>
+      <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span class="on"><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
+    </div></div><figcaption class="ph-cap"><b>Account, signed out.</b> Guests browse and fill a cart freely; signing in is asked for at checkout, orders and saving.<span class="route">(tabs)/account.tsx</span></figcaption></figure>
   </div>
 </section>
 
@@ -2441,6 +2500,25 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       </div>
       <div class="cta"><span>Handed to courier</span><svg class="ico"><use href="#i-check"/></svg></div>
     </div></div><figcaption class="ph-cap"><b>Handover.</b> A timeline that shows which half of the handover is still missing, with the staff tap as the one primary button.<span class="route">(app)/orders/[id]/index.tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body" style="background:var(--p-surface)">
+        <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
+          <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1042</span><span>Waybill GIG-58210</span></div>
+          <div class="big">Courier on the way</div>
+        </div>
+        <div class="tl" style="padding-top:16px">
+          <div><i class="on"></i><div><b>Label booked</b><small>GIG Logistics · 1 parcel</small></div><time>1:12pm</time></div>
+          <div><i class="on"></i><div><b>Courier confirmed</b><small>GIG accepted the pickup</small></div><time>1:40pm</time></div>
+          <div><i class="now"></i><div><b>Handed to courier</b><small>Tap when the rider takes the parcel</small></div><time></time></div>
+          <div><i></i><div><b>Picked up</b><small>GIG confirms on their side</small></div><time></time></div>
+        </div>
+        <div class="pad"><div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>The order moves on when <b>both</b> you and GIG confirm the handover.</span></div></div>
+      </div>
+      <div class="cta"><span>Handed to courier</span><svg class="ico"><use href="#i-check"/></svg></div>
+    
+      <div class="dim"></div>
+      <div class="bsheet csheet"><span class="grab"></span><h4>Handed the parcel to GIG?</h4><p class="cbody">Only once the rider has taken it. The order moves on when GIG confirms on their side too.</p><span class="btn pri">Yes, handed over</span><span class="btn sec">Not yet</span></div>
+    </div></div><figcaption class="ph-cap"><b>Confirm handover.</b> One check before recording it, because it can't be undone and the rider may not have arrived. <span class="cap-tag">New</span> The app records the tap straight away today.<span class="route">(app)/orders/[id]/index.tsx · new</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
@@ -2455,6 +2533,20 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="keys" style="padding-top:12px"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span class="n"></span><span>0</span><span class="n">⌫</span></div>
       </div>
     </div></div><figcaption class="ph-cap"><b>Pickup counter.</b> Six boxes and a keypad, or the camera. After five wrong codes: "Too many tries. Try again at 3:15pm."<span class="route">(app)/orders/[id]/collect.tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body" style="background:var(--p-surface)">
+        <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
+          <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Collect an order</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Code correct</span></div>
+          <div class="big">Hand over to Tolu A.</div>
+        </div>
+        <div class="pad" style="padding-top:16px;gap:12px">
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.jpg" alt=""></span><div><b>Power Bank 20,000mAh</b><small>× 1</small></div></div>
+          <p style="margin:0;font-size:13px;color:var(--p-muted);line-height:1.5">Hand over everything on the order. Whoever has the code can collect it.</p>
+          <div class="field"><label for="who">Who is collecting?</label><div class="inp focus" id="who">Tolu</div></div>
+        </div>
+      </div>
+      <div class="cstack"><span class="btn pri">Hand over order</span><span class="btn sec">Enter the code again</span></div>
+    </div></div><figcaption class="ph-cap"><b>Hand over.</b> After a correct code: what to hand over and who is collecting, so the shop has a record. "Enter the code again" goes back if the wrong order came up.<span class="route">(app)/orders/[id]/collect.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
@@ -2536,11 +2628,26 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="radio"><span class="rb2"></span>1 hour · until 3:47pm</div>
           <div class="radio on"><span class="rb2 on"></span>Closing time today · 7pm</div>
           <div class="radio"><span class="rb2"></span>I turn it back on</div>
-          <div class="note2 warn"><svg class="ico"><use href="#i-info"/></svg><span><b>2 orders are waiting.</b> Their accept clock keeps running while you're paused.</span></div>
+          
           <span class="btn pri">Pause orders</span>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Pause.</b> Plain-language durations and the one consequence that catches shops out.<span class="route">(app)/settings.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Pause.</b> Plain-language durations. If orders are waiting, a confirm follows (next).<span class="route">(app)/settings.tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body">
+        <div class="bigt">Settings</div>
+        <div class="card2"><div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Open until 7pm · 2 orders waiting</small></div></div>
+          <div class="between"><div><b style="font-size:13px">Taking orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Turn off to pause the shop now</small></div><span class="sw2"></span></div>
+          <div class="between" style="padding-top:8px"><div><b style="font-size:13px">Full-screen new orders</b><small style="display:block;font-size:11.5px;color:var(--p-muted)">Off shows a banner instead. Saved on this phone.</small></div><span class="sw2"></span></div>
+        </div>
+        <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-swap"/></svg></span><div><b>Switch shop</b><small>You work at 2 shops</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
+                <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-clock"/></svg></span><div><b>Opening hours</b><small>Edit in the vendor panel on the web</small></div><span class="chev"><svg class="ico"><use href="#i-share"/></svg></span></div>
+        <div class="lrow" style="border:0"><span class="ic" style="color:var(--p-bad);background:var(--p-badbg)"><svg class="ico"><use href="#i-logout"/></svg></span><div><b style="color:var(--p-bad)">Sign out</b><small>bisi@iyabisi.ng</small></div></div>
+      </div>
+    
+      <div class="dim"></div>
+      <div class="bsheet csheet"><span class="grab"></span><h4>Orders are waiting</h4><p class="cbody">2 new orders are still waiting to be accepted. Pausing stops new orders, not these: accept or reject them, or they'll be rejected at their deadline.</p><span class="btn danger">Pause anyway</span><span class="btn sec">Cancel</span></div>
+    </div></div><figcaption class="ph-cap"><b>Pause, orders waiting.</b> Only when orders are waiting to be accepted: pausing doesn't stop their clocks, so the shop confirms it knows.<span class="route">(app)/settings.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">

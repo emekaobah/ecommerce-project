@@ -31,6 +31,8 @@ Visual direction: **Adire** (chosen 2026-10-20 in the redesign; supersedes the e
 - **Empty:** the indigo pattern emblem, what will appear here, and at most two ways forward.
 - **Inline problems** (payment not completed, order not placed and refunded, address not saved, price changed) sit above the button they affect in the ember note, announced to screen readers.
 
+**Confirm steps** (drawn 2026-10-21): a confirm is a bottom sheet in the app's own style, never a system alert: a title that asks the question, one line of consequence, then the action (red when it destroys something) and Cancel. Used where an action can't be undone or moves money: deleting an address, pausing while orders are waiting (this replaces the warning inside the Pause sheet), handing a pickup order over (who is collecting), sending a refund to a bank account, and **Handed to courier** (new: today the app records the tap straight away). Not used where speed matters or the action is reversible: accept, add to cart, sign out (the cart stays with the account). Guests see a sign-in prompt on the Orders and Account tabs, nothing else is gated until checkout.
+
 **Accessibility** targets **WCAG 2.2 AAA** in both themes (decided 2026-10-20), audited in `docs/redesign/oja-adire-screens.html`.
 - **Contrast:** every text pair is at least 7:1, and every control outline at least 3:1. AAA colours:
   - Light: secondary and placeholder text `#494F66`; "Open" text `#165A3C`; ember text `#84391A`; red text `#962218`; New chip `#714800`.
