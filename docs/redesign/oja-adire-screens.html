@@ -1252,7 +1252,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 <div class="wrap">
 
 <header class="top">
-  <span class="eyebrow">Oja · Adire · screen catalogue · 20 Oct 2026</span>
+  <span class="eyebrow">Oja · Adire · screen catalogue · 21 Oct 2026</span>
   <h1>Oja in Adire</h1>
   <p class="lede">Every screen of the buyer and vendor apps in the chosen direction: Adire's indigo, pattern and shop-first structure. Laid out in the order people move through them.</p>
   <div class="meta"><span>Routes are from <code>apps/mobile-buyer/src/app</code> and <code>apps/mobile-vendor/src/app</code></span><span>Imagery: generated for these mockups</span></div>
@@ -1273,22 +1273,13 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <h3>Colour roles</h3>
       <div class="tokrow"><i style="background:#1B2559"></i><div><b>Indigo</b><span>Brand surface, primary buttons, selection, ratings</span> <code>#1B2559</code></div></div>
       <div class="tokrow"><i style="background:#2E3D8F"></i><div><b>Dye</b><span>Pattern strokes, links</span> <code>#2E3D8F</code></div></div>
-      <div class="tokrow"><i style="background:#EEF0F7"></i><div><b>Mist</b><span>Photo tiles, secondary buttons, fact boxes</span> <code>#EEF0F7</code></div></div>
+      <div class="tokrow"><i style="background:#EEF0F7"></i><div><b>Mist</b><span>Secondary buttons, fact boxes, subtotal blocks, chips</span> <code>#EEF0F7</code></div></div>
       <div class="tokrow"><i style="background:#F2B33D"></i><div><b>Sun</b><span>Deal badges and progress only</span> <code>#F2B33D</code></div></div>
-      <div class="tokrow"><i style="background:#1E7A4C"></i><div><b>Leaf</b><span>Open, done and picked, as chips, badges and pills only. Never a screen or a button</span> <code>#1E7A4C</code></div></div>
-      <div class="tokrow"><i style="background:#B4531A"></i><div><b>Ember</b><span>Short items, deadlines under 4 hours, needs attention</span> <code>#B4531A</code></div></div>
-      <div class="tokrow"><i style="background:#B42318"></i><div><b>Red</b><span>Reject, cancel, destructive actions only</span> <code>#B42318</code></div></div>
+      <div class="tokrow"><i style="background:#186441"></i><div><b>Leaf</b><span>Open, done and picked, as chips, badges and pills only. Never a screen or a button</span> <code>#186441</code></div></div>
+      <div class="tokrow"><i style="background:#90411A"></i><div><b>Ember</b><span>Short items, deadlines under 4 hours, needs attention</span> <code>#90411A</code></div></div>
+      <div class="tokrow"><i style="background:#AA2318"></i><div><b>Red</b><span>Reject, cancel, destructive actions only</span> <code>#AA2318</code></div></div>
     </div>
-    <div class="sysc">
-      <h3>Type</h3>
-      <div class="typerow">
-        <div><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:28px;line-height:1">₦14,500</span><small>Bricolage 800 · prices, titles</small></div>
-        <div><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:20px">Shops open near you</span><small>Bricolage 800 · 20 section</small></div>
-        <div><span style="font-family:'Manrope',sans-serif;font-weight:800;font-size:14px">Iya Bisi Foodstuff</span><small>Manrope 800 · 14 names</small></div>
-        <div><span style="font-family:'Manrope',sans-serif;font-weight:600;font-size:13px">Arrives Thu 23 Oct · from ₦1,800</span><small>Manrope 600 · 13 body</small></div>
-        <div><span style="font-family:'Manrope',sans-serif;font-weight:800;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase">Step 2 of 3</span><small>Manrope 800 · 10.5 label</small></div>
-      </div>
-      <ul><li>Prices are whole naira with ₦ and thousands commas. No kobo.</li><li>Dates beat durations: "Arrives Thu 23 Oct", never "Ships in 2 days".</li></ul>
+    <div class="sysc"><h3>Numbers and dates</h3><ul><li>Prices are whole naira with ₦ and thousands commas. No kobo.</li><li>Dates beat durations: "Arrives Thu 23 Oct", never "Ships in 2 days".</li></ul>
     </div>
     <div class="sysc">
       <h3>Rules that keep it disciplined</h3>
@@ -1297,14 +1288,14 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <li>Every full-screen surface is indigo or white. Green, ember and red stay at chip, pill and badge size; red also marks destructive buttons.</li>
         <li>One primary indigo button per screen, carrying the price when money moves.</li>
         <li>Status chips always pair a symbol and a label with colour.</li>
-        <li>Photos sit on mist tiles, square, uncropped. Vendors get a photo standard: square, plain background.</li>
+        <li>Photos sit on white tiles, contained and never cropped. Vendors get a photo standard: square, plain background.</li>
         <li>Errors say what happened and what to do next, in the shopper's words.</li>
       </ul>
     </div>
     <div class="sysc">
       <h3>Built only on what exists</h3>
       <ul>
-        <li>Every screen uses data the buyer app, vendor app and backend already have. Nothing here needs a new endpoint.</li>
+        <li>Every screen uses data the buyer app, vendor app and backend already have, except the ones marked <span class="cap-tag">New</span>: My reviews and the Handed to courier confirm need app work only; Order again and the Ongoing / Past order tabs also need backend changes (the tabs are filed as #54).</li>
         <li>Deals are shown the way the backend has them: a shop's sale price crossed out, and its automatic promotion as a badge. There's no deals feed or countdown, because sale end dates don't reach the buyer.</li>
         <li>Shops and categories have no images, so shops use monograms and the pattern, and categories are name chips.</li>
         <li>Search matches product names only, so it has no filters or sort. Listings come nearest first.</li>
@@ -1347,7 +1338,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   </div>
   <div class="imgcmp">
     <div class="imgrow">
-      <div class="imglab"><b>Mist tile, photo fills it</b><span>As drawn until now. White pack shots become white squares that don't match their neighbours, cutouts float on lilac, and vendor photos are cropped.</span><span class="res impl">Rejected</span></div>
+      <div class="imglab"><b>Mist tile, photo fills it</b><span>In the first draft. White pack shots become white squares that don't match their neighbours, cutouts float on lilac, and vendor photos are cropped.</span><span class="res impl">Rejected</span></div>
       <div class="tiles4 lightbg">
         <span class="t mist cover"><img src="img/cat-rice.jpg" alt="Rice pack shot on white"></span>
         <span class="t mist cover"><img src="img/cat-palmoil.jpg" alt="Palm oil pack shot on white"></span>
@@ -1387,7 +1378,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     <h3>Tile rules</h3>
     <ul>
       <li>Every product tile is white with no outline, in both themes. Spacing separates the tiles (12 between columns, 16 between rows), and the price and name below anchor each one. The image is contained with a margin of about 10%, never cropped to fill.</li>
-      <li>On a white page, a white pack shot's tile edge disappears, so the product itself is the shape. Tiles still have a rounded 44pt-plus tap area in code.</li>
+      <li>On a white page, a white pack shot's tile edge disappears, so the product itself is the shape. The add button keeps a 44pt hit area in code.</li>
       <li>Vendor and Open Food Facts photos show whole, framed by the tile. That makes their mixed backgrounds look intended. The quick-add tip ("square, plain background, whole product in view") nudges new photos towards the pack-shot look.</li>
       <li>If background removal is built later, cutouts drop onto the same white tile and nothing else changes.</li>
     </ul>
@@ -1472,7 +1463,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 <tr><th>Input and stepper outlines</th><td><i class="sw3" style="background:#FFFFFF;color:#80869E">Aa</i> <span class="num">3.6:1</span></td><td><i class="sw3" style="background:#1C1C1F;color:#7A7A83">Aa</i> <span class="num">4.0:1</span></td><td class="num">3:1</td><td><span class="res fixed">Fixed</span></td><td class="now">was 1.3:1 light, 2.1:1 dark</td></tr>
 <tr><th>Focused input outline (2px)</th><td><i class="sw3" style="background:#FFFFFF;color:#1B2559">Aa</i> <span class="num">14.4:1</span></td><td><i class="sw3" style="background:#1C1C1F;color:#AEB8FF">Aa</i> <span class="num">9.0:1</span></td><td class="num">3:1</td><td><span class="res pass">Pass</span></td><td class="now"></td></tr>
     </tbody></table></div>
-  <p class="note">7:1 for text and 3:1 for the outlines of controls (WCAG 1.4.6 and 1.4.11). Dividers are decorative and exempt. The sun deadline bar is a graphic beside a text chip that says the same thing, so the chip carries the information. Product photos keep their own colours.</p>
+  <p class="note">7:1 for text and 3:1 for the outlines of controls (WCAG 1.4.6 and 1.4.11). Dividers are decorative and exempt. The accept-clock outline is a graphic around a time chip that spells out the time, so the text carries the information. Product photos keep their own colours.</p>
   </div>
   <div class="stack"><h3>Touch targets</h3>
   <div class="tbl"><table style="min-width:640px">
@@ -1509,8 +1500,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 <tr><th>2.5.5 Target size (enhanced)</th><td class="now">Every touch target is at least 44pt. See the table above.</td><td><span class="res fixed">Fixed</span></td></tr>
 <tr><th>3.1.3–3.1.5 Unusual words, abbreviations, reading level</th><td class="now">The copy uses everyday words at about a 12-year-old's reading level. "km", order numbers and ₦ are the only abbreviations.</td><td><span class="res pass">Pass</span></td></tr>
 <tr><th>3.2.5 Change on request</th><td class="now">The takeover opens the order screen by itself, so it can be turned off. With it off, a banner appears and nothing changes until it is tapped.</td><td><span class="res fixed">Fixed</span></td></tr>
-<tr><th>3.3.5 Help</th><td class="now">Every consequence is explained in place: refunds on reject and cancel, the pause warning, the perishable rule.</td><td><span class="res pass">Pass</span></td></tr>
-<tr><th>3.3.6 Error prevention (all)</th><td class="now">Paying, rejecting, cancelling and marking items short each get a review or confirm step. "Handed to courier" also needs a confirm sheet before it is recorded.</td><td><span class="res impl">Build</span></td></tr>
+<tr><th>3.3.5 Help</th><td class="now">Every consequence is explained in place: refunds on reject and cancel, and the pause warning.</td><td><span class="res pass">Pass</span></td></tr>
+<tr><th>3.3.6 Error prevention (all)</th><td class="now">Paying, rejecting, cancelling and marking items short each get a review or confirm step. "Handed to courier" now has a confirm sheet in the design; the app still records the tap straight away.</td><td><span class="res impl">Build</span></td></tr>
 <tr><th>3.3.9 Accessible authentication (enhanced)</th><td class="now">Sign-in uses Apple or Google, or email with a password manager. Password fields allow paste, and there are no puzzles.</td><td><span class="res impl">Build</span></td></tr>
     </tbody></table></div>
   </div>
@@ -1518,9 +1509,9 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   <div class="tbl"><table style="min-width:820px">
     <thead><tr><th>Check</th><th>Finding</th><th>Result</th></tr></thead>
     <tbody>
-      <tr><th>Colour is never the only signal</th><td class="now">Status chips pair a symbol and a word with colour. Quantity pills carry the count (0/2). Deadline bars sit beside a time chip.</td><td><span class="res pass">Pass</span></td></tr>
+      <tr><th>Colour is never the only signal</th><td class="now">Status chips pair a symbol and a word with colour. Quantity pills carry the count (0/2). The accept clock is an outline around a chip that spells out the time.</td><td><span class="res pass">Pass</span></td></tr>
       <tr><th>Pattern behind text</th><td class="now">The adire pattern is masked away wherever text sits.</td><td><span class="res pass">Pass</span></td></tr>
-      <tr><th>Smallest text</th><td class="now">The smallest labels are 9.5px here, about 13pt on a device. Body text is about 17–18pt.</td><td><span class="res pass">Pass</span></td></tr>
+      <tr><th>Smallest text</th><td class="now">The smallest labels are 10.5px here, about 15pt on a device. Body text is about 17–18pt.</td><td><span class="res pass">Pass</span></td></tr>
       <tr><th>Pickup code</th><td class="now">Digits as well as the QR, which stays black on white in dark mode. The code boxes accept paste and one-time-code autofill.</td><td><span class="res pass">Pass</span></td></tr>
       <tr><th>New-order alert</th><td class="now">Sound, vibration and a visual takeover together, so a deaf staff member or a noisy shop still gets it.</td><td><span class="res impl">Build</span></td></tr>
       <tr><th>Larger text sizes</th><td class="now">Text scales to 200%. Two-column grids switch to one column, rails wrap, and tiles grow with their text.</td><td><span class="res impl">Build</span></td></tr>
@@ -1691,7 +1682,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 </section>
 
 <section id="b-decide">
-  <div class="flow-h"><h3>Decide</h3><p>Everything that affects the decision is above the button: price, arrival date, fee, shop and reviews.</p></div>
+  <div class="flow-h"><h3>Decide</h3><p>What decides the purchase sits above the buy bar: price, arrival date, delivery fee and the shop. Reviews and details follow below.</p></div>
   <div class="phones">
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb" style="background:var(--p-tile)"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -1989,7 +1980,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="act2"><span class="btn pri"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span><span class="btn sec"><svg class="ico"><use href="#i-star"/></svg>Write a review</span></div>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Delivered order.</b> Each shop's part of the order gets Order again once it is delivered or collected, beside Write a review. An order across shops has one per shop, because each shop delivers on its own.<span class="route">order/[id].tsx · new</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Delivered order.</b> <span class="cap-tag">New</span> Each shop's part of the order gets Order again once it is delivered or collected, beside Write a review. An order across shops has one per shop, because each shop delivers on its own.<span class="route">order/[id].tsx · new</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>OJ-2301</b></span><span style="font-size:11.5px;font-weight:700;color:var(--p-accent)">Receipt</span></div>
@@ -2010,7 +2001,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="btn pri addall"><span>Add 3 items to cart</span><span class="num">₦14,400</span></span>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Order again.</b> A sheet, not a new screen: every item ticked, at today's price, with a changed price called out and anything unavailable greyed and unticked. It adds to the cart and shows "3 items added · View cart"; delivery is still chosen at checkout. Outside its hours a shop still takes orders, so the sheet says "Prepared when it opens Mon 10am" and works as usual. A paused shop, or one closed for a date, takes no orders: the sheet says "Closed until Tue 14 Oct" with the shop's note and offers no button, the same as a shop that no longer delivers to the buyer's address.<span class="route">sheet on order/[id].tsx and (tabs)/orders.tsx · new</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Order again.</b> <span class="cap-tag">New</span> A sheet, not a new screen: every item ticked, at today's price, with a changed price called out and anything unavailable greyed and unticked. It adds to the cart and shows "3 items added · View cart"; delivery is still chosen at checkout. Outside its hours a shop still takes orders, so the sheet says "Prepared when it opens Mon 10am" and works as usual. A paused shop, or one closed for a date, takes no orders: the sheet says "Closed until Tue 14 Oct" with the shop's note and offers no button, the same as a shop that no longer delivers to the buyer's address.<span class="route">sheet on order/[id].tsx and (tabs)/orders.tsx · new</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
@@ -2121,7 +2112,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
   <div id="orders-compare" class="stack" style="margin-top:32px">
     <div class="flow-h"><h3>The Past tab</h3><p>Finished orders, newest first, with search by item and Order again. Both tabs need the order-history route to filter by state (filed as emekaobah/ecommerce-project#54).</p></div>
-    <div class="phones"><figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div><div class="body"><div class="bigt">Orders</div><div class="otabs"><span>Ongoing <em>4</em></span><span class="on">Past <em>12</em></span></div><div class="pad" style="padding-bottom:4px"><div class="search"><svg class="ico"><use href="#i-search"/></svg>Search past orders by item</div></div><div class="ocard"><div class="t"><div><b>Adire House</b><small>20 Sep · 1 item · ₦28,000</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-kaftan.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Collected</span></div></div></div><div class="ocard"><div class="t"><div><b>Ikeja Gadget Hub</b><small>9 Sep · 1 item</small></div><b class="num" style="font-size:13px">₦18,500</b></div><div class="thumbs"><span><img class="img" src="img/cat-earbuds.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-mute"><svg class="ico"><use href="#i-x"/></svg>Rejected by the shop</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Refunded</span></div></div></div><div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>28 Aug · 4 items · ₦31,200</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-rice.jpg" alt=""></span><span><img class="img" src="img/cat-garri.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div></div></div></div><div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div></div></div><figcaption class="ph-cap"><b>Past tab.</b> Finished orders only, with Order again on each, and search by item ("palm oil") once the route takes a search term.<span class="route">needs ?state=past and ?q= on order-history</span></figcaption></figure></div>
+    <div class="phones"><figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div><div class="body"><div class="bigt">Orders</div><div class="otabs"><span>Ongoing <em>4</em></span><span class="on">Past <em>12</em></span></div><div class="pad" style="padding-bottom:4px"><div class="search"><svg class="ico"><use href="#i-search"/></svg>Search past orders by item</div></div><div class="ocard"><div class="t"><div><b>Adire House</b><small>20 Sep · 1 item · ₦28,000</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-kaftan.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Collected</span></div></div></div><div class="ocard"><div class="t"><div><b>Ikeja Gadget Hub</b><small>9 Sep · 1 item</small></div><b class="num" style="font-size:13px">₦18,500</b></div><div class="thumbs"><span><img class="img" src="img/cat-earbuds.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-mute"><svg class="ico"><use href="#i-x"/></svg>Rejected by the shop</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Refunded</span></div></div></div><div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>28 Aug · 4 items · ₦31,200</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-rice.jpg" alt=""></span><span><img class="img" src="img/cat-garri.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div></div></div></div><div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div></div></div><figcaption class="ph-cap"><b>Past tab.</b> <span class="cap-tag">New</span> Finished orders only, with Order again on each, and search by item ("palm oil") once the route takes a search term.<span class="route">needs ?state=past and ?q= on order-history</span></figcaption></figure></div>
   </div>
 </section>
 
@@ -2162,7 +2153,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           </div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span class="on"><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>My reviews.</b> Every review the buyer has written, across shops and products, newest first, each with its moderation state; a published one shows the shop's reply. The ··· menu edits (it goes back to moderation) or deletes. A rejected review says "Not published: it didn't meet our review guidelines." Empty: "No reviews yet. After an order arrives, you can review the shop and what you bought."<span class="route">new: my-reviews.tsx · GET /store/reviews</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>My reviews.</b> <span class="cap-tag">New</span> Every review the buyer has written, across shops and products, newest first, each with its moderation state; a published one shows the shop's reply. The ··· menu edits (it goes back to moderation) or deletes. A rejected review says "Not published: it didn't meet our review guidelines." Empty: "No reviews yet. After an order arrives, you can review the shop and what you bought."<span class="route">new: my-reviews.tsx · GET /store/reviews</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -2389,7 +2380,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
       </div>
       <div class="cta"><span>Book courier label</span><svg class="ico"><use href="#i-fwd"/></svg></div>
-    </div></div><figcaption class="ph-cap"><b>Book courier.</b> The buyer's choice carried through, the parcel described, and who pays made clear.<span class="route">(app)/orders/[id]/packed.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Book courier.</b> The buyer's choice of courier carried through, and the parcel described.<span class="route">(app)/orders/[id]/packed.tsx</span></figcaption></figure>
   </div>
 </section>
 
