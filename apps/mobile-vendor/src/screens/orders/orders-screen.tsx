@@ -101,7 +101,8 @@ export function OrdersScreen() {
 }
 
 /**
- * The shop's name, today's date and its open state, with Quick-add and Settings beside them.
+ * The shop's name and open state, then today's date with when it closes or opens, beside
+ * Quick-add and Settings.
  * The name comes from the cached shop list, so it shows at once.
  */
 function ShopHeader({ sellerId, hours, now }: Readonly<{ sellerId: string | undefined; hours: ShopHours | null; now: Date }>) {
@@ -112,40 +113,40 @@ function ShopHeader({ sellerId, hours, now }: Readonly<{ sellerId: string | unde
   const pill = state?.open ? theme.status.success : theme.status.neutral;
 
   return (
-    <View style={[styles.row, { gap: theme.space[2], paddingBottom: theme.space[2], paddingHorizontal: theme.space[4] }]}>
-      <View style={styles.name}>
-        <Text variant="titleNamed" numberOfLines={2}>
+    <View style={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[2] }}>
+      <View style={[styles.row, { gap: theme.space[2] }]}>
+        <Text variant="titleNamed" numberOfLines={2} style={styles.name}>
           {seller.data?.name ?? ''}
         </Text>
         {state ? (
-          <Text variant="meta" tone="muted">
-            {state.line}
-          </Text>
+          <View
+            accessible
+            accessibilityLabel={state.pill}
+            style={[
+              styles.pill,
+              {
+                gap: theme.space[2],
+                paddingVertical: theme.space[1],
+                paddingHorizontal: theme.space[3],
+                borderRadius: theme.radius.pill,
+                backgroundColor: pill.background,
+              },
+            ]}>
+            <View style={{ width: theme.space[2], height: theme.space[2], borderRadius: theme.radius.pill, backgroundColor: pill.foreground }} />
+            <Text variant="meta" weight="extrabold" style={{ color: pill.foreground }}>
+              {state.pill}
+            </Text>
+          </View>
         ) : null}
       </View>
-      {state ? (
-        <View
-          accessible
-          accessibilityLabel={state.pill}
-          style={[
-            styles.pill,
-            {
-              gap: theme.space[2],
-              paddingVertical: theme.space[1],
-              paddingHorizontal: theme.space[3],
-              borderRadius: theme.radius.pill,
-              backgroundColor: pill.background,
-            },
-          ]}>
-          <View style={{ width: theme.space[2], height: theme.space[2], borderRadius: theme.radius.pill, backgroundColor: pill.foreground }} />
-          <Text variant="meta" weight="extrabold" style={{ color: pill.foreground }}>
-            {state.pill}
-          </Text>
-        </View>
-      ) : null}
-      {/* Quick-add (#38): scan a product the shop stocks but doesn't sell online yet. */}
-      <HeaderButton icon="scan" label="Add product" onPress={() => router.push('/quick-add')} />
-      <HeaderButton icon="user" label="Settings" onPress={() => router.push('/settings')} />
+      <View style={[styles.row, styles.centred, { gap: theme.space[2] }]}>
+        <Text variant="meta" tone="muted" style={styles.name}>
+          {state?.line ?? ''}
+        </Text>
+        {/* Quick-add (#38): scan a product the shop stocks but doesn't sell online yet. */}
+        <HeaderButton icon="scan" label="Add product" onPress={() => router.push('/quick-add')} />
+        <HeaderButton icon="user" label="Settings" onPress={() => router.push('/settings')} />
+      </View>
     </View>
   );
 }
@@ -279,6 +280,7 @@ const styles = StyleSheet.create({
   fill: { flexGrow: 1 },
   row: { flexDirection: 'row' },
   name: { flex: 1, minWidth: 0 },
+  centred: { alignItems: 'center' },
   pill: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, alignSelf: 'flex-start' },
   iconButton: { alignItems: 'center', justifyContent: 'center' },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

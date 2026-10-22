@@ -29,8 +29,9 @@ export default function AppLayout() {
           headerShadowVisible: false,
           contentStyle: { backgroundColor: theme.colors.bg },
         }}>
-        {/* Listed first: the first screen declared here is the one the stack opens on. */}
-        <Stack.Screen name="index" options={{ headerShown: false }} />
+        {/* Listed first: the first screen declared here is the one the stack opens on. Its title
+            labels the back button on the screens pushed over it. */}
+        <Stack.Screen name="index" options={{ headerShown: false, title: 'Orders' }} />
         <Stack.Screen name="orders/[id]/index" options={{ title: 'Order' }} />
         {/* The reject reason sheet slides up over the order. */}
         <Stack.Screen
