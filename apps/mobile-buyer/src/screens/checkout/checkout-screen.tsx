@@ -12,6 +12,7 @@ import {
   formatMoney,
   notPlacedChangeMessage,
   notPlacedMessage,
+  type NotPlacedChange,
   preselectedAddress,
   priceChangeMessage,
   savedAddressFor,
@@ -530,9 +531,10 @@ function PayBar({
   // Both reprice the cart; the lines the latest one repriced are shown until the buyer pays.
   const priceChanges = latestPriceChanges(prepare, startPayment);
   const discountChanged = !!startPayment.data?.discount_changed;
+  const stockChanges = startPayment.data?.stock_changes ?? [];
   const pay = () =>
     startPayment.mutate(PAYMENT_RETURN_URL, {
-      // No payment means a price or discount changed: the buyer sees the new total, then pays again.
+      // No payment means a price, the stock or a discount changed: the buyer sees the new total, then pays again.
       onSuccess: ({ payment }) => {
         if (payment) router.push({ pathname: '/checkout/pay', params: { cartId, url: payment.authorization_url } });
       },
@@ -554,6 +556,7 @@ function PayBar({
       }}>
       <NotPlaced checkout={checkout} />
       <PriceChanges changes={priceChanges} currencyCode={checkout.currency_code} />
+      <StockChanges changes={stockChanges} />
       {discountChanged ? (
         <Text tone="secondary" accessibilityLiveRegion="polite">
           {"Your discounts changed: a code ended, was used up or no longer applies. The total below is what you'll pay."}
@@ -689,6 +692,23 @@ function NotPlaced({ checkout }: Readonly<{ checkout: Checkout }>) {
         </Text>
       ))}
       <Text tone="secondary">{"The total below is what you'll pay if you order again."}</Text>
+    </View>
+  );
+}
+
+/** The lines that sold out or ran short since the buyer added them, taken off or cut before paying. */
+function StockChanges({ changes }: Readonly<{ changes: NotPlacedChange[] }>) {
+  const theme = useTheme();
+  if (!changes.length) return null;
+  return (
+    <View style={{ gap: theme.space.xs }} accessibilityLiveRegion="polite">
+      <Text variant="label">Some items sold out since you added them</Text>
+      {changes.map((change) => (
+        <Text key={notPlacedChangeMessage(change)} tone="secondary">
+          {notPlacedChangeMessage(change)}
+        </Text>
+      ))}
+      <Text tone="secondary">{"The total below is what you'll pay."}</Text>
     </View>
   );
 }

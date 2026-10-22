@@ -3,7 +3,7 @@ import { Modules } from "@medusajs/framework/utils"
 import { refundUnclaimedPayments } from "../../src/lib/order-acceptance"
 import seedDemoData from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
-import { buyerCheckout, eventually, GADGETS, GROCERY, RICE, TOTAL, type Shop } from "../helpers/checkout"
+import { buyerCheckout, eventually, GADGETS, GROCERY, RICE, TOTAL } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakeExpoPush, pushToken } from "../helpers/expo-push"
 import { fakePaystack } from "../helpers/paystack"
@@ -68,20 +68,7 @@ medusaIntegrationTestRunner({
       await buyer.prepare(cartId)
       return cartId
     }
-    /** Sets how many of a shop's product can still be sold; returns how to put the stock back. */
-    const setStock = async (shop: Shop, title: string, units: number) => {
-      const inventory = getContainer().resolve(Modules.INVENTORY)
-      const { data: offers } = await ada.query().graph({
-        entity: "offer",
-        fields: ["inventory_item_link.inventory_item.location_levels.*"],
-        filters: { id: await ada.offerId(shop, title) },
-      })
-      const [level] = (offers[0] as any).inventory_item_link[0].inventory_item.location_levels
-      const update = (stocked_quantity: number) =>
-        inventory.updateInventoryLevels([{ inventory_item_id: level.inventory_item_id, location_id: level.location_id, stocked_quantity }])
-      await update(Number(level.reserved_quantity) + units)
-      return () => update(Number(level.stocked_quantity))
-    }
+    const setStock = ada.setStock
     /** The buyer's checkout once it says the cart wasn't placed. */
     const notPlaced = async (buyer: typeof ada, cartId: string) =>
       eventually(() => buyer.checkout(cartId), (c) => !!c.not_placed, 300)
