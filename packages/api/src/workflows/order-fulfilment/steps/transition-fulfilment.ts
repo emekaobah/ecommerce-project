@@ -12,6 +12,7 @@ import {
   type FulfilmentRecord,
   type Shipment,
 } from "../../../lib/order-fulfilment"
+import { phaseOf, phaseRefundsOf } from "../../../lib/order-phase"
 
 export type TransitionFulfilmentInput = {
   order_id: string
@@ -75,8 +76,8 @@ export const checkTransitionStep = createStep(
  * by whichever trigger, may now be paid out, as may one Not collected with perishable lines
  * kept (#32); a shipment cancelled back to Packed may be alerted about again; a pickup order
  * Ready for pickup is issued its code (#12); a label booked clears any courier waiting for
- * approval (#19). A new state emits `order_fulfilment.state_changed`
- * once the workflow succeeds.
+ * approval (#19). The order's phase is written with its state, from its refunds as they stand
+ * (#59). A new state emits `order_fulfilment.state_changed` once the workflow succeeds.
  */
 export const transitionFulfilmentStep = createStep(
   "transition-order-fulfilment",
@@ -88,6 +89,7 @@ export const transitionFulfilmentStep = createStep(
     const reached = recordReached(previous?.reached ?? {}, from, fulfilment, trigger.at)
     const next = {
       state: fulfilment.state,
+      phase: phaseOf(fulfilment.state, await phaseRefundsOf(container, order_id)),
       fulfilment,
       reached,
       ...(fulfilment.state === "rejected" && { reject_reason: reject_reason ?? null }),
@@ -123,6 +125,7 @@ export const transitionFulfilmentStep = createStep(
       await service.updateOrderFulfilments({
         id: previous.id,
         state: previous.state,
+        phase: previous.phase,
         fulfilment: previous.fulfilment,
         reject_reason: previous.reject_reason,
         shipment: previous.shipment,

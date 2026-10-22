@@ -37,6 +37,8 @@ export { selectRegion } from "./region"
 export { CANCEL_REASONS, canCancel, newFulfilment, transition } from "./fulfilment"
 export { ORDER_STAGES, orderStageOf, statesInStage } from "./order-stage"
 export type { OrderStage } from "./order-stage"
+export { ORDER_PHASES, orderPhase } from "./order-phase"
+export type { OrderPhase, PhaseRefund } from "./order-phase"
 export { CANCEL_REASON_LABELS, cancelledBy, cancelReasonText, cancelRequest } from "./cancellation"
 export type { CancelForm } from "./cancellation"
 export type {

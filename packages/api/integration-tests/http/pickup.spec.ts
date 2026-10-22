@@ -675,6 +675,17 @@ medusaIntegrationTestRunner({
           expect(paystack.refundsOf(reference)).toHaveLength(1)
         })
 
+        it("puts a Not collected order in the past, for the buyer and the shop", async () => {
+          const { orderId, groupId } = await pickupOrder()
+          await packed(orderId)
+          expect((await adasOrder(groupId, orderId)).fulfilment.phase).toBe("in_progress")
+
+          await longAfter(await readyAt(orderId))
+
+          expect((await adasOrder(groupId, orderId)).fulfilment).toMatchObject({ state: "not_collected", phase: "past" })
+          expect((await vendorOrder(GROCERY, orderId)).fulfilment.phase).toBe("past")
+        })
+
         it("keeps the fresh items for the shop, unrefunded and their stock not returned, and pays them out less 10%", async () => {
           const { orderId, groupId, reference } = await pickupOrder({ fresh: 1 })
           await packed(orderId)

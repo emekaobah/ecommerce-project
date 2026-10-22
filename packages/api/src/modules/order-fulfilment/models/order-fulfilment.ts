@@ -1,5 +1,5 @@
 import { model } from "@medusajs/framework/utils"
-import { HOLD_REMINDERS } from "@oja/domain"
+import { HOLD_REMINDERS, ORDER_PHASES } from "@oja/domain"
 
 /**
  * Where a seller order is in the fulfilment state machine (`@oja/domain`'s `transition`), and
@@ -20,6 +20,11 @@ const OrderFulfilment = model
     order_group_id: model.text().nullable(),
     /** The fulfilment's state, kept apart from `fulfilment` so jobs can find orders by it. */
     state: model.text(),
+    /**
+     * Whether the order is still happening for its buyer (#59), by `@oja/domain`'s `orderPhase`
+     * of its state and refunds: written with either (`lib/order-phase`).
+     */
+    phase: model.enum([...ORDER_PHASES]),
     /** The `Fulfilment` itself, with what each state carries (who rejected, the handover). */
     fulfilment: model.json(),
     /** When the order was placed; the accept deadline counts from here. */
@@ -66,8 +71,8 @@ const OrderFulfilment = model
   .indexes([
     { on: ["state", "placed_at"] },
     { on: ["shipment_id"] },
-    // The buyer's orders, newest first (#59 adds their phase).
-    { on: ["customer_id", "placed_at"] },
+    // The buyer's orders in progress or past, newest first (#59).
+    { on: ["customer_id", "phase", "placed_at"] },
     // The shop's orders by state: its counts and stage lists.
     { on: ["seller_id", "state"] },
     { on: ["order_group_id"] },

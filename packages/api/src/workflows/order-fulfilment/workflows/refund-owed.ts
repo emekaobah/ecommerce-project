@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import { fulfilmentService, paymentsOfOrder, type OrderRefundRecord, type Picks } from "../../../lib/order-fulfilment"
+import { syncOrderPhases } from "../../../lib/order-phase"
 import {
   isDue,
   owedAttempts,
@@ -122,7 +123,10 @@ async function linesOwed(scope: Scope, orderId: string, added?: Picks): Promise<
   return owedLines(owedAttempts({ refunds, settlements }), added)
 }
 
-/** Records a refund Paystack refused: a failed order refund of what was owed with its reason, which no Medusa refund backs. */
+/**
+ * Records a refund Paystack refused: a failed order refund of what was owed with its reason,
+ * which no Medusa refund backs; and rewrites the order's phase by it (#59).
+ */
 async function recordRefusal(scope: Scope, owed: OrderOwedRefund, lines: Picks | null, amount: number, reason: string) {
   const [payment] = await paymentsOfOrder(scope, owed.order_id)
   await fulfilmentService(scope).createOrderRefunds({
@@ -136,6 +140,7 @@ async function recordRefusal(scope: Scope, owed: OrderOwedRefund, lines: Picks |
     status: "failed",
     failure_reason: reason,
   })
+  await syncOrderPhases(scope, [owed.order_id])
 }
 
 export type SettleOwedRefundInput = {

@@ -1,6 +1,7 @@
 import type { IPaymentModuleService, MedusaContainer } from "@medusajs/framework/types"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { fulfilmentService, type OrderRefundRecord, type Picks } from "../../../lib/order-fulfilment"
+import { syncOrderPhases } from "../../../lib/order-phase"
 import type { RefundCovers } from "../../../modules/order-fulfilment/models/order-refund"
 import type { PaystackRefund } from "../../../modules/paystack/client"
 
@@ -25,7 +26,8 @@ export type RefundPaymentInput = {
 
 /**
  * Refunds an amount of a payment on Paystack through Medusa's payment module, and records it
- * as an order refund with Paystack's refund id and status. Returns Medusa's refund id too.
+ * as an order refund with Paystack's refund id and status, and rewrites the order's phase by
+ * it (#59). Returns Medusa's refund id too.
  */
 export async function refundPayment(
   container: Pick<MedusaContainer, "resolve">,
@@ -53,5 +55,6 @@ export async function refundPayment(
     paystack_refund_id: paystack ? String(paystack.id) : null,
     status: paystack?.status ?? "pending",
   })
+  await syncOrderPhases(container, [order_id])
   return { refund_id: refund.id, recorded }
 }
