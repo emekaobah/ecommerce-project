@@ -2,7 +2,8 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { refundUnclaimedPayments, rejectOverdueOrders } from "../../src/lib/order-acceptance"
-import { backfillOrderFulfilments, fulfilmentService } from "../../src/lib/order-fulfilment"
+import { fulfilmentService } from "../../src/lib/order-fulfilment"
+import { backfillOrderFulfilments } from "../../src/migration-scripts/backfill-order-fulfilments"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -78,6 +79,7 @@ medusaIntegrationTestRunner({
         expect(order.fulfilment).toEqual({
           method: "delivery",
           state: "new",
+          phase: "in_progress",
           accept_by: new Date(Date.parse(order.created_at) + 24 * HOUR).toISOString(),
           rejected_by: null,
           reject_reason: null,
@@ -166,6 +168,22 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("each order's phase, once backfilled", () => {
+      it("puts an order finished before orders stored their phase in the past, and leaves one in progress there", async () => {
+        const { gadgets, grocery } = await paidOrders()
+        await reject(GADGETS, gadgets)
+        // As the migration that added phases left every row: in progress.
+        const service = fulfilmentService(getContainer())
+        const [gadgetsRow] = await service.listOrderFulfilments({ order_id: gadgets })
+        await service.updateOrderFulfilments({ id: gadgetsRow.id, phase: "in_progress" })
+
+        await backfillOrderFulfilments(getContainer())
+
+        expect((await shopOrder(GADGETS, gadgets)).fulfilment).toMatchObject({ state: "rejected", phase: "past" })
+        expect((await shopOrder(GROCERY, grocery)).fulfilment).toMatchObject({ state: "new", phase: "in_progress" })
+      })
+    })
+
     describe("rejecting", () => {
       it("needs a reason", async () => {
         const { gadgets } = await paidOrders()
@@ -189,6 +207,7 @@ medusaIntegrationTestRunner({
         expect(data.fulfilment).toEqual({
           method: "delivery",
           state: "rejected",
+          phase: "past",
           accept_by: null,
           rejected_by: "seller",
           reject_reason: "The lantern is out of stock",

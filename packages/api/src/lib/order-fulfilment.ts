@@ -2,11 +2,13 @@ import {
   acceptDeadline,
   fulfilmentTimeline,
   newFulfilment,
+  orderPhase,
   type Cancellation,
   type Fulfilment,
   type FulfilmentMethod,
   type FulfilmentState,
   type HoldReminder,
+  type OrderPhase,
   type Reached,
   type ShopHours,
   type TimelineStep,
@@ -137,6 +139,8 @@ export type FulfilmentRecord = {
   /** The checkout (order group) the order was split from. */
   order_group_id: string | null
   state: FulfilmentState
+  /** Whether the order is still happening for its buyer (#59), by its state and refunds. */
+  phase: OrderPhase
   fulfilment: Fulfilment
   placed_at: Date
   reject_reason: string | null
@@ -209,6 +213,11 @@ export type FulfilmentView = {
   /** How the order reaches its buyer: by courier, or collected in store (#12). */
   method: FulfilmentMethod
   state: FulfilmentState
+  /**
+   * Whether the order is still happening for its buyer (#59): in progress until its state is
+   * final, and while a refund waits on the buyer's bank account; past otherwise.
+   */
+  phase: OrderPhase
   /**
    * ISO 8601; only while the order waits to be accepted. 24 of the shop's open hours after it
    * was placed (ADR 0004); a pause that starts after it was placed doesn't stop the clock (#18).
@@ -295,6 +304,7 @@ export function fulfilmentView(
   return {
     method: fulfilment.method,
     state: fulfilment.state,
+    phase: record.phase,
     accept_by: fulfilment.state === "new" ? acceptDeadline(placed_at, hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
     collect_by: collectByOf(record, hours, lines),
@@ -485,48 +495,13 @@ export async function placedOrdersOf(scope: Scope, orderIds: string[]): Promise<
 /** The order as placed; undefined for no such order. */
 export const placedOrderOf = async (scope: Scope, orderId: string) => (await placedOrdersOf(scope, [orderId])).get(orderId)
 
-/** A placed order's first fulfilment row: New, by the method it was placed with. */
-export const newFulfilmentRow = ({ method, ...order }: PlacedOrder) => ({ ...order, state: "new" as const, fulfilment: newFulfilment(method) })
-
-/** How many orders the backfill reads at a time. */
-const BACKFILL_BATCH = 200
-
-/**
- * Gives every order without a fulfilment row one, New as readers took it to be, and fills in
- * whose order each row is on rows recorded before rows said (#58). Run once by the
- * `backfill-order-fulfilments` migration script; running it again changes nothing.
- */
-export async function backfillOrderFulfilments(scope: Scope): Promise<{ created: number; filled: number }> {
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const service = fulfilmentService(scope)
-  let created = 0
-  let filled = 0
-  for (let skip = 0; ; skip += BACKFILL_BATCH) {
-    const { data } = await query.graph({
-      entity: "order",
-      fields: ["id"],
-      filters: { is_draft_order: false },
-      pagination: { skip, take: BACKFILL_BATCH, order: { created_at: "ASC" } },
-    })
-    const ids = (data as { id: string }[]).map((o) => o.id)
-    if (!ids.length) break
-    const [records, placed] = await Promise.all([fulfilmentsOf(scope, ids), placedOrdersOf(scope, ids)])
-    const missing = [...placed.values()].filter((o) => !records.has(o.order_id))
-    const unfilled = [...records.values()].filter((r) => !r.seller_id && placed.has(r.order_id))
-    if (missing.length) await service.createOrderFulfilments(missing.map(newFulfilmentRow))
-    if (unfilled.length) {
-      await service.updateOrderFulfilments(
-        unfilled.map((r) => {
-          const { customer_id, seller_id, order_group_id } = placed.get(r.order_id)!
-          return { id: r.id, customer_id, seller_id, order_group_id }
-        })
-      )
-    }
-    created += missing.length
-    filled += unfilled.length
-  }
-  return { created, filled }
-}
+/** A placed order's first fulfilment row: New, by the method it was placed with, and so in progress. */
+export const newFulfilmentRow = ({ method, ...order }: PlacedOrder) => ({
+  ...order,
+  state: "new" as const,
+  phase: orderPhase("new", []),
+  fulfilment: newFulfilment(method),
+})
 
 /** The shop's orders Ready for pickup (#12), by when they became ready, longest waiting first. */
 export async function readyForPickup(scope: Scope, sellerId: string): Promise<string[]> {
