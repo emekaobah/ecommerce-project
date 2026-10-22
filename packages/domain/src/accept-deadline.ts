@@ -45,15 +45,41 @@ export function acceptReminderDue(placedAt: string, now: Date, hours: ShopHours 
   return left <= URGENT_MS
 }
 
-export type AcceptTimeLeft = { label: string; urgent: boolean }
+/**
+ * The open time left before `deadline`: a pause doesn't stop the clock, so pauses count as open.
+ * (No pause can have started before the order was placed and still be running: a paused shop
+ * takes no orders.) Wall-clock time for a shop without hours.
+ */
+const openTimeLeft = (deadline: string, now: Date, hours: ShopHours | null): number =>
+  hours ? openTimeBetween({ ...hours, pauses: [] }, now, new Date(deadline)) : Math.max(0, Date.parse(deadline) - now.getTime())
 
-/** The countdown staff see on a new order: "5h 12m left", "24m left", or "Overdue". */
-export function acceptTimeLeft(deadline: string, now: Date): AcceptTimeLeft {
-  const left = Date.parse(deadline) - now.getTime()
+export type AcceptTimeLeft = { label: string; accessibilityLabel: string; urgent: boolean }
+
+/**
+ * The countdown staff see on a new order: "5h 12m left", "21h left", "24m left", or "Overdue".
+ * With the shop's hours it counts open time, so it holds still overnight and turns urgent in
+ * the last two open hours, when the reminder push goes; without them, the wall clock.
+ */
+export function acceptTimeLeft(deadline: string, now: Date, hours: ShopHours | null = null): AcceptTimeLeft {
+  const overdue = Date.parse(deadline) <= now.getTime()
+  const left = overdue ? 0 : openTimeLeft(deadline, now, hours)
   const urgent = left <= URGENT_MS
-  if (left <= 0) return { label: "Overdue", urgent }
-  if (left < MINUTE_MS) return { label: "Less than a minute left", urgent }
-  const hours = Math.floor(left / HOUR_MS)
+  if (overdue) return { label: "Overdue", accessibilityLabel: "Overdue to accept", urgent }
+  const hoursLeft = Math.floor(left / HOUR_MS)
   const minutes = Math.floor((left % HOUR_MS) / MINUTE_MS)
-  return { label: hours ? `${hours}h ${minutes}m left` : `${minutes}m left`, urgent }
+  const time =
+    left < MINUTE_MS ? "Less than a minute" : !hoursLeft ? `${minutes}m` : minutes ? `${hoursLeft}h ${minutes}m` : `${hoursLeft}h`
+  return {
+    label: `${time} left`,
+    accessibilityLabel: `${time} ${hours ? "of open time " : ""}left to accept`,
+    urgent,
+  }
+}
+
+/**
+ * How much of the 24 open hours to accept is left at `now`, from 1 (all of it) to 0 (overdue):
+ * the time chip's outline drains by it. It holds still while the shop is closed.
+ */
+export function acceptClockFraction(deadline: string, now: Date, hours: ShopHours | null): number {
+  return Math.min(1, openTimeLeft(deadline, now, hours) / ACCEPT_WINDOW_MS)
 }

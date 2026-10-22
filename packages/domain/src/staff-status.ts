@@ -1,4 +1,5 @@
 import { acceptTimeLeft } from "./accept-deadline"
+import type { ShopHours } from "./shop-hours"
 import type { FulfilmentState } from "./fulfilment"
 import type { StatusChipView } from "./status"
 
@@ -27,9 +28,10 @@ export const staffStatus = (state: FulfilmentState): StatusChipView => STATES[st
 
 /**
  * A new order's accept clock (ISO 8601 `deadline`) as a chip: sun while the shop has time, ember
- * in the last two open hours, when the reminder push goes, and once it is overdue.
+ * in the last two open hours, when the reminder push goes, and once it is overdue. With the
+ * shop's hours it counts open time; without them, the wall clock.
  */
-export function acceptClockStatus(deadline: string, now: Date): StatusChipView {
-  const left = acceptTimeLeft(deadline, now)
+export function acceptClockStatus(deadline: string, now: Date, hours: ShopHours | null = null): StatusChipView {
+  const left = acceptTimeLeft(deadline, now, hours)
   return { label: left.label, tone: left.urgent ? "attention" : "new", icon: "clock" }
 }

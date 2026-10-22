@@ -27,11 +27,25 @@ describe("acceptClockStatus", () => {
   const now = new Date("2026-10-22T10:00:00.000Z")
 
   test("a new order with time to spare waits on the shop, in sun", () => {
-    expect(acceptClockStatus("2026-10-23T07:00:00.000Z", now)).toEqual({ label: "21h 0m left", tone: "new", icon: "clock" })
+    expect(acceptClockStatus("2026-10-23T07:00:00.000Z", now)).toEqual({ label: "21h left", tone: "new", icon: "clock" })
   })
 
   test("turns ember in the last two hours to accept", () => {
     expect(acceptClockStatus("2026-10-22T11:48:00.000Z", now)).toEqual({ label: "1h 48m left", tone: "attention", icon: "clock" })
+  })
+
+  test("counts the shop's open time, ember in its last two open hours", () => {
+    // Open 08:00–18:00 every day in Lagos: at 17:00 one open hour is left today and one tomorrow.
+    const day = [{ opens: "08:00", closes: "18:00" }]
+    const hours = {
+      time_zone: "Africa/Lagos",
+      weekly: { mon: day, tue: day, wed: day, thu: day, fri: day, sat: day, sun: day },
+      exceptions: [],
+      pauses: [],
+    }
+    const at = new Date("2026-10-22T16:00:00.000Z")
+    expect(acceptClockStatus("2026-10-23T08:00:00.000Z", at, hours)).toEqual({ label: "2h left", tone: "attention", icon: "clock" })
+    expect(acceptClockStatus("2026-10-23T08:00:00.000Z", at)).toEqual({ label: "16h left", tone: "new", icon: "clock" })
   })
 
   test("stays ember once overdue", () => {
