@@ -8,6 +8,7 @@ import {
     StoreGetListingParams,
     StoreGetListingsParams,
     StoreGetShopParams,
+    StoreGetShopsParams,
 } from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { StoreMoveShopCartBack, StoreMoveShopToOwnCart } from "./store/carts/[id]/shop-cart/validators";
@@ -107,6 +108,15 @@ export default defineMiddlewares({
             method: ["GET"],
             matcher: "/store/products/:id/reviews",
             middlewares: [validateAndTransformQuery(StoreGetPublishedReviews, {})],
+        },
+        // Home's shops near the buyer, for everyone, ranked like listings (#65).
+        {
+            method: ["GET"],
+            matcher: "/store/shops",
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetShopsParams, {}),
+            ],
         },
         {
             method: ["GET"],

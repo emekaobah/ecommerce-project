@@ -9,18 +9,16 @@ import {
   fulfilmentsOf,
   fulfilmentView,
   METHOD_FIELDS,
-  methodOfOrder,
   paymentsOfOrders,
   type FulfilmentRecord,
   type FulfilmentView,
   type Picks,
-  type PlacedOrder,
   type Shipment,
   switchedFrom,
 } from "./order-fulfilment"
 import { refundMade, refusedByPaystack, totalOf } from "./order-refund"
 import { failedSinceLastMade, handedOver, needsAccount, owedRefundsOf, type OwedRefund } from "./owed-refunds"
-import { HOLD_LINE_FIELDS, holdLinesOf } from "./pickup-hold"
+import { HOLD_LINE_FIELDS, holdLinesOf, type HoldLine } from "./pickup-hold"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
 
@@ -136,14 +134,14 @@ export type BuyerFulfilmentView = Omit<FulfilmentView, "handover" | "collection"
   shipment: Pick<NonNullable<FulfilmentView["shipment"]>, "waybill" | "courier_name" | "tracking_url" | "cancelled"> | null
 }
 
-function buyerFulfilment(record: FulfilmentRecord | undefined, order: PlacedOrder, hours: ShopHours | null): BuyerFulfilmentView {
+function buyerFulfilment(record: FulfilmentRecord, lines: HoldLine[] | undefined, hours: ShopHours | null): BuyerFulfilmentView {
   const {
     handover: _staffOnly,
     collection: _alsoStaffOnly,
     courier_approval: _forOjaToApprove,
     shipment,
     ...view
-  } = fulfilmentView(record, order, hours, { audience: "buyer" })
+  } = fulfilmentView(record, lines, hours, { audience: "buyer" })
   // What the courier costs the platform is the shop's and Oja's business, not the buyer's.
   return { ...view, shipment: shipment && { waybill: shipment.waybill, courier_name: shipment.courier_name, tracking_url: shipment.tracking_url, cancelled: shipment.cancelled } }
 }
@@ -160,12 +158,12 @@ export type BuyerPickup = CollectionPlace & { today: DayHours | null; code: stri
  * (#12), so an order still to collect has one; a collected order then shows its timeline alone.
  */
 function buyerPickup(
-  record: FulfilmentRecord | undefined,
+  record: FulfilmentRecord,
   place: CollectionPlace | undefined,
   hours: ShopHours | null,
   now: Date
 ): BuyerPickup | null {
-  if (record?.fulfilment.method !== "pickup" || !place) return null
+  if (record.fulfilment.method !== "pickup" || !place) return null
   return {
     ...place,
     today: hours && todaysHours(hours, now),
@@ -315,28 +313,29 @@ async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Pro
   ])
   const refundsOf = (orderId: string) => refunds.filter((r) => r.order_id === orderId)
   const now = new Date()
+  // An order still being placed, not yet recorded, is shown once it is.
   return new Map(
-    (data as any[]).map((o) => {
+    (data as any[]).flatMap((o) => {
       const record = fulfilments.get(o.id)
+      if (!record) return []
       const shopHours = hours.get(o.seller?.id) ?? null
-      const fulfilment = buyerFulfilment(record, { placed_at: o.created_at, method: methodOfOrder(o), lines: lines.get(o.id) }, shopHours)
-      return [
+      const fulfilment = buyerFulfilment(record, lines.get(o.id), shopHours)
+      return [[
         o.id,
         {
-          ...buyerOrder(o, record?.removed ?? {}),
+          ...buyerOrder(o, record.removed ?? {}),
           payment_reference: paymentReference(payments.get(o.id) ?? []),
           fulfilment,
-          delivery: fulfilment.method === "delivery" ? buyerDelivery(o, record?.shipment) : null,
+          delivery: fulfilment.method === "delivery" ? buyerDelivery(o, record.shipment) : null,
           shop_opens: shopOpens(fulfilment.state, shopHours, now),
           refund: buyerRefund(refundsOf(o.id)),
           owed_refund: buyerOwedRefund(owed.get(o.id)),
           refund_needing_account: refundsOf(o.id).find(needsAccount)?.id ?? null,
           pickup: buyerPickup(record, places.get(o.seller?.id), shopHours, now),
-          // An order without a fulfilment row yet is New.
-          can_review: canReview(record?.state ?? "new"),
+          can_review: canReview(record.state),
           reviews: reviewsOf(o, reviews),
         },
-      ]
+      ] as const]
     })
   )
 }

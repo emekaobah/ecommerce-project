@@ -209,15 +209,10 @@ export async function vendorShopHours(scope: Scope, sellerId: string, now = new 
 
 /** How many of the shop's orders wait to be accepted. */
 async function newOrderCount(scope: Scope, sellerId: string): Promise<number> {
-  const waiting = await scope.resolve<OrderFulfilmentModuleService>(ORDER_FULFILMENT_MODULE).listOrderFulfilments({ state: "new" }, { select: ["order_id"] })
-  if (!waiting.length) return 0
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "order_seller",
-    fields: ["order_id"],
-    filters: { seller_id: sellerId, order_id: waiting.map((w) => w.order_id) },
-  })
-  return data.length
+  const [, count] = await scope
+    .resolve<OrderFulfilmentModuleService>(ORDER_FULFILMENT_MODULE)
+    .listAndCountOrderFulfilments({ seller_id: sellerId, state: "new" }, { select: ["id"], take: 1 })
+  return count
 }
 
 const invalid = (errors: string[]) => {

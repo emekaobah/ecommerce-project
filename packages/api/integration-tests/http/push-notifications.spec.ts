@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules, NotificationStatus } from "@medusajs/framework/utils"
+import { formatMoney } from "@oja/domain"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { remindAcceptDeadlines } from "../../src/lib/order-acceptance"
@@ -7,7 +8,7 @@ import { ORDER_PICKUP_SCHEDULED } from "../../src/lib/order-fulfilment"
 import { checkPushReceipts } from "../../src/lib/push-receipts"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../../src/modules/push-token"
 import { vendorHeaders } from "../helpers/auth"
-import { buyerCheckout, eventually, GADGETS, GROCERY, type Shop } from "../helpers/checkout"
+import { ADDRESS, buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { keepShopsOpen } from "../helpers/shop-hours"
 import { fakeExpoPush, pushToken, type PushMessage } from "../helpers/expo-push"
@@ -92,9 +93,12 @@ medusaIntegrationTestRunner({
     /** Whether the device is still registered for pushes, to anyone. */
     const registered = async (token: string) =>
       (await getContainer().resolve<PushTokenModuleService>(PUSH_TOKEN_MODULE).listPushTokens({ token })).length > 0
+    /** Tapping the push opens the order, acting for its shop. */
     const opens = (orderId: string, sellerId: string): Partial<PushMessage> => ({
-      data: { url: `/orders/${orderId}`, order_id: orderId, seller_id: sellerId },
+      data: expect.objectContaining({ url: `/orders/${orderId}`, order_id: orderId, seller_id: sellerId }),
     })
+    /** How a new order's push rings: Oja's alarm, on the new-order Android channel, breaking through Focus. */
+    const ALARM = { sound: "oja_alarm.wav", channelId: "new-orders", interruptionLevel: "time-sensitive", priority: "high" }
 
     /** The grocery owner's device, about to be uninstalled, and a staff member's. */
     const ownerAndStaffDevices = async () => ({
@@ -121,14 +125,31 @@ medusaIntegrationTestRunner({
           const [push] = await pushesTo(device)
           expect(push).toMatchObject({
             title: `New order #${await displayId(grocery)}`,
-            body: "2 items. Accept or reject it in the app.",
-            sound: "default",
-            ...opens(grocery, groceryId),
+            body: `${formatMoney(ORDER_TOTALS.get(GROCERY)!, "ngn")} for delivery, 2 items. Accept or reject it in the app.`,
+            ...ALARM,
+            data: { url: `/orders/${grocery}`, order_id: grocery, seller_id: groceryId, kind: "new_order" },
           })
         }
         const [gadgetsPush] = await pushesTo(gadgetsDevice)
         expect(gadgetsPush).toMatchObject(opens(gadgets, await buyer.sellerId(GADGETS)))
         expect(expo.sentTo(ownerDevice)).toHaveLength(1)
+      })
+
+      it("says a pickup order is for pickup, at its total without delivery", async () => {
+        const device = await registerMember(await buyer.owner(GROCERY))
+        await api.post("/vendor/collection-point", { follows_pickup_address: true, instructions: "Ask at the till." }, await buyer.owner(GROCERY))
+        const cartId = await buyer.adasCart()
+        await api.post(`/store/carts/${cartId}/checkout`, { shipping_address: ADDRESS, pickup: [await buyer.sellerId(GROCERY)] }, buyer.ada())
+        const { reference } = await buyer.startPayment(cartId)
+        paystack.pay(reference)
+        await buyer.postWebhook(paystack.chargeSuccess(reference))
+
+        const [push] = await pushesTo(device)
+        expect(push).toMatchObject({
+          body: `${formatMoney(2 * RICE.price, "ngn")} for pickup, 2 items. Accept or reject it in the app.`,
+          ...ALARM,
+          data: expect.objectContaining({ kind: "new_order" }),
+        })
       })
 
       it("forgets a device Expo says is no longer installed, and still reaches the others", async () => {
@@ -250,8 +271,12 @@ medusaIntegrationTestRunner({
         expect(reminder).toMatchObject({
           title: `Order #${await displayId(grocery)} is waiting`,
           body: "1h 55m left to accept it, or it is rejected and refunded.",
-          ...opens(grocery, await buyer.sellerId(GROCERY)),
+          sound: "default",
+          data: expect.objectContaining({ kind: "accept_deadline_near" }),
         })
+        // Only a new order rings the alarm.
+        expect(reminder).not.toHaveProperty("channelId")
+        expect(reminder).not.toHaveProperty("interruptionLevel")
 
         await remindAcceptDeadlines(getContainer(), new Date(placedAt + 23 * HOUR))
         expect(await settledPushesTo(groceryDevice, async () => {})).toHaveLength(2)

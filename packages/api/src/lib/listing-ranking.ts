@@ -183,19 +183,21 @@ export const LISTING_ORDER = [
 
 type RankedRow = { seller_id: string; product_id: string; leadtime_to_ship: number | string | null; exact_km: number | string | null }
 
-/** A page of listings in the documented order, and how many match in all. */
+/** A page of listings in the documented order, and how many listings, and shops, match in all. */
 export async function rankListingPage(
   scope: MedusaContainer,
   filters: RankingFilters,
   page: { limit: number; offset: number }
-): Promise<{ listings: RankedListing[]; count: number }> {
+): Promise<{ listings: RankedListing[]; count: number; shopCount: number }> {
   if (!filters.sellerIds.length || !filters.salesChannelIds.length || filters.pairs?.length === 0) {
-    return { listings: [], count: 0 }
+    return { listings: [], count: 0, shopCount: 0 }
   }
   const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
   const ranked = () => knex.from(rankedListings(knex, filters).as("l"))
   const [[total], rows] = await Promise.all([
-    ranked().count({ count: "*" }),
+    ranked().select(knex.raw("count(*) AS count, count(DISTINCT seller_id) AS shop_count")) as unknown as Promise<
+      { count: number | string; shop_count: number | string }[]
+    >,
     ranked()
       .select("seller_id", "product_id", "leadtime_to_ship", "exact_km")
       .orderBy(LISTING_ORDER.map((o) => ({ ...o })))
@@ -204,11 +206,85 @@ export async function rankListingPage(
   ])
   return {
     count: Number(total?.count ?? 0),
-    listings: (rows as unknown as RankedRow[]).map((r) => ({
-      seller_id: r.seller_id,
-      product_id: r.product_id,
-      leadtime_to_ship: r.leadtime_to_ship == null ? null : Number(r.leadtime_to_ship),
-      exact_km: r.exact_km == null ? null : Number(r.exact_km),
+    shopCount: Number(total?.shop_count ?? 0),
+    listings: (rows as unknown as RankedRow[]).map(toRankedListing),
+  }
+}
+
+const toRankedListing = (r: RankedRow): RankedListing => ({
+  seller_id: r.seller_id,
+  product_id: r.product_id,
+  leadtime_to_ship: r.leadtime_to_ship == null ? null : Number(r.leadtime_to_ship),
+  exact_km: r.exact_km == null ? null : Number(r.exact_km),
+})
+
+/** `LISTING_ORDER` as SQL, for ranking listings within each shop. */
+const listingOrderSql = () =>
+  LISTING_ORDER.map((o) => `${o.column} ${o.order}${"nulls" in o ? ` NULLS ${o.nulls}` : ""}`).join(", ")
+
+/** A ranked shop, where its first listing comes in the feed, with its top listings in feed order. */
+export type RankedShop = {
+  seller_id: string
+  /** How many of the shop's listings match. */
+  listing_count: number
+  /** Straight-line kilometres from `from` to the shop's pickup pin, unrounded; null without either. */
+  exact_km: number | null
+  listings: RankedListing[]
+}
+
+type ShopRow = { seller_id: string; listing_count: number | string; exact_km: number | string | null }
+
+/**
+ * A page of shops in the order their first listings come in the feed, each with its first
+ * `perShop` listings, and how many shops match in all. A shop is one row of the ranking, so
+ * pages never repeat or skip one.
+ */
+export async function rankShopPage(
+  scope: MedusaContainer,
+  filters: RankingFilters,
+  page: { limit: number; offset: number },
+  perShop: number
+): Promise<{ shops: RankedShop[]; count: number }> {
+  if (!filters.sellerIds.length || !filters.salesChannelIds.length || filters.pairs?.length === 0) {
+    return { shops: [], count: 0 }
+  }
+  const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
+  // Each listing numbered within its shop in feed order, with its shop's listing count.
+  const numbered = () =>
+    knex.from(
+      knex
+        .from(rankedListings(knex, filters).as("l"))
+        .select(
+          "*",
+          knex.raw(`row_number() OVER (PARTITION BY seller_id ORDER BY ${listingOrderSql()}) AS shop_rank`),
+          knex.raw("count(*) OVER (PARTITION BY seller_id) AS listing_count")
+        )
+        .as("n")
+    )
+  const [[total], firsts] = await Promise.all([
+    knex.from(rankedListings(knex, filters).as("l")).countDistinct({ count: "seller_id" }),
+    numbered()
+      .where("shop_rank", 1)
+      .select("seller_id", "listing_count", "exact_km")
+      .orderBy(LISTING_ORDER.map((o) => ({ ...o })))
+      .limit(page.limit)
+      .offset(page.offset),
+  ])
+  const shops = firsts as unknown as ShopRow[]
+  const top = shops.length
+    ? ((await numbered()
+        .whereRaw("seller_id = ANY(?)", [shops.map((s) => s.seller_id)])
+        .where("shop_rank", "<=", perShop)
+        .select("seller_id", "product_id", "leadtime_to_ship", "exact_km")
+        .orderBy(["seller_id", "shop_rank"])) as unknown as RankedRow[])
+    : []
+  return {
+    count: Number(total?.count ?? 0),
+    shops: shops.map((s) => ({
+      seller_id: s.seller_id,
+      listing_count: Number(s.listing_count),
+      exact_km: s.exact_km == null ? null : Number(s.exact_km),
+      listings: top.filter((r) => r.seller_id === s.seller_id).map(toRankedListing),
     })),
   }
 }

@@ -32,6 +32,15 @@ export const StoreGetListingsParams = StoreGetListingParams.extend({
 /** A shop page's header is scoped to the region, and measured from the buyer's address, like a listing. */
 export const StoreGetShopParams = StoreGetListingParams
 
+/** Home's shops near the buyer, in a category or all, a page of shops at a time. */
+export const StoreGetShopsParams = StoreGetListingParams.extend({
+  /** A category; shops selling a product in it or a category below it, with only those listings. */
+  category_id: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  offset: z.coerce.number().int().min(0).default(0),
+})
+
+export type StoreGetShopsParamsType = z.infer<typeof StoreGetShopsParams>
 export type StoreGetDeliveryEstimateParamsType = z.infer<typeof StoreGetDeliveryEstimateParams>
 export type StoreGetShopParamsType = z.infer<typeof StoreGetShopParams>
 export type StoreGetListingParamsType = z.infer<typeof StoreGetListingParams>
