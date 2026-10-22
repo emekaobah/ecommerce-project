@@ -25,7 +25,8 @@ export type CodeBoxesProps = {
 export function CodeBoxes({ label, value, onChangeText, length = 6, error, disabled, autoFocus, ref }: Readonly<CodeBoxesProps>) {
   const theme = useTheme()
   const [focused, setFocused] = useState(Boolean(autoFocus))
-  const digits = Array.from({ length }, (_, index) => value[index] ?? "")
+  // Each box is a position in the code, which is its key.
+  const boxes = Array.from({ length }, (_, position) => ({ position, digit: value[position] ?? "" }))
 
   return (
     <View style={{ gap: theme.space[1] }}>
@@ -33,12 +34,11 @@ export function CodeBoxes({ label, value, onChangeText, length = 6, error, disab
         {label}
       </Text>
       <View style={[styles.row, { gap: theme.space[2] }]}>
-        {digits.map((digit, index) => {
-          const next = focused && index === Math.min(value.length, length - 1)
+        {boxes.map(({ position, digit }) => {
+          const next = focused && position === Math.min(value.length, length - 1)
           return (
             <View
-              // The boxes are positions in the code.
-              key={`box-${index}`}
+              key={position}
               style={[
                 styles.box,
                 {

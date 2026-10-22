@@ -95,7 +95,8 @@ export function ProductTile({
           <View style={[styles.corner, { bottom: theme.space[2], right: theme.space[2] }]}>
             <StatusChip label="Sold out" tone="neutral" />
           </View>
-        ) : onAdd ? (
+        ) : null}
+        {onAdd && !soldOut ? (
           <PressableSurface
             accessibilityRole="button"
             accessibilityLabel={`Add ${name} to cart`}
