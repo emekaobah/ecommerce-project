@@ -1,5 +1,5 @@
 import { shopChoice } from '@oja/domain';
-import { Button, EmptyState, ErrorState, PressableSurface, ShopMark, Skeleton, Text, useTheme } from '@oja/ui';
+import { Button, EmptyState, ErrorState, InlineNote, PressableSurface, ShopMark, Skeleton, Text, useTheme } from '@oja/ui';
 import { useMutation } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -80,10 +80,9 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
       <View style={styles.grow}>{content()}</View>
       <View style={{ padding: theme.space[4], gap: theme.space[2] }}>
         {select.error ? (
-          // TODO(#79): use @oja/ui InlineNote.
-          <Text tone="ember" accessibilityRole="alert" accessibilityLiveRegion="polite">
+          <InlineNote>
             {"Couldn't open that shop. Check your connection and try again."}
-          </Text>
+          </InlineNote>
         ) : null}
         {chosen ? (
           <Button label={`Open ${chosen.seller?.name ?? 'shop'}`} size="main" onPress={open} loading={select.isPending} />

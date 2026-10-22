@@ -1,6 +1,6 @@
 import { ClientError } from '@oja/api-client';
 import { PRODUCT_NAME } from '@oja/domain';
-import { AdirePattern, Button, Text, TextField, useTheme } from '@oja/ui';
+import { AdirePattern, Button, InlineNote, Text, TextField, useTheme } from '@oja/ui';
 import { useMutation } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
@@ -66,10 +66,9 @@ export function SignInScreen() {
           />
           <View style={{ gap: theme.space[2], marginTop: theme.space[2] }}>
             {submit.error ? (
-              // TODO(#79): use @oja/ui InlineNote.
-              <Text tone="ember" accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <InlineNote>
                 {signInProblem(submit.error)}
-              </Text>
+              </InlineNote>
             ) : null}
             <Button label="Sign in" onPress={() => submit.mutate()} disabled={!canSubmit} loading={submit.isPending} />
             <Text variant="meta" tone="muted" style={styles.centred}>

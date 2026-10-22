@@ -1,5 +1,5 @@
 import { formatMoney } from '@oja/domain';
-import { Button, Sheet, Text, TextField } from '@oja/ui';
+import { Button, InlineNote, Sheet, TextField } from '@oja/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 
@@ -26,10 +26,9 @@ export function RejectSheet() {
       actions={
         <>
           {reject.error ? (
-            // TODO(#79): use @oja/ui InlineNote.
-            <Text tone="ember" accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <InlineNote>
               {"Couldn't reject the order. Check your connection and try again; it's still waiting."}
-            </Text>
+            </InlineNote>
           ) : null}
           <Button
             label="Reject and refund"
