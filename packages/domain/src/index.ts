@@ -39,6 +39,9 @@ export { ORDER_STAGES, orderStageOf, stageCountLabel, statesInStage } from "./or
 export type { OrderStage } from "./order-stage"
 export { ORDER_PHASES, orderPhase } from "./order-phase"
 export type { OrderPhase, PhaseRefund } from "./order-phase"
+export { orderNumber } from "./order-number"
+export { orderRowMeta } from "./order-row"
+export type { OrderRowFacts } from "./order-row"
 export { CANCEL_REASON_LABELS, cancelledBy, cancelReasonText, cancelRequest } from "./cancellation"
 export type { CancelForm } from "./cancellation"
 export type {
@@ -100,14 +103,17 @@ export { fulfilmentTimeline, recordReached } from "./timeline"
 export type { Reached, TimelineStep } from "./timeline"
 export { HANDOVER_DISAGREEMENT_MS, HANDOVER_REALERT_MS, handoverAlertDue, handoverDisagreement } from "./handover"
 export type { HandoverDisagreement } from "./handover"
-export { historyEntries, orderStatus, owedRefundStatus, refundStatus } from "./order-history"
+export { historyEntries, missingItemsNote, orderGroupSummary, orderStatus, owedRefundStatus, refundStatus } from "./order-history"
 export type {
   HistoryEntry,
+  MissingItemsNote,
+  MissingItemsOrder,
   OrderFulfilmentView,
   OrderRefundView,
   OwedRefundState,
   OwedRefundView,
   RefundStatus,
+  SummaryOrder,
 } from "./order-history"
 export type { StatusChipView, StatusSymbol, StatusTone, StatusView } from "./status"
 export { acceptClockStatus, staffStatus } from "./staff-status"

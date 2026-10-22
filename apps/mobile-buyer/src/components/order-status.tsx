@@ -1,4 +1,4 @@
-import { formatMoney, orderStatus, owedRefundStatus, refundStatus } from '@oja/domain';
+import { formatMoney, orderStatus, owedRefundStatus, refundStatus, type StatusChipView } from '@oja/domain';
 import { Button, StatusChip, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -10,17 +10,21 @@ export function orderedAt(createdAt: string) {
   return new Date(createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-/** A shop's order's state, its refund once it has one, and a refund it still owes (#16). */
+/** A shop's order's state, its refund once it has one, and a refund it still owes (#16), as chips. */
+export function orderChips(order: SellerOrder): StatusChipView[] {
+  return [orderStatus(order), refundStatus(order.refund), owedRefundStatus(order.owed_refund, order.currency_code)]
+    .filter((view) => view !== null)
+    .map(({ label, tone, icon }) => ({ label, tone, icon }));
+}
+
+/** A shop's order's chips, in a wrapping row. */
 export function OrderStatusChips({ order }: Readonly<{ order: SellerOrder }>) {
   const theme = useTheme();
-  const status = orderStatus(order);
-  const refund = refundStatus(order.refund);
-  const owed = owedRefundStatus(order.owed_refund, order.currency_code);
   return (
-    <View style={[styles.row, { gap: theme.space[1] }]}>
-      <StatusChip label={status.label} tone={status.tone} icon={status.icon} />
-      {refund ? <StatusChip label={refund.label} tone={refund.tone} icon={refund.icon} /> : null}
-      {owed ? <StatusChip label={owed.label} tone={owed.tone} icon={owed.icon} /> : null}
+    <View style={[styles.row, { gap: theme.space[2] }]}>
+      {orderChips(order).map((chip) => (
+        <StatusChip key={chip.label} label={chip.label} tone={chip.tone} icon={chip.icon} />
+      ))}
     </View>
   );
 }
