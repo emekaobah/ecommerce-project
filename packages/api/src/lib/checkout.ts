@@ -26,6 +26,7 @@ import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData 
 import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-promotions"
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
+import { cutCartToStock } from "./cart-stock"
 import { offerLinePrice } from "./cart-lines"
 import { discountsByCode } from "./discount-funding"
 import {
@@ -181,12 +182,18 @@ export type CheckoutPriceChange = PriceChange & { seller: CartSeller; quantity: 
 export type CheckoutPrepared = { checkout: Checkout; price_changes: CheckoutPriceChange[] }
 
 /**
- * Starting a payment reprices the cart first. When a price changed, no payment is started:
- * `payment` is null and `price_changes` says what changed, for the buyer to see before paying.
+ * Starting a payment reprices the cart, then checks its stock. When a price changed or a line
+ * sold out, no payment is started: `payment` is null and `price_changes` and `stock_changes` say
+ * what changed, for the buyer to see before paying the new total.
  */
 export type CheckoutPaymentStart = {
   payment: CheckoutPayment | null
   price_changes: CheckoutPriceChange[]
+  /**
+   * The lines that sold out or want more than is left, removed or cut to what is (#67), in the
+   * shape #38 uses for a paid cart that wasn't placed, so the app shows them with the same messages.
+   */
+  stock_changes: NotPlacedChange[]
   /**
    * The cart's discounts changed since the buyer last saw them (#6): a code expired or was used
    * up, or no longer applies to what is in the cart. No payment is started; `checkout` has them now.
@@ -802,6 +809,12 @@ export async function chooseDelivery(
   return retrieveCheckout(scope, cartId, customerId)
 }
 
+/** Quotes each shop's delivery again to the cart's address, keeping the shops the buyer collects from. */
+async function quoteDeliveriesAgain(scope: MedusaContainer, cart: CartRow) {
+  const address = cart.shipping_address?.address_1 ? cart.shipping_address : null
+  await setShopMethods(scope, cart, { receiverCode: addressCodeOf(address), pickup: await collectedShops(scope, cart) })
+}
+
 /** The cart's current Paystack transaction is paid; its order is on the way (409). */
 export class CheckoutAlreadyPaidError extends Error {
   constructor() {
@@ -833,8 +846,9 @@ async function refuseIfAlreadyPaid(cart: CartRow) {
 /**
  * Starts a Paystack transaction for the prepared cart's total and returns where to pay it.
  * Each call starts a new one, so a buyer whose payment failed or was abandoned pays again here.
- * The cart is repriced first; when a price changed, no transaction is started and the buyer
- * is told what changed, then pays the new total by calling again.
+ * The cart is repriced first, then cut to what its shops have left; when a price changed or a
+ * line sold out, no transaction is started and the buyer is told what changed, then pays the
+ * new total by calling again.
  * `returnUrl` is where Paystack sends the buyer afterwards: the app's deep link.
  */
 export async function startCheckoutPayment(
@@ -846,10 +860,18 @@ export async function startCheckoutPayment(
   await refuseIfAlreadyPaid(cart)
   // The cart may have changed since its address was set, and shops change prices.
   const priceChanges = await repriceLines(scope, cartId)
+  // Never charged for what sold out since it was added: it is taken off before paying, not refunded after.
+  const stockChanges = await cutCartToStock(scope, cartId, (await retrieveCartBySeller(scope, cartId)).sellers)
   await dropEmptyShopDeliveries(scope, cart)
+  // A cut parcel's delivery no longer stands: it is quoted again, so the buyer sees the new total.
+  if (stockChanges.length) await quoteDeliveriesAgain(scope, await buyersCart(scope, cartId, customerId))
   // Promotions are worked out on what the cart holds now: a code may have expired or been used up.
   await applyShopPromotions(scope, cartId)
   const checkout = await retrieveCheckout(scope, cartId, customerId)
+  // Before checking it can be paid: what sold out may have emptied a shop's order, or the cart.
+  if (stockChanges.length) {
+    return { payment: null, price_changes: priceChanges, stock_changes: stockChanges, discount_changed: false, checkout }
+  }
   // A shop in a closed exception or paused takes no orders until it reopens (ADR 0004).
   const closed = checkout.sellers.find((g) => g.seller && g.shop_status && !g.shop_status.orderable)
   if (closed) throw closedShopError(closed.seller!.name, closed.shop_status!)
@@ -859,10 +881,10 @@ export async function startCheckoutPayment(
   if (!checkout.ready_to_pay) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Choose how each shop's order reaches you before paying")
   }
-  if (priceChanges.length) return { payment: null, price_changes: priceChanges, discount_changed: false, checkout }
+  if (priceChanges.length) return { payment: null, price_changes: priceChanges, stock_changes: [], discount_changed: false, checkout }
   // What the buyer last saw was worked out at the end of the last change checkout made.
   if (checkout.discount_total !== Number(cart.discount_total ?? 0)) {
-    return { payment: null, price_changes: [], discount_changed: true, checkout }
+    return { payment: null, price_changes: [], stock_changes: [], discount_changed: true, checkout }
   }
 
   let paymentCollectionId = cart.payment_collection?.id
@@ -890,6 +912,7 @@ export async function startCheckoutPayment(
   return {
     payment: { provider_id: PAYSTACK_PROVIDER_ID, reference: data.reference, authorization_url: data.authorization_url },
     price_changes: [],
+    stock_changes: [],
     discount_changed: false,
     checkout,
   }

@@ -113,8 +113,9 @@ export function useRemovePromoCode(cartId: string) {
 
 /**
  * Starts a Paystack payment; each call starts a fresh one, so it is also the retry. The backend
- * reprices the cart and works its promotions out again first: when a shop's price changed,
- * `payment` is null and `price_changes` says what changed; when its discounts changed (a code
+ * reprices the cart, cuts it to what its shops have left and works its promotions out again
+ * first: when a shop's price changed or a line sold out, `payment` is null and `price_changes`
+ * and `stock_changes` say what changed; when its discounts changed (a code
  * expired or was used up), `payment` is null and `discount_changed` is set. Either way the buyer
  * sees the new total before paying it.
  */
@@ -126,9 +127,9 @@ export function useStartPayment(cartId: string) {
         $id: cartId,
         return_url: returnUrl,
       }),
-    onSuccess: ({ checkout, price_changes }) => {
+    onSuccess: ({ checkout, price_changes, stock_changes }) => {
       queryClient.setQueryData(checkoutKeys.detail(cartId), checkout);
-      if (price_changes.length) void queryClient.invalidateQueries({ queryKey: cartKeys.all });
+      if (price_changes.length || stock_changes.length) void queryClient.invalidateQueries({ queryKey: cartKeys.all });
     },
   });
 }
