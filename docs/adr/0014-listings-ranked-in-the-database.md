@@ -29,6 +29,7 @@ The shop's pickup pin lived only in its seller address's `metadata` (JSON, owned
 - **`lib/listing-ranking.ts`**: listings and shops ranked, filtered, counted and paged (above).
 - **`lib/buyer-orders.ts`**: the buyer's order history pages their checkouts by grouping our `order_fulfilment` rows by order group, filtered by phase (#54). Its `q` search keeps a checkout with an item named like it, through the order module's `order_item` and `order_line_item` tables inside the same grouped query, so search pages like the rest of the list.
 - **`lib/collection-point.ts`**: the distance from the buyer to each shop's collection point (#68), a haversine over our `collection_point` and `shop_pin` tables.
+- **`lib/order-fulfilment.ts`** (`unrecordedOrdersOf`): the shop's orders not recorded yet, an anti-join of Mercur's order-seller link table (`order_order_seller_seller`) against our `order_fulfilment` rows, so the vendor order list's count leaves them out as its page does.
 - **`lib/reviews.ts`**: a review has no author or target column, only Mercur's link tables to its customer, product and shop. The buyer's reviews of given shops and products filter both sides of those links at once (author and target), and a target's published reviews are averaged, counted and paged in the database.
 
 Each reads only by joins and filters; writes always go through module services and workflows.

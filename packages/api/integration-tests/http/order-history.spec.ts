@@ -357,9 +357,10 @@ medusaIntegrationTestRunner({
         const grocery = await sellerOrder(groupId, orderId)
 
         expect(receipt(grocery)).toEqual([2 * RICE.price, BEST_VALUE_FEE, (2 * RICE.price) / 10, 2 * RICE.price * 0.9 + BEST_VALUE_FEE, reference])
-        // The removed bag's refund shows apart, as a refund of its line.
+        // The removed bag's refund shows apart, as a refund of its line: what the edit took off the
+        // order's total, which Medusa works out with the discount worked out again on what is left.
         expect(grocery.items[0]).toMatchObject({ quantity: 1, unavailable_quantity: 1 })
-        expect(grocery.refunds).toEqual([{ amount: RICE.price * 0.9, status: "pending", lines: [{ item_id: grocery.items[0].id, quantity: 1 }] }])
+        expect(grocery.refunds).toEqual([{ amount: RICE.price, status: "pending", lines: [{ item_id: grocery.items[0].id, quantity: 1 }] }])
       })
 
       it("names each line's variant, so it can be ordered again", async () => {

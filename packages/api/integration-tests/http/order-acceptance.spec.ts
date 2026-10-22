@@ -210,22 +210,26 @@ medusaIntegrationTestRunner({
     })
 
     describe("an order its shop sees before it is recorded", () => {
-      it("is listed as new, so the list holds every order its count counts", async () => {
+      it("is left out of the shop's order list and its count, until it is recorded", async () => {
         const { gadgets } = await paidOrders()
+        const list = async () => (await api.get("/vendor/orders?limit=100", await buyer.owner(GADGETS))).data
+        const before = await list()
         // As the order stands between Mercur linking it to the shop and `order.placed` recording it.
         const service = fulfilmentService(getContainer())
         const [row] = await service.listOrderFulfilments({ order_id: gadgets })
         await service.deleteOrderFulfilments(row.id)
         try {
-          const { data } = await api.get("/vendor/orders?limit=100", await buyer.owner(GADGETS))
+          const { orders, count } = await list()
 
-          expect(data.count).toBeLessThanOrEqual(100)
-          expect(data.orders).toHaveLength(data.count)
-          expect(data.orders.find((o: any) => o.id === gadgets).fulfilment).toMatchObject({ state: "new", phase: "in_progress" })
-          expect((await shopOrder(GADGETS, gadgets)).fulfilment.state).toBe("new")
+          expect(before.count).toBeLessThanOrEqual(100)
+          expect(orders.map((o: any) => o.id)).not.toContain(gadgets)
+          expect([orders.length, count]).toEqual([before.count - 1, before.count - 1])
+          const asked = (await api.get(`/vendor/orders?id=${gadgets}`, await buyer.owner(GADGETS))).data
+          expect([asked.orders.length, asked.count]).toEqual([0, 0])
         } finally {
           await backfillOrderFulfilments(getContainer())
         }
+        expect((await list()).count).toBe(before.count)
       })
     })
 
