@@ -5,7 +5,7 @@ import { SellerStatus, type HttpTypes, type SellerDTO, type SellerMemberDTO } fr
 // Mercur's own, re-exported so the typed route map (codegen reads this file for the path) still has it.
 export { POST } from "@mercurjs/core/api/vendor/sellers/route"
 
-/** A shop the member belongs to, with its city: its pickup address's LGA or city (ADR 0002). */
+/** A shop the member belongs to, with its city: its pickup address's `city`, which holds the LGA in Nigeria's address form (ADR 0002). */
 export type VendorShopMembership = Omit<SellerMemberDTO, "seller"> & { seller: SellerDTO & { city: string | null } }
 
 export type VendorShopMembershipListResponse = Omit<HttpTypes.VendorSellerMemberListResponse, "seller_members"> & {
@@ -34,7 +34,7 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse<V
   res.json({ seller_members, count: metadata!.count, offset: metadata!.skip, limit: metadata!.take })
 }
 
-/** Each shop's city, by seller id. */
+/** Each shop's pickup address `city` (its LGA, ADR 0002), by seller id. */
 async function citiesOf(req: AuthenticatedMedusaRequest, sellerIds: string[]): Promise<Map<string, string | null>> {
   if (!sellerIds.length) return new Map()
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)

@@ -40,7 +40,7 @@ export type ListingSeller = {
   /** The logo and banner the shop uploads in the vendor web panel; null when it hasn't, and screens show its initials. */
   logo: string | null
   banner: string | null
-  /** Where the shop is: its pickup address's LGA or city (ADR 0002). */
+  /** Where the shop is: its pickup address's `city`, which holds the LGA in Nigeria's address form (ADR 0002). */
   area: string | null
   /** The shop's usual days to ship; null when it hasn't set one. */
   default_leadtime_to_ship: number | null
