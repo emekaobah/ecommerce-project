@@ -427,16 +427,7 @@ export async function retrieveCheckout(
   const cart = await buyersCart(scope, cartId, customerId)
   const grouped = await retrieveCartBySeller(scope, cartId)
   const deliveries = await deliveriesBySeller(scope, cart)
-  // The split writes the group before its orders and links; the cart is marked completed
-  // once they are all in place. Its orders are recorded a moment after (`order.placed`), and
-  // only then shown: the checkout says it was placed once they are.
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: groups } = cart.completed_at
-    ? await query.graph({ entity: "order_group", fields: ["id", "orders.id"], filters: { cart_id: cartId } })
-    : { data: [] }
-  const group = groups[0] as unknown as { id: string; orders?: ({ id: string } | null)[] | null } | undefined
-  const groupOrderIds = (group?.orders ?? []).flatMap((o) => (o ? [o.id] : []))
-  const placed = groupOrderIds.length > 0 && (await fulfilmentsOf(scope, groupOrderIds)).size === groupOrderIds.length
+  const orderGroupId = await placedOrderGroupId(scope, cart)
 
   // A cart in a one-country region carries that country as a stub address: no place to deliver to.
   const address = cart.shipping_address?.address_1 ? cart.shipping_address : null
@@ -502,9 +493,25 @@ export async function retrieveCheckout(
       !!cart.email &&
       sellers.length > 0 &&
       sellers.every((g) => g.seller && (g.method === "pickup" || g.shipping) && g.shop_status?.orderable),
-    order_group_id: group && placed ? group.id : null,
+    order_group_id: orderGroupId,
     not_placed: cart.completed_at ? null : notPlacedOf(cart),
   }
+}
+
+/**
+ * The paid cart's order group, once every order in it is recorded; null before. The split writes
+ * the group before its orders and links; the cart is marked completed once they are all in place.
+ * Its orders are recorded a moment after (`order.placed`), and only then shown: the checkout says
+ * it was placed once they are.
+ */
+async function placedOrderGroupId(scope: MedusaContainer, cart: CartRow): Promise<string | null> {
+  if (!cart.completed_at) return null
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "order_group", fields: ["id", "orders.id"], filters: { cart_id: cart.id } })
+  const group = data[0] as unknown as { id: string; orders?: ({ id: string } | null)[] | null } | undefined
+  const orderIds = (group?.orders ?? []).flatMap((o) => (o ? [o.id] : []))
+  if (!group || !orderIds.length) return null
+  return (await fulfilmentsOf(scope, orderIds)).size === orderIds.length ? group.id : null
 }
 
 /** Why the paid cart wasn't placed, as the cart keeps it; null when it was, or hasn't been paid. */

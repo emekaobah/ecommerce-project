@@ -83,7 +83,7 @@ export async function orderAgainPreview(
     order_id: order.id,
     seller: order.seller,
     shop_status: status,
-    not_taking_orders: !status ? "left" : status.orderable ? null : status.state === "closed_until" && status.reason === "pause" ? "paused" : "closed",
+    not_taking_orders: notTakingOrders(status),
     items: order.items.map((item) => {
       const offer = (item.variant_id && offers.get(item.variant_id)) || null
       return {
@@ -97,10 +97,23 @@ export async function orderAgainPreview(
         paid_unit_price: item.unit_price,
         offer,
         price_changed: !!offer && offer.unit_price !== item.unit_price,
-        unavailable: !offer ? "not_sold" : offer.available_quantity === 0 ? "sold_out" : null,
+        unavailable: unavailableReason(offer),
       }
     }),
   }
+}
+
+/** Why the shop can't take orders now, or null when it can: gone from Oja, paused, or closed for a date. */
+function notTakingOrders(status: ShopStatusView | null): NotTakingOrders | null {
+  if (!status) return "left"
+  if (status.orderable) return null
+  return status.state === "closed_until" && status.reason === "pause" ? "paused" : "closed"
+}
+
+/** Why a past item can't be added today: no longer sold, or sold out; null when it can. */
+function unavailableReason(offer: OrderAgainOffer | null): OrderAgainItem["unavailable"] {
+  if (!offer) return "not_sold"
+  return offer.available_quantity === 0 ? "sold_out" : null
 }
 
 /** The shop's offers today of the order's variants, by variant: published and priced in the order's region. */

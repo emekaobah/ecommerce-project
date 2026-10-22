@@ -13,9 +13,11 @@ import { recordPlacedOrderWorkflow } from "../workflows/order-fulfilment/workflo
 export default async function buyerOrderConfirmationHandler({ event, container }: SubscriberArgs<{ id: string }>) {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({ entity: "order_group_order", fields: ["order_id"], filters: { order_group_id: event.data.id } })
-  for (const { order_id } of data as unknown as { order_id: string }[]) {
-    await recordPlacedOrderWorkflow(container).run({ input: { order_id } })
-  }
+  await Promise.all(
+    (data as unknown as { order_id: string }[]).map(({ order_id }) =>
+      recordPlacedOrderWorkflow(container).run({ input: { order_id } })
+    )
+  )
   await confirmCheckout(container, event.data.id)
 }
 

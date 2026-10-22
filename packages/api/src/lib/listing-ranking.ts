@@ -3,7 +3,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { ProductStatus } from "@mercurjs/types"
 import { DISTANCE_BANDS_KM, type Pin } from "@oja/domain"
-import { escapeLike, haversineKmSql } from "./sql"
+import { escapeLike, haversineKmSql, LIKE_ESCAPE } from "./sql"
 
 // Listings filtered, ranked and paged in Postgres (ADR 0014), in the order ADR 0011 sets: best
 // name match, nearest distance band, the shop that ships soonest, the nearest shop, then the
@@ -118,7 +118,7 @@ export function rankedListings(knex: Knex, filters: RankingFilters): Knex.QueryB
         })
     })
 
-  for (const word of filters.words) query.whereRaw("p.title ILIKE ? ESCAPE '\\'", [`%${escapeLike(word)}%`])
+  for (const word of filters.words) query.whereRaw(`p.title ILIKE ? ESCAPE ${LIKE_ESCAPE}`, [`%${escapeLike(word)}%`])
   if (filters.categoryIds) {
     const categoryIds = filters.categoryIds
     query.whereExists(function () {
@@ -200,7 +200,10 @@ const toRankedListing = (r: RankedRow): RankedListing => ({
 
 /** `LISTING_ORDER` as SQL, for ranking listings within each shop. */
 const listingOrderSql = () =>
-  LISTING_ORDER.map((o) => `${o.column} ${o.order}${"nulls" in o ? ` NULLS ${o.nulls}` : ""}`).join(", ")
+  LISTING_ORDER.map((o) => `${o.column} ${o.order}${nullsSql(o)}`).join(", ")
+
+/** A ranking column's NULLS clause, as SQL; empty where it keeps Postgres's default. */
+const nullsSql = (o: (typeof LISTING_ORDER)[number]) => ("nulls" in o ? ` NULLS ${o.nulls}` : "")
 
 /** A ranked shop, where its first listing comes in the feed, with its top listings in feed order. */
 export type RankedShop = {

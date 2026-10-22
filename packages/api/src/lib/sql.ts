@@ -10,7 +10,10 @@ const EARTH_RADIUS_KM = 6371
  * `distanceKm` in `@oja/domain` does; NULL without a pin to measure from. The pin's coordinates
  * are numbers, written into the SQL as such.
  */
-export function haversineKmSql(from: Pin | null | undefined, pin = { latitude: "sp.latitude", longitude: "sp.longitude" }) {
+/** The pin columns of the `shop_pin` table, aliased `sp`. */
+const SHOP_PIN_COLUMNS = { latitude: "sp.latitude", longitude: "sp.longitude" }
+
+export function haversineKmSql(from: Pin | null | undefined, pin: { latitude: string; longitude: string } = SHOP_PIN_COLUMNS) {
   const fromLat = Number(from?.latitude)
   const fromLng = Number(from?.longitude)
   if (!from || !Number.isFinite(fromLat) || !Number.isFinite(fromLng)) return "NULL::double precision"
@@ -22,6 +25,9 @@ export function haversineKmSql(from: Pin | null | undefined, pin = { latitude: "
     `))))`
   )
 }
+
+/** The escape character `escapeLike` uses, as a SQL string literal: `'\'`. */
+export const LIKE_ESCAPE = String.raw`'\'`
 
 /** `word` with LIKE's wildcards escaped, for a pattern matched with `ESCAPE '\'`. */
 export const escapeLike = (word: string) => word.replaceAll(/[\\%_]/g, (c) => `\\${c}`)

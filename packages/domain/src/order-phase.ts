@@ -13,7 +13,7 @@ export type OrderPhase = (typeof ORDER_PHASES)[number]
 export type PhaseRefund = { status: RefundStatus; handed_over: boolean }
 
 /** The states an order never leaves. */
-const FINAL: readonly FulfilmentState[] = ["rejected", "cancelled", "delivered", "collected", "not_collected"]
+const FINAL: ReadonlySet<FulfilmentState> = new Set(["rejected", "cancelled", "delivered", "collected", "not_collected"])
 
 /** A refund that waits on the buyer for a bank account to retry it to (#13), and Oja's team hasn't taken over. */
 const waitsOnBuyer = (refund: PhaseRefund) => refund.status === "needs-attention" && !refund.handed_over
@@ -24,5 +24,5 @@ const waitsOnBuyer = (refund: PhaseRefund) => refund.status === "needs-attention
  * team) shows as a chip and doesn't hold the order.
  */
 export function orderPhase(state: FulfilmentState, refunds: readonly PhaseRefund[]): OrderPhase {
-  return !FINAL.includes(state) || refunds.some(waitsOnBuyer) ? "in_progress" : "past"
+  return !FINAL.has(state) || refunds.some(waitsOnBuyer) ? "in_progress" : "past"
 }

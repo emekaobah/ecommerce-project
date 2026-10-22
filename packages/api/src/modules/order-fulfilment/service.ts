@@ -50,7 +50,7 @@ class OrderFulfilmentModuleService extends MedusaService({ OrderFulfilment, Orde
    * fulfilment row (a refund of no order) is left be. Returns how many rows changed.
    */
   async refreshOrderPhases(orderIds: readonly (string | null | undefined)[], context: Context = {}): Promise<number> {
-    const ids = [...new Set(orderIds.filter((id): id is string => !!id))].sort()
+    const ids = [...new Set(orderIds.filter((id): id is string => !!id))].sort((a, b) => a.localeCompare(b))
     if (!ids.length) return 0
     return this.inTransaction(context, (sharedContext) => this.refreshLocked(ids, sharedContext))
   }

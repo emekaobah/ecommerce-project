@@ -19,7 +19,7 @@ import {
 } from "./order-fulfilment"
 import { refundMade, refusedByPaystack, totalOf } from "./order-refund"
 import { failedSinceLastMade, handedOver, needsAccount, owedRefundsOf, type OwedRefund } from "./owed-refunds"
-import { escapeLike } from "./sql"
+import { escapeLike, LIKE_ESCAPE } from "./sql"
 import { HOLD_LINE_FIELDS, holdLinesOf, type HoldLine } from "./pickup-hold"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
@@ -310,7 +310,7 @@ export async function listBuyerOrderGroups(
       `bool_or(EXISTS (
         SELECT 1 FROM order_item AS oi JOIN order_line_item AS li ON li.id = oi.item_id
         WHERE oi.order_id = f.order_id AND oi.deleted_at IS NULL AND li.deleted_at IS NULL
-          AND (li.product_title ILIKE ? ESCAPE '\\' OR li.title ILIKE ? ESCAPE '\\')
+          AND (li.product_title ILIKE ? ESCAPE ${LIKE_ESCAPE} OR li.title ILIKE ? ESCAPE ${LIKE_ESCAPE})
       ))`,
       [name, name]
     )
@@ -443,7 +443,7 @@ const toCents = (amount: number) => Math.round(amount * 100) / 100
 function paymentReference(payments: { data?: Record<string, unknown> | null; captures?: unknown[] | null }[]): string | null {
   const referenceOf = (p: (typeof payments)[number]) => (typeof p.data?.reference === "string" ? p.data.reference : null)
   const captured = payments.filter((p) => p.captures?.length)
-  return [...captured, ...payments].map(referenceOf).find((r) => r) ?? null
+  return [...captured, ...payments].map(referenceOf).find(Boolean) ?? null
 }
 
 function buyerOrder(
