@@ -41,8 +41,8 @@ export function AddressesScreen() {
   }
   return (
     <ScrollView
-      style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
+      style={{ backgroundColor: theme.colors.bg }}
+      contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
       {addresses.data.map((address) => (
         <SavedAddressRow key={address.id} address={address} />
       ))}
@@ -67,16 +67,16 @@ function SavedAddressRow({ address }: Readonly<{ address: SavedAddressRecord }>)
   return (
     <View
       style={{
-        gap: theme.space.sm,
-        paddingBottom: theme.space.md,
+        gap: theme.space[2],
+        paddingBottom: theme.space[4],
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: theme.colors.divider,
+        borderBottomColor: theme.colors.line,
       }}>
       <AddressCard
         address={address}
         badge={<AddressBadge isDefault={address.is_default_shipping} unpinned={unpinned} />}
       />
-      <View style={[styles.actions, { gap: theme.space.md }]}>
+      <View style={[styles.actions, { gap: theme.space[4] }]}>
         <Button
           label={unpinned ? 'Add a pin' : 'Edit'}
           variant="link"
@@ -93,7 +93,7 @@ function SavedAddressRow({ address }: Readonly<{ address: SavedAddressRecord }>)
         <Button label="Delete" variant="link" loading={remove.isPending} onPress={confirmDelete} />
       </View>
       {error ? (
-        <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+        <Text tone="danger" accessibilityLiveRegion="polite">
           {error.message}
         </Text>
       ) : null}

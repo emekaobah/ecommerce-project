@@ -21,7 +21,7 @@ export function ShopFacts({
   ].filter(Boolean);
   if (!facts.length) return null;
   return (
-    <Text variant={variant} tone="secondary">
+    <Text variant={variant} tone="muted">
       {facts.join(' · ')}
     </Text>
   );

@@ -42,10 +42,10 @@ export function OrdersScreen() {
       <FlatList
         data={shown}
         keyExtractor={(o) => o.id}
-        contentContainerStyle={shown.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space.md }}
+        contentContainerStyle={shown.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space[4] }}
         ListHeaderComponent={
           readyCount || readyOnly ? (
-            <View style={[styles.filters, { gap: theme.space.sm, paddingVertical: theme.space.sm }]}>
+            <View style={[styles.filters, { gap: theme.space[2], paddingVertical: theme.space[2] }]}>
               <Button label="All orders" variant={readyOnly ? 'secondary' : 'primary'} onPress={() => setReadyOnly(false)} />
               <Button
                 label={`Ready for pickup (${readyCount})`}

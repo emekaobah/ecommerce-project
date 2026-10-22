@@ -26,8 +26,8 @@ export function ReviewsScreen({ kind, id, title }: Readonly<{ kind: ReviewKind; 
       <FlatList
         data={reviews}
         keyExtractor={(review) => review.id}
-        style={{ backgroundColor: theme.colors.background }}
-        contentContainerStyle={{ paddingHorizontal: theme.space.md, paddingBottom: theme.space.xxl, flexGrow: 1 }}
+        style={{ backgroundColor: theme.colors.bg }}
+        contentContainerStyle={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[12], flexGrow: 1 }}
         refreshing={refreshing}
         onRefresh={refresh}
         onEndReached={() => {
@@ -35,8 +35,8 @@ export function ReviewsScreen({ kind, id, title }: Readonly<{ kind: ReviewKind; 
         }}
         ListHeaderComponent={
           first ? (
-            <View style={{ gap: theme.space.xs, paddingVertical: theme.space.md }}>
-              <Text variant="title">{title}</Text>
+            <View style={{ gap: theme.space[1], paddingVertical: theme.space[4] }}>
+              <Text variant="titleNamed">{title}</Text>
               <RatingLine rating={{ average: first.average_rating, count: first.count }} />
             </View>
           ) : undefined

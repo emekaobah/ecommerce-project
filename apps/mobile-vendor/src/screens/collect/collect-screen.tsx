@@ -64,8 +64,8 @@ function CodeEntry({ onCode }: Readonly<{ onCode: (code: string) => void }>) {
           onBarcodeScanned={onScanned}
         />
       ) : null}
-      <View style={{ padding: theme.space.md, gap: theme.space.sm, backgroundColor: theme.colors.background }}>
-        <Text tone="secondary">
+      <View style={{ padding: theme.space[4], gap: theme.space[2], backgroundColor: theme.colors.bg }}>
+        <Text tone="muted">
           {permission?.granted
             ? "Scan the QR code in the buyer's app, or type its code."
             : "Type the code from the buyer's app, or allow the camera to scan its QR code."}
@@ -107,17 +107,17 @@ function Confirm({ order, code, onWrongCode }: Readonly<{ order: Order; code: st
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }} keyboardShouldPersistTaps="handled">
-        <View style={{ gap: theme.space.xs }}>
-          <Text variant="label">Ordered by</Text>
-          <Text variant="title">{buyer || 'The buyer'}</Text>
+      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }} keyboardShouldPersistTaps="handled">
+        <View style={{ gap: theme.space[1] }}>
+          <Text variant="strong">Ordered by</Text>
+          <Text variant="titleNamed">{buyer || 'The buyer'}</Text>
         </View>
         <View>
           {(order.items ?? []).map((item) => (
             <ListRow key={item.id} title={lineLabel(item)} />
           ))}
         </View>
-        <Text tone="secondary">Hand over everything on the order. Whoever has the code can collect it.</Text>
+        <Text tone="muted">Hand over everything on the order. Whoever has the code can collect it.</Text>
         <Field
           label="Who is collecting?"
           placeholder="Their name"

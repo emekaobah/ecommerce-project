@@ -22,12 +22,12 @@ export function UnavailableSheet() {
   const quantity = count ?? Math.max(line.unavailable, 1);
 
   return (
-    <View style={{ padding: theme.space.lg, gap: theme.space.md }}>
-      <Text variant="title">Mark unavailable</Text>
-      <Text tone="secondary">
+    <View style={{ padding: theme.space[6], gap: theme.space[4] }}>
+      <Text variant="titlePushed">Mark unavailable</Text>
+      <Text tone="muted">
         {`${line.product_title ?? 'Item'}: ${line.quantity} ordered, ${line.picked} picked. The buyer is refunded for what you can't send.`}
       </Text>
-      <View style={[styles.stepper, { gap: theme.space.md }]}>
+      <View style={[styles.stepper, { gap: theme.space[4] }]}>
         <Button
           label="−"
           variant="secondary"
@@ -35,7 +35,7 @@ export function UnavailableSheet() {
           disabled={quantity <= 0}
           onPress={() => setCount(Math.max(quantity - 1, 0))}
         />
-        <Text variant="title" accessibilityLiveRegion="polite" accessibilityLabel={`${quantity} unavailable`}>
+        <Text variant="titlePushed" accessibilityLiveRegion="polite" accessibilityLabel={`${quantity} unavailable`}>
           {quantity}
         </Text>
         <Button

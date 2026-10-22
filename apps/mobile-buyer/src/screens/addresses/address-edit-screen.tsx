@@ -82,8 +82,8 @@ function AddressEditor({
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
-        style={{ backgroundColor: theme.colors.background }}
-        contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}
+        style={{ backgroundColor: theme.colors.bg }}
+        contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}
         keyboardShouldPersistTaps="handled">
         <AddressEntry
           lookup={{ region_id: regionId }}

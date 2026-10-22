@@ -1,6 +1,30 @@
-export { buyerTheme, vendorTheme } from "./tokens"
-export type { StatusTone, TextVariant, Theme } from "./tokens"
-export { ThemeProvider, useTheme } from "./theme"
+export {
+  control,
+  darkTheme,
+  elevation,
+  HIT_AREA,
+  lightTheme,
+  line,
+  MAX_FONT_SCALE,
+  motion,
+  radius,
+  SCALE,
+  space,
+  typeScale,
+} from "./tokens"
+export type {
+  BodyVariant,
+  DisplayVariant,
+  DisplayWeight,
+  FontWeight,
+  StatusTone,
+  TextVariant,
+  Theme,
+} from "./tokens"
+export { ThemeProvider, useReduceMotion, useTheme } from "./theme"
+export { haptics } from "./haptics"
+export { Icon } from "./components/icon"
+export type { IconName, IconProps, IconUse } from "./components/icon"
 export { Text } from "./components/text"
 export type { TextProps, TextTone } from "./components/text"
 export { Button } from "./components/button"

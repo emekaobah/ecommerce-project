@@ -3,7 +3,7 @@ import { Text, useTheme } from '@oja/ui';
 import { StyleSheet, View } from 'react-native';
 
 /**
- * A listing's shop's automatic promotion (#6), e.g. "10% off at this shop": saffron, the colour
+ * A listing's shop's automatic promotion (#6), e.g. "10% off at this shop": sun, the colour
  * kept for deals. Only ever that shop's own deal; no badge compares shops (docs/design.md).
  */
 export function DealBadge({ deal }: Readonly<{ deal: ShopDeal }>) {
@@ -12,9 +12,9 @@ export function DealBadge({ deal }: Readonly<{ deal: ShopDeal }>) {
     <View
       style={[
         styles.badge,
-        { backgroundColor: theme.colors.deal, borderRadius: theme.radius.pill, paddingHorizontal: theme.space.sm },
+        { backgroundColor: theme.colors.sun, borderRadius: theme.radius.pill, paddingHorizontal: theme.space[2] },
       ]}>
-      <Text variant="caption" style={styles.label}>
+      <Text variant="label" weight="extrabold" style={{ color: theme.colors.onSun }}>
         {`% ${dealLabel(deal)}`}
       </Text>
     </View>
@@ -30,7 +30,7 @@ export function DealBadges({
   const shown = all ? deals : deals.slice(0, 1);
   if (!shown.length) return null;
   return (
-    <View style={[styles.row, { gap: theme.space.xs }]}>
+    <View style={[styles.row, { gap: theme.space[1] }]}>
       {shown.map((deal) => (
         <DealBadge key={deal.promotion_id} deal={deal} />
       ))}
@@ -40,6 +40,5 @@ export function DealBadges({
 
 const styles = StyleSheet.create({
   badge: { alignSelf: 'flex-start', paddingVertical: 2 },
-  label: { fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap' },
 });

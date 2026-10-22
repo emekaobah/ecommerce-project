@@ -1,4 +1,4 @@
-import { Button, Text, useTheme } from '@oja/ui';
+import { Button, line, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
@@ -22,29 +22,30 @@ export function RejectSheet() {
     });
 
   return (
-    <View style={{ padding: theme.space.lg, gap: theme.space.md }}>
-      <Text variant="title">Reject order</Text>
-      <Text tone="secondary">The buyer is told why and refunded in full.</Text>
-      <View style={[styles.reasons, { gap: theme.space.sm }]}>
+    <View style={{ padding: theme.space[6], gap: theme.space[4] }}>
+      <Text variant="titlePushed">Reject order</Text>
+      <Text tone="muted">The buyer is told why and refunded in full.</Text>
+      <View style={[styles.reasons, { gap: theme.space[2] }]}>
         {COMMON_REASONS.map((common) => (
           <Button key={common} label={common} variant="secondary" onPress={() => setReason(common)} />
         ))}
       </View>
       <TextInput
+        maxFontSizeMultiplier={MAX_FONT_SCALE}
         testID="reject-reason"
         style={[
           styles.input,
           theme.type.body,
           {
             color: theme.colors.ink,
-            borderColor: theme.colors.divider,
+            borderColor: theme.colors.control,
             borderRadius: theme.radius.md,
-            minHeight: theme.touchTarget * 2,
-            padding: theme.space.md,
+            minHeight: theme.hitArea * 2,
+            padding: theme.space[4],
           },
         ]}
         placeholder="Reason"
-        placeholderTextColor={theme.colors.textSecondary}
+        placeholderTextColor={theme.colors.muted}
         multiline
         maxLength={500}
         value={reason}
@@ -58,5 +59,5 @@ export function RejectSheet() {
 
 const styles = StyleSheet.create({
   reasons: { flexDirection: 'row', flexWrap: 'wrap' },
-  input: { borderWidth: 1.5, textAlignVertical: 'top' },
+  input: { borderWidth: line.input, textAlignVertical: 'top' },
 });

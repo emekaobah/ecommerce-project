@@ -27,24 +27,24 @@ export function PickupDetails({ place, note }: Readonly<{ place: PickupPlace; no
   const { address } = place;
   const lines = [[address.address_1, address.address_2].filter(Boolean).join(', '), [address.city, address.province].filter(Boolean).join(', ')];
   return (
-    <View style={{ gap: theme.space.xs }}>
+    <View style={{ gap: theme.space[1] }}>
       {lines.filter(Boolean).map((line) => (
         <Text key={line}>{line}</Text>
       ))}
-      {address.landmark ? <Text tone="secondary">{address.landmark}</Text> : null}
-      {place.instructions ? <Text tone="secondary">{place.instructions}</Text> : null}
-      {place.phone ? <Text tone="secondary">{`Call ${place.phone}`}</Text> : null}
+      {address.landmark ? <Text tone="muted">{address.landmark}</Text> : null}
+      {place.instructions ? <Text tone="muted">{place.instructions}</Text> : null}
+      {place.phone ? <Text tone="muted">{`Call ${place.phone}`}</Text> : null}
       {place.weekly ? (
-        <View style={{ gap: theme.space.xs, paddingTop: theme.space.xs }}>
-          <Text variant="label">Opening hours</Text>
+        <View style={{ gap: theme.space[1], paddingTop: theme.space[1] }}>
+          <Text variant="strong">Opening hours</Text>
           {openingHoursLines(place.weekly).map((line) => (
-            <Text key={line} tone="secondary">
+            <Text key={line} tone="muted">
               {line}
             </Text>
           ))}
         </View>
       ) : null}
-      {note ? <Text tone="secondary">{note}</Text> : null}
+      {note ? <Text tone="muted">{note}</Text> : null}
     </View>
   );
 }
@@ -68,7 +68,7 @@ export function PickupCode({ code }: Readonly<{ code: string }>) {
   }, [code]);
   const size = 6;
   return (
-    <View style={{ alignItems: 'center', gap: theme.space.md }}>
+    <View style={{ alignItems: 'center', gap: theme.space[4] }}>
       <View
         accessible
         accessibilityLabel={`QR code of your pickup code ${code.split('').join(' ')}`}

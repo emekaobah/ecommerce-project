@@ -64,9 +64,9 @@ export function PhotoCapture({ onTaken, onCancel }: Readonly<Props>) {
 
   if (!permission?.granted) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', padding: theme.space.lg, gap: theme.space.md }}>
-        <Text variant="title">Photo of the product</Text>
-        <Text tone="secondary">
+      <View style={{ flex: 1, justifyContent: 'center', padding: theme.space[6], gap: theme.space[4] }}>
+        <Text variant="titlePushed">Photo of the product</Text>
+        <Text tone="muted">
           {permission?.canAskAgain === false
             ? 'Camera access is off. Turn it on in Settings to photograph the product.'
             : 'Allow the camera to photograph the product.'}
@@ -80,8 +80,8 @@ export function PhotoCapture({ onTaken, onCancel }: Readonly<Props>) {
   return (
     <View style={styles.fill}>
       <CameraView ref={camera} style={styles.fill} facing="back" mode="picture" />
-      <View style={{ padding: theme.space.md, gap: theme.space.sm, backgroundColor: theme.colors.background }}>
-        <Text tone="secondary">Lay the product flat on a plain surface, label up, and fill the frame.</Text>
+      <View style={{ padding: theme.space[4], gap: theme.space[2], backgroundColor: theme.colors.bg }}>
+        <Text tone="muted">Lay the product flat on a plain surface, label up, and fill the frame.</Text>
         {error ? <Text tone="danger">{error}</Text> : null}
         <Button label="Take photo" onPress={() => void take()} loading={taking} />
         <Button label="Cancel" variant="link" onPress={onCancel} />

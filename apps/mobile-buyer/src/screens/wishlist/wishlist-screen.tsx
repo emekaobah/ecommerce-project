@@ -33,8 +33,8 @@ export function WishlistScreen() {
     <FlatList
       data={wishlist.data}
       keyExtractor={(item) => item.product.id}
-      style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={[{ paddingHorizontal: theme.space.md }, !wishlist.data.length && styles.grow]}
+      style={{ backgroundColor: theme.colors.bg }}
+      contentContainerStyle={[{ paddingHorizontal: theme.space[4] }, !wishlist.data.length && styles.grow]}
       refreshing={refreshing}
       onRefresh={refresh}
       ListEmptyComponent={
@@ -60,7 +60,7 @@ function SavedProduct({ item, currencyCode }: Readonly<{ item: WishlistItem; cur
   const error = move.error ?? remove.error;
 
   return (
-    <View style={{ borderBottomColor: theme.colors.divider, borderBottomWidth: StyleSheet.hairlineWidth }}>
+    <View style={{ borderBottomColor: theme.colors.line, borderBottomWidth: StyleSheet.hairlineWidth }}>
       <ListRow
         title={product.title}
         subtitle={listing ? listing.seller.name : 'No longer available'}
@@ -71,12 +71,12 @@ function SavedProduct({ item, currencyCode }: Readonly<{ item: WishlistItem; cur
             <Image
               source={product.thumbnail}
               contentFit="contain"
-              style={[styles.thumb, { backgroundColor: theme.colors.surface, borderRadius: theme.radius.sm }]}
+              style={[styles.thumb, { backgroundColor: theme.colors.productTile, borderRadius: theme.radius.sm }]}
             />
           ) : null
         }
       />
-      <View style={[styles.actions, { gap: theme.space.md, paddingBottom: theme.space.sm }]}>
+      <View style={[styles.actions, { gap: theme.space[4], paddingBottom: theme.space[2] }]}>
         {action.kind === 'move' ? (
           <Button
             label="Move to cart"
@@ -97,7 +97,7 @@ function SavedProduct({ item, currencyCode }: Readonly<{ item: WishlistItem; cur
         />
       </View>
       {error ? (
-        <Text tone="secondary" accessibilityLiveRegion="polite" style={{ paddingBottom: theme.space.sm }}>
+        <Text tone="muted" accessibilityLiveRegion="polite" style={{ paddingBottom: theme.space[2] }}>
           {`Couldn't update your wishlist: ${error.message}`}
         </Text>
       ) : null}

@@ -17,7 +17,7 @@ export function OrderStatusChips({ order }: Readonly<{ order: SellerOrder }>) {
   const refund = refundStatus(order.refund);
   const owed = owedRefundStatus(order.owed_refund, order.currency_code);
   return (
-    <View style={[styles.row, { gap: theme.space.xs }]}>
+    <View style={[styles.row, { gap: theme.space[1] }]}>
       <StatusChip label={status.label} tone={status.tone} />
       {refund ? <StatusChip label={refund.label} tone={refund.tone} /> : null}
       {owed ? <StatusChip label={owed.label} tone={owed.tone} /> : null}
@@ -32,15 +32,15 @@ export function OrderStatusDetails({ order }: Readonly<{ order: SellerOrder }>) 
   const refund = refundStatus(order.refund);
   const owed = owedRefundStatus(order.owed_refund, order.currency_code);
   return (
-    <View style={{ gap: theme.space.xs }}>
+    <View style={{ gap: theme.space[1] }}>
       <OrderStatusChips order={order} />
-      {status.note ? <Text tone="secondary">{`Reason: ${status.note}`}</Text> : null}
+      {status.note ? <Text tone="muted">{`Reason: ${status.note}`}</Text> : null}
       {refund && order.refund ? (
-        <Text tone="secondary">
+        <Text tone="muted">
           {[`${formatMoney(order.refund.amount, order.currency_code)} back to you.`, refund.note].filter(Boolean).join(' ')}
         </Text>
       ) : null}
-      {owed?.note ? <Text tone="secondary">{`${owed.note}.`}</Text> : null}
+      {owed?.note ? <Text tone="muted">{`${owed.note}.`}</Text> : null}
       {order.refund_needing_account ? (
         <Button
           label="Add a bank account"

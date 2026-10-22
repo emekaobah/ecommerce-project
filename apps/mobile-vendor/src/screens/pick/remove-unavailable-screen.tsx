@@ -23,15 +23,15 @@ export function RemoveUnavailableScreen() {
   if (done) {
     const currency = done.pick_list.currency_code;
     return (
-      <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
-        <Text variant="title">Items removed</Text>
+      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
+        <Text variant="titlePushed">Items removed</Text>
         {done.refund ? (
-          <View style={{ gap: theme.space.xs }}>
+          <View style={{ gap: theme.space[1] }}>
             <StatusChip label="Refund on its way" tone="success" />
             <Text>{`${formatMoney(done.refund.amount, currency)} is being refunded to the buyer.`}</Text>
           </View>
         ) : (
-          <View style={{ gap: theme.space.xs }}>
+          <View style={{ gap: theme.space[1] }}>
             <StatusChip label="Refund not made" tone="warning" />
             <Text>
               {`The order was changed, but the refund of ${formatMoney(done.removed_amount, currency)} didn't go through. Contact Oja support to finish it.`}
@@ -53,8 +53,8 @@ export function RemoveUnavailableScreen() {
   const cancelInstead = progress.allUnavailable || isCancelInstead(remove.error);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
-      <Text tone="secondary">
+    <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
+      <Text tone="muted">
         These come off the order, and the buyer is refunded what they paid for them. You then pick and pack the rest.
       </Text>
       <View>
@@ -67,8 +67,8 @@ export function RemoveUnavailableScreen() {
         ))}
       </View>
       <View style={styles.spread}>
-        <Text variant="label">Refund to the buyer</Text>
-        <Text variant="label">{formatMoney(unavailable_amount, currency_code)}</Text>
+        <Text variant="strong">Refund to the buyer</Text>
+        <Text variant="strong">{formatMoney(unavailable_amount, currency_code)}</Text>
       </View>
       {cancelInstead ? (
         <CancelInstead orderId={id} />

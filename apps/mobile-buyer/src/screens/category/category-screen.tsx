@@ -28,7 +28,7 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
         currencyCode={region.region.currency_code}
         refreshing={refreshing}
         onRefresh={refresh}
-        header={<View style={{ height: theme.space.md }} />}
+        header={<View style={{ height: theme.space[4] }} />}
         empty={
           <EmptyState
             title="Nothing here yet"
@@ -41,7 +41,7 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <Stack.Screen options={{ title: name ?? '' }} />
       {content()}
     </View>

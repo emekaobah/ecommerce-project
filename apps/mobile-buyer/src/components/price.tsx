@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native';
 export function Price({
   price,
   currencyCode,
-  variant = 'label',
+  variant = 'strong',
 }: Readonly<{
   /** `from` marks a listing whose variants are priced differently. */
   price: DisplayPrice & { from?: boolean };
@@ -20,12 +20,14 @@ export function Price({
   const shown = from ? `From ${amount}` : amount;
   return (
     <View
-      style={[styles.row, { gap: theme.space.xs }]}
+      style={[styles.row, { gap: theme.space[1] }]}
       accessible
       accessibilityLabel={was ? `${shown}, was ${was}` : shown}>
-      <Text variant={variant}>{shown}</Text>
+      <Text variant={variant} tabular>
+        {shown}
+      </Text>
       {was ? (
-        <Text variant="caption" tone="secondary" style={styles.struck}>
+        <Text variant="meta" tone="muted" tabular style={styles.struck}>
           {was}
         </Text>
       ) : null}

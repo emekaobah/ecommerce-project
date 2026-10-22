@@ -11,16 +11,16 @@ export function AddressCard({ address, badge }: Readonly<{ address: StoredAddres
   const theme = useTheme();
   const { name, place, landmark, phone } = addressLines(address);
   return (
-    <View style={{ gap: theme.space.xs }}>
-      <View style={[styles.row, { gap: theme.space.sm }]}>
-        <Text variant="label" style={styles.shrink}>
+    <View style={{ gap: theme.space[1] }}>
+      <View style={[styles.row, { gap: theme.space[2] }]}>
+        <Text variant="strong" style={styles.shrink}>
           {name}
         </Text>
         {badge}
       </View>
-      <Text tone="secondary">{place}</Text>
-      {landmark ? <Text tone="secondary">{landmark}</Text> : null}
-      <Text tone="secondary">{phone}</Text>
+      <Text tone="muted">{place}</Text>
+      {landmark ? <Text tone="muted">{landmark}</Text> : null}
+      <Text tone="muted">{phone}</Text>
     </View>
   );
 }

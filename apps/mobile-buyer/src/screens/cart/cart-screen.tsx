@@ -46,8 +46,8 @@ export function CartScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text variant="title" style={{ marginVertical: theme.space.md, paddingHorizontal: theme.space.md }}>
+    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+      <Text variant="titleRoot" style={{ marginVertical: theme.space[4], paddingHorizontal: theme.space[4] }}>
         Cart
       </Text>
       {content()}
@@ -86,12 +86,12 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
         sections={sections}
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingHorizontal: theme.space.md, paddingBottom: theme.space.lg }}
+        contentContainerStyle={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[6] }}
         renderSectionHeader={({ section: { group } }) => (
-          <View style={{ paddingTop: theme.space.lg, paddingBottom: theme.space.sm, gap: theme.space.xs }}>
+          <View style={{ paddingTop: theme.space[6], paddingBottom: theme.space[2], gap: theme.space[1] }}>
             <Text variant="heading">{group.seller?.name ?? 'No longer available'}</Text>
             {group.seller ? null : (
-              <Text tone="secondary">These shops stopped selling these items. Remove them to check out.</Text>
+              <Text tone="muted">These shops stopped selling these items. Remove them to check out.</Text>
             )}
             {group.shop_status ? <ShopStatusBadge status={group.shop_status} withNote /> : null}
             {group.seller && group.perishable ? <PerishableRule /> : null}
@@ -109,10 +109,10 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
         renderSectionFooter={({ section: { group } }) => {
           const { seller } = group;
           return (
-            <View style={{ paddingVertical: theme.space.sm, gap: theme.space.sm }}>
+            <View style={{ paddingVertical: theme.space[2], gap: theme.space[2] }}>
               <View style={styles.spread}>
-                <Text tone="secondary">{seller ? `${seller.name} subtotal` : 'Subtotal'}</Text>
-                <Text variant="label">{formatMoney(group.item_subtotal, currency)}</Text>
+                <Text tone="muted">{seller ? `${seller.name} subtotal` : 'Subtotal'}</Text>
+                <Text variant="strong">{formatMoney(group.item_subtotal, currency)}</Text>
               </View>
               {paysShopByShop && seller ? (
                 <Button
@@ -129,23 +129,23 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
       />
       <View
         style={{
-          padding: theme.space.md,
-          paddingBottom: theme.space.md + bottom,
-          gap: theme.space.sm,
+          padding: theme.space[4],
+          paddingBottom: theme.space[4] + bottom,
+          gap: theme.space[2],
           borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: theme.colors.divider,
+          borderTopColor: theme.colors.line,
         }}>
         {setQuantity.error ? (
-          <Text tone="secondary" accessibilityLiveRegion="polite">
+          <Text tone="muted" accessibilityLiveRegion="polite">
             Couldn&apos;t update your cart: {setQuantity.error.message}
           </Text>
         ) : null}
         {moveShopToOwnCart.error ? (
-          <Text tone="secondary" accessibilityLiveRegion="polite">
+          <Text tone="muted" accessibilityLiveRegion="polite">
             Couldn&apos;t check out that shop on its own: {moveShopToOwnCart.error.message}
           </Text>
         ) : null}
-        <Text tone="secondary">Delivery is chosen for each shop at checkout.</Text>
+        <Text tone="muted">Delivery is chosen for each shop at checkout.</Text>
         <Button label="Checkout" detail={formatMoney(cart.item_subtotal, currency)} onPress={checkout} />
       </View>
     </>
@@ -174,24 +174,24 @@ function CartRow({
       style={[
         styles.row,
         {
-          gap: theme.space.md,
-          paddingVertical: theme.space.sm,
-          borderBottomColor: theme.colors.divider,
+          gap: theme.space[4],
+          paddingVertical: theme.space[2],
+          borderBottomColor: theme.colors.line,
           opacity: busy ? 0.6 : 1,
         },
       ]}>
       <Image
         source={item.thumbnail}
         contentFit="contain"
-        style={[styles.thumb, { backgroundColor: theme.colors.surface, borderRadius: theme.radius.sm }]}
+        style={[styles.thumb, { backgroundColor: theme.colors.productTile, borderRadius: theme.radius.sm }]}
       />
-      <View style={[styles.details, { gap: theme.space.xs }]}>
+      <View style={[styles.details, { gap: theme.space[1] }]}>
         <Text numberOfLines={2}>{title}</Text>
-        {variant ? <Text variant="caption" tone="secondary">{variant}</Text> : null}
+        {variant ? <Text variant="meta" tone="muted">{variant}</Text> : null}
         {item.perishable ? <PerishableChip /> : null}
         <Price price={{ amount: item.unit_price, compareAt: item.compare_at_unit_price }} currencyCode={currencyCode} />
         {item.discounts.map((discount) => (
-          <Text key={discount.code} variant="caption" tone="secondary">
+          <Text key={discount.code} variant="meta" tone="muted">
             {`${discount.code} −${formatMoney(discount.amount, currencyCode)}`}
           </Text>
         ))}
@@ -226,22 +226,22 @@ function Stepper({
       onPress={() => onChange(next)}
       style={({ pressed }) => [
         styles.stepperButton,
-        { width: theme.touchTarget, height: theme.touchTarget },
+        { width: theme.hitArea, height: theme.hitArea },
         pressed && styles.pressed,
       ]}>
-      <Text variant="label">{symbol}</Text>
+      <Text variant="strong">{symbol}</Text>
     </Pressable>
   );
   return (
-    <View style={[styles.stepperRow, { gap: theme.space.md }]}>
+    <View style={[styles.stepperRow, { gap: theme.space[4] }]}>
       <View
         style={[
           styles.stepper,
-          { borderColor: theme.colors.divider, borderRadius: theme.radius.md },
+          { borderColor: theme.colors.line, borderRadius: theme.radius.md },
         ]}
         accessibilityLabel={`${title}, quantity ${quantity}`}>
         {control(quantity > 1 ? `One fewer ${title}` : `Remove ${title}`, '−', quantity - 1)}
-        <Text variant="label" style={styles.quantity}>
+        <Text variant="strong" style={styles.quantity}>
           {quantity}
         </Text>
         {control(`One more ${title}`, '+', quantity + 1)}

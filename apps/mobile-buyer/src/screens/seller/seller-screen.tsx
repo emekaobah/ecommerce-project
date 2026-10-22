@@ -41,8 +41,8 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
     <FlatList
       data={listings.data}
       keyExtractor={(l) => l.product.id}
-      style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={[{ paddingHorizontal: theme.space.md }, !listings.data.length && styles.grow]}
+      style={{ backgroundColor: theme.colors.bg }}
+      contentContainerStyle={[{ paddingHorizontal: theme.space[4] }, !listings.data.length && styles.grow]}
       refreshing={refreshing}
       onRefresh={refresh}
       ListHeaderComponent={<ShopHeader shop={shop.data} />}
@@ -55,15 +55,15 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
 function ShopHeader({ shop }: Readonly<{ shop: Shop }>) {
   const theme = useTheme();
   return (
-    <View style={{ gap: theme.space.xs, paddingVertical: theme.space.md }}>
-      <Text variant="title">{shop.name}</Text>
+    <View style={{ gap: theme.space[1], paddingVertical: theme.space[4] }}>
+      <Text variant="titleNamed">{shop.name}</Text>
       <ShopFacts seller={shop} />
       <ShopStatusBadge status={shop.shop_status} withNote />
-      {shop.description ? <Text style={{ marginTop: theme.space.xs }}>{shop.description}</Text> : null}
-      <View style={{ marginTop: theme.space.md }}>
+      {shop.description ? <Text style={{ marginTop: theme.space[1] }}>{shop.description}</Text> : null}
+      <View style={{ marginTop: theme.space[4] }}>
         <ReviewsPreview kind="seller" id={shop.id} title={shop.name} />
       </View>
-      <Text variant="heading" style={{ marginTop: theme.space.lg }}>
+      <Text variant="heading" style={{ marginTop: theme.space[6] }}>
         Products
       </Text>
     </View>

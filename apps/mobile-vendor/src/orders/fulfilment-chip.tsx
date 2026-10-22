@@ -17,7 +17,7 @@ const TONES: Partial<Record<OrderFulfilment['state'], StatusTone>> = {
 export function FulfilmentChip({ fulfilment, now }: Readonly<{ fulfilment: OrderFulfilment; now: Date }>) {
   if (fulfilment.state === 'new' && fulfilment.accept_by) {
     const left = acceptTimeLeft(fulfilment.accept_by, now);
-    return <StatusChip label={`New · ${left.label}`} tone={left.urgent ? 'danger' : 'warning'} symbol="◷" />;
+    return <StatusChip label={`New · ${left.label}`} tone={left.urgent ? 'danger' : 'warning'} icon="clock" />;
   }
   return <StatusChip label={stateLabel(fulfilment.state)} tone={TONES[fulfilment.state] ?? 'neutral'} />;
 }

@@ -1,5 +1,5 @@
 import { departments } from '@oja/domain';
-import { EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
+import { EmptyState, ErrorState, ListRow, LoadingState, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
 import { Pressable, SectionList, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,38 +19,39 @@ export function SearchScreen() {
   const search = useDebouncedValue(query.trim(), 300);
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={{ paddingHorizontal: theme.space.md, paddingVertical: theme.space.md, gap: theme.space.md }}>
-        <Text variant="title">Search</Text>
+    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+      <View style={{ paddingHorizontal: theme.space[4], paddingVertical: theme.space[4], gap: theme.space[4] }}>
+        <Text variant="titleRoot">Search</Text>
         <DeliveringToPicker />
         <View
           style={[
             styles.field,
             {
-              minHeight: theme.touchTarget,
-              backgroundColor: theme.colors.surface,
+              minHeight: theme.hitArea,
+              backgroundColor: theme.colors.tile,
               borderRadius: theme.radius.md,
-              paddingLeft: theme.space.md,
+              paddingLeft: theme.space[4],
             },
           ]}>
           <TextInput
+            maxFontSizeMultiplier={MAX_FONT_SCALE}
             value={query}
             onChangeText={setQuery}
             placeholder="Search products"
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor={theme.colors.muted}
             accessibilityLabel="Search products"
             returnKeyType="search"
             autoCorrect={false}
             clearButtonMode="never"
-            style={[styles.input, theme.type.body, { color: theme.colors.ink, fontFamily: theme.fontFamily }]}
+            style={[styles.input, theme.type.body, { color: theme.colors.ink }]}
           />
           {query ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Clear search"
               onPress={() => setQuery('')}
-              style={[styles.clear, { minWidth: theme.touchTarget, minHeight: theme.touchTarget }]}>
-              <Text tone="secondary">✕</Text>
+              style={[styles.clear, { minWidth: theme.hitArea, minHeight: theme.hitArea }]}>
+              <Text tone="muted">✕</Text>
             </Pressable>
           ) : null}
         </View>
@@ -118,12 +119,12 @@ function Browse() {
       keyboardShouldPersistTaps="handled"
       stickySectionHeadersEnabled={false}
       contentContainerStyle={[
-        { paddingHorizontal: theme.space.md, paddingBottom: theme.space.xl },
+        { paddingHorizontal: theme.space[4], paddingBottom: theme.space[8] },
         !sections.length && styles.grow,
       ]}
       ListEmptyComponent={<EmptyState title="No categories yet" message="Search for a product by name." />}
       renderSectionHeader={({ section }) => (
-        <Text variant="heading" style={{ marginTop: theme.space.lg, marginBottom: theme.space.xs }}>
+        <Text variant="heading" style={{ marginTop: theme.space[6], marginBottom: theme.space[1] }}>
           {section.title}
         </Text>
       )}
@@ -131,7 +132,7 @@ function Browse() {
         <ListRow
           title={item.id === section.department.id ? `All ${item.name.toLowerCase()}` : item.name}
           onPress={() => openCategory(item)}
-          trailing={<Text tone="secondary">›</Text>}
+          trailing={<Text tone="muted">›</Text>}
         />
       )}
     />

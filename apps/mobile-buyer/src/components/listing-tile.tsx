@@ -19,18 +19,18 @@ export function ListingTile({ listing, currencyCode }: Readonly<{ listing: Listi
     <Pressable
       accessibilityRole="button"
       onPress={() => openListing(listing)}
-      style={({ pressed }) => [{ width: LISTING_TILE_SIZE, gap: theme.space.xs }, pressed && styles.pressed]}>
+      style={({ pressed }) => [{ width: LISTING_TILE_SIZE, gap: theme.space[1] }, pressed && styles.pressed]}>
       <Image
         source={listing.product.thumbnail}
         contentFit="contain"
         style={{
           width: LISTING_TILE_SIZE,
           height: LISTING_TILE_SIZE,
-          backgroundColor: theme.colors.surface,
+          backgroundColor: theme.colors.productTile,
           borderRadius: theme.radius.md,
         }}
       />
-      <Text variant="caption" numberOfLines={2}>
+      <Text variant="meta" numberOfLines={2}>
         {listing.product.title}
       </Text>
       {price ? <Price price={price} currencyCode={currencyCode} /> : null}

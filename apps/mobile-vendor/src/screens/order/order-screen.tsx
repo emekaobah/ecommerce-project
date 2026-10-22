@@ -37,8 +37,8 @@ export function OrderScreen() {
     const { fulfilment, items, currency_code } = order.data;
 
     return (
-      <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
-        <View style={{ gap: theme.space.sm }}>
+      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
+        <View style={{ gap: theme.space[2] }}>
           <FulfilmentChip fulfilment={fulfilment} now={now} />
           <StateNote fulfilment={fulfilment} />
           <ApprovalNote fulfilment={fulfilment} currency={currency_code} />
@@ -50,7 +50,7 @@ export function OrderScreen() {
           {(items ?? []).map((item) => (
             <ListRow key={item.id} title={lineLabel(item)} />
           ))}
-          <ListRow title="Total" trailing={<Text variant="label">{formatMoney(orderValue(order.data), currency_code)}</Text>} />
+          <ListRow title="Total" trailing={<Text variant="strong">{formatMoney(orderValue(order.data), currency_code)}</Text>} />
         </View>
 
         <NextStep orderId={id} fulfilment={fulfilment} currency={currency_code} />
@@ -73,7 +73,7 @@ export function OrderScreen() {
 function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
   if (fulfilment.state === 'courier_confirmed') return <HandoverNote fulfilment={fulfilment} />;
   const note = stateNote(fulfilment);
-  return note ? <Text tone="secondary">{note}</Text> : null;
+  return note ? <Text tone="muted">{note}</Text> : null;
 }
 
 /** The note for a state that always reads the same. */
@@ -128,19 +128,19 @@ function HandoverNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>)
   const pickedUpAt = fulfilment.handover?.picked_up_at;
   if (staff) {
     return (
-      <Text tone="secondary">
+      <Text tone="muted">
         {`Handed over by ${staff.name ?? 'a staff member'} at ${timeOf(staff.at)}. Waiting for the courier to confirm the pickup.`}
       </Text>
     );
   }
   if (pickedUpAt) {
     return (
-      <Text tone="secondary">
+      <Text tone="muted">
         {`The courier says they collected it at ${timeOf(pickedUpAt)}. Confirm you handed it over.`}
       </Text>
     );
   }
-  return <Text tone="secondary">The courier confirmed the pickup. Keep the parcel ready at the counter.</Text>;
+  return <Text tone="muted">The courier confirmed the pickup. Keep the parcel ready at the counter.</Text>;
 }
 
 /**
@@ -156,7 +156,7 @@ function CourierLabel({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>)
       <ListRow title={shipment.courier_name} subtitle={`Waybill ${shipment.waybill}${instead}`} />
       <ListRow
         title="Track shipment"
-        trailing={<Text tone="secondary">›</Text>}
+        trailing={<Text tone="muted">›</Text>}
         onPress={() => void Linking.openURL(shipment.tracking_url)}
       />
     </View>
@@ -177,7 +177,7 @@ function NextStep({ orderId, fulfilment, currency }: Readonly<{ orderId: string;
 
   if (state === 'new') {
     return (
-      <View style={{ gap: theme.space.sm }}>
+      <View style={{ gap: theme.space[2] }}>
         {accept.error ? <Text tone="danger">{accept.error.message}</Text> : null}
         <Button label="Accept order" onPress={() => accept.mutate()} loading={accept.isPending} />
         <Button
@@ -230,7 +230,7 @@ function Action({
 }: Readonly<{ label: string; mutation: { error: Error | null; isPending: boolean }; onPress: () => void }>) {
   const theme = useTheme();
   return (
-    <View style={{ gap: theme.space.sm }}>
+    <View style={{ gap: theme.space[2] }}>
       {mutation.error ? <Text tone="danger">{mutation.error.message}</Text> : null}
       <Button label={label} loading={mutation.isPending} onPress={onPress} />
     </View>

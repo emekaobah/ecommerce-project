@@ -34,7 +34,7 @@ export function SettingsScreen() {
         onPress={canSwitch ? () => router.push('/switch-shop') : undefined}
         trailing={
           canSwitch ? (
-            <Text variant="label" tone="accent">
+            <Text variant="strong" tone="accent">
               Switch
             </Text>
           ) : null
@@ -44,15 +44,15 @@ export function SettingsScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
+    <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
       <Stack.Screen options={{ title: 'Settings' }} />
-      <Text variant="caption" tone="secondary">
+      <Text variant="meta" tone="muted">
         Current shop
       </Text>
       {currentShop()}
       {sellerId ? (
         <>
-          <Text variant="caption" tone="secondary">
+          <Text variant="meta" tone="muted">
             Orders
           </Text>
           <PauseOrders sellerId={sellerId} />

@@ -1,6 +1,6 @@
 import { Host, Picker } from '@expo/ui';
 import type { AddressConfig, AddressField, AddressFieldKey, AddressFormErrors, AddressFormValues } from '@oja/domain';
-import { Text, useTheme } from '@oja/ui';
+import { line, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 /** Keyboard and autofill hints per field, so the phone's own suggestions fill the form. */
@@ -29,7 +29,7 @@ export function AddressForm({
 }>) {
   const theme = useTheme();
   return (
-    <View style={{ gap: theme.space.md }}>
+    <View style={{ gap: theme.space[4] }}>
       {config.fields.map((field) => (
         <Field
           key={field.key}
@@ -60,14 +60,14 @@ function Field({
   const theme = useTheme();
   const label = field.required ? field.label : `${field.label} (optional)`;
   const box = {
-    minHeight: theme.touchTarget,
+    minHeight: theme.hitArea,
     borderRadius: theme.radius.md,
-    borderColor: error ? theme.colors.danger : theme.colors.divider,
-    paddingHorizontal: theme.space.md,
+    borderColor: error ? theme.colors.danger : theme.colors.control,
+    paddingHorizontal: theme.space[4],
   };
   return (
-    <View style={{ gap: theme.space.xs }}>
-      <Text variant="label">{label}</Text>
+    <View style={{ gap: theme.space[1] }}>
+      <Text variant="strong">{label}</Text>
       {field.options ? (
         <View style={[styles.box, box]}>
           <Host matchContents style={styles.picker}>
@@ -81,10 +81,11 @@ function Field({
         </View>
       ) : (
         <TextInput
+          maxFontSizeMultiplier={MAX_FONT_SCALE}
           value={value}
           onChangeText={onChange}
           placeholder={placeholder}
-          placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={theme.colors.muted}
           accessibilityLabel={label}
           accessibilityHint={error}
           autoCapitalize="words"
@@ -94,12 +95,12 @@ function Field({
             styles.box,
             box,
             theme.type.body,
-            { color: theme.colors.ink, fontFamily: theme.fontFamily },
+            { color: theme.colors.ink },
           ]}
         />
       )}
       {error ? (
-        <Text variant="caption" style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+        <Text variant="meta" tone="danger" accessibilityLiveRegion="polite">
           {error}
         </Text>
       ) : null}
@@ -108,6 +109,6 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  box: { borderWidth: 1, justifyContent: 'center' },
+  box: { borderWidth: line.input, justifyContent: 'center' },
   picker: { alignSelf: 'flex-start' },
 });

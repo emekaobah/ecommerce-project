@@ -8,7 +8,7 @@ import { Text } from "./text"
 
 function Centered({ children }: Readonly<{ children: ReactNode }>) {
   const theme = useTheme()
-  return <View style={[styles.centered, { padding: theme.space.lg, gap: theme.space.md }]}>{children}</View>
+  return <View style={[styles.centered, { padding: theme.space[4], gap: theme.space[3] }]}>{children}</View>
 }
 
 export function LoadingState({ label = "Loading…" }: Readonly<{ label?: string }>) {
@@ -33,7 +33,7 @@ export function ErrorState({ title = "Something went wrong", message, onRetry }:
         {title}
       </Text>
       {message ? (
-        <Text tone="secondary" style={styles.text}>
+        <Text tone="muted" style={styles.text}>
           {message}
         </Text>
       ) : null}
@@ -55,7 +55,7 @@ export function EmptyState({ title, message, action }: Readonly<EmptyStateProps>
         {title}
       </Text>
       {message ? (
-        <Text tone="secondary" style={styles.text}>
+        <Text tone="muted" style={styles.text}>
           {message}
         </Text>
       ) : null}

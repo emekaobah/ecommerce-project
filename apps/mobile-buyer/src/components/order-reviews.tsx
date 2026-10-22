@@ -17,18 +17,18 @@ export function OrderReviews({ groupId, order }: Readonly<{ groupId: string; ord
   const action = reviewAction(order);
   if (!order.reviews.length && !action) return null;
   return (
-    <View style={{ gap: theme.space.sm }}>
-      {order.reviews.length ? <Text variant="label">Your reviews</Text> : null}
+    <View style={{ gap: theme.space[2] }}>
+      {order.reviews.length ? <Text variant="strong">Your reviews</Text> : null}
       {order.reviews.map((review) => {
         const status = reviewStatus(review.status);
         return (
-          <View key={review.id} style={{ gap: theme.space.xs }}>
+          <View key={review.id} style={{ gap: theme.space[1] }}>
             <Text>{reviewTitle(order, review)}</Text>
             <Stars rating={review.rating} />
-            {review.customer_note ? <Text tone="secondary">{review.customer_note}</Text> : null}
+            {review.customer_note ? <Text tone="muted">{review.customer_note}</Text> : null}
             <StatusChip label={status.label} tone={status.tone} />
             {status.note ? (
-              <Text variant="caption" tone="secondary">
+              <Text variant="meta" tone="muted">
                 {status.note}
               </Text>
             ) : null}

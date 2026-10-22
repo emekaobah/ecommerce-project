@@ -19,10 +19,10 @@ export function OrdersScreen() {
   const theme = useTheme();
   const { isSignedIn, userId } = useAuth();
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       {isSignedIn ? (
         <>
-          <Text variant="title" style={{ marginVertical: theme.space.md, paddingHorizontal: theme.space.md }}>
+          <Text variant="titleRoot" style={{ marginVertical: theme.space[4], paddingHorizontal: theme.space[4] }}>
             Orders
           </Text>
           <OrderHistory userId={userId} />
@@ -49,7 +49,7 @@ function OrderHistory({ userId }: Readonly<{ userId: string | null | undefined }
     <FlatList
       data={entries}
       keyExtractor={(entry) => entry.group.id}
-      contentContainerStyle={[{ paddingHorizontal: theme.space.md }, !entries.length && styles.grow]}
+      contentContainerStyle={[{ paddingHorizontal: theme.space[4] }, !entries.length && styles.grow]}
       refreshing={refreshing}
       onRefresh={refresh}
       ListEmptyComponent={
@@ -78,28 +78,28 @@ function HistoryRow({ entry }: Readonly<{ entry: HistoryEntry<OrderGroup, Seller
       onPress={() => openOrderGroup(group)}
       style={({ pressed }) => [
         {
-          paddingVertical: theme.space.md,
-          gap: theme.space.sm,
+          paddingVertical: theme.space[4],
+          gap: theme.space[2],
           borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: theme.colors.divider,
+          borderBottomColor: theme.colors.line,
         },
-        pressed && { backgroundColor: theme.colors.surface },
+        pressed && { backgroundColor: theme.colors.tile },
       ]}>
-      <View style={[styles.spread, { gap: theme.space.md }]}>
+      <View style={[styles.spread, { gap: theme.space[4] }]}>
         <View style={styles.fill}>
-          <Text variant="label" numberOfLines={1}>
+          <Text variant="strong" numberOfLines={1}>
             {title}
           </Text>
-          <Text variant="caption" tone="secondary">
+          <Text variant="meta" tone="muted">
             {`${orderedAt(group.created_at)} · ${itemCount} ${itemCount === 1 ? 'item' : 'items'}`}
           </Text>
         </View>
-        <Text variant="label">{formatMoney(entry.paid_total, currency)}</Text>
+        <Text variant="strong">{formatMoney(entry.paid_total, currency)}</Text>
       </View>
       {orders.map((order) => (
-        <View key={order.id} style={{ gap: theme.space.xs }}>
+        <View key={order.id} style={{ gap: theme.space[1] }}>
           {entry.kind === 'group' ? (
-            <Text variant="caption" tone="secondary">
+            <Text variant="meta" tone="muted">
               {order.seller.name}
             </Text>
           ) : null}

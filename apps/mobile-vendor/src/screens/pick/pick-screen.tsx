@@ -40,7 +40,7 @@ export function PickScreen() {
     if (!lines.length) return <EmptyState title="Nothing to pick" message="This order has no items." />;
 
     return (
-      <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
+      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
         <Text variant="heading" accessibilityLiveRegion="polite">
           {progress.picked} of {progress.total} picked
         </Text>
@@ -70,7 +70,7 @@ export function PickScreen() {
 
         {progress.allUnavailable ? <CancelInstead orderId={id} /> : null}
         {progress.unavailable > 0 && !progress.allUnavailable ? (
-          <View style={{ gap: theme.space.sm }}>
+          <View style={{ gap: theme.space[2] }}>
             <Text>
               {`${progress.unavailable} unavailable. Remove ${progress.unavailable === 1 ? 'it' : 'them'} from the order to refund the buyer and pack the rest.`}
             </Text>
@@ -82,7 +82,7 @@ export function PickScreen() {
           </View>
         ) : null}
 
-        <View style={{ gap: theme.space.sm }}>
+        <View style={{ gap: theme.space[2] }}>
           {recordPick.error ? <Text tone="danger">{recordPick.error.message}</Text> : null}
           {pack.error ? <Text tone="danger">{pack.error.message}</Text> : null}
           <Button
@@ -102,7 +102,7 @@ export function PickScreen() {
             }
           />
           {progress.done || progress.unavailable > 0 ? null : (
-            <Text tone="secondary">Pick every item, or mark it unavailable, to pack the order.</Text>
+            <Text tone="muted">Pick every item, or mark it unavailable, to pack the order.</Text>
           )}
         </View>
       </ScrollView>

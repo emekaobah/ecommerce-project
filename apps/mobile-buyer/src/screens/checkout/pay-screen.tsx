@@ -56,7 +56,7 @@ export function PayScreen() {
       {header}
       <WebView
         source={{ uri: url }}
-        style={[styles.fill, { backgroundColor: theme.colors.background }]}
+        style={[styles.fill, { backgroundColor: theme.colors.bg }]}
         startInLoadingState
         renderLoading={() => <LoadingState label="Opening Paystack" />}
         onShouldStartLoadWithRequest={(request) => {

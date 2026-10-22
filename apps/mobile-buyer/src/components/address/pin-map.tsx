@@ -45,10 +45,10 @@ export function PinMap({
       {/* A modal is its own native window: the app's safe area insets don't reach it. */}
       <SafeAreaProvider>
         {request ? (
-          <SafeAreaView style={[styles.fill, { backgroundColor: theme.colors.background }]} edges={['top', 'bottom']}>
-            <View style={{ padding: theme.space.md, gap: theme.space.xs }}>
+          <SafeAreaView style={[styles.fill, { backgroundColor: theme.colors.bg }]} edges={['top', 'bottom']}>
+            <View style={{ padding: theme.space[4], gap: theme.space[1] }}>
               <Text variant="heading">Confirm the delivery spot</Text>
-              <Text tone="secondary">
+              <Text tone="muted">
                 {request.zoom === 'place'
                   ? 'Drag the pin onto your gate or entrance. The rider goes where the pin is.'
                   : 'Tap the map where the rider should come, then drag the pin onto your gate or entrance.'}
@@ -74,7 +74,7 @@ export function PinMap({
                 />
               ) : null}
             </MapView>
-            <View style={{ padding: theme.space.md, gap: theme.space.sm }}>
+            <View style={{ padding: theme.space[4], gap: theme.space[2] }}>
               <Button label="Confirm pin" onPress={() => pin && onConfirm(pin)} disabled={!pin} />
               <Button label="Cancel" variant="link" onPress={onCancel} />
             </View>

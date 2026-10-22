@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
 import { reviewAction, reviewForm, type ReviewFormEntry, type ReviewSubject } from '@oja/domain';
-import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
+import { Button, EmptyState, ErrorState, line, LoadingState, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -76,10 +76,10 @@ function ReviewForm({ order, entries }: Readonly<{ order: SellerOrder; entries: 
     <>
       <Stack.Screen options={{ title: editing ? 'Edit your review' : `Review ${order.seller.name}` }} />
       <ScrollView
-        style={{ backgroundColor: theme.colors.background }}
-        contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg, paddingBottom: theme.space.xxl }}
+        style={{ backgroundColor: theme.colors.bg }}
+        contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6], paddingBottom: theme.space[12] }}
         keyboardShouldPersistTaps="handled">
-        <Text tone="secondary">
+        <Text tone="muted">
           {
             "You review each shop and product once, and can edit it after a later order. We check every review, and every edit, before other buyers see it."
           }
@@ -93,7 +93,7 @@ function ReviewForm({ order, entries }: Readonly<{ order: SellerOrder; entries: 
           />
         ))}
         {submit.error ? (
-          <Text tone="secondary" accessibilityLiveRegion="polite">
+          <Text tone="muted" accessibilityLiveRegion="polite">
             {`Couldn't send your review: ${submit.error.message}`}
           </Text>
         ) : null}
@@ -116,20 +116,21 @@ function EntryReview({
   const theme = useTheme();
   const heading = entry.reference === 'seller' ? `The shop: ${entry.title}` : entry.title;
   return (
-    <View style={{ gap: theme.space.sm }}>
+    <View style={{ gap: theme.space[2] }}>
       <Text variant="heading">{heading}</Text>
       {entry.review ? (
-        <Text variant="caption" tone="secondary">
+        <Text variant="meta" tone="muted">
           Your review: change it here.
         </Text>
       ) : null}
       <StarInput value={draft.rating} onChange={(rating) => onChange({ rating })} label={`Rate ${entry.title}`} />
       {draft.rating ? (
         <TextInput
+          maxFontSizeMultiplier={MAX_FONT_SCALE}
           value={draft.note}
           onChangeText={(note) => onChange({ note })}
           placeholder="What stood out? (optional)"
-          placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={theme.colors.muted}
           accessibilityLabel={`Your review of ${entry.title} (optional)`}
           maxLength={NOTE_LIMIT}
           multiline
@@ -137,12 +138,11 @@ function EntryReview({
             styles.note,
             theme.type.body,
             {
-              minHeight: theme.touchTarget * 2,
+              minHeight: theme.hitArea * 2,
               borderRadius: theme.radius.md,
-              borderColor: theme.colors.divider,
-              padding: theme.space.md,
+              borderColor: theme.colors.control,
+              padding: theme.space[4],
               color: theme.colors.ink,
-              fontFamily: theme.fontFamily,
             },
           ]}
         />
@@ -152,5 +152,5 @@ function EntryReview({
 }
 
 const styles = StyleSheet.create({
-  note: { borderWidth: 1, textAlignVertical: 'top' },
+  note: { borderWidth: line.input, textAlignVertical: 'top' },
 });

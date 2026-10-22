@@ -19,11 +19,11 @@ export function PackedScreen() {
 
   if (pickup) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', padding: theme.space.lg, gap: theme.space.md }}>
+      <View style={{ flex: 1, justifyContent: 'center', padding: theme.space[6], gap: theme.space[4] }}>
         <Stack.Screen options={{ title: 'Ready for pickup' }} />
         <StatusChip label="Ready for pickup" tone="success" />
-        <Text variant="title">{`${name} is ready for pickup`}</Text>
-        <Text tone="secondary">
+        <Text variant="titlePushed">{`${name} is ready for pickup`}</Text>
+        <Text tone="muted">
           {"Keep it at the counter. We've told the buyer; they collect it with the code in their app."}
         </Text>
         <Button label="Back to orders" onPress={() => router.dismissTo('/')} />
@@ -32,11 +32,11 @@ export function PackedScreen() {
   }
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', padding: theme.space.lg, gap: theme.space.md }}>
+    <View style={{ flex: 1, justifyContent: 'center', padding: theme.space[6], gap: theme.space[4] }}>
       <Stack.Screen options={{ title: 'Packed' }} />
       <StatusChip label="Packed" tone="success" />
-      <Text variant="title">{`${name} is packed`}</Text>
-      <Text tone="secondary">Keep it at the counter, and book a courier to collect it.</Text>
+      <Text variant="titlePushed">{`${name} is packed`}</Text>
+      <Text tone="muted">Keep it at the counter, and book a courier to collect it.</Text>
       {order.data ? <BookCourier orderId={id} currency={order.data.currency_code} onBooked={() => router.back()} /> : null}
       <Button label="Back to orders" variant="secondary" onPress={() => router.dismissTo('/')} />
     </View>

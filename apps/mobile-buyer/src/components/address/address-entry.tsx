@@ -8,7 +8,7 @@ import {
   type LookedUpPlace,
   type Pin,
 } from '@oja/domain';
-import { Button, ListRow, Text, useTheme } from '@oja/ui';
+import { Button, line, ListRow, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import * as Location from 'expo-location';
 import { useState, type ReactNode } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
@@ -143,7 +143,7 @@ export function AddressEntry({
   };
 
   return (
-    <View style={{ gap: theme.space.md }}>
+    <View style={{ gap: theme.space[4] }}>
       {mode === 'search' ? (
         <AddressSearch
           lookup={lookup}
@@ -156,7 +156,7 @@ export function AddressEntry({
       ) : null}
 
       {mode === 'search' ? (
-        <View style={{ gap: theme.space.sm }}>
+        <View style={{ gap: theme.space[2] }}>
           <Button
             label="Use my current location"
             variant="secondary"
@@ -168,7 +168,7 @@ export function AddressEntry({
       ) : null}
 
       {notice ? (
-        <Text tone="secondary" accessibilityLiveRegion="polite">
+        <Text tone="muted" accessibilityLiveRegion="polite">
           {notice}
         </Text>
       ) : null}
@@ -184,8 +184,8 @@ export function AddressEntry({
             }}
           />
           <AddressForm config={config} values={values} errors={errors} onChange={onChange} />
-          <View style={[styles.spread, { gap: theme.space.md }]}>
-            <Text tone="secondary" style={styles.shrink}>
+          <View style={[styles.spread, { gap: theme.space[4] }]}>
+            <Text tone="muted" style={styles.shrink}>
               {pin ? 'Delivery pin placed on the map.' : "You'll place a pin on the map before saving."}
             </Text>
             {pin ? (
@@ -193,7 +193,7 @@ export function AddressEntry({
             ) : null}
           </View>
           {saveError ? (
-            <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+            <Text tone="danger" accessibilityLiveRegion="polite">
               {saveError.message}
             </Text>
           ) : null}
@@ -239,14 +239,15 @@ function AddressSearch({ lookup, onFound }: Readonly<{ lookup: LookupFor; onFoun
   const error = placeAddress.error ?? suggestions.error;
   const list = settled.trim().length >= MIN_SEARCH_LENGTH ? suggestions.data : undefined;
   return (
-    <View style={{ gap: theme.space.sm }}>
-      <Text variant="label">Find your address</Text>
+    <View style={{ gap: theme.space[2] }}>
+      <Text variant="strong">Find your address</Text>
       <TextInput
+        maxFontSizeMultiplier={MAX_FONT_SCALE}
         testID="address-search"
         value={input}
         onChangeText={setInput}
         placeholder="Street, estate or area"
-        placeholderTextColor={theme.colors.textSecondary}
+        placeholderTextColor={theme.colors.muted}
         accessibilityLabel="Find your address"
         autoCorrect={false}
         autoFocus
@@ -254,21 +255,20 @@ function AddressSearch({ lookup, onFound }: Readonly<{ lookup: LookupFor; onFoun
           styles.box,
           theme.type.body,
           {
-            minHeight: theme.touchTarget,
+            minHeight: theme.hitArea,
             borderRadius: theme.radius.md,
-            borderColor: theme.colors.divider,
-            paddingHorizontal: theme.space.md,
+            borderColor: theme.colors.control,
+            paddingHorizontal: theme.space[4],
             color: theme.colors.ink,
-            fontFamily: theme.fontFamily,
           },
         ]}
       />
       {placeAddress.isPending ? (
-        <Text tone="secondary" accessibilityLiveRegion="polite">
+        <Text tone="muted" accessibilityLiveRegion="polite">
           Finding the address…
         </Text>
       ) : null}
-      {!list && suggestions.isFetching ? <Text tone="secondary">Searching…</Text> : null}
+      {!list && suggestions.isFetching ? <Text tone="muted">Searching…</Text> : null}
       {list?.map((suggestion) => (
         <ListRow
           key={suggestion.place_id}
@@ -278,15 +278,15 @@ function AddressSearch({ lookup, onFound }: Readonly<{ lookup: LookupFor; onFoun
         />
       ))}
       {list?.length === 0 ? (
-        <Text tone="secondary">No matches. Try the street name and area, or enter it manually.</Text>
+        <Text tone="muted">No matches. Try the street name and area, or enter it manually.</Text>
       ) : null}
       {list?.length ? (
-        <Text variant="caption" tone="secondary">
+        <Text variant="meta" tone="muted">
           Powered by Google
         </Text>
       ) : null}
       {error ? (
-        <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+        <Text tone="danger" accessibilityLiveRegion="polite">
           {`Couldn't look up the address: ${error.message}`}
         </Text>
       ) : null}
@@ -295,7 +295,7 @@ function AddressSearch({ lookup, onFound }: Readonly<{ lookup: LookupFor; onFoun
 }
 
 const styles = StyleSheet.create({
-  box: { borderWidth: 1, justifyContent: 'center' },
+  box: { borderWidth: line.input, justifyContent: 'center' },
   spread: {
     flexDirection: 'row',
     justifyContent: 'space-between',
