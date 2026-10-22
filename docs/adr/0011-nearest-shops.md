@@ -1,6 +1,6 @@
 # 11. Nearest shops, measured from the buyer's saved address
 
-Status: accepted, 2026-10-17 (#43)
+Status: accepted, 2026-10-17 (#43). Its in-memory consequence is superseded by ADR 0014.
 
 ## Context
 
@@ -24,5 +24,5 @@ Facts that shaped the decision (checked 2026-10-17):
 
 - Whole kilometres from saved addresses (each needs a Shipbubble-validated pin) are too coarse to put a shop's pin closer than about a kilometre. This holds unless a buyer saves many addresses around one shop on purpose. If that becomes a problem, the next step is coarser rounding, or measuring from the pin snapped to a grid.
 - Without a saved address the order is what it was: name match, ship time, first listed.
-- Listings are still worked out in memory before paging (fine at v1 catalogue sizes). Distance adds one address lookup per request and no extra query per shop: the seller query already loads the pickup address.
+- ~~Listings are still worked out in memory before paging (fine at v1 catalogue sizes).~~ Superseded by ADR 0014: listings are ranked and paged in Postgres, measuring from a copy of each shop's pin. Distance adds one address lookup per request.
 - A city with many shops in one band will lean on ship time. The bands are a starting point and live in `@oja/domain`, so they change in one place.
