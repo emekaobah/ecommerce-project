@@ -1,10 +1,9 @@
-import { canReview, reviewerName, type ReviewKind, type ReviewStatus, type ReviewSubject } from "@oja/domain"
+import { canReview, reviewAction, reviewerName, type FulfilmentState, type ReviewStatus, type ReviewSubject } from "@oja/domain"
 import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import CustomerReviewLink from "@mercurjs/core/links/customer-review"
 import type { ReviewDTO } from "@mercurjs/types"
-import { fulfilmentsOf } from "./order-fulfilment"
+import { fulfilmentService, fulfilmentsOf } from "./order-fulfilment"
 
 // Reviews and ratings (#7) on Mercur's review module: one `review` per target (a shop, or a
 // catalogue product), linked to the order that earned it and the buyer who wrote it, and
@@ -51,7 +50,8 @@ export async function assertReviewable(
     throw new MedusaError(MedusaError.Types.INVALID_DATA, `This order has no ${reference} ${reference_id} to review`)
   }
 
-  if ((await buyerReviews(scope, customer_id)).has(subjectKey({ reference, reference_id }))) {
+  const subjects = reference === "seller" ? { seller_ids: [reference_id], product_ids: [] } : { seller_ids: [], product_ids: [reference_id] }
+  if ((await buyerReviews(scope, customer_id, subjects)).has(subjectKey({ reference, reference_id }))) {
     const what = reference === "seller" ? "this shop" : "this product"
     throw new MedusaError(MedusaError.Types.INVALID_DATA, `You've already reviewed ${what}. Edit your review instead.`)
   }
@@ -67,19 +67,6 @@ export type BuyerReview = ReviewSubject & {
   customer_note: string | null
   seller_note: string | null
   status: ReviewStatus
-}
-
-type ReviewLinkRow = {
-  review?: {
-    id: string
-    reference: ReviewKind
-    rating: number
-    customer_note: string | null
-    seller_note: string | null
-    status: ReviewStatus
-    product?: { id: string } | null
-    seller?: { id: string } | null
-  } | null
 }
 
 /**
@@ -114,45 +101,109 @@ export async function authorReviews(
 export const subjectKey = ({ reference, reference_id }: ReviewSubject) => `${reference}:${reference_id}`
 
 /**
- * The buyer's reviews, by what each is of (`subjectKey`): one per shop and per product, whichever
- * order it was written on (#7).
+ * A review has no author or target column, only Mercur's links of it to its author and to what
+ * it is of: link tables, named by Medusa after each side's module and entity, each with the
+ * linked side's id column. Mercur's review service joins the product and seller ones by these
+ * names for its own (status-blind) ratings.
  */
-export async function buyerReviews(scope: Scope, customerId: string): Promise<Map<string, BuyerReview>> {
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: CustomerReviewLink.entryPoint,
-    fields: [
-      "review.id",
-      "review.reference",
-      "review.rating",
-      "review.customer_note",
-      "review.seller_note",
-      "review.status",
-      "review.product.id",
-      "review.seller.id",
-    ],
-    filters: { customer_id: customerId },
-  })
-  const bySubject = new Map<string, BuyerReview>()
-  for (const { review } of data as unknown as ReviewLinkRow[]) {
+const REVIEW_LINKS = {
+  customer: { table: "customer_customer_review_review", column: "customer_id" },
+  product: { table: "product_product_review_review", column: "product_id" },
+  seller: { table: "seller_seller_review_review", column: "seller_id" },
+} as const
+
+/** Which shops and products to read the buyer's reviews of. */
+export type ReviewSubjects = { seller_ids: readonly string[]; product_ids: readonly string[] }
+
+type BuyerReviewRow = Omit<BuyerReview, "rating"> & { rating: unknown }
+
+/**
+ * The buyer's reviews, by what each is of (`subjectKey`): one per shop and per product, whichever
+ * order it was written on (#7). Given `of`, only their reviews of those shops and products, so
+ * a page of orders reads its own reviews alone (#54).
+ */
+export async function buyerReviews(scope: Scope, customerId: string, of?: ReviewSubjects): Promise<Map<string, BuyerReview>> {
+  if (of && !of.seller_ids.length && !of.product_ids.length) return new Map()
+  const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
+  const query = knex(`${REVIEW_LINKS.customer.table} as cr`)
+    .join("review as r", "r.id", "cr.review_id")
+    .leftJoin(`${REVIEW_LINKS.product.table} as pr`, function () {
+      this.on("pr.review_id", "r.id").andOnNull("pr.deleted_at")
+    })
+    .leftJoin(`${REVIEW_LINKS.seller.table} as sr`, function () {
+      this.on("sr.review_id", "r.id").andOnNull("sr.deleted_at")
+    })
+    .where("cr.customer_id", customerId)
+    .whereNull("cr.deleted_at")
     // A deleted review keeps its link.
-    if (!review) continue
-    const reference_id = (review.reference === "product" ? review.product : review.seller)?.id
-    if (!reference_id) continue
-    const subject = { reference: review.reference, reference_id }
-    bySubject.set(
-      subjectKey(subject),
-      asAuthorSees({
-        id: review.id,
-        ...subject,
-        rating: Number(review.rating),
-        customer_note: review.customer_note,
-        seller_note: review.seller_note,
-        status: review.status,
-      })
+    .whereNull("r.deleted_at")
+    .select(
+      "r.id",
+      "r.reference",
+      "r.rating",
+      "r.customer_note",
+      "r.seller_note",
+      "r.status",
+      knex.raw("CASE WHEN r.reference = 'product' THEN pr.product_id ELSE sr.seller_id END AS reference_id")
     )
+  if (of) {
+    query.where(function () {
+      this.where(function () {
+        this.where("r.reference", "product").whereIn("pr.product_id", [...of.product_ids])
+      }).orWhere(function () {
+        this.where("r.reference", "seller").whereIn("sr.seller_id", [...of.seller_ids])
+      })
+    })
+  }
+  const rows = (await query) as unknown as BuyerReviewRow[]
+  const bySubject = new Map<string, BuyerReview>()
+  for (const row of rows) {
+    if (!row.reference_id) continue
+    bySubject.set(subjectKey(row), asAuthorSees({ ...row, rating: Number(row.rating) }))
   }
   return bySubject
+}
+
+type ReceivedOrderRow = {
+  seller?: { id: string; name: string } | null
+  items?: ({ product_id: string | null; product_title: string | null; quantity: unknown; detail?: { quantity: unknown } | null } | null)[] | null
+}
+
+/**
+ * How many reviews the buyer wrote, and how many of their received orders still have a shop or
+ * product to review: those whose review action is to write, as each order shows it (#73).
+ */
+export async function buyerReviewCounts(
+  scope: Scope,
+  customerId: string
+): Promise<{ reviews_written: number; orders_to_review: number }> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const [fulfilments, reviews] = await Promise.all([
+    fulfilmentService(scope).listOrderFulfilments({ customer_id: customerId }, { select: ["order_id", "state"] }),
+    buyerReviews(scope, customerId),
+  ])
+  const receivedIds = fulfilments.filter((f) => canReview(f.state as FulfilmentState)).map((f) => f.order_id)
+  if (!receivedIds.length) return { reviews_written: reviews.size, orders_to_review: 0 }
+
+  const { data: received } = await query.graph({
+    entity: "order",
+    fields: ["seller.id", "seller.name", "items.product_id", "items.product_title", "items.quantity", "items.detail.quantity"],
+    filters: { id: receivedIds },
+  })
+  const ownReviews = [...reviews.values()]
+  const toReview = (received as unknown as ReceivedOrderRow[]).filter(
+    ({ seller, items }) =>
+      seller &&
+      reviewAction({
+        can_review: true,
+        seller,
+        items: (items ?? []).flatMap((i) =>
+          i ? [{ product_id: i.product_id, product_title: i.product_title, quantity: Number(i.detail?.quantity ?? i.quantity) }] : []
+        ),
+        reviews: ownReviews,
+      }) === "write"
+  )
+  return { reviews_written: reviews.size, orders_to_review: toReview.length }
 }
 
 /** A published review as any buyer sees it: the reviewer by first name and initial only. */
@@ -178,20 +229,10 @@ type ReviewRow = {
   customer?: { first_name: string | null; last_name: string | null } | null
 }
 
-/**
- * A review has no target column, only a link table to its product or shop: Mercur's
- * product-review and seller-review links, whose tables Mercur's review service joins by these
- * names for its own (status-blind) ratings.
- */
-const LINK_TABLES = {
-  product: { table: "product_product_review_review", column: "product_id" },
-  seller: { table: "seller_seller_review_review", column: "seller_id" },
-} as const
-
 /** The target's published reviews, as a query to aggregate or page through. */
 function publishedOf(scope: Scope, { reference, reference_id }: ReviewSubject) {
   const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
-  const { table, column } = LINK_TABLES[reference]
+  const { table, column } = REVIEW_LINKS[reference]
   return knex("review")
     .join(table, `${table}.review_id`, "review.id")
     .where(`${table}.${column}`, reference_id)

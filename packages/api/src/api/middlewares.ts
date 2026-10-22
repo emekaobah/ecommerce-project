@@ -8,6 +8,7 @@ import {
     StoreGetListingParams,
     StoreGetListingsParams,
     StoreGetShopParams,
+    StoreGetShopsParams,
 } from "./store/listings/validators";
 import { StoreMergeCart } from "./store/carts/[id]/merge/validators";
 import { StoreMoveShopCartBack, StoreMoveShopToOwnCart } from "./store/carts/[id]/shop-cart/validators";
@@ -16,6 +17,7 @@ import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
 import {
     StoreApplyPromoCode,
     StoreChooseDelivery,
+    StoreGetCheckoutParams,
     StorePrepareCheckout,
     StoreStartCheckoutPayment,
 } from "./store/carts/[id]/checkout/validators";
@@ -43,11 +45,13 @@ import { commissionOnlyInPayout } from "./vendor/orders/commission-in-payout";
 import { vendorShopHoursMiddlewares } from "./vendor/shop-hours/middlewares";
 import { vendorCollectionPointMiddlewares } from "./vendor/collection-point/middlewares";
 import { vendorReadyForPickupMiddlewares } from "./vendor/ready-for-pickup/middlewares";
+import { vendorOrderStagesMiddlewares } from "./vendor/order-stages/middlewares";
 import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { vendorPriceListMiddlewares } from "./vendor/price-lists/middlewares";
-import { StoreGetOrderHistory } from "./store/order-history/validators";
+import { StoreGetOrderAgain, StoreGetOrderHistory } from "./store/order-history/validators";
+import { StoreAddOfferLines } from "./store/carts/[id]/offer-lines/validators";
 import { StoreRefundAccount } from "./store/refunds/validators";
 import { StoreGetPublishedReviews } from "./store/reviews/validators";
 import { adminVariantPriceMiddlewares } from "./admin/products/no-variant-prices";
@@ -108,6 +112,15 @@ export default defineMiddlewares({
             matcher: "/store/products/:id/reviews",
             middlewares: [validateAndTransformQuery(StoreGetPublishedReviews, {})],
         },
+        // Home's shops near the buyer, for everyone, ranked like listings (#65).
+        {
+            method: ["GET"],
+            matcher: "/store/shops",
+            middlewares: [
+                authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
+                validateAndTransformQuery(StoreGetShopsParams, {}),
+            ],
+        },
         {
             method: ["GET"],
             matcher: "/store/shops/:seller_id",
@@ -115,6 +128,12 @@ export default defineMiddlewares({
                 authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
                 validateAndTransformQuery(StoreGetShopParams, {}),
             ],
+        },
+        // Order again adds the ticked offers at once (#72); like add-to-cart, for guests too.
+        {
+            method: ["POST"],
+            matcher: "/store/carts/:id/offer-lines",
+            middlewares: [validateAndTransformBody(StoreAddOfferLines)],
         },
         {
             method: ["POST"],
@@ -135,7 +154,7 @@ export default defineMiddlewares({
         {
             method: ["GET"],
             matcher: "/store/carts/:id/checkout",
-            middlewares: [authenticate("customer", ["session", "bearer"])],
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreGetCheckoutParams, {})],
         },
         {
             method: ["POST"],
@@ -196,6 +215,12 @@ export default defineMiddlewares({
             method: ["GET"],
             matcher: "/store/order-history/:id",
             middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
+        // Ordering one shop's part of a received order again (#72).
+        {
+            method: ["GET"],
+            matcher: "/store/order-history/:id/order-again",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreGetOrderAgain, {})],
         },
         // A refund that needs the buyer's bank account (#13): theirs only.
         { matcher: "/store/refunds/*", middlewares: [authenticate("customer", ["session", "bearer"])] },
@@ -379,6 +404,8 @@ export default defineMiddlewares({
         // Where a shop's buyers collect pickup orders (#12): owners and managers set it.
         ...vendorCollectionPointMiddlewares,
         ...vendorReadyForPickupMiddlewares,
+        // The shop's orders by stage (#69): the vendor app's tiles and the list each opens.
+        ...vendorOrderStagesMiddlewares,
         { method: ["POST"], matcher: "/vendor/sellers/me", middlewares: [refuseMercurClosures] },
         { method: ["POST"], matcher: "/vendor/sellers/:id", middlewares: [refuseMercurClosures] },
         { method: ["POST"], matcher: "/admin/sellers", middlewares: [refuseMercurClosures] },

@@ -37,13 +37,17 @@ const fetchRefundChangesStep = createStep("fetch-order-refund-changes", async ({
   return new StepResponse(changes)
 })
 
-/** A refund that now needs attention records when (#13): the buyer's reminders count from then. */
+/**
+ * A refund that now needs attention records when (#13): the buyer's reminders count from then.
+ * Each order's phase is rewritten by its refunds' new statuses (#59): one waiting on the buyer's
+ * bank account holds it in progress.
+ */
 const updateRefundStatusesStep = createStep(
   "update-order-refund-statuses",
   async (changes: Change[], { container }) => {
     const now = new Date()
     if (changes.length) {
-      await fulfilmentService(container).updateOrderRefunds(
+      await fulfilmentService(container).changeRefunds(
         changes.map((c) => ({ id: c.id, status: c.to, ...(c.to === "needs-attention" && { needs_attention_at: now }) }))
       )
     }
@@ -51,7 +55,7 @@ const updateRefundStatusesStep = createStep(
   },
   async (changes: Change[] | undefined, { container }) => {
     if (changes?.length) {
-      await fulfilmentService(container).updateOrderRefunds(
+      await fulfilmentService(container).changeRefunds(
         changes.map((c) => ({ id: c.id, status: c.from, needs_attention_at: c.row.needs_attention_at }))
       )
     }

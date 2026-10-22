@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
-import { ClientError, createStoreClient, createVendorClient } from "./index"
+import { ApiError, ClientError, createStoreClient, createVendorClient } from "./index"
 
 const baseUrl = "http://api.test"
 const realFetch = globalThis.fetch
@@ -70,6 +70,42 @@ describe("createVendorClient", () => {
     await expect(client.vendor.orders.query()).rejects.toBeInstanceOf(ClientError)
     expect(requests[0]?.headers.get("authorization")).toBe("Bearer member-a")
     expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+})
+
+describe("errors", () => {
+  test("keep the error body's fields, such as when a locked pickup counter may try again", async () => {
+    const refusal = { type: "too_many_attempts", message: "Too many wrong codes.", retry_at: "2026-10-22T15:15:00.000Z" }
+    globalThis.fetch = mock(async () => Response.json(refusal, { status: 429 })) as unknown as typeof fetch
+    const client = createVendorClient({ baseUrl, getToken: () => "token" })
+
+    const error = await client.vendor.orders.$id.collect
+      .mutate({ $id: "order_1", code: "000000", collected_by: "Tolu" })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(ClientError)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 429, message: refusal.message, body: refusal })
+  })
+
+  test("keep each refused call's own body when calls overlap", async () => {
+    let answerFirst: () => void = () => {}
+    const firstAnswered = new Promise<void>((resolve) => (answerFirst = resolve))
+    globalThis.fetch = mock(async (input: RequestInfo | URL) => {
+      const id = new URL(String(input)).pathname.split("/")[3]
+      // The first call is answered only after the second has been refused.
+      if (id === "order_1") await firstAnswered
+      return Response.json({ message: `Refused ${id}`, order: id }, { status: 400 })
+    }) as unknown as typeof fetch
+    const client = createVendorClient({ baseUrl, getToken: () => "token" })
+    const refusal = (id: string) => client.vendor.orders.$id.accept.mutate({ $id: id }).catch((e: unknown) => e)
+
+    const first = refusal("order_1")
+    const second = await refusal("order_2")
+    answerFirst()
+
+    expect(second).toMatchObject({ status: 400, body: { message: "Refused order_2", order: "order_2" } })
+    expect(await first).toMatchObject({ status: 400, body: { message: "Refused order_1", order: "order_1" } })
   })
 })
 

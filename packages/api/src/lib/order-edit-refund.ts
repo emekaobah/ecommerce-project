@@ -2,6 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { buyerRefund, type BuyerRefund } from "./buyer-orders"
 import { errorMessage } from "./errors"
+import type { Picks } from "./order-fulfilment"
 import { refundOwed } from "./refund-retry"
 
 type Scope = Pick<MedusaContainer, "resolve">
@@ -17,11 +18,11 @@ type Scope = Pick<MedusaContainer, "resolve">
  */
 export async function refundOrderEdit(
   scope: Scope,
-  edit: { order_id: string; removed_amount: number; created_by?: string; note: string }
+  edit: { order_id: string; removed_amount: number; /** The units the edit took off each line, which the refund is for (#61). */ lines: Picks; created_by?: string; note: string }
 ): Promise<BuyerRefund | null> {
   if (edit.removed_amount <= 0) return null
   try {
-    const { refunds } = await refundOwed(scope, { order_id: edit.order_id, created_by: edit.created_by, note: edit.note })
+    const { refunds } = await refundOwed(scope, { order_id: edit.order_id, lines: edit.lines, created_by: edit.created_by, note: edit.note })
     return buyerRefund(refunds)
   } catch (error) {
     scope

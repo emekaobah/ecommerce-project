@@ -1,7 +1,8 @@
 import { pickProgress, type PickLine, type PickProgress } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN, MedusaError } from "@medusajs/framework/utils"
-import { fulfilmentsOf } from "./order-fulfilment"
+import { fulfilmentsOf, type Picks } from "./order-fulfilment"
+import { perishableProductIds } from "./perishable"
 
 // Staff pick an accepted order against a checklist of its lines, and pack it once every line
 // is picked in full (#21). Each line's picked count is kept on the order's fulfilment row, so
@@ -17,6 +18,10 @@ export type PickListLine = PickLine & {
   product_title: string | null
   variant_title: string | null
   thumbnail: string | null
+  /** What the buyer is refunded for each unit of the line removed as unavailable (#70). */
+  unit_refund: number
+  /** Whether the line is fresh or chilled (#69), which staff see tagged on the checklist (#70). */
+  perishable: boolean
 }
 
 export type PickList = {
@@ -37,6 +42,7 @@ type ItemRow = {
   product_title: string | null
   variant_title: string | null
   thumbnail: string | null
+  product_id: string | null
   variant_id: string | null
   variant_barcode: string | null
 }
@@ -51,10 +57,16 @@ export async function pickListOf(scope: Scope, orderId: string): Promise<PickLis
   const unavailable = row?.unavailable ?? {}
   // A line removed in full is no longer on the order to pick.
   const items = all.filter((item) => item.quantity > 0)
-  const variants = await variantsOf(
-    scope,
-    items.map((item) => item.variant_id).filter((id): id is string => !!id)
-  )
+  const [variants, perishable] = await Promise.all([
+    variantsOf(
+      scope,
+      items.map((item) => item.variant_id).filter((id): id is string => !!id)
+    ),
+    perishableProductIds(
+      scope,
+      items.flatMap((item) => (item.product_id ? [item.product_id] : []))
+    ),
+  ])
   const lines = items.map((item): PickListLine => {
     const variant = item.variant_id ? variants.get(item.variant_id) : undefined
     // The variant's codes now, or the barcode the line kept when ordered if the variant is gone.
@@ -65,6 +77,8 @@ export async function pickListOf(scope: Scope, orderId: string): Promise<PickLis
       variant_title: item.variant_title,
       thumbnail: item.thumbnail,
       quantity: item.quantity,
+      unit_refund: removalAmount([item], { [item.id]: 1 }),
+      perishable: !!item.product_id && perishable.has(item.product_id),
       picked: picks[item.id] ?? 0,
       unavailable: unavailable[item.id] ?? 0,
       codes: [...new Set(codes.filter((c): c is string => !!c))],
@@ -87,9 +101,9 @@ export const PICKING_STATES = new Set(["picking", "partially_available"])
 /** The order's fulfilment row and one of its lines, while the order is being picked; refuses any other. */
 export async function lineBeingPicked(scope: Scope, orderId: string, itemId: string) {
   const record = (await fulfilmentsOf(scope, [orderId])).get(orderId)
-  const state = record?.state ?? "new"
-  if (!record || !PICKING_STATES.has(state)) {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Order ${orderId} is ${state.replaceAll("_", " ")}: it isn't being picked`)
+  if (!record) throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Order ${orderId} isn't being picked`)
+  if (!PICKING_STATES.has(record.state)) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Order ${orderId} is ${record.state.replaceAll("_", " ")}: it isn't being picked`)
   }
   // A line removed in full is no longer on the order.
   const item = (await itemsOf(scope, orderId)).find((i) => i.id === itemId && i.quantity > 0)
@@ -105,6 +119,11 @@ function removalAmount(items: Pick<ItemRow, "id" | "quantity" | "total">[], unit
     return MathBN.add(sum, MathBN.div(MathBN.mult(item.total, count), item.quantity))
   }, MathBN.convert(0))
   return MathBN.convert(amount).toNumber()
+}
+
+/** Each line still on the order and how many of it: what refunding a rejected or cancelled order is for (#61). */
+export async function unitsOnOrder(scope: Scope, orderId: string): Promise<Picks> {
+  return Object.fromEntries((await itemsOf(scope, orderId)).filter((i) => i.quantity > 0).map((i) => [i.id, i.quantity]))
 }
 
 /** The order's line items; a 404 for an order that doesn't exist. */
@@ -126,6 +145,7 @@ async function orderItemsOf(scope: Scope, orderId: string): Promise<{ currency_c
       "items.product_title",
       "items.variant_title",
       "items.thumbnail",
+      "items.product_id",
       "items.variant_id",
       "items.variant_barcode",
     ],

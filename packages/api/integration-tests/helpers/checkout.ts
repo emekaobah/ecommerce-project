@@ -1,5 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "./auth"
 import type { fakeClerk } from "./clerk"
@@ -99,6 +99,20 @@ export function buyerCheckout({
     })
     return data[0].id as string
   }
+  /** Sets how many of a shop's product can still be sold; returns how to put the stock back. */
+  const setStock = async (shop: Shop, title: string, units: number) => {
+    const inventory = getContainer().resolve(Modules.INVENTORY)
+    const { data: offers } = await query().graph({
+      entity: "offer",
+      fields: ["inventory_item_link.inventory_item.location_levels.*"],
+      filters: { id: await offerId(shop, title) },
+    })
+    const [level] = (offers[0] as any).inventory_item_link[0].inventory_item.location_levels
+    const update = (stocked_quantity: number) =>
+      inventory.updateInventoryLevels([{ inventory_item_id: level.inventory_item_id, location_id: level.location_id, stocked_quantity }])
+    await update(Number(level.reserved_quantity) + units)
+    return () => update(Number(level.stocked_quantity))
+  }
   const owner = async (shop: Shop) => vendorHeaders(api, shop.owner.email, SEED_PASSWORD, await sellerId(shop))
 
   const adasCart = async () => {
@@ -171,6 +185,7 @@ export function buyerCheckout({
     ada,
     sellerId,
     offerId,
+    setStock,
     owner,
     adasCart,
     prepare,

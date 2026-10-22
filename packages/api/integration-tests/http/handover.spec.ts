@@ -62,27 +62,35 @@ medusaIntegrationTestRunner({
       return api.post("/hooks/shipbubble", body, { headers })
     }
 
-    /** The grocery shop's order of Ada's paid checkout, packed, its label booked; and the order's group and waybill. */
-    const bookedOrder = async () => {
-      const { cartId } = await buyer.paidCheckout()
+    /**
+     * The grocery shop's order of Ada's paid checkout, packed, its label booked; and the order's
+     * group, waybill and Paystack reference. `oneUnavailable`: one bag of rice was unavailable and
+     * removed while picking, and refunded.
+     */
+    const bookedOrder = async ({ oneUnavailable = false } = {}) => {
+      const { cartId, reference } = await buyer.paidCheckout()
       const orderId = await buyer.shopOrderId(GROCERY, cartId)
       await post(GROCERY, `${orderId}/accept`)
-      await post(GROCERY, `${orderId}/start-picking`)
       const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
-      for (const line of pick_list.lines) await post(GROCERY, `${orderId}/pick-list/${line.id}`, { picked: line.quantity })
+      for (const line of pick_list.lines) {
+        const unavailable = oneUnavailable ? 1 : 0
+        if (unavailable) await post(GROCERY, `${orderId}/pick-list/${line.id}/unavailable`, { quantity: unavailable })
+        await post(GROCERY, `${orderId}/pick-list/${line.id}`, { picked: line.quantity - unavailable })
+      }
+      if (oneUnavailable) await post(GROCERY, `${orderId}/remove-unavailable`)
       await post(GROCERY, `${orderId}/pack`)
       const { data } = await post(GROCERY, `${orderId}/book-label`)
-      return { orderId, groupId: await buyer.orderGroupOf(cartId), waybill: data.fulfilment.shipment.waybill as string }
+      return { orderId, reference, groupId: await buyer.orderGroupOf(cartId), waybill: data.fulfilment.shipment.waybill as string }
     }
     /** As `bookedOrder`, with the courier's pickup confirmed. */
-    const confirmedOrder = async () => {
-      const booked = await bookedOrder()
+    const confirmedOrder = async (options?: Parameters<typeof bookedOrder>[0]) => {
+      const booked = await bookedOrder(options)
       await shipbubbleSays(booked.waybill, "confirmed")
       return booked
     }
     /** As `confirmedOrder`, handed to the courier: staff tapped and the courier picked it up. */
-    const handedOverOrder = async () => {
-      const confirmed = await confirmedOrder()
+    const handedOverOrder = async (options?: Parameters<typeof bookedOrder>[0]) => {
+      const confirmed = await confirmedOrder(options)
       await handOver(confirmed.orderId)
       await shipbubbleSays(confirmed.waybill, "picked_up")
       return confirmed
@@ -185,6 +193,35 @@ medusaIntegrationTestRunner({
         expect((await shipbubbleSays(waybill, "in_transit")).status).toBe(200)
         expect((await shipbubbleSays(waybill, "picked_up")).status).toBe(200)
         expect((await order(orderId)).fulfilment.state).toBe("in_transit")
+      })
+    })
+
+    describe("the order's phase", () => {
+      const adasOrder = async (groupId: string, orderId: string) =>
+        (await api.get(`/store/order-history/${groupId}`, buyer.ada())).data.order_group.orders.find((o: any) => o.id === orderId)
+
+      it("stays in progress once delivered while a refund waits on Ada's bank account, and is past once she adds it", async () => {
+        const { orderId, groupId, waybill, reference } = await handedOverOrder({ oneUnavailable: true })
+        expect((await order(orderId)).fulfilment.phase).toBe("in_progress")
+        await shipbubbleSays(waybill, "completed")
+        expect((await order(orderId)).fulfilment).toMatchObject({ state: "delivered", phase: "past" })
+
+        // Paystack can't return the removed bag's refund to her card.
+        const [refund] = paystack.refundsOf(reference)
+        paystack.settleRefund(refund!.id, "needs-attention")
+        await buyer.postWebhook(paystack.refundEvent(refund!.id))
+        const waiting = await eventually(
+          () => adasOrder(groupId, orderId),
+          (o) => !!o.refund_needing_account
+        )
+        expect(waiting.fulfilment).toMatchObject({ state: "delivered", phase: "in_progress" })
+        expect((await order(orderId)).fulfilment.phase).toBe("in_progress")
+
+        await api.post(`/store/refunds/${waiting.refund_needing_account}/retry`, { bank_code: "058", account_number: "0123456789" }, buyer.ada())
+
+        // The refund is still on its way, which doesn't hold the order.
+        expect((await adasOrder(groupId, orderId)).fulfilment.phase).toBe("past")
+        expect((await order(orderId)).fulfilment.phase).toBe("past")
       })
     })
 

@@ -40,12 +40,18 @@ export const StorePrepareCheckout = z
     shipping_address: StoreCheckoutAddress.optional(),
     contact: StoreCheckoutContact.optional(),
     pickup: z.array(required).max(50).default([]),
+    /** The buyer's "Delivering to" saved address, which collection points are measured from without a delivery address. */
+    address_id: z.string().optional(),
   })
   .refine((body) => body.shipping_address || body.contact, {
     message: "Give a delivery address, or your name and phone when you collect everything",
     path: ["shipping_address"],
   })
 export type StorePrepareCheckoutType = z.infer<typeof StorePrepareCheckout>
+
+/** The checkout as shown: `address_id` is the buyer's "Delivering to" saved address, which collection points are measured from without a delivery address. */
+export const StoreGetCheckoutParams = z.object({ address_id: z.string().optional() })
+export type StoreGetCheckoutParamsType = z.infer<typeof StoreGetCheckoutParams>
 
 /** One of a shop's quoted delivery choices (`delivery_choices[].id`). */
 export const StoreChooseDelivery = z.object({ seller_id: required, choice_id: required })

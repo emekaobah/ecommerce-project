@@ -32,8 +32,13 @@ export type { LinePrice, PriceChange } from "./price-change"
 export type { PaymentReturn } from "./payment-return"
 export { appIdentity, PRODUCT_NAME } from "./app-identity"
 export type { AppIdentity } from "./app-identity"
+export { NEW_ORDER_ALARM } from "./new-order-alarm"
 export { selectRegion } from "./region"
 export { CANCEL_REASONS, canCancel, newFulfilment, transition } from "./fulfilment"
+export { ORDER_STAGES, orderStageOf, statesInStage } from "./order-stage"
+export type { OrderStage } from "./order-stage"
+export { ORDER_PHASES, orderPhase } from "./order-phase"
+export type { OrderPhase, PhaseRefund } from "./order-phase"
 export { CANCEL_REASON_LABELS, cancelledBy, cancelReasonText, cancelRequest } from "./cancellation"
 export type { CancelForm } from "./cancellation"
 export type {
@@ -118,11 +123,12 @@ export {
   openTimeBetween,
   shopStatus,
   shopStatusLabel,
+  todaysHours,
   WEEKDAY_NAMES,
   WEEKDAYS,
   weeklyHoursErrors,
 } from "./shop-hours"
-export type { HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
+export type { DayHours, HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
 export { courierChangedNote, deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
 export type { DeliveryChoice, DeliveryRate, DeliveryTag, OrderDelivery } from "./delivery"
 export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from "./perishable"
@@ -144,11 +150,13 @@ export {
 } from "./buyer-push"
 export { notPlacedChangeMessage, notPlacedMessage, notPlacedPush } from "./not-placed"
 export type { NotPlaced, NotPlacedChange, NotPlacedReason } from "./not-placed"
+export { availableQuantity, stockShortfall } from "./stock"
+export type { OfferStock, StockLevel, StockShortfall } from "./stock"
 export type { BuyerPush, BuyerPushOrder, BuyerPushPickup, ConfirmedShop, RefundAccountReminder, RefundNotice, RemovedItem } from "./buyer-push"
 export { pickProgress, scanBarcode } from "./picking"
 export type { PickLine, PickProgress, ScanResult } from "./picking"
 export { photoUploadSize, quickAddForm } from "./quick-add"
-export { canReview, ratingSummary, reviewAction, reviewerName, reviewForm, reviewStatus, reviewTitle } from "./review"
+export { canReview, isReceived, ratingSummary, reviewAction, reviewerName, reviewForm, reviewStatus, reviewTitle } from "./review"
 export type { OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
 export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAddFormValue } from "./quick-add"
 export { DISTANCE_BANDS_KM, deliveringTo, distanceBand, distanceKm, distanceLabel, roundedDistanceKm } from "./distance"

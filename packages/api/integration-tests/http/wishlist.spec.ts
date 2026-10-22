@@ -115,6 +115,25 @@ medusaIntegrationTestRunner({
       })
     })
 
+    // The Account screen's "Saved items · 4 items" (#73).
+    it("counts the buyer's saved items in their account summary", async () => {
+      const ada = buyer("ada@oja.test")
+      const savedItems = async () => (await api.get("/store/customers/me/summary", ada)).data.summary.saved_items
+      const lantern = await ids("Ikeja Gadget Hub", LANTERN.title)
+      const rice = await ids("Iya Bisi Foodstuff", RICE.title)
+      const before = await savedItems()
+      await save(ada, lantern.sellerId, lantern.productId)
+      await save(ada, rice.sellerId, rice.productId)
+      // Saved again, from another shop: still one item.
+      const atGrocer = await ids("Iya Bisi Foodstuff", LANTERN.title)
+      await save(ada, atGrocer.sellerId, atGrocer.productId)
+      const saved = await savedItems()
+      await api.delete(`/store/wishlist/product/${rice.productId}`, ada)
+
+      expect([before, saved, await savedItems()]).toEqual([0, 2, 1])
+      expect(await save(buyer("bola@oja.test"), rice.sellerId, rice.productId).then(() => savedItems())).toBe(1)
+    })
+
     describe("moving to the cart", () => {
       const createCart = async (as: object) => (await api.post("/store/carts", { region_id: regionId }, as)).data.cart
 

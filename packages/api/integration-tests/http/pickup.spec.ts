@@ -203,8 +203,43 @@ medusaIntegrationTestRunner({
           weekly: GROCERY.hours,
           time_zone: "Africa/Lagos",
           hold_notice: PICKUP_HOLD_NOTICE,
+          // From Ada's pin to the shop's, 10.5 km, in whole kilometres; never the pin itself.
+          distance_km: 11,
         })
+        expect(grocery.pickup.address).not.toHaveProperty("latitude")
         expect((await shopIn(data.checkout, GADGETS)).pickup).toBeNull()
+      })
+
+      it("measures pickup to a separate collection point from its own pin", async () => {
+        await setCollectionPoint(GROCERY, KIOSK)
+        const cartId = await adasCart()
+
+        const { data } = await prepare(cartId, { shipping_address: ADDRESS })
+
+        // From Ada's pin to the kiosk's, 9.95 km.
+        expect((await shopIn(data.checkout, GROCERY)).pickup).toMatchObject({ follows_pickup_address: false, distance_km: 10 })
+      })
+
+      it("measures pickup from the buyer's Delivering-to address when every shop is collected", async () => {
+        await setCollectionPoint(GADGETS)
+        const cartId = await adasCart()
+        const pickup = [await sellerId(GROCERY), await sellerId(GADGETS)]
+        // Ada's saved address, pinned where her delivery address is, as the saved-address routes keep it.
+        const { data: me } = await api.get("/store/customers/me", ada())
+        const customers = getContainer().resolve(Modules.CUSTOMER)
+        const [saved] = await customers.createCustomerAddresses([{ ...ADDRESS, customer_id: me.customer.id }])
+        const [stranger] = await customers.createCustomers([{ email: `stranger-${Date.now()}@oja.test` }])
+        const [theirs] = await customers.createCustomerAddresses([{ ...ADDRESS, customer_id: stranger.id }])
+
+        const { data } = await prepare(cartId, { contact: CONTACT, pickup, address_id: saved.id })
+
+        // From Ada's pin to the grocery's, 10.5 km, as from her delivery address.
+        expect((await shopIn(data.checkout, GROCERY)).pickup.distance_km).toBe(11)
+        const shown = await api.get(`/store/carts/${cartId}/checkout?address_id=${saved.id}`, ada())
+        expect((await shopIn(shown.data.checkout, GROCERY)).pickup.distance_km).toBe(11)
+        // Another buyer's address is never measured from.
+        const notHers = await api.get(`/store/carts/${cartId}/checkout?address_id=${theirs.id}`, ada())
+        expect((await shopIn(notHers.data.checkout, GROCERY)).pickup.distance_km).toBeNull()
       })
 
       it("places one order of each method from a checkout with a delivery shop and a pickup shop", async () => {
@@ -241,6 +276,8 @@ medusaIntegrationTestRunner({
           total: LANTERN.price + 2 * RICE.price,
           ready_to_pay: true,
         })
+        // Without an address there is nowhere to measure the shops from.
+        expect((await shopIn(data.checkout, GROCERY)).pickup.distance_km).toBeNull()
         expect(shipbubble.validations()).toEqual([])
         expect(shipbubble.rateRequests()).toEqual([])
 
@@ -363,7 +400,6 @@ medusaIntegrationTestRunner({
       }
       const packed = async (orderId: string, shop = GROCERY) => {
         await post(shop, `${orderId}/accept`)
-        await post(shop, `${orderId}/start-picking`)
         const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await owner(shop))).data
         for (const line of pick_list.lines) await post(shop, `${orderId}/pick-list/${line.id}`, { picked: line.quantity })
         return post(shop, `${orderId}/pack`)
@@ -397,6 +433,33 @@ medusaIntegrationTestRunner({
         ])
         // Staff never see it.
         expect(JSON.stringify(await vendorOrder(GROCERY, orderId))).not.toContain(after.pickup.code)
+      })
+
+      it("shows the buyer today's hours at the collection point, with a closure today applied", async () => {
+        const { orderId, groupId } = await pickupOrder()
+        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(Date.now())
+
+        expect((await adasOrder(groupId, orderId)).pickup.today).toEqual({
+          date: today,
+          periods: [{ opens: "00:00", closes: "24:00" }],
+          closure: null,
+        })
+
+        const grocery = await owner(GROCERY)
+        const { data } = await api.post(
+          "/vendor/shop-hours/exceptions",
+          { starts_on: today, ends_on: today, closed: true, note: "Closed for stocktaking" },
+          grocery
+        )
+        try {
+          expect((await adasOrder(groupId, orderId)).pickup.today).toEqual({
+            date: today,
+            periods: [],
+            closure: { reason: "exception", note: "Closed for stocktaking" },
+          })
+        } finally {
+          await api.delete(`/vendor/shop-hours/exceptions/${data.shop_hours.exceptions[0].id}`, grocery)
+        }
       })
 
       it("still holds a Ready for pickup order's stock, which cancelling it returns, and takes no code after (#17)", async () => {
@@ -486,9 +549,15 @@ medusaIntegrationTestRunner({
         const { code } = (await adasOrder(groupId, orderId)).pickup
         const wrong = wrongCodeFor(code)
 
+        const firstWrong = Date.now()
         for (let i = 0; i < 5; i++) expect(await status(collect(orderId, wrong))).toBe(400)
 
-        expect(await status(collect(orderId, code))).toBe(429)
+        const locked = await collect(orderId, code).catch((e: any) => e.response)
+        expect(locked.status).toBe(429)
+        // The counter opens again 15 minutes after the first of the five wrong codes.
+        const retryAt = Date.parse(locked.data.retry_at)
+        expect(retryAt).toBeGreaterThanOrEqual(firstWrong + 15 * 60 * 1000 - 1000)
+        expect(retryAt).toBeLessThanOrEqual(Date.now() + 15 * 60 * 1000)
         expect((await vendorOrder(GROCERY, orderId)).fulfilment.state).toBe("ready_for_pickup")
       })
 
@@ -633,6 +702,17 @@ medusaIntegrationTestRunner({
           expect(paystack.refundsOf(reference)).toHaveLength(1)
         })
 
+        it("puts a Not collected order in the past, for the buyer and the shop", async () => {
+          const { orderId, groupId } = await pickupOrder()
+          await packed(orderId)
+          expect((await adasOrder(groupId, orderId)).fulfilment.phase).toBe("in_progress")
+
+          await longAfter(await readyAt(orderId))
+
+          expect((await adasOrder(groupId, orderId)).fulfilment).toMatchObject({ state: "not_collected", phase: "past" })
+          expect((await vendorOrder(GROCERY, orderId)).fulfilment.phase).toBe("past")
+        })
+
         it("keeps the fresh items for the shop, unrefunded and their stock not returned, and pays them out less 10%", async () => {
           const { orderId, groupId, reference } = await pickupOrder({ fresh: 1 })
           await packed(orderId)
@@ -645,6 +725,11 @@ medusaIntegrationTestRunner({
           expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([kobo(2 * RICE.price)])
           expect(await reservedOf(lines)).toEqual({ [RICE.title]: 0, [TOMATOES.title]: 1 })
           expect((await adasOrder(groupId, orderId)).refund).toMatchObject({ amount: 2 * RICE.price })
+          // The refund is for the rice alone: the tomatoes stay the shop's.
+          const rice = lines.find((l) => l.product_title === RICE.title)!
+          expect((await adasOrder(groupId, orderId)).refunds).toEqual([
+            { amount: 2 * RICE.price, status: "pending", lines: [{ item_id: rice.id, quantity: 2 }] },
+          ])
           await settleRefunds(reference)
           expect(await eventually(() => payoutOf(orderId), (p) => p.state !== "waiting_for_refund")).toMatchObject({
             state: "due",

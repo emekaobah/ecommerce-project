@@ -5,6 +5,7 @@ import { SellerRole } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 import memberInviteEmailHandler from "../../src/subscribers/member-invite-email"
+import { recordPlacedOrderWorkflow } from "../../src/workflows/order-fulfilment/workflows/record-placed-order"
 import { vendorHeaders } from "../helpers/auth"
 import { fakeResend } from "../helpers/resend"
 
@@ -135,7 +136,7 @@ medusaIntegrationTestRunner({
     })
 
     describe("a member of two shops", () => {
-      /** An order placed with the shop, as checkout records it: the order linked to its seller. */
+      /** An order placed with the shop, as checkout records it: the order linked to its seller, and recorded as placed. */
       const orderWith = async (shop: (typeof SEED_SELLERS)[number], title: string) => {
         const container = getContainer()
         const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -152,6 +153,7 @@ medusaIntegrationTestRunner({
           [Modules.ORDER]: { order_id: order.id },
           seller: { seller_id: await sellerId(shop) },
         })
+        await recordPlacedOrderWorkflow(container).run({ input: { order_id: order.id } })
         return order.id
       }
 
@@ -177,14 +179,20 @@ medusaIntegrationTestRunner({
         return (data.orders as { id: string }[]).map((o) => o.id)
       }
 
-      it("lists both shops and sees each shop's own orders when it switches", async () => {
+      it("lists both shops, each with its city, and sees each shop's own orders when it switches", async () => {
         const groceryOrder = await orderWith(grocery, "Ofada Rice 5kg")
         const fashionOrder = await orderWith(fashion, "Adire Kaftan")
         await joinFashion()
 
         const { data } = await api.get("/vendor/sellers", await staffLogin())
-        expect((data.seller_members as { seller_id: string }[]).map((m) => m.seller_id).sort()).toEqual(
-          [await sellerId(grocery), await sellerId(fashion)].sort()
+        const shops = (data.seller_members as { seller_id: string; seller: { name: string; city: string | null } }[])
+          .map((m) => ({ id: m.seller_id, name: m.seller.name, city: m.seller.city }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+        expect(shops).toEqual(
+          [
+            { id: await sellerId(grocery), name: grocery.name, city: grocery.pickup.city },
+            { id: await sellerId(fashion), name: fashion.name, city: fashion.pickup.city },
+          ].sort((a, b) => a.name.localeCompare(b.name))
         )
 
         expect(await orderIds(await signedIn(grocery.staff.email, grocery))).toEqual([groceryOrder])

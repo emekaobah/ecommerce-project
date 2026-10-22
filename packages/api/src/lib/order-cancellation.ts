@@ -5,6 +5,7 @@ import { cancelAcceptedOrderWorkflow, type CancelOrderInput } from "../workflows
 import { buyerRefund, type BuyerRefund } from "./buyer-orders"
 import { errorMessage } from "./errors"
 import { fulfilmentsOf, type FulfilmentRecord } from "./order-fulfilment"
+import { unitsOnOrder } from "./order-picking"
 import { cancelRefundOf } from "./owed-refunds"
 import { refundOwed } from "./refund-retry"
 
@@ -21,8 +22,8 @@ export type CancelPreview = { allowed: boolean; refund_amount: number; currency_
 /** Whether the order can be cancelled now (`canCancel`), and what cancelling it refunds (`cancelRefundOf`). */
 export async function cancelPreview(scope: Scope, orderId: string): Promise<CancelPreview> {
   const [{ amount, currency_code }, records] = await Promise.all([cancelRefundOf(scope, orderId), fulfilmentsOf(scope, [orderId])])
-  // An order without a fulfilment row yet is New.
-  return { allowed: canCancel(records.get(orderId)?.state ?? "new"), refund_amount: amount, currency_code }
+  const record = records.get(orderId)
+  return { allowed: !!record && canCancel(record.state), refund_amount: amount, currency_code }
 }
 
 export type CancelledOrder = {
@@ -39,7 +40,7 @@ const refundNote = (cancellation: Cancellation) =>
 
 /**
  * Cancels an accepted order (`cancelAcceptedOrderWorkflow`), then refunds its buyer all that is
- * left of its share (`refundOwed`, #16): a refund Paystack turns down leaves the order cancelled
+ * left of its share (`refundOwed`, #16), for every line still on it (#61): a refund Paystack turns down leaves the order cancelled
  * and owing it, and is retried; one it can't make goes to Oja's team. A refund that fails
  * otherwise is logged: the order still owes it, and the retry job tries it.
  */
@@ -50,6 +51,7 @@ export async function cancelAndRefund(scope: Scope, input: CancelOrderInput): Pr
   try {
     const { refunds } = await refundOwed(scope, {
       order_id: input.order_id,
+      lines: await unitsOnOrder(scope, input.order_id),
       created_by: input.actor,
       note: refundNote(fulfilment.cancellation),
     })

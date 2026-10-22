@@ -1,21 +1,24 @@
-import { acceptDeadline, acceptTimeLeft, type HandoverDisagreement, type ShopHours } from "@oja/domain"
+import { acceptDeadline, acceptTimeLeft, formatMoney, NEW_ORDER_ALARM, type FulfilmentMethod, type HandoverDisagreement, type ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { SellerRole } from "@mercurjs/types"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
+import type { ExpoPushAlert } from "../modules/expo-push/expo-api"
+import { METHOD_FIELDS, methodOfOrder, type OrderWithMethods } from "./order-fulfilment"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
 
 // Pushes to a shop's members about one of its orders (#27): a new order, its accept deadline
 // approaching, and a courier pickup scheduled. Each goes to every device of every member of the
-// shop; tapping it opens the order (`url`), acting for the shop (`seller_id`). A handover staff
+// shop; tapping it opens the order (`url`), acting for the shop (`seller_id`), and says which
+// kind of push it is (`kind`), so the app can ring a new order apart (#71). A handover staff
 // and the courier disagree about (#25) goes to the shop's owners only, and a pickup order not
 // collected (#33) to its owners and managers.
 
 type Scope = Pick<MedusaContainer, "resolve">
 
 /** What happened to the order that the shop is told about. */
-export type ShopPushKind = "order_placed" | "accept_deadline_near" | "pickup_scheduled" | "handover_disagreement" | "not_collected"
+export type ShopPushKind = "new_order" | "accept_deadline_near" | "pickup_scheduled" | "handover_disagreement" | "not_collected"
 
 /**
  * What the event said beyond the order: whose half of a disputed handover is missing, and
@@ -29,23 +32,41 @@ export type ShopPushDetail = { waiting_for?: HandoverDisagreement["waiting_for"]
  */
 type Audience = "members" | "owners" | "managers"
 
-type PushOrder = { id: string; display_id: number; created_at: string | Date; seller_id: string; items: number }
+type PushOrder = {
+  id: string
+  display_id: number
+  created_at: string | Date
+  seller_id: string
+  items: number
+  total: number
+  currency_code: string
+  method: FulfilmentMethod
+}
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`
 
 type Message = (order: PushOrder, now: Date, hours: ShopHours | null, detail: ShopPushDetail) => { title: string; body: string }
 
+/** A new order rings Oja's alarm, on the vendor app's new-order channel, through Focus (#71). */
+const NEW_ORDER_RINGS: ExpoPushAlert = {
+  sound: NEW_ORDER_ALARM.sound,
+  channelId: NEW_ORDER_ALARM.channelId,
+  interruptionLevel: NEW_ORDER_ALARM.interruptionLevel,
+}
+
 /**
- * Each kind's message, and who gets it (every member unless it says). A device gets
+ * Each kind's message, who gets it (every member unless it says), and how it rings (as every
+ * other push unless it says). A device gets
  * each event once, however often it is raised; a kind that `repeats` is told again each time it
  * is raised at a new time (the handover alert, daily while it lasts).
  */
-const KINDS: Record<ShopPushKind, { message: Message; to?: Audience; repeats?: true }> = {
-  order_placed: {
+const KINDS: Record<ShopPushKind, { message: Message; to?: Audience; repeats?: true; alert?: ExpoPushAlert }> = {
+  new_order: {
     message: (order) => ({
       title: `New order #${order.display_id}`,
-      body: `${plural(order.items, "item")}. Accept or reject it in the app.`,
+      body: `${formatMoney(order.total, order.currency_code)} for ${order.method}, ${plural(order.items, "item")}. Accept or reject it in the app.`,
     }),
+    alert: NEW_ORDER_RINGS,
   },
   accept_deadline_near: {
     message: (order, now, hours) => {
@@ -90,15 +111,32 @@ async function pushOrder(scope: Scope, orderId: string): Promise<PushOrder | nul
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "order",
-    fields: ["id", "display_id", "created_at", "seller.id", "items.quantity"],
+    fields: ["id", "display_id", "created_at", "total", "currency_code", "seller.id", "items.quantity", ...METHOD_FIELDS],
     filters: { id: orderId },
   })
   const order = data[0] as unknown as
-    | { id: string; display_id: number; created_at: string | Date; seller?: { id: string } | null; items?: ({ quantity: unknown } | null)[] | null }
+    | (OrderWithMethods & {
+        id: string
+        display_id: number
+        created_at: string | Date
+        total: unknown
+        currency_code: string
+        seller?: { id: string } | null
+        items?: ({ quantity: unknown } | null)[] | null
+      })
     | undefined
   if (!order?.seller) return null
   const items = (order.items ?? []).reduce((sum, item) => sum + Number(item?.quantity ?? 0), 0)
-  return { id: order.id, display_id: order.display_id, created_at: order.created_at, seller_id: order.seller.id, items }
+  return {
+    id: order.id,
+    display_id: order.display_id,
+    created_at: order.created_at,
+    seller_id: order.seller.id,
+    items,
+    total: Number(order.total),
+    currency_code: order.currency_code,
+    method: methodOfOrder(order),
+  }
 }
 
 const IN_AUDIENCE: Record<Audience, (member: { is_owner: boolean; role_id: string | null }) => boolean> = {
@@ -137,7 +175,7 @@ export async function pushToShop(
 ): Promise<void> {
   const order = await pushOrder(scope, orderId)
   if (!order) return
-  const { message, to = "members", repeats = false } = KINDS[kind]
+  const { message, to = "members", repeats = false, alert } = KINDS[kind]
   const devices = await shopDevices(scope, order.seller_id, to)
   if (!devices.length) return
   const hours = (await shopHoursOf(scope, [order.seller_id], now)).get(order.seller_id) ?? null
@@ -146,8 +184,9 @@ export async function pushToShop(
     template: `shop-${kind.replaceAll("_", "-")}`,
     title,
     body,
-    data: { url: `/orders/${order.id}`, order_id: order.id, seller_id: order.seller_id },
+    data: { url: `/orders/${order.id}`, order_id: order.id, seller_id: order.seller_id, kind },
     idempotencyKey: (to) => [kind, order.id, to, ...(repeats ? [now.toISOString()] : [])].join(":"),
     about: `${kind} for order ${orderId}`,
+    alert,
   })
 }

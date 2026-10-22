@@ -7,6 +7,47 @@ export type OjaClient = TypedClient<Routes>
 
 export { ClientError }
 
+/**
+ * A refused request, with the error response's whole JSON body, so an app reads a refusal's own
+ * fields, such as when a locked pickup counter may try again (`retry_at`, #70). Still a
+ * `ClientError`; `@mercurjs/client` keeps only the body's message and code.
+ */
+export class ApiError extends ClientError {
+  constructor(
+    error: ClientError,
+    /** The error response's JSON body; empty when it wasn't JSON. */
+    readonly body: Record<string, unknown>
+  ) {
+    super(error.message, error.statusText, error.status, error.code)
+    this.name = "ApiError"
+    this.stack = error.stack
+  }
+}
+
+/** Where `keepRefusedResponses`' fetch leaves a copy of a request's refused response. */
+type RefusedSink = { response?: Response }
+/** The request option naming a request's sink; `@mercurjs/client` copies its `fetchOptions` onto each request. */
+const REFUSED_SINK = Symbol("oja.refusedSink")
+const KEEPS_REFUSED = Symbol("oja.keepsRefused")
+
+/**
+ * `@mercurjs/client` calls the global `fetch` and reads a refused response's body itself, so
+ * `fetch` is wrapped, once, to leave a copy of each refused response in the sink its request
+ * names. The wrapper holds no state of its own: overlapping requests each have their own sink.
+ * Wraps whichever `fetch` is current if it isn't wrapped yet (a test may install its own).
+ */
+function keepRefusedResponses() {
+  const underlying = globalThis.fetch as typeof fetch & { [KEEPS_REFUSED]?: true }
+  if (underlying[KEEPS_REFUSED]) return
+  const keeping = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const response = await underlying(input, init)
+    const sink = (init as { [REFUSED_SINK]?: RefusedSink } | undefined)?.[REFUSED_SINK]
+    if (sink && response.status >= 300) sink.response = response.clone()
+    return response
+  }
+  globalThis.fetch = Object.assign(keeping, { [KEEPS_REFUSED]: true as const }) as unknown as typeof fetch
+}
+
 type Awaitable<T> = T | Promise<T>
 /** Reads a value at request time; null or undefined means "don't send it". */
 export type Getter = () => Awaitable<string | null | undefined>
@@ -32,10 +73,18 @@ type DynamicClientConfig = {
  */
 function createDynamicClient({ baseUrl, headers, retryHeaders, onUnauthorized }: DynamicClientConfig): OjaClient {
   const isUnauthorized = (error: unknown) => error instanceof ClientError && error.status === 401
-  const send = (path: string[], args: unknown[], sent: Record<string, string>) => {
-    let target: any = createClient({ baseUrl, fetchOptions: { headers: sent } })
+  const send = async (path: string[], args: unknown[], sent: Record<string, string>) => {
+    keepRefusedResponses()
+    const sink: RefusedSink = {}
+    let target: any = createClient({ baseUrl, fetchOptions: { headers: sent, [REFUSED_SINK]: sink } as RequestInit })
     for (const segment of path) target = target[segment]
-    return target(...args)
+    try {
+      return await target(...args)
+    } catch (error) {
+      if (!(error instanceof ClientError) || !sink.response) throw error
+      const body = await sink.response.json().catch(() => ({}))
+      throw new ApiError(error, body && typeof body === "object" ? (body as Record<string, unknown>) : {})
+    }
   }
   const call = async (path: string[], args: unknown[]) => {
     let sent = await headers()

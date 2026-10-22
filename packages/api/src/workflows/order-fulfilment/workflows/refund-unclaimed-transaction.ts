@@ -54,7 +54,7 @@ const refundUnclaimedTransactionStep = createStep(
 
     const refund = await paystack.refund({ transaction: reference, merchant_note: `unclaimed:${reference}` })
     if (!refund.id) throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, `Paystack refunded ${reference} without an id`)
-    const recorded = await service.createOrderRefunds({
+    const [recorded] = await service.recordRefunds([{
       order_id: null,
       payment_id: null,
       refund_id: null,
@@ -64,7 +64,7 @@ const refundUnclaimedTransactionStep = createStep(
       transaction_reference: reference,
       paystack_refund_id: String(refund.id),
       status: refund.status ?? "pending",
-    })
+    }])
     return new StepResponse<RefundUnclaimedTransactionResult>({ refund: recorded as OrderRefundRecord, live_session_id: null })
   }
 )

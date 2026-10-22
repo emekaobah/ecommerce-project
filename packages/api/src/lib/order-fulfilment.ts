@@ -2,15 +2,18 @@ import {
   acceptDeadline,
   fulfilmentTimeline,
   newFulfilment,
+  orderPhase,
   type Cancellation,
   type Fulfilment,
   type FulfilmentMethod,
   type FulfilmentState,
   type HoldReminder,
+  type OrderPhase,
   type Reached,
   type ShopHours,
   type TimelineStep,
 } from "@oja/domain"
+import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { InferTypeOf, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { isPickupMethod } from "./collection-point"
@@ -130,7 +133,15 @@ export const switchedFrom = (shipment: Pick<Shipment, "courier" | "chosen">): Co
 export type FulfilmentRecord = {
   id: string
   order_id: string
+  /** The order's buyer; null for an order placed without a customer account. */
+  customer_id: string | null
+  /** The order's shop. */
+  seller_id: string | null
+  /** The checkout (order group) the order was split from. */
+  order_group_id: string | null
   state: FulfilmentState
+  /** Whether the order is still happening for its buyer (#59), by its state and refunds. */
+  phase: OrderPhase
   fulfilment: Fulfilment
   placed_at: Date
   reject_reason: string | null
@@ -182,7 +193,10 @@ export const cancelledOnceAccepted = (record: Pick<FulfilmentRecord, "state"> | 
 export const givesShareBack = (record: Pick<FulfilmentRecord, "state"> | undefined) =>
   record?.state === "rejected" || cancelledOnceAccepted(record)
 
-/** Each order's fulfilment row; an order without one is New. */
+/**
+ * Each order's fulfilment row. Every order has one once it is recorded, a moment after it is
+ * placed; an order not in the map is still being placed.
+ */
 export async function fulfilmentsOf(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentRecord>> {
   if (!orderIds.length) return new Map()
   const rows = (await fulfilmentService(scope).listOrderFulfilments({ order_id: orderIds })).map(asFulfilmentRecord)
@@ -200,6 +214,11 @@ export type FulfilmentView = {
   /** How the order reaches its buyer: by courier, or collected in store (#12). */
   method: FulfilmentMethod
   state: FulfilmentState
+  /**
+   * Whether the order is still happening for its buyer (#59): in progress until its state is
+   * final, and while a refund waits on the buyer's bank account; past otherwise.
+   */
+  phase: OrderPhase
   /**
    * ISO 8601; only while the order waits to be accepted. 24 of the shop's open hours after it
    * was placed (ADR 0004); a pause that starts after it was placed doesn't stop the clock (#18).
@@ -270,33 +289,27 @@ function cancellationOf(fulfilment: Fulfilment): FulfilmentView["cancellation"] 
 export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
 
 /**
- * The order a fulfilment view is of: when it was placed, how it was to reach its buyer, and the
- * lines still on it, which set a pickup order's hold (left out, no hold is counted).
- */
-export type PlacedOrder = { placed_at: Date | string; method: FulfilmentMethod; lines?: HoldLine[] }
-
-/**
- * `order`: an order without a row yet is New, by the method it was placed with. `hours`: the
- * shop's, which the accept deadline counts in; null for a shop without hours.
+ * `lines`: the lines still on the order, which set a pickup order's hold (left out, no hold is
+ * counted). `hours`: the shop's, which the accept deadline counts in; null for a shop without hours.
  */
 export function fulfilmentView(
-  record: FulfilmentRecord | undefined,
-  order: PlacedOrder,
+  record: FulfilmentRecord,
+  lines: HoldLine[] | undefined,
   hours: ShopHours | null,
   { names = new Map<string, string>(), audience = "staff" }: FulfilmentViewOptions = {}
 ): FulfilmentView {
-  const fulfilment = record?.fulfilment ?? newFulfilment(order.method)
-  const shipment = record?.shipment
+  const { fulfilment, shipment } = record
   const handover = handoverOf(fulfilment)
   const collection = collectionOf(fulfilment)
-  const placed_at = new Date(order.placed_at).toISOString()
+  const placed_at = new Date(record.placed_at).toISOString()
   return {
     method: fulfilment.method,
     state: fulfilment.state,
+    phase: record.phase,
     accept_by: fulfilment.state === "new" ? acceptDeadline(placed_at, hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
-    collect_by: collectByOf(record, hours, order.lines),
-    reject_reason: record?.reject_reason ?? null,
+    collect_by: collectByOf(record, hours, lines),
+    reject_reason: record.reject_reason ?? null,
     cancellation: cancellationOf(fulfilment),
     shipment: shipment
       ? {
@@ -308,7 +321,7 @@ export function fulfilmentView(
           price: { checkout: shipment.chosen.amount, booked: shipment.courier.amount, difference: shipment.difference },
         }
       : null,
-    courier_approval: record?.courier_approval ?? null,
+    courier_approval: record.courier_approval ?? null,
     handover: handover && {
       staff: handover.staff ? { name: names.get(handover.staff.actor) ?? null, at: handover.staff.at } : null,
       picked_up_at: handover.pickup?.at ?? null,
@@ -318,7 +331,7 @@ export function fulfilmentView(
       collected_by: collection.collectedBy,
     },
     timeline: fulfilmentTimeline(
-      { method: fulfilment.method, state: fulfilment.state, placed_at, reached: record?.reached ?? {} },
+      { method: fulfilment.method, state: fulfilment.state, placed_at, reached: record.reached ?? {} },
       audience
     ),
   }
@@ -349,33 +362,50 @@ type PaymentRow = {
 
 /** The payments an order may have been paid by: its checkout's (on the cart Mercur split) and its own (#65). */
 export async function paymentsOfOrder(scope: Scope, orderId: string): Promise<PaymentRow[]> {
+  return (await paymentsOfOrders(scope, [orderId])).get(orderId) ?? []
+}
+
+/** The payments each order may have been paid by, as `paymentsOfOrder`, read for many orders at once. */
+export async function paymentsOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, PaymentRow[]>> {
+  if (!orderIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: links } = await query.graph({ entity: "order_cart", fields: ["cart_id"], filters: { order_id: orderId } })
-  const { data: carts } = links.length
+  type WithPayments = { payments?: ({ id: string } | null)[] | null } | null | undefined
+  const [{ data: links }, { data: orders }] = await Promise.all([
+    query.graph({ entity: "order_cart", fields: ["order_id", "cart_id"], filters: { order_id: orderIds } }),
+    query.graph({ entity: "order", fields: ["id", "payment_collections.payments.id"], filters: { id: orderIds } }),
+  ])
+  const cartLinks = links as unknown as { order_id: string; cart_id: string }[]
+  const { data: carts } = cartLinks.length
     ? await query.graph({
         entity: "cart",
-        fields: ["payment_collection.payments.id"],
-        filters: { id: links.map((l: { cart_id: string }) => l.cart_id) },
+        fields: ["id", "payment_collection.payments.id"],
+        filters: { id: [...new Set(cartLinks.map((l) => l.cart_id))] },
       })
     : { data: [] }
-  const { data: orders } = await query.graph({
-    entity: "order",
-    fields: ["payment_collections.payments.id"],
-    filters: { id: orderId },
-  })
-  type WithPayments = { payments?: ({ id: string } | null)[] | null } | null | undefined
-  const ids = [
-    ...carts.map((c: { payment_collection: WithPayments }) => c.payment_collection),
-    ...(orders[0]?.payment_collections ?? []),
-  ].flatMap((collection: WithPayments) => (collection?.payments ?? []).map((p) => p?.id))
-  const paymentIds = [...new Set(ids.filter((id): id is string => !!id))]
-  if (!paymentIds.length) return []
-  const { data: payments } = await query.graph({
-    entity: "payment",
-    fields: ["id", "currency_code", "data", "captures.id", "refunds.id"],
-    filters: { id: paymentIds },
-  })
-  return payments as PaymentRow[]
+  const cartCollections = new Map((carts as unknown as { id: string; payment_collection: WithPayments }[]).map((c) => [c.id, c.payment_collection]))
+  const ownCollections = new Map(
+    (orders as unknown as { id: string; payment_collections?: WithPayments[] | null }[]).map((o) => [o.id, o.payment_collections ?? []])
+  )
+  const paymentIdsOf = new Map(
+    orderIds.map((orderId) => {
+      const collections = [
+        ...cartLinks.filter((l) => l.order_id === orderId).map((l) => cartCollections.get(l.cart_id)),
+        ...(ownCollections.get(orderId) ?? []),
+      ]
+      const ids = collections.flatMap((collection) => (collection?.payments ?? []).map((p) => p?.id))
+      return [orderId, new Set(ids.filter((id): id is string => !!id))]
+    })
+  )
+  const allIds = [...new Set([...paymentIdsOf.values()].flatMap((ids) => [...ids]))]
+  const { data: payments } = allIds.length
+    ? await query.graph({
+        entity: "payment",
+        fields: ["id", "currency_code", "data", "captures.id", "refunds.id"],
+        filters: { id: allIds },
+      })
+    : { data: [] }
+  const rows = payments as unknown as PaymentRow[]
+  return new Map(orderIds.map((orderId) => [orderId, rows.filter((p) => paymentIdsOf.get(orderId)!.has(p.id))]))
 }
 
 /** The order's own transactions, and which payment each of their captures and refunds belongs to. */
@@ -397,32 +427,26 @@ export async function orderMoney(scope: Scope, orderId: string, payments: Paymen
   }
 }
 
-/** What staff see of each order's fulfilment, its accept deadline counted in its shop's open hours. */
+/**
+ * What staff see of each order's fulfilment, its accept deadline counted in its shop's open
+ * hours; an order still being placed (not yet recorded) has none.
+ */
 export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentView>> {
   if (!orderIds.length) return new Map()
+  const records = await fulfilmentsOf(scope, orderIds)
+  if (!records.size) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "order",
-    fields: ["id", "created_at", "seller.id", ...METHOD_FIELDS, ...HOLD_LINE_FIELDS],
-    filters: { id: orderIds },
-  })
-  type Row = OrderWithMethods & { id: string; created_at: Date | string; seller?: { id: string } | null; items?: OrderLineRow[] | null }
-  const orders = data as unknown as Row[]
-  const [records, hours, lines] = await Promise.all([
-    fulfilmentsOf(scope, orderIds),
-    shopHoursOf(scope, orders.flatMap((o) => (o.seller ? [o.seller.id] : []))),
-    holdLinesOf(scope, orders),
+  const { data } = await query.graph({ entity: "order", fields: ["id", ...HOLD_LINE_FIELDS], filters: { id: [...records.keys()] } })
+  const sellerIds = [...records.values()].flatMap((r) => (r.seller_id ? [r.seller_id] : []))
+  const [hours, lines, names] = await Promise.all([
+    shopHoursOf(scope, sellerIds),
+    holdLinesOf(scope, data as unknown as { id: string; items?: OrderLineRow[] | null }[]),
+    handoverNames(scope, records.values()),
   ])
-  const names = await handoverNames(scope, records.values())
   return new Map(
-    orders.map((o) => [
-      o.id,
-      fulfilmentView(
-        records.get(o.id),
-        { placed_at: o.created_at, method: methodOfOrder(o), lines: lines.get(o.id) },
-        (o.seller && hours.get(o.seller.id)) || null,
-        { names }
-      ),
+    [...records.values()].map((record) => [
+      record.order_id,
+      fulfilmentView(record, lines.get(record.order_id), (record.seller_id && hours.get(record.seller_id)) || null, { names }),
     ])
   )
 }
@@ -435,29 +459,71 @@ export type OrderWithMethods = { shipping_methods?: ({ data?: Record<string, unk
 export const methodOfOrder = (order: OrderWithMethods): FulfilmentMethod =>
   (order.shipping_methods ?? []).some(isPickupMethod) ? "pickup" : "delivery"
 
-/** When the order was placed and how, to reach its buyer, read from the order itself; undefined for no such order. */
-export async function placedOrderOf(scope: Scope, orderId: string): Promise<{ placed_at: Date; method: FulfilmentMethod } | undefined> {
+/** Whose order it is, and when and how it was placed: what a fulfilment row records of its order. */
+export type PlacedOrder = Pick<FulfilmentRecord, "order_id" | "customer_id" | "seller_id" | "order_group_id"> & {
+  placed_at: Date
+  method: FulfilmentMethod
+}
+
+/** The order fields `placedOrdersOf` reads. */
+const PLACED_FIELDS = ["id", "created_at", "customer_id", "seller.id", ...METHOD_FIELDS]
+type PlacedRow = OrderWithMethods & { id: string; created_at: Date | string; customer_id?: string | null; seller?: { id: string } | null }
+
+/** Each order as placed, read from the order itself and its checkout; an order not found is left out. */
+export async function placedOrdersOf(scope: Scope, orderIds: string[]): Promise<Map<string, PlacedOrder>> {
+  if (!orderIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "order", fields: ["created_at", ...METHOD_FIELDS], filters: { id: orderId } })
-  const order = data[0] as unknown as (OrderWithMethods & { created_at: Date | string }) | undefined
-  return order && { placed_at: new Date(order.created_at), method: methodOfOrder(order) }
+  const [{ data: orders }, { data: groups }] = await Promise.all([
+    query.graph({ entity: "order", fields: PLACED_FIELDS, filters: { id: orderIds } }),
+    query.graph({ entity: "order_group_order", fields: ["order_id", "order_group_id"], filters: { order_id: orderIds } }),
+  ])
+  const groupOf = new Map((groups as unknown as { order_id: string; order_group_id: string }[]).map((l) => [l.order_id, l.order_group_id]))
+  return new Map(
+    (orders as unknown as PlacedRow[]).map((o) => [
+      o.id,
+      {
+        order_id: o.id,
+        customer_id: o.customer_id ?? null,
+        seller_id: o.seller?.id ?? null,
+        order_group_id: groupOf.get(o.id) ?? null,
+        placed_at: new Date(o.created_at),
+        method: methodOfOrder(o),
+      },
+    ])
+  )
+}
+
+/** A placed order's first fulfilment row: New, by the method it was placed with, and so in progress. */
+export const newFulfilmentRow = ({ method, ...order }: PlacedOrder) => ({
+  ...order,
+  state: "new" as const,
+  phase: orderPhase("new", []),
+  fulfilment: newFulfilment(method),
+})
+
+/**
+ * The shop's orders `order.placed` hasn't recorded yet: linked to the shop (Mercur's order-seller
+ * link) but without a fulfilment row. A moment after placing, or until the backfill for an
+ * order whose recording failed. Read in SQL as an anti-join (ADR 0014).
+ */
+export async function unrecordedOrdersOf(scope: Scope, sellerId: string): Promise<string[]> {
+  const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
+  const rows = (await knex("order_order_seller_seller as os")
+    .leftJoin("order_fulfilment as f", function () {
+      this.on("f.order_id", "os.order_id").andOnNull("f.deleted_at")
+    })
+    .where("os.seller_id", sellerId)
+    .whereNull("os.deleted_at")
+    .whereNull("f.id")
+    .select("os.order_id")) as unknown as { order_id: string }[]
+  return rows.map((r) => r.order_id)
 }
 
 /** The shop's orders Ready for pickup (#12), by when they became ready, longest waiting first. */
 export async function readyForPickup(scope: Scope, sellerId: string): Promise<string[]> {
-  const rows = (await fulfilmentService(scope).listOrderFulfilments({ state: "ready_for_pickup" })).map(asFulfilmentRecord)
-  const sellers = await sellersOfOrders(scope, rows.map((r) => r.order_id))
+  const rows = (
+    await fulfilmentService(scope).listOrderFulfilments({ seller_id: sellerId, state: "ready_for_pickup" }, { select: ["order_id", "reached"] })
+  ).map(asFulfilmentRecord)
   const readyAt = (r: FulfilmentRecord) => r.reached?.ready_for_pickup ?? ""
-  return rows
-    .filter((r) => sellers.get(r.order_id) === sellerId)
-    .sort((a, b) => readyAt(a).localeCompare(readyAt(b)))
-    .map((r) => r.order_id)
-}
-
-/** The shop each order was placed with. */
-export async function sellersOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, string>> {
-  if (!orderIds.length) return new Map()
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "order_seller", fields: ["order_id", "seller_id"], filters: { order_id: orderIds } })
-  return new Map((data as { order_id: string; seller_id: string }[]).map((l) => [l.order_id, l.seller_id]))
+  return rows.sort((a, b) => readyAt(a).localeCompare(readyAt(b))).map((r) => r.order_id)
 }

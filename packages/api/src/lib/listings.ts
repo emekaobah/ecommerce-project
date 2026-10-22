@@ -7,15 +7,18 @@ import {
   Modules,
 } from "@medusajs/framework/utils"
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
-import { ProductStatus } from "@mercurjs/types"
-import { distanceBand, distanceKm, pinOf, roundedDistanceKm, type Pin, type ShopDeal } from "@oja/domain"
+import { pinOf, roundedDistanceKm, type Pin, type ShopDeal } from "@oja/domain"
+import { availableQuantities } from "./availability"
 import { attributionOf, type Attribution } from "./enrichment"
+import { rankListingPage, rankShopPage, shopDistancesKm, type RankedListing, type RankingFilters } from "./listing-ranking"
 import { perishableProductIds } from "./perishable"
-import { liveSellerIds } from "./onboarding"
+import { isLive, liveSellerIds } from "./onboarding"
 import { shopStatusesOf, type ShopStatusView } from "./shop-hours"
 
 // A listing is one shop's offer of one product: the product page and the feed are always
 // in a shop's context, and prices are never compared across shops (docs/design.md).
+// Postgres filters, ranks and pages them (`./listing-ranking`, ADR 0014); only a page's
+// listings are loaded, priced and given their deals here.
 
 export type ListingPrice = { calculated_amount: number; original_amount: number; currency_code: string }
 
@@ -25,6 +28,8 @@ export type ListingOffer = {
   variant_title: string | null
   /** In the region's currency. `original_amount` above `calculated_amount` means a sale. */
   calculated_price: ListingPrice
+  /** How many can still be ordered (0: sold out); null when the shop doesn't track its stock or takes backorders. */
+  available_quantity: number | null
 }
 
 /** The shop a listing belongs to, with what its header shows wherever it appears. */
@@ -32,7 +37,10 @@ export type ListingSeller = {
   id: string
   name: string
   handle: string
-  /** Where the shop is: its pickup address's LGA or city (ADR 0002). */
+  /** The logo and banner the shop uploads in the vendor web panel; null when it hasn't, and screens show its initials. */
+  logo: string | null
+  banner: string | null
+  /** Where the shop is: its pickup address's `city`, which holds the LGA in Nigeria's address form (ADR 0002). */
   area: string | null
   /** The shop's usual days to ship; null when it hasn't set one. */
   default_leadtime_to_ship: number | null
@@ -90,8 +98,8 @@ export type ListingFilters = {
   categoryId?: string
   sellerId?: string
   productId?: string
-  /** Only these products (a buyer's wishlist). */
-  productIds?: string[]
+  /** Only these listings, by shop and product (a buyer's wishlist). */
+  pairs?: { seller_id: string; product_id: string }[]
   excludeProductId?: string
   /** The pin of the buyer's delivery address, which listings rank nearest first from (ADR 0011). */
   deliveringTo?: Pin | null
@@ -99,11 +107,11 @@ export type ListingFilters = {
 
 type Region = { id: string; currency_code: string; countries: string[] }
 type SellerRow = Omit<Shop, "area" | "shop_status" | "distance_km"> & {
-  address?: { country_code: string | null; city: string | null; metadata?: Record<string, unknown> | null } | null
+  address?: { country_code: string | null; city: string | null } | null
   shop_status: ShopStatusView
   /**
    * Straight-line kilometres from the buyer's delivery address to the shop's pickup pin, unrounded
-   * for ranking (buyers see `distance_km`, rounded); null without either.
+   * (buyers see `distance_km`, rounded); null without either.
    */
   exact_km: number | null
 }
@@ -118,10 +126,9 @@ type OfferRow = OfferPricingRow & {
   seller_id: string
   product_id: string
   variant_id: string
-  leadtime_to_ship: number | null
   product_variant?: { id: string; title: string | null; price_set?: { id: string } | null } | null
 }
-type PricedOfferRow = OfferRow & { calculated_price: CalculatedOfferPrice }
+type PricedOfferRow = OfferRow & { calculated_price: CalculatedOfferPrice; available_quantity: number | null }
 type ProductDetailRow = Omit<ListingProductDetail, "attributes" | "attribution" | "weight"> & { weight: number | string | null }
 
 async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Region> {
@@ -134,78 +141,6 @@ async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Reg
   const region = data[0] as { id: string; currency_code: string; countries?: { iso_2: string }[] } | undefined
   if (!region) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Region ${regionId} not found`)
   return { id: region.id, currency_code: region.currency_code, countries: (region.countries ?? []).map((c) => c.iso_2) }
-}
-
-/**
- * Live shops (open and through onboarding) based in one of the region's countries, with whether
- * they are open now and how far they are from `from`. Their pickup pins stay in here (ADR 0002).
- */
-async function sellersServing(scope: MedusaContainer, region: Region, sellerId?: string, from?: Pin | null) {
-  const visible = await liveSellerIds(scope)
-  const ids = sellerId ? visible.filter((id) => id === sellerId) : visible
-  if (!ids.length) return new Map<string, SellerRow>()
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "seller",
-    fields: [
-      "id",
-      "name",
-      "handle",
-      "description",
-      "default_leadtime_to_ship",
-      "address.country_code",
-      "address.city",
-      "address.metadata",
-    ],
-    filters: { id: ids },
-  })
-  const serving = (data as unknown as Omit<SellerRow, "shop_status" | "exact_km">[]).filter((s) => {
-    const country = s.address?.country_code?.toLowerCase()
-    return !!country && region.countries.includes(country)
-  })
-  // Closed shops stay listed, marked closed (ADR 0004).
-  const statuses = await shopStatusesOf(scope, serving.map((s) => s.id))
-  return new Map(
-    serving.map((s) => {
-      const pickup = pinOf(s.address)
-      const exact_km = from && pickup ? distanceKm(from, pickup) : null
-      return [s.id, { ...s, shop_status: statuses.get(s.id)!, exact_km }]
-    })
-  )
-}
-
-/** Published products in the publishable key's sales channels, with their titles for ranking. */
-async function listableProducts(scope: MedusaContainer, filters: ListingFilters): Promise<Map<string, string>> {
-  if (!filters.salesChannelIds.length) return new Map()
-  const productIds = filters.productId ? [filters.productId] : filters.productIds
-  if (productIds && !productIds.length) return new Map()
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: inChannels } = await query.graph({
-    entity: "product_sales_channel",
-    fields: ["product_id"],
-    filters: {
-      sales_channel_id: filters.salesChannelIds,
-      ...(productIds ? { product_id: productIds } : {}),
-    },
-  })
-  const channelProductIds = [...new Set((inChannels as { product_id: string }[]).map((l) => l.product_id))]
-  if (!channelProductIds.length) return new Map()
-  const categoryIds = filters.categoryId ? await categoryTree(scope, filters.categoryId) : undefined
-  if (categoryIds && !categoryIds.length) return new Map()
-  const { data } = await query.graph({
-    entity: "product",
-    fields: ["id", "title"],
-    // The generated filter type leaves out the product module's own relations, which filter fine.
-    filters: {
-      status: ProductStatus.PUBLISHED,
-      id: channelProductIds,
-      ...titleFilter(filters.search),
-      ...(categoryIds ? { categories: { id: categoryIds } } : {}),
-    } as any,
-  })
-  return new Map(
-    (data as { id: string; title: string }[]).filter((p) => p.id !== filters.excludeProductId).map((p) => [p.id, p.title])
-  )
 }
 
 /**
@@ -229,43 +164,60 @@ async function categoryTree(scope: MedusaContainer, categoryId: string): Promise
   return tree
 }
 
-/** Every word of the search in the product's title, ignoring case; no filter for an empty search. */
-function titleFilter(search: string | undefined) {
-  const words = searchWords(search)
-  if (!words.length) return {}
-  // `%`, `_` and `\` are pattern characters in ILIKE; a buyer's query matches them literally.
-  const escape = (word: string) => word.replaceAll(/[\\%_]/g, (c) => `\\${c}`)
-  return { $and: words.map((word) => ({ title: { $ilike: `%${escape(word)}%` } })) }
-}
-
 const searchWords = (search: string | undefined) => search?.toLowerCase().split(/\s+/).filter(Boolean) ?? []
 
 /**
- * Offers visible in the region, each priced by Mercur's per-offer pricing (the variant's
- * price set scoped by the offer). An offer without a price in the region's currency is left out.
+ * What the database ranks listings by for the request: live shops (closed ones too, marked
+ * closed, ADR 0004), narrowed to one shop when asked, and the product filters.
  */
-async function pricedOffers(scope: MedusaContainer, region: Region, filters: ListingFilters) {
-  const sellers = await sellersServing(scope, region, filters.sellerId, filters.deliveringTo)
-  const titles = sellers.size ? await listableProducts(scope, filters) : new Map<string, string>()
-  if (!titles.size) return { sellers, titles, offers: [] as PricedOfferRow[] }
+export async function rankingFiltersOf(
+  scope: MedusaContainer,
+  region: Region,
+  filters: ListingFilters
+): Promise<RankingFilters> {
+  const live = await liveSellerIds(scope)
+  return {
+    sellerIds: filters.sellerId ? live.filter((id) => id === filters.sellerId) : live,
+    countries: region.countries.map((c) => c.toLowerCase()),
+    regionId: region.id,
+    currencyCode: region.currency_code,
+    salesChannelIds: filters.salesChannelIds,
+    words: searchWords(filters.search),
+    categoryIds: filters.categoryId ? await categoryTree(scope, filters.categoryId) : undefined,
+    productIds: filters.productId ? [filters.productId] : undefined,
+    excludeProductId: filters.excludeProductId,
+    pairs: filters.pairs,
+    from: filters.deliveringTo,
+  }
+}
 
+/** The shops' headers, with whether they are open now and how far they are (`exact_km`). */
+async function sellerRows(scope: MedusaContainer, kmBySeller: Map<string, number | null>): Promise<Map<string, SellerRow>> {
+  const ids = [...kmBySeller.keys()]
+  if (!ids.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
-    entity: "offer",
+    entity: "seller",
     fields: [
       "id",
-      "seller_id",
-      "product_id",
-      "variant_id",
-      "leadtime_to_ship",
-      "product_variant.id",
-      "product_variant.title",
-      "product_variant.price_set.id",
+      "name",
+      "handle",
+      "logo",
+      "banner",
+      "description",
+      "default_leadtime_to_ship",
+      "address.country_code",
+      "address.city",
     ],
-    filters: { seller_id: [...sellers.keys()], product_id: [...titles.keys()] },
-    pagination: { order: { created_at: "ASC", id: "ASC" } },
+    filters: { id: ids },
   })
-  return { sellers, titles, offers: await priceOffers(scope, region, data as OfferRow[]) }
+  const statuses = await shopStatusesOf(scope, ids)
+  return new Map(
+    (data as unknown as Omit<SellerRow, "shop_status" | "exact_km">[]).map((s) => [
+      s.id,
+      { ...s, shop_status: statuses.get(s.id)!, exact_km: kmBySeller.get(s.id) ?? null },
+    ])
+  )
 }
 
 /**
@@ -287,77 +239,46 @@ export async function priceOffers<O extends OfferPricingRow>(
   )
 }
 
-type ListingGroup = { seller: SellerRow; productId: string; title: string; offers: PricedOfferRow[] }
+type ListingGroup = { seller: SellerRow; productId: string; offers: PricedOfferRow[]; leadtime_to_ship: number | null }
 
-/** Groups offers into one listing per shop and product, in the order they were first listed. */
-function groupListings(
-  sellers: Map<string, SellerRow>,
-  titles: Map<string, string>,
-  offers: PricedOfferRow[]
-): ListingGroup[] {
-  const listings = new Map<string, ListingGroup>()
-  for (const offer of offers) {
-    const key = `${offer.seller_id}:${offer.product_id}`
-    const listing = listings.get(key)
-    if (listing) listing.offers.push(offer)
-    else
-      listings.set(key, {
-        seller: sellers.get(offer.seller_id)!,
-        productId: offer.product_id,
-        title: titles.get(offer.product_id)!,
-        offers: [offer],
-      })
-  }
-  return [...listings.values()]
-}
-
-/** Days until the shop ships: the slowest of its offers, else the shop's default; null when neither is set. */
-function leadtimeToShip({ seller, offers }: Pick<ListingGroup, "seller" | "offers">): number | null {
-  const leadTimes = offers
-    .map((o) => o.leadtime_to_ship ?? seller.default_leadtime_to_ship)
-    .filter((days): days is number => days != null)
-  return leadTimes.length ? Math.max(...leadTimes) : null
-}
+const dealKey = (sellerId: string, productId: string) => `${sellerId}:${productId}`
 
 /**
- * How well a product's name matches the search: the whole name (3), the start of it (2),
- * the start of a word for every search word (1), or only somewhere inside (0).
+ * The ranked listings, in their order, each with its shop and its offers priced in the region,
+ * in the order they were listed. A listing none of whose offers Mercur could price is left out.
  */
-function relevance(title: string, words: string[]): number {
-  if (!words.length) return 0
-  const name = title.toLowerCase()
-  const phrase = words.join(" ")
-  if (name === phrase) return 3
-  if (name.startsWith(phrase)) return 2
-  const nameWords = name.split(/[^\p{L}\p{N}]+/u)
-  return words.every((word) => nameWords.some((w) => w.startsWith(word))) ? 1 : 0
-}
-
-/**
- * The documented listing order (docs/design.md, ADR 0011): best name match first, then the
- * nearest distance band, then the shop that ships soonest, then the nearest shop, then the
- * order listings were first made. Never by price. Without a delivery address every shop is
- * equally far, so the order is name match, ship time, first listed; a shop without a pin
- * comes after those with one.
- */
-function orderListings(groups: ListingGroup[], search: string | undefined) {
-  const words = searchWords(search)
-  const ranked = groups.map((group, index) => {
-    const km = group.seller.exact_km ?? Number.POSITIVE_INFINITY
-    return {
-      group,
-      index,
-      relevance: relevance(group.title, words),
-      band: distanceBand(km),
-      days: leadtimeToShip(group) ?? Number.POSITIVE_INFINITY,
-      km,
-    }
+async function groupsOf(
+  scope: MedusaContainer,
+  region: Region,
+  ranked: RankedListing[],
+  sellers?: Map<string, SellerRow>
+): Promise<ListingGroup[]> {
+  if (!ranked.length) return []
+  sellers ??= await sellerRows(scope, new Map(ranked.map((r) => [r.seller_id, r.exact_km])))
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "offer",
+    fields: ["id", "seller_id", "product_id", "variant_id", "product_variant.id", "product_variant.title", "product_variant.price_set.id"],
+    filters: { seller_id: [...sellers.keys()], product_id: [...new Set(ranked.map((r) => r.product_id))] },
+    pagination: { order: { created_at: "ASC", id: "ASC" } },
   })
-  // Two unknowns (Infinity - Infinity) compare as NaN, which is falsy: a tie.
-  ranked.sort(
-    (a, b) => b.relevance - a.relevance || a.band - b.band || a.days - b.days || a.km - b.km || a.index - b.index
-  )
-  return ranked.map((r) => r.group)
+  const onPage = new Set(ranked.map((r) => dealKey(r.seller_id, r.product_id)))
+  const pageOffers = (data as OfferRow[]).filter((o) => onPage.has(dealKey(o.seller_id, o.product_id)))
+  const [priced, available] = await Promise.all([
+    priceOffers(scope, region, pageOffers),
+    availableQuantities(scope, pageOffers.map((o) => o.id)),
+  ])
+  const offers = new Map<string, PricedOfferRow[]>()
+  for (const offer of priced) {
+    const key = dealKey(offer.seller_id, offer.product_id)
+    offers.set(key, [...(offers.get(key) ?? []), { ...offer, available_quantity: available.get(offer.id) ?? null }])
+  }
+  return ranked.flatMap((r) => {
+    const seller = sellers.get(r.seller_id)
+    const priced = offers.get(dealKey(r.seller_id, r.product_id))
+    if (!seller || !priced) return []
+    return [{ seller, productId: r.product_id, offers: priced, leadtime_to_ship: r.leadtime_to_ship }]
+  })
 }
 
 function toListingSeller(seller: SellerRow): ListingSeller {
@@ -365,6 +286,8 @@ function toListingSeller(seller: SellerRow): ListingSeller {
     id: seller.id,
     name: seller.name,
     handle: seller.handle,
+    logo: seller.logo ?? null,
+    banner: seller.banner ?? null,
     area: seller.address?.city ?? null,
     default_leadtime_to_ship: seller.default_leadtime_to_ship,
     shop_status: seller.shop_status,
@@ -372,16 +295,12 @@ function toListingSeller(seller: SellerRow): ListingSeller {
   }
 }
 
-function toListing<P extends ListingProduct>(
-  group: Pick<ListingGroup, "seller" | "offers">,
-  product: P,
-  deals: ListingDeal[]
-): Listing<P> {
+function toListing<P extends ListingProduct>(group: ListingGroup, product: P, deals: ListingDeal[]): Listing<P> {
   const { seller, offers } = group
   return {
     seller: toListingSeller(seller),
     product,
-    offers: offers.map(({ id, variant_id, product_variant, calculated_price }) => ({
+    offers: offers.map(({ id, variant_id, product_variant, calculated_price, available_quantity }) => ({
       id,
       variant_id,
       variant_title: product_variant?.title ?? null,
@@ -390,8 +309,9 @@ function toListing<P extends ListingProduct>(
         original_amount: Number(calculated_price.original_amount ?? calculated_price.calculated_amount),
         currency_code: calculated_price.currency_code,
       },
+      available_quantity,
     })),
-    leadtime_to_ship: leadtimeToShip(group),
+    leadtime_to_ship: group.leadtime_to_ship,
     deals,
   }
 }
@@ -401,6 +321,7 @@ type AutomaticPromotion = {
   code: string
   type: string
   seller?: { id: string } | null
+  rules?: { attribute: string }[] | null
   application_method?: {
     type: ShopDeal["type"]
     value: number | string
@@ -417,18 +338,22 @@ type DealProduct = {
   tags?: { id: string }[] | null
 }
 
-const dealKey = (sellerId: string, productId: string) => `${sellerId}:${productId}`
+/**
+ * What the deals' cart holds that is the same for every listing on a page. A promotion whose
+ * conditions ask about anything else (the buyer, or the rest of the cart) gets no badge.
+ */
+const PAGE_WIDE_RULES = new Set(["currency_code", "region_id", "region.id", "sales_channel_id", "shipping_address.country_code"])
 
 /**
  * Each listing's deals, by `dealKey`: its shop's running automatic promotions that would take
- * something off one of the product's offers in a cart of its own. A promotion that depends on
- * the buyer (a customer group) or on the rest of the cart gets no badge.
+ * something off one of the product's offers. Worked out once for the page, as one cart holding
+ * one of each offer on it; each item keeps only its own shop's promotions.
  */
 async function dealsOf(
   scope: MedusaContainer,
   region: Region,
   filters: Pick<ListingFilters, "salesChannelIds">,
-  groups: Pick<ListingGroup, "seller" | "productId" | "offers">[]
+  groups: ListingGroup[]
 ): Promise<Map<string, ListingDeal[]>> {
   const deals = new Map<string, ListingDeal[]>()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -439,6 +364,7 @@ async function dealsOf(
       "code",
       "type",
       "seller.id",
+      "rules.attribute",
       "application_method.type",
       "application_method.value",
       "application_method.currency_code",
@@ -454,7 +380,8 @@ async function dealsOf(
       sellerIds.has(p.seller.id) &&
       p.application_method &&
       p.application_method.target_type !== ApplicationMethodTargetType.SHIPPING_METHODS &&
-      (!p.application_method.currency_code || p.application_method.currency_code === region.currency_code)
+      (!p.application_method.currency_code || p.application_method.currency_code === region.currency_code) &&
+      (p.rules ?? []).every((r) => PAGE_WIDE_RULES.has(r.attribute))
   )
   const withDeals = groups.filter((g) => promotions.some((p) => p.seller!.id === g.seller.id))
   if (!withDeals.length) return deals
@@ -465,85 +392,141 @@ async function dealsOf(
     filters: { id: [...new Set(withDeals.map((g) => g.productId))] },
   })
   const products = new Map((productRows as unknown as DealProduct[]).map((p) => [p.id, p]))
-  const promotionModule = scope.resolve(Modules.PROMOTION)
-  await Promise.all(
-    withDeals.map(async (group) => {
-      const product = products.get(group.productId)
-      if (!product) return
-      const context = {
-        currency_code: region.currency_code,
-        region_id: region.id,
-        region: { id: region.id },
-        sales_channel_id: filters.salesChannelIds[0],
-        shipping_address: { country_code: region.countries[0] },
-        items: group.offers.map((offer) => {
-          const amount = Number(offer.calculated_price.calculated_amount)
-          return {
-            id: offer.id,
-            quantity: 1,
-            subtotal: amount,
-            original_total: amount,
-            is_discountable: true,
-            product_id: product.id,
-            variant_id: offer.variant_id,
-            metadata: { offer_id: offer.id },
-            product: {
-              id: product.id,
-              collection_id: product.collection_id,
-              type_id: product.type_id,
-              categories: product.categories ?? [],
-              tags: product.tags ?? [],
-            },
-          }
-        }),
-        shipping_methods: [],
+  const groupOfOffer = new Map(withDeals.flatMap((g) => g.offers.map((o) => [o.id, g] as const)))
+  const items = withDeals.flatMap((group) => {
+    const product = products.get(group.productId)
+    if (!product) return []
+    return group.offers.map((offer) => {
+      const amount = Number(offer.calculated_price.calculated_amount)
+      return {
+        id: offer.id,
+        quantity: 1,
+        subtotal: amount,
+        original_total: amount,
+        is_discountable: true,
+        product_id: product.id,
+        variant_id: offer.variant_id,
+        metadata: { offer_id: offer.id },
+        product: {
+          id: product.id,
+          collection_id: product.collection_id,
+          type_id: product.type_id,
+          categories: product.categories ?? [],
+          tags: product.tags ?? [],
+        },
       }
-      const actions = await promotionModule.computeActions([], context as unknown as ComputeActionContext)
-      const applied = new Set(actions.filter((a) => a.action === ComputedActions.ADD_ITEM_ADJUSTMENT).map((a) => a.code))
-      const own = promotions.filter((p) => p.seller!.id === group.seller.id && applied.has(p.code))
-      deals.set(
-        dealKey(group.seller.id, group.productId),
-        own.map((p) => ({
-          promotion_id: p.id,
-          type: p.application_method!.type,
-          value: Number(p.application_method!.value),
-          allocation: p.application_method!.allocation,
-          currency_code: p.application_method!.currency_code ?? region.currency_code,
-        }))
-      )
     })
-  )
+  })
+  const context = {
+    currency_code: region.currency_code,
+    region_id: region.id,
+    region: { id: region.id },
+    sales_channel_id: filters.salesChannelIds[0],
+    shipping_address: { country_code: region.countries[0] },
+    items,
+    shipping_methods: [],
+  }
+  const actions = await scope.resolve(Modules.PROMOTION).computeActions([], context as unknown as ComputeActionContext)
+
+  const byCode = new Map(promotions.map((p) => [p.code, p]))
+  for (const action of actions) {
+    if (action.action !== ComputedActions.ADD_ITEM_ADJUSTMENT) continue
+    const group = groupOfOffer.get(action.item_id)
+    const promotion = byCode.get(action.code)
+    // Only a shop's own promotions badge its listings.
+    if (!group || promotion?.seller!.id !== group.seller.id) continue
+    const key = dealKey(group.seller.id, group.productId)
+    const listed = deals.get(key) ?? []
+    if (listed.some((d) => d.promotion_id === promotion.id)) continue
+    deals.set(key, [
+      ...listed,
+      {
+        promotion_id: promotion.id,
+        type: promotion.application_method!.type,
+        value: Number(promotion.application_method!.value),
+        allocation: promotion.application_method!.allocation,
+        currency_code: promotion.application_method!.currency_code ?? region.currency_code,
+      },
+    ])
+  }
   return deals
 }
 
 /**
- * Listings visible in a region, one per shop and product, in the documented order. Offers are
- * grouped and ordered before paging, so a page never splits a listing; fine at v1 catalogue sizes.
+ * Listings visible in a region, one per shop and product, in the documented order (ADR 0011), a
+ * page at a time; with how many listings match in all, and from how many shops (search's counts).
  */
 export async function listListings(
   scope: MedusaContainer,
   filters: ListingFilters,
   page: { limit: number; offset: number }
-): Promise<{ listings: Listing[]; count: number }> {
+): Promise<{ listings: Listing[]; count: number; shopCount: number }> {
   const region = await loadRegion(scope, filters.regionId)
-  const { sellers, titles, offers } = await pricedOffers(scope, region, filters)
-  const groups = orderListings(groupListings(sellers, titles, offers), filters.search)
-  const pageGroups = groups.slice(page.offset, page.offset + page.limit)
-  if (!pageGroups.length) return { listings: [], count: groups.length }
+  const ranked = await rankListingPage(scope, await rankingFiltersOf(scope, region, filters), page)
+  const groups = await groupsOf(scope, region, ranked.listings)
+  return { listings: await listingsOf(scope, region, filters, groups), count: ranked.count, shopCount: ranked.shopCount }
+}
 
+/** The groups as listings, with their products and deals. */
+async function listingsOf(
+  scope: MedusaContainer,
+  region: Region,
+  filters: Pick<ListingFilters, "salesChannelIds">,
+  groups: ListingGroup[]
+): Promise<Listing[]> {
+  if (!groups.length) return []
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "product",
     fields: ["id", "title", "handle", "thumbnail"],
-    filters: { id: [...new Set(pageGroups.map((g) => g.productId))] },
+    filters: { id: [...new Set(groups.map((g) => g.productId))] },
   })
   const products = new Map((data as ListingProduct[]).map((p) => [p.id, p]))
-  const deals = await dealsOf(scope, region, filters, pageGroups)
+  const deals = await dealsOf(scope, region, filters, groups)
+  return groups.map((g) => toListing(g, products.get(g.productId)!, deals.get(dealKey(g.seller.id, g.productId)) ?? []))
+}
+
+/** How many listings each shop on Home shows: its first in feed order. */
+const LISTINGS_PER_SHOP = 3
+
+/** A listing within its shop on Home, which already names the shop. */
+export type ShopListing = Omit<Listing, "seller">
+
+/** A shop on Home: its header, its top listings in feed order, and how many listings it has. */
+export type ShopWithListings = ListingSeller & { listings: ShopListing[]; listing_count: number }
+
+/**
+ * Shops serving the region, each once, in the order their first listings come in the feed
+ * (ADR 0011, 0014), a page at a time; each with its first few listings.
+ */
+export async function listShops(
+  scope: MedusaContainer,
+  filters: Pick<ListingFilters, "regionId" | "salesChannelIds" | "categoryId" | "deliveringTo">,
+  page: { limit: number; offset: number }
+): Promise<{ shops: ShopWithListings[]; count: number }> {
+  const region = await loadRegion(scope, filters.regionId)
+  const ranked = await rankShopPage(scope, await rankingFiltersOf(scope, region, filters), page, LISTINGS_PER_SHOP)
+  const sellers = await sellerRows(scope, new Map(ranked.shops.map((s) => [s.seller_id, s.exact_km])))
+  const groups = await groupsOf(
+    scope,
+    region,
+    ranked.shops.flatMap((s) => s.listings),
+    sellers
+  )
+  const listings = await listingsOf(scope, region, filters, groups)
   return {
-    listings: pageGroups.map((g) =>
-      toListing(g, products.get(g.productId)!, deals.get(dealKey(g.seller.id, g.productId)) ?? [])
-    ),
-    count: groups.length,
+    count: ranked.count,
+    shops: ranked.shops.flatMap((s) => {
+      const seller = sellers.get(s.seller_id)
+      if (!seller) return []
+      return [
+        {
+          ...toListingSeller(seller),
+          listing_count: s.listing_count,
+          listings: listings.filter((l) => l.seller.id === s.seller_id).map(({ seller: _, ...listing }) => listing),
+        },
+      ]
+    }),
   }
 }
 
@@ -553,8 +536,8 @@ export async function retrieveListing(
   filters: ListingFilters & { sellerId: string; productId: string }
 ): Promise<Listing<ListingProductDetail>> {
   const region = await loadRegion(scope, filters.regionId)
-  const { sellers, titles, offers } = await pricedOffers(scope, region, filters)
-  const [group] = groupListings(sellers, titles, offers)
+  const ranked = await rankListingPage(scope, await rankingFiltersOf(scope, region, filters), { limit: 1, offset: 0 })
+  const [group] = await groupsOf(scope, region, ranked.listings)
   if (!group) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop doesn't sell that product in your region")
   }
@@ -629,8 +612,16 @@ export async function retrieveShop(
   filters: Pick<ListingFilters, "regionId" | "deliveringTo"> & { sellerId: string }
 ): Promise<Shop> {
   const region = await loadRegion(scope, filters.regionId)
-  const seller = (await sellersServing(scope, region, filters.sellerId, filters.deliveringTo)).get(filters.sellerId)
-  if (!seller) throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop isn't selling in your region")
+  if (!(await isLive(scope, filters.sellerId))) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop isn't selling in your region")
+  }
+  const km = await shopDistancesKm(scope, [filters.sellerId], filters.deliveringTo)
+  const sellers = await sellerRows(scope, new Map([[filters.sellerId, km.get(filters.sellerId) ?? null]]))
+  const seller = sellers.get(filters.sellerId)
+  const country = seller?.address?.country_code?.toLowerCase()
+  if (!seller || !country || !region.countries.includes(country)) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "This shop isn't selling in your region")
+  }
   return { ...toListingSeller(seller), description: seller.description }
 }
 

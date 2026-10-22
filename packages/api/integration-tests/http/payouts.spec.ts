@@ -64,7 +64,6 @@ medusaIntegrationTestRunner({
       const { cartId, reference } = await buyer.paidCheckout()
       const orderId = await buyer.shopOrderId(GROCERY, cartId)
       await post(GROCERY, `${orderId}/accept`)
-      await post(GROCERY, `${orderId}/start-picking`)
       const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
       for (const line of pick_list.lines) await post(GROCERY, `${orderId}/pick-list/${line.id}`, { picked: line.quantity })
       await post(GROCERY, `${orderId}/pack`)
@@ -266,6 +265,15 @@ medusaIntegrationTestRunner({
         // Staff can still refund the delivery fee, which the shop's refunds never touched.
         await refundDelivery(orderId)
         expect((await refundsOf(orderId)).map((r) => r.covers)).toEqual(["items", "items", "delivery"])
+      })
+
+      it("shows the buyer a refund of delivery as its amount alone: it is for no lines (#61)", async () => {
+        const { orderId, cartId } = await bookedOrder()
+
+        await refundDelivery(orderId, { amount: 500 })
+
+        const { order_group } = (await api.get(`/store/order-history/${await buyer.orderGroupOf(cartId)}`, buyer.ada())).data
+        expect(order_group.orders.find((o: any) => o.id === orderId).refunds).toEqual([{ amount: 500, status: "pending", lines: null }])
       })
 
       it("lets Oja's staff refund delivery, up to the delivery fee less what was refunded of it already", async () => {

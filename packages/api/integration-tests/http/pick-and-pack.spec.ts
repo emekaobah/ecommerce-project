@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import seedDemoData from "../../src/scripts/seed"
+import { overrideProductPerishable } from "../../src/lib/perishable"
 import { buyerCheckout, GADGETS, GROCERY, LANTERN, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
@@ -41,27 +42,23 @@ medusaIntegrationTestRunner({
     const post = async (shop: Shop, path: string, body = {}) => api.post(`/vendor/orders/${path}`, body, await buyer.owner(shop))
     const get = async (shop: Shop, path: string) => (await api.get(`/vendor/orders/${path}`, await buyer.owner(shop))).data
     const accept = (orderId: string) => post(GROCERY, `${orderId}/accept`)
-    const startPicking = (orderId: string, shop = GROCERY) => post(shop, `${orderId}/start-picking`)
     const pickList = (orderId: string, shop = GROCERY) => get(shop, `${orderId}/pick-list`)
     const pick = (orderId: string, itemId: string, picked: number, shop = GROCERY) =>
       post(shop, `${orderId}/pick-list/${itemId}`, { picked })
     const pack = (orderId: string, shop = GROCERY) => post(shop, `${orderId}/pack`)
     const state = async (orderId: string) => (await get(GROCERY, orderId)).order.fulfilment.state
-    /** An accepted order the shop has started picking, and its one line. */
+    /** An accepted order, which the shop is picking, and its one line. */
     const picking = async () => {
       const orderId = await groceryOrder()
       await accept(orderId)
-      await startPicking(orderId)
       const { pick_list } = await pickList(orderId)
       return { orderId, itemId: pick_list.lines[0].id as string }
     }
-
     describe("starting to pick", () => {
-      it("moves an accepted order to picking, with a checklist of its lines and nothing picked", async () => {
+      it("starts when the order is accepted, with a checklist of its lines, each unit's refund, and nothing picked", async () => {
         const orderId = await groceryOrder()
-        await accept(orderId)
 
-        const { data } = await startPicking(orderId)
+        const { data } = await accept(orderId)
 
         expect(data.fulfilment.state).toBe("picking")
         expect(await state(orderId)).toBe("picking")
@@ -74,6 +71,8 @@ medusaIntegrationTestRunner({
               variant_title: RICE.title,
               thumbnail: expect.any(String),
               quantity: 2,
+              unit_refund: RICE.price,
+              perishable: false,
               picked: 0,
               unavailable: 0,
               codes: [RICE.barcode],
@@ -85,11 +84,15 @@ medusaIntegrationTestRunner({
         })
       })
 
-      it("refuses an order that isn't accepted", async () => {
-        const orderId = await groceryOrder()
-
-        expect(await status(startPicking(orderId))).toBe(400)
-        expect(await state(orderId)).toBe("new")
+      it("tags a fresh or chilled line perishable", async () => {
+        const { orderId } = await picking()
+        const [line] = (await get(GROCERY, orderId)).order.items
+        await overrideProductPerishable(getContainer(), line.product_id, true)
+        try {
+          expect((await pickList(orderId)).pick_list.lines[0].perishable).toBe(true)
+        } finally {
+          await overrideProductPerishable(getContainer(), line.product_id, null)
+        }
       })
     })
 
@@ -130,7 +133,6 @@ medusaIntegrationTestRunner({
 
       it("refuses picks while the order isn't being picked", async () => {
         const orderId = await groceryOrder()
-        await accept(orderId)
         const itemId = (await pickList(orderId)).pick_list.lines[0].id
 
         expect(await status(pick(orderId, itemId, 1))).toBe(400)
@@ -158,12 +160,11 @@ medusaIntegrationTestRunner({
         expect((await pickList(orderId)).pick_list.progress.done).toBe(true)
       })
 
-      it("refuses an accepted order not yet picked", async () => {
+      it("refuses an order not yet accepted", async () => {
         const orderId = await groceryOrder()
-        await accept(orderId)
 
         expect(await status(pack(orderId))).toBe(400)
-        expect(await state(orderId)).toBe("accepted")
+        expect(await state(orderId)).toBe("new")
       })
     })
 
@@ -174,7 +175,6 @@ medusaIntegrationTestRunner({
       const itemId = (await pickList(gadgets, GADGETS)).pick_list.lines[0].id
       expect((await pickList(gadgets, GADGETS)).pick_list.lines[0].codes).toEqual([LANTERN.barcode])
 
-      expect(await status(startPicking(gadgets, GROCERY))).toBe(404)
       expect(await status(pickList(gadgets, GROCERY))).toBe(404)
       expect(await status(pick(gadgets, itemId, 1, GROCERY))).toBe(404)
       expect(await status(pack(gadgets, GROCERY))).toBe(404)

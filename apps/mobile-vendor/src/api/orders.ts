@@ -17,6 +17,10 @@ export const orderKeys = {
 const ORDER_FIELDS =
   '+total,+credit_line_total,+created_at,+items.product_title,+items.quantity,+billing_address.first_name,+billing_address.last_name';
 
+// A list row shows only the order's number, what the buyer paid, its lines and its fulfilment
+// (which the API adds), so a list asks for those alone, not Mercur's heavy order defaults (#69).
+const LIST_FIELDS = 'id,display_id,currency_code,total,credit_line_total,items.product_title,items.quantity';
+
 /**
  * What the buyer paid for the order. A refund adds a credit line that takes the refunded
  * amount off the order's `total` (what is still owed), so a refunded order's total is 0.
@@ -33,7 +37,7 @@ export type OrderFulfilment = Awaited<ReturnType<typeof acceptOrder>>['fulfilmen
 type WithFulfilment<T> = T & { fulfilment: OrderFulfilment };
 
 async function fetchOrders() {
-  const { orders } = await vendorClient.vendor.orders.query({ limit: 50, order: '-created_at', fields: ORDER_FIELDS });
+  const { orders } = await vendorClient.vendor.orders.query({ limit: 50, order: '-created_at', fields: LIST_FIELDS });
   return orders as WithFulfilment<(typeof orders)[number]>[];
 }
 
@@ -60,7 +64,7 @@ export function useOrders(sellerId: string | undefined) {
 async function fetchReadyOrders() {
   const { order_ids } = await vendorClient.vendor.readyForPickup.query();
   if (!order_ids.length) return [];
-  const { orders } = await vendorClient.vendor.orders.query({ id: order_ids, limit: order_ids.length, fields: ORDER_FIELDS });
+  const { orders } = await vendorClient.vendor.orders.query({ id: order_ids, limit: order_ids.length, fields: LIST_FIELDS });
   const byId = new Map((orders as WithFulfilment<(typeof orders)[number]>[]).map((o) => [o.id, o]));
   // Longest waiting first, as the server lists them.
   return order_ids.flatMap((id) => byId.get(id) ?? []);
@@ -131,15 +135,6 @@ export function useCancelOrder(orderId: string) {
   return useMutation({
     mutationFn: (request: CancelRequest) =>
       vendorClient.vendor.orders.$id.cancel.mutate({ $id: orderId, ...request }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
-  });
-}
-
-/** Starts picking an accepted order; staff then work through its pick list. */
-export function useStartPicking(orderId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => vendorClient.vendor.orders.$id.startPicking.mutate({ $id: orderId }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
   });
 }

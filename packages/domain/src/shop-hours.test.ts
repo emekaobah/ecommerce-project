@@ -10,6 +10,7 @@ import {
   openTimeBetween,
   shopStatus,
   shopStatusLabel,
+  todaysHours,
   type ShopHours,
   type ShopStatus,
 } from "./shop-hours"
@@ -244,8 +245,37 @@ describe("shopStatus", () => {
   const iso = (local: string) => lagos(local).toISOString()
   const away = { starts_on: "2026-10-08", ends_on: "2026-10-10", closed: true, periods: [], note: "Family event" }
 
-  test("open during its hours", () => {
-    expect(shopStatus(SHOP, lagos("2026-10-05T10:00:00"))).toEqual({ state: "open" })
+  test("open during its hours, with when it closes today", () => {
+    expect(shopStatus(SHOP, lagos("2026-10-05T10:00:00"))).toEqual({ state: "open", closes_at: iso("2026-10-05T18:00:00") })
+  })
+
+  test("open past midnight: closes when the hours running on into the next day end", () => {
+    const lateNights = { ...SHOP.weekly, fri: [{ opens: "18:00", closes: "24:00" }], sat: [{ opens: "00:00", closes: "02:00" }] }
+    expect(shopStatus({ ...SHOP, weekly: lateNights }, lagos("2026-10-09T23:00:00"))).toEqual({
+      state: "open",
+      closes_at: iso("2026-10-10T02:00:00"),
+    })
+  })
+
+  test("a day's special hours set its closing time", () => {
+    const longDay = { starts_on: "2026-10-06", ends_on: "2026-10-06", closed: false, periods: [{ opens: "08:00", closes: "21:00" }], note: null }
+    expect(shopStatus({ ...SHOP, exceptions: [longDay] }, lagos("2026-10-06T10:00:00"))).toEqual({
+      state: "open",
+      closes_at: iso("2026-10-06T21:00:00"),
+    })
+  })
+
+  test("a pause starting later today closes it then", () => {
+    const pause = { starts_at: iso("2026-10-05T15:00:00"), ends_at: iso("2026-10-05T16:00:00") }
+    expect(shopStatus({ ...SHOP, pauses: [pause] }, lagos("2026-10-05T10:00:00"))).toEqual({
+      state: "open",
+      closes_at: iso("2026-10-05T15:00:00"),
+    })
+  })
+
+  test("open round the clock: no closing time", () => {
+    const always = Object.fromEntries(Object.keys(SHOP.weekly).map((day) => [day, [{ opens: "00:00", closes: "24:00" }]])) as ShopHours["weekly"]
+    expect(shopStatus({ ...SHOP, weekly: always }, lagos("2026-10-05T10:00:00"))).toEqual({ state: "open", closes_at: null })
   })
 
   test("outside regular hours: closed, with when it opens, and still taking orders", () => {
@@ -269,7 +299,10 @@ describe("shopStatus", () => {
   })
 
   test("a closed exception still to come doesn't close the shop yet", () => {
-    expect(shopStatus({ ...SHOP, exceptions: [away] }, lagos("2026-10-07T10:00:00"))).toEqual({ state: "open" })
+    expect(shopStatus({ ...SHOP, exceptions: [away] }, lagos("2026-10-07T10:00:00"))).toEqual({
+      state: "open",
+      closes_at: iso("2026-10-07T18:00:00"),
+    })
   })
 
   test("paused: closed until the pause ends and the shop next opens, not taking orders", () => {
@@ -291,7 +324,62 @@ describe("shopStatus", () => {
 
   test("a pause that has ended no longer counts", () => {
     const pause = { starts_at: iso("2026-10-05T09:00:00"), ends_at: iso("2026-10-05T09:30:00") }
-    expect(shopStatus({ ...SHOP, pauses: [pause] }, lagos("2026-10-05T10:00:00"))).toEqual({ state: "open" })
+    expect(shopStatus({ ...SHOP, pauses: [pause] }, lagos("2026-10-05T10:00:00"))).toEqual({
+      state: "open",
+      closes_at: iso("2026-10-05T18:00:00"),
+    })
+  })
+})
+
+describe("todaysHours", () => {
+  const iso = (local: string) => lagos(local).toISOString()
+
+  test("a regular day: its weekday's hours", () => {
+    expect(todaysHours(SHOP, lagos("2026-10-05T10:00:00"))).toEqual({
+      date: "2026-10-05",
+      periods: [{ opens: "08:00", closes: "18:00" }],
+      closure: null,
+    })
+  })
+
+  test("a day it doesn't open: no hours, and no closure", () => {
+    expect(todaysHours(SHOP, lagos("2026-10-11T10:00:00"))).toEqual({ date: "2026-10-11", periods: [], closure: null })
+  })
+
+  test("a day it closed: no hours, with the closure's note", () => {
+    const away = { starts_on: "2026-10-04", ends_on: "2026-10-06", closed: true, periods: [], note: "Family event" }
+    expect(todaysHours({ ...SHOP, exceptions: [away] }, lagos("2026-10-05T10:00:00"))).toEqual({
+      date: "2026-10-05",
+      periods: [],
+      closure: { reason: "exception", note: "Family event" },
+    })
+  })
+
+  test("a day of special hours: those hours", () => {
+    const shortDay = { starts_on: "2026-10-05", ends_on: "2026-10-05", closed: false, periods: [{ opens: "12:00", closes: "15:00" }], note: "Stocktake" }
+    expect(todaysHours({ ...SHOP, exceptions: [shortDay] }, lagos("2026-10-05T10:00:00")).periods).toEqual([{ opens: "12:00", closes: "15:00" }])
+  })
+
+  test("a pause today: the hours it leaves open, with the pause's note", () => {
+    const pause = { starts_at: iso("2026-10-05T09:00:00"), ends_at: iso("2026-10-05T11:30:00"), note: "Power cut" }
+    expect(todaysHours({ ...SHOP, pauses: [pause] }, lagos("2026-10-05T10:00:00"))).toEqual({
+      date: "2026-10-05",
+      periods: [
+        { opens: "08:00", closes: "09:00" },
+        { opens: "11:30", closes: "18:00" },
+      ],
+      closure: { reason: "pause", note: "Power cut" },
+    })
+  })
+
+  test("a pause on another day doesn't touch today", () => {
+    const pause = { starts_at: iso("2026-10-06T09:00:00"), ends_at: null }
+    expect(todaysHours({ ...SHOP, pauses: [pause] }, lagos("2026-10-05T10:00:00")).closure).toBeNull()
+  })
+
+  test("hours running to midnight end at 24:00", () => {
+    const late = { ...SHOP.weekly, mon: [{ opens: "18:00", closes: "24:00" }] }
+    expect(todaysHours({ ...SHOP, weekly: late }, lagos("2026-10-05T10:00:00")).periods).toEqual([{ opens: "18:00", closes: "24:00" }])
   })
 })
 
@@ -325,8 +413,16 @@ describe("shopStatusLabel", () => {
     expect(label({ state: "closed", opens_at: null })).toBe("Closed")
   })
 
-  test("open", () => {
-    expect(label({ state: "open" })).toBe("Open")
+  test.each([
+    ["later today", "2026-10-05T21:30:00", "Open · closes 9:30pm"],
+    ["at midnight", "2026-10-06T00:00:00", "Open · closes midnight"],
+    ["after midnight", "2026-10-06T02:00:00", "Open · closes 2am Tue"],
+  ])("open, closing %s", (_, local, text) => {
+    expect(label({ state: "open", closes_at: lagos(local).toISOString() })).toBe(text)
+  })
+
+  test("open round the clock", () => {
+    expect(label({ state: "open", closes_at: null })).toBe("Open")
   })
 })
 

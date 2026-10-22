@@ -11,5 +11,5 @@ export type OrderFulfilmentResponse = { fulfilment: FulfilmentView }
  * `names`: members' names by id, for who handed the order over.
  */
 export const fulfilmentResponse = (record: FulfilmentRecord, names?: Map<string, string>): OrderFulfilmentResponse => ({
-  fulfilment: fulfilmentView(record, { placed_at: record.placed_at, method: record.fulfilment.method }, null, { names }),
+  fulfilment: fulfilmentView(record, undefined, null, { names }),
 })

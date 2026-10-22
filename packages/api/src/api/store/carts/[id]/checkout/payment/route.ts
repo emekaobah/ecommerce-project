@@ -7,8 +7,9 @@ export type StoreCheckoutPaymentResponse = CheckoutPaymentStart
 
 /**
  * Starts a Paystack payment for the prepared cart; the app opens `authorization_url`. When a
- * shop's price changed, nothing is started: `payment` is null and `price_changes` says what
- * changed, for the buyer to see before paying the new total.
+ * shop's price changed or a line sold out, nothing is started: `payment` is null, and
+ * `price_changes` and `stock_changes` say what changed, for the buyer to see before paying the
+ * new total.
  */
 export const POST = async (
   req: AuthenticatedMedusaRequest<StoreStartCheckoutPaymentType>,

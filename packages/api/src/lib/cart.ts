@@ -1,5 +1,6 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { availableQuantities } from "./availability"
 import { offerIdOf } from "./cart-lines"
 import { discountsByCode } from "./discount-funding"
 import { perishableProductIds } from "./perishable"
@@ -9,7 +10,8 @@ import { shopStatusesOf, type ShopStatusView } from "./shop-hours"
 // ships (and later becomes an order) on its own (docs/design.md). This reads the cart back
 // grouped; lines are priced and added in `cart-lines.ts`.
 
-export type CartSeller = { id: string; name: string; handle: string }
+/** The shop a cart group belongs to; `logo` and `banner` are null when it hasn't uploaded them. */
+export type CartSeller = { id: string; name: string; handle: string; logo: string | null; banner: string | null }
 
 export type CartItem = {
   id: string
@@ -35,6 +37,12 @@ export type CartItem = {
   discounts: CartDiscount[]
   /** Fresh or chilled: its shop delivers it only by the end of the next day (#69). */
   perishable: boolean
+  /**
+   * How many of its offer can still be ordered: 0 means sold out, below `quantity` means short.
+   * Null when the shop doesn't track the offer's stock, takes backorders, or the offer is gone.
+   * The line stays in the cart either way, and Medusa's totals still count it.
+   */
+  available_quantity: number | null
 }
 
 /** What one promo code (or automatic promotion) takes off a line. */
@@ -100,9 +108,14 @@ async function sellersByOffer(scope: MedusaContainer, offerIds: string[]): Promi
   const { data: offers } = await query.graph({ entity: "offer", fields: ["id", "seller_id"], filters: { id: offerIds } })
   const sellerIds = [...new Set((offers as { seller_id: string }[]).map((o) => o.seller_id))]
   const { data: sellers } = sellerIds.length
-    ? await query.graph({ entity: "seller", fields: ["id", "name", "handle"], filters: { id: sellerIds } })
+    ? await query.graph({ entity: "seller", fields: ["id", "name", "handle", "logo", "banner"], filters: { id: sellerIds } })
     : { data: [] }
-  const byId = new Map((sellers as CartSeller[]).map((s) => [s.id, { id: s.id, name: s.name, handle: s.handle }]))
+  const byId = new Map(
+    (sellers as unknown as CartSeller[]).map((s) => [
+      s.id,
+      { id: s.id, name: s.name, handle: s.handle, logo: s.logo ?? null, banner: s.banner ?? null },
+    ])
+  )
   const byOffer = new Map<string, CartSeller>()
   for (const offer of offers as { id: string; seller_id: string }[]) {
     const seller = byId.get(offer.seller_id)
@@ -111,7 +124,7 @@ async function sellersByOffer(scope: MedusaContainer, offerIds: string[]): Promi
   return byOffer
 }
 
-function toItem(row: ItemRow, offerId: string | null, perishable: boolean): CartItem {
+function toItem(row: ItemRow, offerId: string | null, perishable: boolean, available: number | null): CartItem {
   const quantity = Number(row.quantity)
   const unitPrice = Number(row.unit_price)
   return {
@@ -129,6 +142,7 @@ function toItem(row: ItemRow, offerId: string | null, perishable: boolean): Cart
     subtotal: unitPrice * quantity,
     discounts: discountsByCode(row),
     perishable,
+    available_quantity: available,
   }
 }
 
@@ -171,8 +185,10 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime() || a.id.localeCompare(b.id)
   )
   const offerIds = rows.map(offerIdOf)
-  const [sellers, perishable] = await Promise.all([
-    sellersByOffer(scope, [...new Set(offerIds.filter((id): id is string => !!id))]),
+  const liveOfferIds = [...new Set(offerIds.filter((id): id is string => !!id))]
+  const [sellers, available, perishable] = await Promise.all([
+    sellersByOffer(scope, liveOfferIds),
+    availableQuantities(scope, liveOfferIds),
     perishableProductIds(scope, rows.flatMap((r) => (r.product_id ? [r.product_id] : []))),
   ])
 
@@ -189,7 +205,9 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
       perishable: false,
       shop_status: null,
     }
-    group.items.push(toItem(row, offerId, !!row.product_id && perishable.has(row.product_id)))
+    group.items.push(
+      toItem(row, offerId, !!row.product_id && perishable.has(row.product_id), offerId ? (available.get(offerId) ?? null) : null)
+    )
     groups.set(key, group)
   })
   const statuses = await shopStatusesOf(scope, [...groups.values()].flatMap((g) => (g.seller ? [g.seller.id] : [])))

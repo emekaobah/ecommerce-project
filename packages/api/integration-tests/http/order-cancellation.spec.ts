@@ -89,7 +89,6 @@ medusaIntegrationTestRunner({
     /** The grocery's order accepted and being picked; returns its pick list. */
     const startPicking = async (orderId: string) => {
       await post(`${orderId}/accept`)
-      await post(`${orderId}/start-picking`)
       return pickList(orderId)
     }
     const reservationsOf = async (orderId: string) => {
@@ -117,8 +116,8 @@ medusaIntegrationTestRunner({
       })
 
       it("cancels it, refunds its whole share and returns its stock; the other shop's order keeps its payment", async () => {
-        const { reference, grocery, gadgets } = await paidOrders()
-        await startPicking(grocery)
+        const { cartId, reference, grocery, gadgets } = await paidOrders()
+        const [rice] = (await startPicking(grocery)).lines
         expect(await reservationsOf(grocery)).toHaveLength(1)
 
         const { data } = await cancel(grocery, { reason: "cannot_fulfil" })
@@ -132,6 +131,9 @@ medusaIntegrationTestRunner({
         expect(data.refund).toEqual({ amount: GROCERY_SHARE, status: "pending" })
         // One partial refund on the shared Paystack transaction, of the grocery's share alone (kobo).
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([GROCERY_SHARE * 100])
+        expect((await adasOrder(cartId, grocery)).refunds).toEqual([
+          { amount: GROCERY_SHARE, status: "pending", lines: [{ item_id: rice.id, quantity: rice.quantity }] },
+        ])
         expect(await reservationsOf(grocery)).toEqual([])
         const cancelled = await shopOrder(grocery)
         expect(cancelled.status).toBe("canceled")
@@ -147,7 +149,7 @@ medusaIntegrationTestRunner({
       })
 
       it("refunds only what is left once items were removed and refunded while picking", async () => {
-        const { reference, grocery } = await paidOrders()
+        const { cartId, reference, grocery } = await paidOrders()
         const [rice] = (await startPicking(grocery)).lines
         await post(`${grocery}/pick-list/${rice.id}/unavailable`, { quantity: 1 })
         await post(`${grocery}/remove-unavailable`)
@@ -156,6 +158,11 @@ medusaIntegrationTestRunner({
 
         expect(data.refund_amount).toBe(RICE.price + BEST_VALUE_FEE)
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([RICE.price * 100, (RICE.price + BEST_VALUE_FEE) * 100])
+        // Each refund names its own units: the bag removed, then the bag left on the order.
+        expect((await adasOrder(cartId, grocery)).refunds).toEqual([
+          { amount: RICE.price, status: "pending", lines: [{ item_id: rice.id, quantity: 1 }] },
+          { amount: RICE.price + BEST_VALUE_FEE, status: "pending", lines: [{ item_id: rice.id, quantity: 1 }] },
+        ])
         expect(await reservationsOf(grocery)).toEqual([])
       })
 
@@ -246,8 +253,8 @@ medusaIntegrationTestRunner({
 
     describe("a refund Paystack refuses", () => {
       it("leaves the order cancelled and owing its share, and the retry job refunds it", async () => {
-        const { reference, grocery } = await paidOrders()
-        await startPicking(grocery)
+        const { cartId, reference, grocery } = await paidOrders()
+        const [rice] = (await startPicking(grocery)).lines
         paystack.refuseRefunds("Insufficient balance")
 
         const { data } = await cancel(grocery)
@@ -270,6 +277,10 @@ medusaIntegrationTestRunner({
 
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([GROCERY_SHARE * 100])
         expect((await owedRefunds()).find((o) => o.order_id === grocery)).toBeUndefined()
+        // The retry is for the lines the refused refund was for.
+        expect((await adasOrder(cartId, grocery)).refunds).toEqual([
+          { amount: GROCERY_SHARE, status: "pending", lines: [{ item_id: rice.id, quantity: rice.quantity }] },
+        ])
       })
     })
 

@@ -1,11 +1,21 @@
+import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { deleteShippingOptionsWorkflow } from "@medusajs/medusa/core-flows"
 import { createSellerShippingOptionsWorkflow } from "@mercurjs/core/workflows"
-import { addressFormValues, addressFromForm, getAddressConfig, toE164, type AddressFieldKey, type WeeklyHours } from "@oja/domain"
+import {
+  addressFormValues,
+  addressFromForm,
+  getAddressConfig,
+  toE164,
+  type AddressFieldKey,
+  type Pin,
+  type WeeklyHours,
+} from "@oja/domain"
 import { COLLECTION_POINT_MODULE, type CollectionPointModuleService } from "../modules/collection-point"
 import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../modules/order-fulfilment"
 import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble"
+import { haversineKmSql } from "./sql"
 import type { PickupAddressInput } from "./onboarding"
 import { sellersWithHours, shopHoursOf } from "./shop-hours"
 
@@ -108,6 +118,31 @@ export async function collectionPlacesOf(scope: Scope, sellerIds: string[]): Pro
       return [sellerId, { ...point, weekly: shopHours?.weekly ?? null, time_zone: shopHours?.time_zone ?? null }]
     })
   )
+}
+
+/**
+ * Straight-line kilometres from `from` to each shop's collection point, unrounded: its own pin,
+ * or the shop's pickup pin while it follows the pickup address. Shops without one, or without a
+ * pin, are left out; none without a pin to measure from.
+ */
+export async function collectionPointDistancesKm(
+  scope: Scope,
+  sellerIds: string[],
+  from: Pin | null | undefined
+): Promise<Map<string, number>> {
+  if (!from || !sellerIds.length) return new Map()
+  const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
+  const pinned = (axis: "latitude" | "longitude") =>
+    `(CASE WHEN cp.follows_pickup_address THEN sp.${axis} ELSE (cp.address->'metadata'->>'${axis}')::double precision END)`
+  const km = haversineKmSql(from, { latitude: pinned("latitude"), longitude: pinned("longitude") })
+  const rows = (await knex("collection_point as cp")
+    .leftJoin("shop_pin as sp", function () {
+      this.on("sp.seller_id", "cp.seller_id").andOnNull("sp.deleted_at")
+    })
+    .select("cp.seller_id", knex.raw(`${km} AS km`))
+    .whereNull("cp.deleted_at")
+    .whereRaw("cp.seller_id = ANY(?)", [sellerIds])) as unknown as { seller_id: string; km: number | string | null }[]
+  return new Map(rows.flatMap((r) => (r.km == null ? [] : [[r.seller_id, Number(r.km)] as const])))
 }
 
 /** What the vendor panel's form shows: the shop's collection point, and whether it may set one. */

@@ -155,7 +155,8 @@ export async function resolveRefundAccount(
  * Retries the buyer's refund to the bank account they confirmed (#13), holding the order's
  * refund lock so Oja's team can't take it over meanwhile. Paystack queues it again, and its
  * `refund.*` webhooks carry on from there. The refund keeps the bank and the account number's
- * last 4 digits; the number itself goes to Paystack only.
+ * last 4 digits; the number itself goes to Paystack only. No longer waiting on the buyer, the
+ * order may move to the past (#59).
  */
 export async function retryRefundToAccount(
   scope: Scope,
@@ -180,12 +181,14 @@ export async function retryRefundToAccount(
         .warn(`Paystack refused retrying refund ${refund.id} to the buyer's account at ${bank.name} (${error instanceof PaystackRequestError ? error.status : "no status"})`)
       throw accountError(error, bank.name)
     }
-    await fulfilmentService(scope).updateOrderRefunds({
-      id: refund.id,
-      status: retried.status,
-      account_bank_name: bank.name,
-      account_last4: input.account_number.slice(-4),
-    })
+    await fulfilmentService(scope).changeRefunds([
+      {
+        id: refund.id,
+        status: retried.status,
+        account_bank_name: bank.name,
+        account_last4: input.account_number.slice(-4),
+      },
+    ])
   })
   return buyerRefundAccountView(scope, customerId, refundId)
 }
@@ -194,11 +197,13 @@ export async function retryRefundToAccount(
  * Hands a refund the buyer gave no bank account for to Oja's team (#13), under the order's
  * refund lock so a retry the buyer sends meanwhile wins. It joins what the order owes its buyer
  * by hand (#16's Owed refunds): the admin is notified and the buyer told the team is sending it.
+ * No longer waiting on the buyer, the order may move to the past (#59).
  */
 async function handOverUnanswered(scope: Scope, refundId: string, orderId: string, now: Date): Promise<void> {
   await scope.resolve<ILockingModule>(Modules.LOCKING).execute(refundLockKey(orderId), async () => {
     const [refund] = await fulfilmentService(scope).listOrderRefunds({ id: refundId })
-    if (refund && needsAccount(refund)) await fulfilmentService(scope).updateOrderRefunds({ id: refundId, handed_over_at: now })
+    if (!refund || !needsAccount(refund)) return
+    await fulfilmentService(scope).changeRefunds([{ id: refundId, handed_over_at: now }])
   })
   await handOverOwedRefundsOf(scope, [orderId])
 }

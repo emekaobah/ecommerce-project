@@ -5,7 +5,8 @@ import { refundOrderShareWorkflow } from "../workflows/order-fulfilment/workflow
 import { rejectOrderWorkflow } from "../workflows/order-fulfilment/workflows/reject-order"
 import { remindAcceptDeadlineWorkflow } from "../workflows/order-fulfilment/workflows/remind-accept-deadline"
 import { errorMessage } from "./errors"
-import { asFulfilmentRecord, fulfilmentService, orderMoney, paymentsOfOrder, sellersOfOrders, type FulfilmentRecord } from "./order-fulfilment"
+import { asFulfilmentRecord, fulfilmentService, orderMoney, paymentsOfOrder, type FulfilmentRecord } from "./order-fulfilment"
+import { unitsOnOrder } from "./order-picking"
 import { refundPlan } from "./order-refund"
 import { shopHoursOf } from "./shop-hours"
 import { refundUnplacedPayment } from "./unplaced-checkout"
@@ -35,8 +36,15 @@ export async function rejectAndRefund(scope: Scope, input: { order_id: string; a
 async function refundRejected(scope: Scope, orderId: string, actor: string | undefined, reason: string) {
   try {
     await refundOrderShareWorkflow(scope as MedusaContainer).run({
-      // Nobody is paid for a rejected order: all of its share is refunded, delivery fee and all.
-      input: { order_id: orderId, covers: "all", created_by: actor, note: `Order rejected: ${reason}` },
+      // Nobody is paid for a rejected order: all of its share is refunded, delivery fee and all,
+      // for every line on it (#61).
+      input: {
+        order_id: orderId,
+        covers: "all",
+        lines: await unitsOnOrder(scope, orderId),
+        created_by: actor,
+        note: `Order rejected: ${reason}`,
+      },
     })
     return true
   } catch (error) {
@@ -47,9 +55,8 @@ async function refundRejected(scope: Scope, orderId: string, actor: string | und
 
 /** Each waiting order's shop's hours, which its accept deadline counts in (ADR 0004); null for a shop without them. */
 async function hoursOfOrders(scope: Scope, rows: FulfilmentRecord[], now: Date) {
-  const sellers = await sellersOfOrders(scope, rows.map((r) => r.order_id))
-  const hours = await shopHoursOf(scope, [...sellers.values()], now)
-  return (row: FulfilmentRecord) => hours.get(sellers.get(row.order_id) ?? "") ?? null
+  const hours = await shopHoursOf(scope, [...new Set(rows.flatMap((r) => (r.seller_id ? [r.seller_id] : [])))], now)
+  return (row: FulfilmentRecord) => (row.seller_id && hours.get(row.seller_id)) || null
 }
 
 /**

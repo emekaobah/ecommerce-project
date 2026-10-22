@@ -71,7 +71,6 @@ medusaIntegrationTestRunner({
     /** Takes the grocery's order all the way: accepted, picked, packed, handed to the courier and delivered. */
     const deliver = async (orderId: string) => {
       await vendor(GROCERY, `orders/${orderId}/accept`)
-      await vendor(GROCERY, `orders/${orderId}/start-picking`)
       const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
       for (const line of pick_list.lines) await vendor(GROCERY, `orders/${orderId}/pick-list/${line.id}`, { picked: line.quantity })
       await vendor(GROCERY, `orders/${orderId}/pack`)
@@ -294,6 +293,33 @@ medusaIntegrationTestRunner({
         expect(order.reviews).toEqual([
           expect.objectContaining({ id: shopReview.id, reference: "seller", rating: 4, status: "pending" }),
         ])
+      })
+    })
+
+    // The Account screen's "My reviews · 3 reviews · 1 order to review" (#73).
+    describe("the account summary", () => {
+      it("counts the reviews the buyer wrote, and their received orders with something still to review", async () => {
+        const counts = async (who: Buyer = buyer) => {
+          const { summary } = (await api.get("/store/customers/me/summary", who.ada())).data
+          return [summary.reviews_written, summary.orders_to_review]
+        }
+        // Two checkouts, each with the grocery's order delivered and the gadget hub's not yet.
+        const first = await deliveredGrocery()
+        await deliveredGrocery()
+
+        const received = await counts()
+        await reviewShop(first.grocery, GROCERY)
+        // Both grocery orders still have the rice to review.
+        const shopReviewed = await counts()
+        // One review of each shop and product, whichever order: the later order has nothing left either.
+        await reviewProduct(first.grocery, RICE.title)
+
+        expect([received, shopReviewed, await counts()]).toEqual([
+          [0, 2],
+          [1, 2],
+          [2, 0],
+        ])
+        expect(await counts(ben)).toEqual([0, 0])
       })
     })
 

@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { updateSellerAddressWorkflow } from "@mercurjs/core/workflows"
 import { MercurModules } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
@@ -14,6 +15,7 @@ process.env.CLERK_JWT_KEY = clerk.jwtKey
 
 const LANTERN = SEED_PRODUCTS.find((p) => p.title === "Rechargeable LED Lantern")!
 const KAFTAN = SEED_PRODUCTS.find((p) => p.title === "Adire Kaftan")!
+const RICE = SEED_PRODUCTS.find((p) => p.title === "Ofada Rice 5kg")!
 
 medusaIntegrationTestRunner({
   inApp: true,
@@ -329,6 +331,44 @@ medusaIntegrationTestRunner({
         expect(JSON.stringify([shop, product])).not.toContain(String(SEED_SELLERS[0].pickup.latitude))
       })
 
+      it("pages through every band in one stable order, each listing once", async () => {
+        const ada = buyer("ada-pages@oja.test")
+        const addressId = await savedAddress(ada, NEAR_IKEJA)
+        await shipsIn("Adire House", 0)
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+        const key = (l: any) => `${l.seller.id}:${l.product.id}`
+
+        const all = (await listAs(ada, { address_id: addressId })).data
+        const paged: any[] = []
+        for (let offset = 0; offset < all.count; offset += 3) {
+          const { data } = await listAs(ada, { address_id: addressId, limit: 3, offset })
+          expect(data.count).toBe(all.count)
+          paged.push(...data.listings)
+        }
+
+        expect(shopOrder(all.listings)).toEqual(["Ikeja Gadget Hub", "Iya Bisi Foodstuff", "Adire House"])
+        expect(paged.map(key)).toEqual(all.listings.map(key))
+        expect(new Set(paged.map(key)).size).toBe(all.count)
+      })
+
+      it("measures from where the shop moved its pickup pin", async () => {
+        const ada = buyer("ada-shop-moved@oja.test")
+        const addressId = await savedAddress(ada, NEAR_IKEJA)
+        const adire = await sellerId("Adire House")
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: rows } = await query.graph({ entity: "seller", fields: ["address.metadata"], filters: { id: adire } })
+        // Next door to the buyer, as the vendor panel's pickup address routes save it.
+        await updateSellerAddressWorkflow(getContainer()).run({
+          input: { seller_id: adire, data: { metadata: { ...rows[0].address.metadata, latitude: 6.591, longitude: 3.345 } } },
+        })
+
+        const { data } = await listAs(ada, { address_id: addressId })
+
+        expect(data.listings.find((l: any) => l.seller.id === adire).seller.distance_km).toBe(0)
+        expect(shopOrder(data.listings)[0]).toBe("Adire House")
+      })
+
       it("keeps today's order, with no distance, without an address", async () => {
         const ada = buyer("ada-no-address@oja.test")
         await shipsIn("Adire House", 0)
@@ -360,6 +400,113 @@ medusaIntegrationTestRunner({
           expect(data.listings.every((l: any) => l.seller.distance_km === null)).toBe(true)
         }
         expect(shop.distance_km).toBeNull()
+      })
+    })
+
+    describe("shop logos and banners", () => {
+      const LOGO = "https://cdn.oja.test/gadgets/logo.png"
+      const BANNER = "https://cdn.oja.test/gadgets/banner.jpg"
+      /** Ikeja Gadget Hub uploads a logo and banner; Iya Bisi Foodstuff has neither. */
+      const withImages = async () => {
+        const sellers = getContainer().resolve(MercurModules.SELLER) as any
+        const gadgets = await sellerId("Ikeja Gadget Hub")
+        const grocery = await sellerId("Iya Bisi Foodstuff")
+        await sellers.updateSellers({ id: gadgets, logo: LOGO, banner: BANNER })
+        await sellers.updateSellers({ id: grocery, logo: null, banner: null })
+        return { gadgets, grocery }
+      }
+
+      it("shows each listing's shop with its logo and banner, or nulls when it has none", async () => {
+        const { gadgets, grocery } = await withImages()
+
+        const { data } = await list({ limit: 100 })
+
+        const images = (id: string) =>
+          data.listings.filter((l: any) => l.seller.id === id).map((l: any) => [l.seller.logo, l.seller.banner])
+        expect(new Set(images(gadgets).map(String))).toEqual(new Set([String([LOGO, BANNER])]))
+        expect(new Set(images(grocery).map(String))).toEqual(new Set([String([null, null])]))
+      })
+
+      it("shows the shop page's logo and banner, or nulls when it has none", async () => {
+        const { gadgets, grocery } = await withImages()
+
+        const shopOf = async (id: string) =>
+          (await api.get(`/store/shops/${id}?region_id=${regionId}`, { headers })).data.shop
+
+        expect(await shopOf(gadgets)).toMatchObject({ logo: LOGO, banner: BANNER })
+        expect(await shopOf(grocery)).toMatchObject({ logo: null, banner: null })
+      })
+
+      it("shows the product page's shop logo and banner", async () => {
+        const { gadgets } = await withImages()
+
+        const { data } = await detail(gadgets, await productId(LANTERN.title))
+
+        expect(data.listing.seller).toMatchObject({ logo: LOGO, banner: BANNER })
+      })
+    })
+
+    describe("stock", () => {
+      /** The shop's offer of the rice, its only variant. */
+      const riceOffer = async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({
+          entity: "offer",
+          fields: ["id", "inventory_item_link.inventory_item.location_levels.*"],
+          filters: { seller_id: await sellerId("Iya Bisi Foodstuff"), product_id: await productId(RICE.title) },
+        })
+        return data[0] as any
+      }
+      /** Stocks the rice at its location with `stocked`, `reserved` of them held for orders not yet shipped. */
+      const stockRice = async (stocked: number, reserved = 0) => {
+        const [level] = (await riceOffer()).inventory_item_link[0].inventory_item.location_levels
+        const inventory = getContainer().resolve(Modules.INVENTORY)
+        const at = { inventory_item_id: level.inventory_item_id, location_id: level.location_id }
+        await inventory.updateInventoryLevels([{ ...at, stocked_quantity: stocked }])
+        if (reserved) await inventory.createReservationItems([{ ...at, quantity: reserved }])
+      }
+      const updateRice = async (update: Record<string, unknown>) =>
+        (getContainer().resolve(MercurModules.OFFER) as any).updateOffers({ id: (await riceOffer()).id, ...update })
+      /** The rice's offer as the feed and the product page show it. */
+      const riceAsShown = async () => {
+        const grocery = await sellerId("Iya Bisi Foodstuff")
+        const rice = await productId(RICE.title)
+        const feed = (await list({ seller_id: grocery, limit: 100 })).data.listings.find((l: any) => l.product.id === rice)
+        const page = (await detail(grocery, rice)).data.listing
+        return [feed.offers[0].available_quantity, page.offers[0].available_quantity]
+      }
+
+      it("says how many are left: what is stocked less what is held for orders", async () => {
+        await stockRice(10, 3)
+
+        expect(await riceAsShown()).toEqual([7, 7])
+      })
+
+      it("still lists a sold-out offer, with none left", async () => {
+        await stockRice(0)
+
+        expect(await riceAsShown()).toEqual([0, 0])
+      })
+
+      it("leaves the count out when the shop doesn't track the offer's stock", async () => {
+        await stockRice(0)
+        await updateRice({ manage_inventory: false })
+
+        expect(await riceAsShown()).toEqual([null, null])
+      })
+
+      it("leaves the count out when the offer can be ordered beyond its stock", async () => {
+        await stockRice(0)
+        await updateRice({ allow_backorder: true })
+
+        expect(await riceAsShown()).toEqual([null, null])
+      })
+
+      it("counts every variant's offer on its own", async () => {
+        const { data } = await list({ limit: 100 })
+        const kaftan = data.listings.find((l: any) => l.product.title === KAFTAN.title)
+
+        expect(kaftan.offers.map((o: any) => o.available_quantity)).toEqual(kaftan.offers.map(() => 50))
       })
     })
 

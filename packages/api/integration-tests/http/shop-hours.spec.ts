@@ -96,7 +96,9 @@ medusaIntegrationTestRunner({
       })
       const { data: listing } = await api.get(`/store/listings/${gadgetsId}/${products.data[0].id}?${region()}`, store())
       const { data: shop } = await api.get(`/store/shops/${gadgetsId}?${region()}`, store())
+      const { data: home } = await api.get(`/store/shops?${region()}&limit=50`, store())
       return {
+        home: home.shops.find((s: any) => s.id === gadgetsId)?.shop_status,
         feed: await listed(""),
         search: await listed("q=lantern"),
         category: await listed(`category_id=${categories.data[0].id}`),
@@ -106,6 +108,7 @@ medusaIntegrationTestRunner({
       }
     }
     const everywhere = (status: unknown) => ({
+      home: status,
       feed: status,
       search: status,
       category: status,
@@ -120,6 +123,34 @@ medusaIntegrationTestRunner({
     }
     const addLantern = async (cartId: string) =>
       api.post(`/store/carts/${cartId}/line-items`, { offer_id: await offerId(GADGETS, LANTERN.title), quantity: 1 }, ada())
+
+    describe("an open shop", () => {
+      it("says when it closes today wherever its status shows: to buyers, in the cart and to the shop", async () => {
+        // Open all of today, closed tomorrow: whenever the test runs, the shop closes at midnight.
+        const today = WEEKDAYS[new Date(`${lagosDate(0)}T00:00:00Z`).getUTCDay()]
+        await api.post("/vendor/shop-hours/weekly", { weekly: weekly((d) => (d === today ? [{ opens: "00:00", closes: "24:00" }] : [])) }, gadgets)
+
+        const open = {
+          state: "open",
+          closes_at: lagosInstant(lagosDate(1), "00:00"),
+          orderable: true,
+          label: "Open · closes midnight",
+        }
+        expect(await gadgetsSeenByBuyers()).toEqual(everywhere(open))
+        const cartId = await newCart()
+        await addLantern(cartId)
+        const { data: cart } = await api.get(`/store/carts/${cartId}/sellers`, ada())
+        expect(cart.cart.sellers[0].shop_status).toEqual(open)
+        const { data: vendor } = await api.get("/vendor/shop-hours", gadgets)
+        expect(vendor.shop_hours.status).toEqual(open)
+      })
+
+      it("open round the clock, has no closing time", async () => {
+        const { data } = await api.get("/vendor/shop-hours", gadgets)
+
+        expect(data.shop_hours.status).toEqual({ state: "open", closes_at: null, orderable: true, label: "Open" })
+      })
+    })
 
     describe("a shop outside its regular hours", () => {
       it("is listed as closed with when it next opens, and still takes orders", async () => {

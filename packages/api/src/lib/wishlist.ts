@@ -60,11 +60,8 @@ export async function listWishlist(
   if (!saved.length) return []
   const productIds = saved.map((s) => s.product_id)
 
-  const { listings } = await listListings(
-    scope,
-    { ...filters, productIds },
-    { limit: Number.MAX_SAFE_INTEGER, offset: 0 }
-  )
+  // Each saved product is at most one listing: its saved shop's.
+  const { listings } = await listListings(scope, { ...filters, pairs: saved }, { limit: saved.length, offset: 0 })
   const listingOf = new Map(listings.map((l) => [`${l.seller.id}:${l.product.id}`, l]))
 
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -83,6 +80,15 @@ export async function listWishlist(
       seller_id: s.seller_id,
       listing: listingOf.get(`${s.seller_id}:${s.product_id}`) ?? null,
     }))
+}
+
+/** How many products the customer saved, as their wishlist lists them: not one since deleted from the catalogue. */
+export async function countWishlist(scope: MedusaContainer, customerId: string): Promise<number> {
+  const { saved } = await savedProducts(scope, customerId)
+  if (!saved.length) return 0
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "product", fields: ["id"], filters: { id: saved.map((s) => s.product_id) } })
+  return data.length
 }
 
 /**

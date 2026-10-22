@@ -1,13 +1,14 @@
 import { randomInt } from "node:crypto"
-import { newFulfilment, PICKUP_CODE_LENGTH, recordReached, transition, type Fulfilment, type FulfilmentTrigger } from "@oja/domain"
+import { PICKUP_CODE_LENGTH, recordReached, transition, type Fulfilment, type FulfilmentTrigger } from "@oja/domain"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import {
   asFulfilmentRecord,
   fulfilmentService,
   fulfilmentsOf,
+  newFulfilmentRow,
   ORDER_STATE_CHANGED,
-  placedOrderOf,
+  placedOrdersOf,
   type FulfilmentRecord,
   type Shipment,
 } from "../../../lib/order-fulfilment"
@@ -37,14 +38,20 @@ function nextFulfilment(orderId: string, from: Fulfilment, trigger: FulfilmentTr
   return result.fulfilment
 }
 
-/** Where the order is, and when it was placed: an order without a row yet is New, by the method it was placed with. */
-async function currentFulfilment(container: Parameters<typeof fulfilmentService>[0], orderId: string) {
+/**
+ * Where the order is. Staff may act on an order the moment it appears, before `order.placed`
+ * records it: such an order is New, and the transition records it as placed (`newFulfilmentRow`).
+ */
+async function currentFulfilment(
+  container: Parameters<typeof fulfilmentService>[0],
+  orderId: string
+): Promise<{ from: Fulfilment } & ({ previous: FulfilmentRecord; placed?: never } | { previous?: never; placed: ReturnType<typeof newFulfilmentRow> })> {
   const previous = (await fulfilmentsOf(container, [orderId])).get(orderId)
-  if (previous) return { previous, from: previous.fulfilment, placedAt: previous.placed_at }
-  const placed = await placedOrderOf(container, orderId)
+  if (previous) return { previous, from: previous.fulfilment }
+  const placed = (await placedOrdersOf(container, [orderId])).get(orderId)
   if (!placed) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order with id: ${orderId} was not found`)
-  const { placed_at, method } = placed
-  return { previous, from: newFulfilment(method), placedAt: placed_at }
+  const row = newFulfilmentRow(placed)
+  return { placed: row, from: row.fulfilment }
 }
 
 /** A new pickup code: random digits, never derived from the order. */
@@ -68,14 +75,15 @@ export const checkTransitionStep = createStep(
  * by whichever trigger, may now be paid out, as may one Not collected with perishable lines
  * kept (#32); a shipment cancelled back to Packed may be alerted about again; a pickup order
  * Ready for pickup is issued its code (#12); a label booked clears any courier waiting for
- * approval (#19). A new state emits `order_fulfilment.state_changed`
- * once the workflow succeeds.
+ * approval (#19). Once the state is written, the order's phase is refreshed from it and its
+ * refunds under the order's row lock (#59), so a refund written meanwhile is never missed. A new state emits `order_fulfilment.state_changed` once the workflow succeeds.
  */
 export const transitionFulfilmentStep = createStep(
   "transition-order-fulfilment",
   async ({ order_id, trigger, reject_reason, shipment, payout_eligible }: TransitionFulfilmentInput, { container, eventGroupId }) => {
     const service = fulfilmentService(container)
-    const { previous, from, placedAt } = await currentFulfilment(container, order_id)
+    const current = await currentFulfilment(container, order_id)
+    const { previous, from } = current
     const fulfilment = nextFulfilment(order_id, from, trigger)
     const reached = recordReached(previous?.reached ?? {}, from, fulfilment, trigger.at)
     const next = {
@@ -93,9 +101,11 @@ export const transitionFulfilmentStep = createStep(
       ...(fulfilment.state === "packed" && { handover_alerted_at: null }),
       ...(fulfilment.state === "ready_for_pickup" && { pickup_code: pickupCode(), pickup_code_attempts: [] }),
     }
-    const saved = previous
-      ? await service.updateOrderFulfilments({ id: previous.id, ...next })
-      : await service.createOrderFulfilments({ order_id, placed_at: placedAt, ...next })
+    const written = current.previous
+      ? await service.updateOrderFulfilments({ id: current.previous.id, ...next })
+      : await service.createOrderFulfilments({ ...current.placed, ...next })
+    await service.refreshOrderPhases([order_id])
+    const saved = await service.retrieveOrderFulfilment(written.id)
     if (fulfilment.state !== from.state) {
       // Grouped with the workflow's other events: released only if it succeeds, cleared if not.
       await container.resolve(Modules.EVENT_BUS).emit({
@@ -126,6 +136,7 @@ export const transitionFulfilmentStep = createStep(
         pickup_code: previous.pickup_code,
         pickup_code_attempts: previous.pickup_code_attempts,
       })
+      await service.refreshOrderPhases([previous.order_id])
     }
   }
 )

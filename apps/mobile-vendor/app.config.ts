@@ -1,5 +1,6 @@
 // Relative import of a plain-JS module: Expo's config loader doesn't transpile workspace TypeScript.
 import { appIdentity } from '../../packages/domain/src/app-identity.js';
+import { NEW_ORDER_ALARM } from '../../packages/domain/src/new-order-alarm.js';
 import type { ExpoConfig } from 'expo/config';
 
 // Name, scheme and bundle id derive from the product-name constant in @oja/domain.
@@ -14,7 +15,11 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'light',
   // Placeholder wordmarks until the design pass supplies the real brand mark.
   icon: './assets/icon.png',
-  ios: { bundleIdentifier: bundleId },
+  ios: {
+    bundleIdentifier: bundleId,
+    // A new order's push is time-sensitive, breaking through Focus (#71); not a critical alert.
+    entitlements: { 'com.apple.developer.usernotifications.time-sensitive': true },
+  },
   android: {
     package: bundleId,
     predictiveBackGestureEnabled: false,
@@ -34,8 +39,9 @@ const config: ExpoConfig = {
       },
     ],
     ['expo-splash-screen', { backgroundColor: '#FFFFFF', image: './assets/splash-icon.png', imageWidth: 120 }],
-    // Pushes for new orders, the accept deadline and courier pickups (#27).
-    'expo-notifications',
+    // Pushes for new orders, the accept deadline and courier pickups (#27). A new order rings
+    // Oja's alarm, bundled here (#71).
+    ['expo-notifications', { sounds: [NEW_ORDER_ALARM.soundAsset] }],
     // Crash reporting (#19). Release builds upload source maps and debug symbols when
     // SENTRY_AUTH_TOKEN is set, and skip the upload otherwise.
     [

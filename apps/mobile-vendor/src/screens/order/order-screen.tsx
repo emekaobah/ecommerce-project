@@ -8,7 +8,6 @@ import {
   useAcceptOrder,
   useConfirmHandover,
   useOrder,
-  useStartPicking,
   type OrderFulfilment,
 } from '@/api/orders';
 import { useMayManageShop } from '@/api/sellers';
@@ -165,14 +164,13 @@ function CourierLabel({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>)
 }
 
 /**
- * What staff do next with the order: Accept / Reject while new, pick it, then book its courier
+ * What staff do next with the order: Accept / Reject while new (accepting starts picking), pick it, then book its courier
  * label, choosing another courier when the buyer's costs more than Oja tops up (#19).
  */
 function NextStep({ orderId, fulfilment, currency }: Readonly<{ orderId: string; fulfilment: OrderFulfilment; currency: string }>) {
   const theme = useTheme();
   const router = useRouter();
   const accept = useAcceptOrder(orderId);
-  const startPicking = useStartPicking(orderId);
   const handOver = useConfirmHandover(orderId);
   const { state } = fulfilment;
   const openPickList = () => router.push({ pathname: '/orders/[id]/pick', params: { id: orderId } });
@@ -189,15 +187,6 @@ function NextStep({ orderId, fulfilment, currency }: Readonly<{ orderId: string;
           onPress={() => router.push({ pathname: '/orders/[id]/reject', params: { id: orderId } })}
         />
       </View>
-    );
-  }
-  if (state === 'accepted') {
-    return (
-      <Action
-        label="Start picking"
-        mutation={startPicking}
-        onPress={() => startPicking.mutate(undefined, { onSuccess: openPickList })}
-      />
     );
   }
   // Partially available (#22) is still being picked: its unavailable items wait on the pick list.

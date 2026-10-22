@@ -11,6 +11,8 @@ import {
   deliveryChoices,
   PERISHABLE_PICKUP_NOTE,
   PICKUP_HOLD_NOTICE,
+  pinOf,
+  roundedDistanceKm,
   type DeliveryTag,
   type FulfilmentMethod,
   type LinePrice,
@@ -24,10 +26,14 @@ import { SHIPBUBBLE_PROVIDER_ID, SHIPBUBBLE_TIMEZONE, type ShipbubbleMethodData 
 import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-promotions"
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
+import { cutCartToStock } from "./cart-stock"
+import { deliveringToPin } from "./listings"
+import { escapeLike } from "./sql"
 import { offerLinePrice } from "./cart-lines"
 import { discountsByCode } from "./discount-funding"
 import {
   collectionPlacesOf,
+  collectionPointDistancesKm,
   collectionPointsOf,
   isPickupMethod,
   PICKUP_METHOD_DATA,
@@ -37,6 +43,7 @@ import {
 import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
 import { promoCodeProblem, type CodedPromotion } from "./promotions"
 import { unshareCode } from "./shared-codes"
+import { fulfilmentsOf } from "./order-fulfilment"
 import { closedShopError } from "./shop-hours"
 import { NOT_PLACED_KEY, type StoredNotPlaced } from "./unplaced-checkout"
 
@@ -95,7 +102,15 @@ export type DeliveryUnavailable = { code: "perishable_too_slow"; reason: string 
  * In-store pickup as checkout offers it for a shop with a collection point (#12): where, how,
  * and when (the shop's own hours), always free, with what happens if it isn't collected.
  */
-export type PickupOffer = CollectionPlace & { hold_notice: string }
+export type PickupOffer = CollectionPlace & {
+  hold_notice: string
+  /**
+   * How far the collection point is, in whole kilometres (ADR 0011), never its pin: from the
+   * delivery address's pin, else from the saved address the buyer is "Delivering to" (a checkout
+   * where every shop is collected has no delivery address); null without either.
+   */
+  distance_km: number | null
+}
 
 export type CheckoutSellerGroup = CartSellerGroup & {
   /** How the shop's order reaches the buyer: delivered (preselected where it can be), or collected in store. */
@@ -123,7 +138,7 @@ export type CheckoutPromotion = {
   code: string
   /** Applied by itself, not by a code the buyer entered, so it can't be removed. */
   automatic: boolean
-  seller: CartSeller | null
+  seller: Pick<CartSeller, "id" | "name" | "handle"> | null
   /** What it takes off the cart, VAT included. */
   amount: number
 }
@@ -150,7 +165,7 @@ export type Checkout = {
    * the buyer's name and phone given), so payment can start.
    */
   ready_to_pay: boolean
-  /** Set once payment is confirmed and the cart has become orders. */
+  /** Set once payment is confirmed and the cart has become orders, each recorded for its shop. */
   order_group_id: string | null
   /**
    * Set when the buyer paid but the cart failed to become orders (#38): it was refunded in full
@@ -170,12 +185,18 @@ export type CheckoutPriceChange = PriceChange & { seller: CartSeller; quantity: 
 export type CheckoutPrepared = { checkout: Checkout; price_changes: CheckoutPriceChange[] }
 
 /**
- * Starting a payment reprices the cart first. When a price changed, no payment is started:
- * `payment` is null and `price_changes` says what changed, for the buyer to see before paying.
+ * Starting a payment reprices the cart, then checks its stock. When a price changed or a line
+ * sold out, no payment is started: `payment` is null and `price_changes` and `stock_changes` say
+ * what changed, for the buyer to see before paying the new total.
  */
 export type CheckoutPaymentStart = {
   payment: CheckoutPayment | null
   price_changes: CheckoutPriceChange[]
+  /**
+   * The lines that sold out or want more than is left, removed or cut to what is (#67), in the
+   * shape #38 uses for a paid cart that wasn't placed, so the app shows them with the same messages.
+   */
+  stock_changes: NotPlacedChange[]
   /**
    * The cart's discounts changed since the buyer last saw them (#6): a code expired or was used
    * up, or no longer applies to what is in the cart. No payment is started; `checkout` has them now.
@@ -390,54 +411,38 @@ function shopDelivery(
   }
 }
 
+/** Where checkout measures collection points from when the cart has no delivery address. */
+export type CheckoutDeliveringTo = {
+  /** The buyer's "Delivering to" saved address; ignored when it isn't theirs or has no pin. */
+  addressId?: string
+}
+
 /** The cart as checkout shows it: shop by shop, with each shop's delivery and the totals. */
-export async function retrieveCheckout(scope: MedusaContainer, cartId: string, customerId: string): Promise<Checkout> {
+export async function retrieveCheckout(
+  scope: MedusaContainer,
+  cartId: string,
+  customerId: string,
+  { addressId }: CheckoutDeliveringTo = {}
+): Promise<Checkout> {
   const cart = await buyersCart(scope, cartId, customerId)
   const grouped = await retrieveCartBySeller(scope, cartId)
   const deliveries = await deliveriesBySeller(scope, cart)
-  // The split writes the group before its orders and links; the cart is marked completed
-  // once they are all in place.
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: groups } = cart.completed_at
-    ? await query.graph({ entity: "order_group", fields: ["id"], filters: { cart_id: cartId } })
-    : { data: [] }
+  const orderGroupId = await placedOrderGroupId(scope, cart)
 
   // A cart in a one-country region carries that country as a stub address: no place to deliver to.
   const address = cart.shipping_address?.address_1 ? cart.shipping_address : null
   const receiverCode = addressCodeOf(address)
   const unavailable = unavailableDeliveries(cart)
   const sellerIds = grouped.sellers.flatMap((g) => (g.seller ? [g.seller.id] : []))
-  const [timeZone, collecting, places] = await Promise.all([
+  const from = pinOf(address) ?? (await deliveringToPin(scope, { customerId, addressId }))
+  const [timeZone, collecting, places, distances] = await Promise.all([
     regionTimeZone(scope, grouped.region_id),
     collectedShops(scope, cart),
     collectionPlacesOf(scope, sellerIds),
+    collectionPointDistancesKm(scope, sellerIds, from),
   ])
-  const sellers = grouped.sellers.map((group): CheckoutSellerGroup => {
-    const sellerId = group.seller?.id
-    const place = sellerId ? places.get(sellerId) : undefined
-    const pickup = place ? { ...place, hold_notice: PICKUP_HOLD_NOTICE } : null
-    const method: FulfilmentMethod = sellerId && collecting.has(sellerId) ? "pickup" : "delivery"
-    const delivery = sellerId && method === "delivery" ? deliveries.get(sellerId) : undefined
-    // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
-    // So does a shop's word that it can't deliver. An order with perishable items (perhaps only
-    // since the quote) takes only a delivery still arriving by the end of tomorrow, and a shop
-    // refused one only while it has perishable items.
-    const basis = quoteBasis(receiverCode, parcelLines(group))
-    const inTime = !!delivery && ratesFor([delivery.data.quote], { perishable: group.perishable, timeZone }).length > 0
-    const current = delivery?.data.basis === basis && inTime ? delivery : undefined
-    const refused = sellerId ? unavailable[sellerId] : undefined
-    const delivery_unavailable =
-      group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null
-    return {
-      ...group,
-      method,
-      ...shopDelivery(current),
-      delivery_unavailable,
-      pickup,
-      // Checkout switched it to pickup: no courier brings its fresh items in time (#69).
-      pickup_note: method === "pickup" && delivery_unavailable ? PERISHABLE_PICKUP_NOTE : null,
-    }
-  })
+  const facts = { deliveries, receiverCode, unavailable, timeZone, collecting, places, distances }
+  const sellers = grouped.sellers.map((group) => checkoutSellerGroup(group, facts))
   const contact = contactOf(cart.billing_address)
   const allCollected = sellers.length > 0 && sellers.every((g) => g.method === "pickup")
   const promotions = await cartPromotions(scope, cart, sellers)
@@ -461,9 +466,81 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
       !!cart.email &&
       sellers.length > 0 &&
       sellers.every((g) => g.seller && (g.method === "pickup" || g.shipping) && g.shop_status?.orderable),
-    order_group_id: (groups[0] as { id: string } | undefined)?.id ?? null,
+    order_group_id: orderGroupId,
     not_placed: cart.completed_at ? null : notPlacedOf(cart),
   }
+}
+
+/** What checkout knows of every shop at once, to show each shop's part from. */
+type CheckoutFacts = {
+  deliveries: Awaited<ReturnType<typeof deliveriesBySeller>>
+  receiverCode: ReturnType<typeof addressCodeOf>
+  unavailable: ReturnType<typeof unavailableDeliveries>
+  timeZone: Awaited<ReturnType<typeof regionTimeZone>>
+  collecting: Set<string>
+  places: Awaited<ReturnType<typeof collectionPlacesOf>>
+  distances: Awaited<ReturnType<typeof collectionPointDistancesKm>>
+}
+
+/** One shop's part of checkout: pickup or delivery, the delivery still standing, and its pickup place. */
+function checkoutSellerGroup(group: CartSellerGroup, facts: CheckoutFacts): CheckoutSellerGroup {
+  const sellerId = group.seller?.id
+  const method: FulfilmentMethod = sellerId && facts.collecting.has(sellerId) ? "pickup" : "delivery"
+  const { current, delivery_unavailable } = standingDelivery(group, method, facts)
+  return {
+    ...group,
+    method,
+    ...shopDelivery(current),
+    delivery_unavailable,
+    pickup: sellerId ? pickupPlace(sellerId, facts) : null,
+    // Checkout switched it to pickup: no courier brings its fresh items in time (#69).
+    pickup_note: method === "pickup" && delivery_unavailable ? PERISHABLE_PICKUP_NOTE : null,
+  }
+}
+
+/** The shop's collection point with its hold notice and rounded distance; null where it has none. */
+function pickupPlace(sellerId: string, facts: CheckoutFacts) {
+  const place = facts.places.get(sellerId)
+  if (!place) return null
+  const km = facts.distances.get(sellerId)
+  return { ...place, hold_notice: PICKUP_HOLD_NOTICE, distance_km: km == null ? null : roundedDistanceKm(km) }
+}
+
+/**
+ * The shop's chosen delivery if it still stands, and why the shop can't deliver, if it said so.
+ * A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
+ * So does a shop's word that it can't deliver. An order with perishable items (perhaps only
+ * since the quote) takes only a delivery still arriving by the end of tomorrow, and a shop
+ * refused one only while it has perishable items.
+ */
+function standingDelivery(group: CartSellerGroup, method: FulfilmentMethod, facts: CheckoutFacts) {
+  const sellerId = group.seller?.id
+  const basis = quoteBasis(facts.receiverCode, parcelLines(group))
+  const delivery = sellerId && method === "delivery" ? facts.deliveries.get(sellerId) : undefined
+  const inTime =
+    !!delivery && ratesFor([delivery.data.quote], { perishable: group.perishable, timeZone: facts.timeZone }).length > 0
+  const refused = sellerId ? facts.unavailable[sellerId] : undefined
+  return {
+    current: delivery?.data.basis === basis && inTime ? delivery : undefined,
+    delivery_unavailable:
+      group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null,
+  }
+}
+
+/**
+ * The paid cart's order group, once every order in it is recorded; null before. The split writes
+ * the group before its orders and links; the cart is marked completed once they are all in place.
+ * Its orders are recorded a moment after (`order.placed`), and only then shown: the checkout says
+ * it was placed once they are.
+ */
+async function placedOrderGroupId(scope: MedusaContainer, cart: CartRow): Promise<string | null> {
+  if (!cart.completed_at) return null
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "order_group", fields: ["id", "orders.id"], filters: { cart_id: cart.id } })
+  const group = data[0] as unknown as { id: string; orders?: ({ id: string } | null)[] | null } | undefined
+  const orderIds = (group?.orders ?? []).flatMap((o) => (o ? [o.id] : []))
+  if (!group || !orderIds.length) return null
+  return (await fulfilmentsOf(scope, orderIds)).size === orderIds.length ? group.id : null
 }
 
 /** Why the paid cart wasn't placed, as the cart keeps it; null when it was, or hasn't been paid. */
@@ -488,7 +565,7 @@ async function cartPromotions(scope: MedusaContainer, cart: CartRow, sellers: Ca
     filters: { code: [...amounts.keys()] },
   })
   const promotions = new Map(
-    (data as unknown as { code: string; is_automatic: boolean; seller?: CartSeller | null }[]).map((p) => [p.code, p])
+    (data as unknown as { code: string; is_automatic: boolean; seller?: CheckoutPromotion["seller"] }[]).map((p) => [p.code, p])
   )
   return [...amounts].map(([code, amount]) => {
     const promotion = promotions.get(code)
@@ -605,9 +682,21 @@ type ShopQuote =
 async function setShopMethods(
   scope: MedusaContainer,
   cart: CartRow,
-  { receiverCode, pickup }: { receiverCode: number | null; pickup: Set<string> }
+  {
+    receiverCode,
+    pickup: collectedFrom,
+    only,
+  }: {
+    receiverCode: number | null
+    pickup: Set<string>
+    /** The shops to set; every other keeps its method. All of them when left out. */
+    only?: Set<string>
+  }
 ) {
-  const { sellers, currency_code, region_id } = await retrieveCartBySeller(scope, cart.id)
+  const cartBySeller = await retrieveCartBySeller(scope, cart.id)
+  const { currency_code, region_id } = cartBySeller
+  const sellers = only ? cartBySeller.sellers.filter((g) => only.has(g.seller!.id)) : cartBySeller.sellers
+  const pickup = new Set(sellers.flatMap((g) => (collectedFrom.has(g.seller!.id) ? [g.seller!.id] : [])))
   const ids = sellers.map((g) => g.seller!.id)
   const [optionBySeller, pickupOptions, timeZone, points] = await Promise.all([
     shipbubbleOptionsBySeller(scope, ids),
@@ -664,7 +753,11 @@ async function setShopMethods(
     .resolve(ContainerRegistrationKeys.QUERY)
     .graph({ entity: "cart", fields: ["id", "metadata"], filters: { id: cart.id } })
   const metadata = (data[0] as Pick<CartRow, "metadata"> | undefined)?.metadata ?? {}
-  await carts.updateCarts(cart.id, { metadata: { ...metadata, [UNAVAILABLE_KEY]: unavailable } })
+  // The shops not set keep what they were last quoted.
+  const kept = only
+    ? Object.fromEntries(Object.entries(unavailableDeliveries({ metadata })).filter(([sellerId]) => !only.has(sellerId)))
+    : {}
+  await carts.updateCarts(cart.id, { metadata: { ...metadata, [UNAVAILABLE_KEY]: { ...kept, ...unavailable } } })
 }
 
 /**
@@ -689,7 +782,7 @@ export type CheckoutPreparation = {
   contact?: CheckoutContact | null
   /** The shops whose orders the buyer collects in store (#12); the rest are delivered. */
   pickup?: string[]
-}
+} & CheckoutDeliveringTo
 
 /**
  * Readies the buyer's cart to pay: every line at its shop's current price, the buyer's email,
@@ -701,7 +794,7 @@ export type CheckoutPreparation = {
  */
 export async function prepareCheckout(
   scope: MedusaContainer,
-  { cartId, customerId, shippingAddress, contact, pickup = [] }: { cartId: string; customerId: string } & CheckoutPreparation
+  { cartId, customerId, shippingAddress, contact, pickup = [], addressId }: { cartId: string; customerId: string } & CheckoutPreparation
 ): Promise<CheckoutPrepared> {
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
@@ -732,7 +825,7 @@ export async function prepareCheckout(
     })
     await setShopMethods(scope, await buyersCart(scope, cartId, customerId), { receiverCode: null, pickup: collecting })
     await applyShopPromotions(scope, cartId)
-    return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
+    return { checkout: await retrieveCheckout(scope, cartId, customerId, { addressId }), price_changes: priceChanges }
   }
 
   if (!shippingAddress) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Set the delivery address")
@@ -758,7 +851,7 @@ export async function prepareCheckout(
     pickup: collecting,
   })
   await applyShopPromotions(scope, cartId)
-  return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
+  return { checkout: await retrieveCheckout(scope, cartId, customerId, { addressId }), price_changes: priceChanges }
 }
 
 /**
@@ -781,6 +874,15 @@ export async function chooseDelivery(
   })
   await applyShopPromotions(scope, cartId)
   return retrieveCheckout(scope, cartId, customerId)
+}
+
+/**
+ * Quotes these shops' deliveries again to the cart's address, keeping the shops the buyer
+ * collects from; every other shop keeps the delivery the buyer chose.
+ */
+async function quoteDeliveriesAgain(scope: MedusaContainer, cart: CartRow, sellerIds: Set<string>) {
+  const address = cart.shipping_address?.address_1 ? cart.shipping_address : null
+  await setShopMethods(scope, cart, { receiverCode: addressCodeOf(address), pickup: await collectedShops(scope, cart), only: sellerIds })
 }
 
 /** The cart's current Paystack transaction is paid; its order is on the way (409). */
@@ -814,8 +916,9 @@ async function refuseIfAlreadyPaid(cart: CartRow) {
 /**
  * Starts a Paystack transaction for the prepared cart's total and returns where to pay it.
  * Each call starts a new one, so a buyer whose payment failed or was abandoned pays again here.
- * The cart is repriced first; when a price changed, no transaction is started and the buyer
- * is told what changed, then pays the new total by calling again.
+ * The cart is repriced first, then cut to what its shops have left; when a price changed or a
+ * line sold out, no transaction is started and the buyer is told what changed, then pays the
+ * new total by calling again.
  * `returnUrl` is where Paystack sends the buyer afterwards: the app's deep link.
  */
 export async function startCheckoutPayment(
@@ -827,10 +930,30 @@ export async function startCheckoutPayment(
   await refuseIfAlreadyPaid(cart)
   // The cart may have changed since its address was set, and shops change prices.
   const priceChanges = await repriceLines(scope, cartId)
+  // Never charged for what sold out since it was added: it is taken off before paying, not refunded after.
+  const { changes: stockChanges, sellerIds: cutShops } = await cutCartToStock(
+    scope,
+    cartId,
+    (await retrieveCartBySeller(scope, cartId)).sellers
+  )
   await dropEmptyShopDeliveries(scope, cart)
+  // A cut parcel's delivery no longer stands: it is quoted again, so the buyer sees the new
+  // total. The other shops' parcels are as they were, and keep the delivery the buyer chose.
+  if (cutShops.size) await quoteDeliveriesAgain(scope, await buyersCart(scope, cartId, customerId), cutShops)
   // Promotions are worked out on what the cart holds now: a code may have expired or been used up.
   await applyShopPromotions(scope, cartId)
   const checkout = await retrieveCheckout(scope, cartId, customerId)
+  /** No payment started: the buyer is shown what changed, and pays the new total by calling again. */
+  const notStarted = (changed: Partial<Pick<CheckoutPaymentStart, "price_changes" | "stock_changes" | "discount_changed">>): CheckoutPaymentStart => ({
+    payment: null,
+    price_changes: [],
+    stock_changes: [],
+    discount_changed: false,
+    ...changed,
+    checkout,
+  })
+  // Before checking it can be paid: what sold out may have emptied a shop's order, or the cart.
+  if (stockChanges.length) return notStarted({ price_changes: priceChanges, stock_changes: stockChanges })
   // A shop in a closed exception or paused takes no orders until it reopens (ADR 0004).
   const closed = checkout.sellers.find((g) => g.seller && g.shop_status && !g.shop_status.orderable)
   if (closed) throw closedShopError(closed.seller!.name, closed.shop_status!)
@@ -840,11 +963,9 @@ export async function startCheckoutPayment(
   if (!checkout.ready_to_pay) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Choose how each shop's order reaches you before paying")
   }
-  if (priceChanges.length) return { payment: null, price_changes: priceChanges, discount_changed: false, checkout }
+  if (priceChanges.length) return notStarted({ price_changes: priceChanges })
   // What the buyer last saw was worked out at the end of the last change checkout made.
-  if (checkout.discount_total !== Number(cart.discount_total ?? 0)) {
-    return { payment: null, price_changes: [], discount_changed: true, checkout }
-  }
+  if (checkout.discount_total !== Number(cart.discount_total ?? 0)) return notStarted({ discount_changed: true })
 
   let paymentCollectionId = cart.payment_collection?.id
   if (!paymentCollectionId) {
@@ -871,6 +992,7 @@ export async function startCheckoutPayment(
   return {
     payment: { provider_id: PAYSTACK_PROVIDER_ID, reference: data.reference, authorization_url: data.authorization_url },
     price_changes: [],
+    stock_changes: [],
     discount_changed: false,
     checkout,
   }
@@ -896,8 +1018,8 @@ type CodeLookup = CodedPromotion & { id: string; is_automatic: boolean; seller?:
 
 /** The promotion a buyer's code names, ignoring case, or none. */
 async function promotionByCode(scope: MedusaContainer, code: string): Promise<CodeLookup | null> {
-  // `%`, `_` and `\` are pattern characters in ILIKE; a code matches them literally.
-  const pattern = code.replaceAll(/[\\%_]/g, (c) => `\\${c}`)
+  // A code matches ILIKE's pattern characters literally.
+  const pattern = escapeLike(code)
   const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
     entity: "promotion",
     fields: [

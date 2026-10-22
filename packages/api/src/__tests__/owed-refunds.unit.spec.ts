@@ -1,4 +1,4 @@
-import { isDue, NO_ACCOUNT_REASON, owedRefund, paystackPart } from "../lib/owed-refunds"
+import { isDue, NO_ACCOUNT_REASON, owedAttempts, owedLines, owedRefund, paystackPart } from "../lib/owed-refunds"
 
 // What an order owes its buyer and hasn't refunded is retried with backoff, and handled by
 // Oja's team once Paystack can't make it (#16).
@@ -136,5 +136,42 @@ describe("owedRefund", () => {
       const owed = owedRefund({ owed: 2500, settlements: [{ amount: 2500, created_at: at(DAY) }], refunds: [handedOver()] })!
       expect(owed).toMatchObject({ amount: 9000, by_hand: 9000, state: "manual", last_error: NO_ACCOUNT_REASON })
     })
+  })
+})
+
+// A refund names the order lines it is for (#61): a retry is for what its attempts were, and a
+// refund owed on top of a refused one is for both.
+describe("owedLines", () => {
+  const at = (ms: number) => new Date(Date.UTC(2026, 9, 22, 9, 0) + ms)
+  const attempt = (when: number, status: string, lines: Record<string, number> | null) => ({
+    covers: "items" as const,
+    status,
+    created_at: at(when),
+    lines,
+  })
+
+  it("is what an edit or cancellation just took off when nothing was attempted before", () => {
+    expect(owedLines([], { ordli_rice: 1 })).toEqual({ ordli_rice: 1 })
+  })
+
+  it("is the latest attempt's lines for a retry", () => {
+    const attempts = owedAttempts({ settlements: [], refunds: [attempt(0, "failed", { ordli_rice: 1 }), attempt(1000, "failed", { ordli_rice: 1 })] })
+    expect(owedLines(attempts)).toEqual({ ordli_rice: 1 })
+  })
+
+  it("adds what was just taken off to the lines a refused refund was for", () => {
+    const attempts = owedAttempts({ settlements: [], refunds: [attempt(0, "failed", { ordli_rice: 1 })] })
+    expect(owedLines(attempts, { ordli_rice: 1, ordli_beans: 1 })).toEqual({ ordli_rice: 2, ordli_beans: 1 })
+  })
+
+  it("leaves out lines a later refund made, or a settlement by hand, already covered", () => {
+    const refunds = [attempt(0, "failed", { ordli_rice: 1 }), attempt(1000, "processed", { ordli_rice: 1 })]
+    expect(owedLines(owedAttempts({ settlements: [], refunds }), { ordli_beans: 1 })).toEqual({ ordli_beans: 1 })
+    const settled = owedAttempts({ settlements: [{ amount: 2500, created_at: at(500) }], refunds: [attempt(0, "failed", { ordli_rice: 1 })] })
+    expect(owedLines(settled, { ordli_beans: 1 })).toEqual({ ordli_beans: 1 })
+  })
+
+  it("names no lines for a refund owed before refunds named them", () => {
+    expect(owedLines(owedAttempts({ settlements: [], refunds: [attempt(0, "failed", null)] }))).toBeNull()
   })
 })

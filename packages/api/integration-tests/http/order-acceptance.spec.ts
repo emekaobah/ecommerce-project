@@ -3,8 +3,11 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { refundUnclaimedPayments, rejectOverdueOrders } from "../../src/lib/order-acceptance"
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
+import { overrideProductPerishable } from "../../src/lib/perishable"
+import { backfillOrderFulfilments } from "../../src/migration-scripts/backfill-order-fulfilments"
+import { moveAcceptedOrdersToPicking } from "../../src/migration-scripts/move-accepted-orders-to-picking"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
-import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, TOTAL, type Shop } from "../helpers/checkout"
+import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, RICE, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { keepShopsOpen } from "../helpers/shop-hours"
 import { fakePaystack } from "../helpers/paystack"
@@ -78,6 +81,7 @@ medusaIntegrationTestRunner({
         expect(order.fulfilment).toEqual({
           method: "delivery",
           state: "new",
+          phase: "in_progress",
           accept_by: new Date(Date.parse(order.created_at) + 24 * HOUR).toISOString(),
           rejected_by: null,
           reject_reason: null,
@@ -91,15 +95,54 @@ medusaIntegrationTestRunner({
         })
       })
 
-      it("moves a new order to accepted", async () => {
+      it("moves a new order straight to picking, having been accepted on the way", async () => {
         const { gadgets } = await paidOrders()
 
         const { data } = await accept(GADGETS, gadgets)
 
-        expect(data.fulfilment).toMatchObject({ state: "accepted", accept_by: null })
-        expect((await shopOrder(GADGETS, gadgets)).fulfilment.state).toBe("accepted")
+        const order = await shopOrder(GADGETS, gadgets)
+        const at = expect.any(String)
+        const upcoming = (label: string) => ({ label, status: "upcoming", at: null })
+        expect(data.fulfilment).toEqual({
+          method: "delivery",
+          state: "picking",
+          phase: "in_progress",
+          accept_by: null,
+          rejected_by: null,
+          reject_reason: null,
+          cancellation: null,
+          shipment: null,
+          courier_approval: null,
+          handover: null,
+          collection: null,
+          collect_by: null,
+          timeline: [
+            { label: "Placed", status: "done", at: new Date(order.created_at).toISOString() },
+            { label: "Accepted", status: "done", at },
+            { label: "Picking", status: "current", at },
+            ...["Packed", "Label booked", "Courier confirmed", "Handed to courier", "In transit", "Delivered"].map(upcoming),
+          ],
+        })
+        expect(order.fulfilment).toEqual(data.fulfilment)
         const listed = (await api.get(`/vendor/orders?limit=50`, await buyer.owner(GADGETS))).data.orders
-        expect(listed.find((o: any) => o.id === gadgets).fulfilment.state).toBe("accepted")
+        expect(listed.find((o: any) => o.id === gadgets).fulfilment.state).toBe("picking")
+      })
+
+      it("shows each line's unit price and whether it is perishable, before accepting", async () => {
+        const { grocery } = await paidOrders()
+        const lines = async () =>
+          (await shopOrder(GROCERY, grocery)).items.map((i: any) => ({ title: i.product_title, unit_price: i.unit_price, perishable: i.perishable }))
+        expect(await lines()).toEqual([{ title: RICE.title, unit_price: RICE.price, perishable: false }])
+
+        const [rice] = (await shopOrder(GROCERY, grocery)).items
+        await overrideProductPerishable(getContainer(), rice.product_id, true)
+        try {
+          expect(await lines()).toEqual([{ title: RICE.title, unit_price: RICE.price, perishable: true }])
+          const listed = (await api.get(`/vendor/orders?limit=50&fields=id,items.product_title`, await buyer.owner(GROCERY))).data.orders
+          expect(listed.find((o: any) => o.id === grocery).items).toEqual([expect.objectContaining({ perishable: true })])
+        } finally {
+          await overrideProductPerishable(getContainer(), rice.product_id, null)
+        }
       })
 
       it("refuses to accept or reject an order that isn't new", async () => {
@@ -108,7 +151,7 @@ medusaIntegrationTestRunner({
 
         expect(await status(accept(GADGETS, gadgets))).toBe(400)
         expect(await status(reject(GADGETS, gadgets))).toBe(400)
-        expect((await shopOrder(GADGETS, gadgets)).fulfilment.state).toBe("accepted")
+        expect((await shopOrder(GADGETS, gadgets)).fulfilment.state).toBe("picking")
         expect(await orderRefunds(gadgets)).toEqual([])
       })
 
@@ -118,6 +161,118 @@ medusaIntegrationTestRunner({
         expect(await status(accept(GROCERY, gadgets))).toBe(404)
         expect(await status(reject(GROCERY, gadgets))).toBe(404)
         expect((await shopOrder(GADGETS, gadgets)).fulfilment.state).toBe("new")
+      })
+    })
+
+    describe("each shop's own orders", () => {
+      const newOrders = async (shop: Shop) =>
+        (await api.get("/vendor/shop-hours", await buyer.owner(shop))).data.shop_hours.new_orders as number
+
+      it("counts only the shop's own orders waiting to be accepted", async () => {
+        const before = { gadgets: await newOrders(GADGETS), grocery: await newOrders(GROCERY) }
+        const { grocery } = await paidOrders()
+        await accept(GROCERY, grocery)
+
+        expect(await newOrders(GADGETS)).toBe(before.gadgets + 1)
+        expect(await newOrders(GROCERY)).toBe(before.grocery)
+      })
+
+      it("shows an order placed before orders were recorded with their shop as new, once backfilled", async () => {
+        const { cartId, gadgets, grocery } = await paidOrders()
+        const before = await newOrders(GADGETS)
+        // As an order placed before this change stood: Gadgets' with no row at all, Grocery's
+        // accepted with a row that doesn't say whose order it is.
+        await accept(GROCERY, grocery)
+        const service = fulfilmentService(getContainer())
+        const [gadgetsRow] = await service.listOrderFulfilments({ order_id: gadgets })
+        const [groceryRow] = await service.listOrderFulfilments({ order_id: grocery })
+        await service.deleteOrderFulfilments(gadgetsRow.id)
+        await service.updateOrderFulfilments({ id: groceryRow.id, customer_id: null, seller_id: null, order_group_id: null })
+
+        await backfillOrderFulfilments(getContainer())
+
+        const order = await shopOrder(GADGETS, gadgets)
+        expect(order.fulfilment).toMatchObject({
+          method: "delivery",
+          state: "new",
+          accept_by: new Date(Date.parse(order.created_at) + 24 * HOUR).toISOString(),
+        })
+        expect(await newOrders(GADGETS)).toBe(before)
+        expect((await accept(GADGETS, gadgets)).data.fulfilment.state).toBe("picking")
+        expect((await shopOrder(GROCERY, grocery)).fulfilment.state).toBe("picking")
+        const groupId = await buyer.orderGroupOf(cartId)
+        const { data } = await api.get(`/store/order-history/${groupId}`, buyer.ada())
+        expect(Object.fromEntries(data.order_group.orders.map((o: any) => [o.id, o.fulfilment.state]))).toEqual({
+          [gadgets]: "picking",
+          [grocery]: "picking",
+        })
+      })
+    })
+
+    describe("an order its shop sees before it is recorded", () => {
+      it("is left out of the shop's order list and its count, until it is recorded", async () => {
+        const { gadgets } = await paidOrders()
+        const list = async () => (await api.get("/vendor/orders?limit=100", await buyer.owner(GADGETS))).data
+        const before = await list()
+        // As the order stands between Mercur linking it to the shop and `order.placed` recording it.
+        const service = fulfilmentService(getContainer())
+        const [row] = await service.listOrderFulfilments({ order_id: gadgets })
+        await service.deleteOrderFulfilments(row.id)
+        try {
+          const { orders, count } = await list()
+
+          expect(before.count).toBeLessThanOrEqual(100)
+          expect(orders.map((o: any) => o.id)).not.toContain(gadgets)
+          expect([orders.length, count]).toEqual([before.count - 1, before.count - 1])
+          const asked = (await api.get(`/vendor/orders?id=${gadgets}`, await buyer.owner(GADGETS))).data
+          expect([asked.orders.length, asked.count]).toEqual([0, 0])
+        } finally {
+          await backfillOrderFulfilments(getContainer())
+        }
+        expect((await list()).count).toBe(before.count)
+      })
+    })
+
+    describe("each order's phase, once backfilled", () => {
+      it("puts an order finished before orders stored their phase in the past, and leaves one in progress there", async () => {
+        const { gadgets, grocery } = await paidOrders()
+        await reject(GADGETS, gadgets)
+        // As the migration that added phases left every row: in progress. Set on the row, as no
+        // route writes data from before a migration.
+        const service = fulfilmentService(getContainer())
+        const [gadgetsRow] = await service.listOrderFulfilments({ order_id: gadgets })
+        await service.updateOrderFulfilments({ id: gadgetsRow.id, phase: "in_progress" })
+
+        await backfillOrderFulfilments(getContainer())
+
+        expect((await shopOrder(GADGETS, gadgets)).fulfilment).toMatchObject({ state: "rejected", phase: "past" })
+        expect((await shopOrder(GROCERY, grocery)).fulfilment).toMatchObject({ state: "new", phase: "in_progress" })
+      })
+    })
+
+    describe("an order accepted before accepting started picking (#70)", () => {
+      it("is moved on to picking, picked from when it was accepted, and stays in progress", async () => {
+        const { grocery } = await paidOrders()
+        const { data } = await accept(GROCERY, grocery)
+        const acceptedAt = data.fulfilment.timeline.find((s: any) => s.label === "Accepted").at
+        // As such an order stood: Accepted, its row written before accepting moved it on.
+        const service = fulfilmentService(getContainer())
+        const [row] = await service.listOrderFulfilments({ order_id: grocery })
+        await service.updateOrderFulfilments({
+          id: row.id,
+          state: "accepted",
+          fulfilment: { method: "delivery", state: "accepted" },
+          reached: { accepted: acceptedAt },
+        })
+
+        expect(await moveAcceptedOrdersToPicking(getContainer())).toBeGreaterThanOrEqual(1)
+
+        const order = await shopOrder(GROCERY, grocery)
+        expect(order.fulfilment).toMatchObject({ state: "picking", phase: "in_progress" })
+        expect(order.fulfilment.timeline.find((s: any) => s.label === "Picking")).toEqual({ label: "Picking", status: "current", at: acceptedAt })
+        const { pick_list } = (await api.get(`/vendor/orders/${grocery}/pick-list`, await buyer.owner(GROCERY))).data
+        expect(pick_list.progress).toMatchObject({ picked: 0, total: 2 })
+        expect(await moveAcceptedOrdersToPicking(getContainer())).toBe(0)
       })
     })
 
@@ -144,6 +299,7 @@ medusaIntegrationTestRunner({
         expect(data.fulfilment).toEqual({
           method: "delivery",
           state: "rejected",
+          phase: "past",
           accept_by: null,
           rejected_by: "seller",
           reject_reason: "The lantern is out of stock",
@@ -289,7 +445,7 @@ medusaIntegrationTestRunner({
         })
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([ORDER_TOTALS.get(GADGETS)! * 100])
         const accepted = await shopOrder(GROCERY, grocery)
-        expect(accepted.fulfilment.state).toBe("accepted")
+        expect(accepted.fulfilment.state).toBe("picking")
         expect(paidOnOrder(accepted)).toEqual({ captured: ORDER_TOTALS.get(GROCERY), refunded: 0 })
       })
 
