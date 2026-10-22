@@ -107,7 +107,8 @@ const refundOwedStep = createStep("refund-owed", async (input: RefundOwedInput, 
     container
       .resolve(ContainerRegistrationKeys.LOGGER)
       .warn(`Paystack refused the refund of ${error.left} owed on order ${orderId}: ${error.refusal.reason}`)
-    await recordRefusal(container, owed, lines, error.left, error.refusal.reason)
+    // A refund made before it already names the lines: one refund to the buyer names them once.
+    await recordRefusal(container, owed, error.made.length ? null : lines, error.left, error.refusal.reason)
     return new StepResponse({ refunds: error.made, owed: await owedRefundOf(container, orderId) })
   }
 })

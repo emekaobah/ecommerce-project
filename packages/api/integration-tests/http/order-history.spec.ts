@@ -239,8 +239,12 @@ medusaIntegrationTestRunner({
         // A refund adds a credit line, which takes it off the order's total: that alone would read ₦0 paid.
         expect(rejected.paid_total).toBe(ORDER_TOTALS.get(GADGETS))
         expect(rejected.refund).toEqual({ amount: ORDER_TOTALS.get(GADGETS), status: "pending" })
-        // A refund of the whole order names no lines (#61), as refunds made before refunds named them: the amount alone.
-        expect(rejected.refunds).toEqual([{ amount: ORDER_TOTALS.get(GADGETS), status: "pending", lines: null }])
+        // The refund of a rejected order is for every line on it (#61).
+        const [lantern] = rejected.items
+        expect(rejected.items).toHaveLength(1)
+        expect(rejected.refunds).toEqual([
+          { amount: ORDER_TOTALS.get(GADGETS), status: "pending", lines: [{ item_id: lantern.id, quantity: lantern.quantity }] },
+        ])
         const other = await sellerOrder(groupId, grocery)
         expect(other.fulfilment.state).toBe("new")
         expect(other.paid_total).toBe(ORDER_TOTALS.get(GROCERY))

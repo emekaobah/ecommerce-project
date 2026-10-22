@@ -2,7 +2,7 @@ import type { IOrderModuleService } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN, MedusaError, Modules } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { orderMoney, paymentsOfOrder, type OrderRefundRecord, type Picks } from "../../../lib/order-fulfilment"
-import { owedToBuyerOf, refundableShareOf, refundPlan, type OrderSummary } from "../../../lib/order-refund"
+import { linesOnce, owedToBuyerOf, refundableShareOf, refundPlan, type OrderSummary } from "../../../lib/order-refund"
 import type { RefundCovers } from "../../../modules/order-fulfilment/models/order-refund"
 import { PaystackRequestError } from "../../../modules/paystack/client"
 import { refundPayment, type RefundPaymentInput } from "./refund-payment"
@@ -41,8 +41,8 @@ export type RefundOrderShareInput = {
    */
   covers: RefundCovers
   /**
-   * The order lines it is for, and how many units of each (#61), recorded on each refund made;
-   * none for a refund of no lines.
+   * The order lines it is for, and how many units of each (#61), recorded on its first payment's
+   * refund (`linesOnce`); none for a refund of no lines.
    */
   lines?: Picks | null
   /** All that is left of what it covers when left out. */
@@ -73,23 +73,27 @@ export async function refundOrderShare(
 ): Promise<OrderRefundRecord[]> {
   const payments = await paymentsOfOrder(container, order_id)
   const money = await orderMoney(container, order_id, payments)
-  const plan = refundPlan(money, covers === "all" ? amount : await withinWhatIsLeft(container, order_id, covers, amount))
+  const plan = linesOnce(
+    refundPlan(money, covers === "all" ? amount : await withinWhatIsLeft(container, order_id, covers, amount)),
+    lines ?? null
+  )
   const orderModule = container.resolve<IOrderModuleService>(Modules.ORDER)
   let owed = covers === "delivery" ? MathBN.convert(0) : MathBN.convert(await owedToBuyer(container, order_id))
 
   const recorded: OrderRefundRecord[] = []
   // One payment at a time: a refund Paystack turns down stops the rest, rather than racing them.
   for (const [i, part] of plan.entries()) {
+    const { lines: partLines, ...payment } = part
     const left = MathBN.convert(plan.slice(i).reduce((sum, p) => MathBN.add(sum, p.amount), MathBN.convert(0))).toNumber()
     // Recording a refund Paystack made on the order may still fail: that is no refusal.
     const refunded = await refundOrRefuse(
       container,
       {
-        ...part,
+        ...payment,
         currency_code: money.currency_code,
         order_id,
         covers,
-        lines,
+        lines: partLines,
         earlier_refund_ids: payments.find((p) => p.id === part.payment_id)?.refunds?.map((r) => r.id) ?? [],
         created_by,
         note,
