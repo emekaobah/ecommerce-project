@@ -181,6 +181,32 @@ medusaIntegrationTestRunner({
       expect(defaults).toEqual({ [home]: false, [office]: true })
     })
 
+    // The Account screen's "2 saved · 14 Bode Thomas St is default" (#73).
+    describe("in the account summary", () => {
+      const summary = async (as: object) => (await api.get("/store/customers/me/summary", as)).data.summary
+
+      it("counts the buyer's addresses and names the default by its street", async () => {
+        const ada = buyer("ada-summary@oja.test")
+        await save(ada, ADDRESS)
+        await save(ada, { ...OFFICE, is_default_shipping: true })
+
+        expect((await summary(ada)).addresses).toEqual({ count: 2, default_label: OFFICE.address_1 })
+      })
+
+      it("has no default label while none is the default", async () => {
+        const ada = buyer("ada-no-default@oja.test")
+        const before = (await summary(ada)).addresses
+        await save(ada, ADDRESS)
+
+        expect(before).toEqual({ count: 0, default_label: null })
+        expect((await summary(ada)).addresses).toEqual({ count: 1, default_label: null })
+      })
+
+      it("asks a guest to sign in", async () => {
+        expect(await status(api.get("/store/customers/me/summary", { headers }))).toBe(401)
+      })
+    })
+
     // Medusa merges an edit's metadata into the address's: a key is removed only when sent empty,
     // which is how the app clears a landmark the buyer deleted (`savedAddressEdit`).
     it("merges the metadata on an edit: a moved pin moves, and a landmark sent empty is gone", async () => {

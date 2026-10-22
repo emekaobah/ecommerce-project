@@ -1,10 +1,10 @@
-import { canReview, reviewerName, type ReviewKind, type ReviewStatus, type ReviewSubject } from "@oja/domain"
+import { canReview, reviewAction, reviewerName, type FulfilmentState, type ReviewKind, type ReviewStatus, type ReviewSubject } from "@oja/domain"
 import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import CustomerReviewLink from "@mercurjs/core/links/customer-review"
 import type { ReviewDTO } from "@mercurjs/types"
-import { fulfilmentsOf } from "./order-fulfilment"
+import { fulfilmentService, fulfilmentsOf } from "./order-fulfilment"
 
 // Reviews and ratings (#7) on Mercur's review module: one `review` per target (a shop, or a
 // catalogue product), linked to the order that earned it and the buyer who wrote it, and
@@ -153,6 +153,48 @@ export async function buyerReviews(scope: Scope, customerId: string): Promise<Ma
     )
   }
   return bySubject
+}
+
+type ReceivedOrderRow = {
+  seller?: { id: string; name: string } | null
+  items?: ({ product_id: string | null; product_title: string | null; quantity: unknown; detail?: { quantity: unknown } | null } | null)[] | null
+}
+
+/**
+ * How many reviews the buyer wrote, and how many of their received orders still have a shop or
+ * product to review: those whose review action is to write, as each order shows it (#73).
+ */
+export async function buyerReviewCounts(
+  scope: Scope,
+  customerId: string
+): Promise<{ reviews_written: number; orders_to_review: number }> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const [fulfilments, reviews] = await Promise.all([
+    fulfilmentService(scope).listOrderFulfilments({ customer_id: customerId }, { select: ["order_id", "state"] }),
+    buyerReviews(scope, customerId),
+  ])
+  const receivedIds = fulfilments.filter((f) => canReview(f.state as FulfilmentState)).map((f) => f.order_id)
+  if (!receivedIds.length) return { reviews_written: reviews.size, orders_to_review: 0 }
+
+  const { data: received } = await query.graph({
+    entity: "order",
+    fields: ["seller.id", "seller.name", "items.product_id", "items.product_title", "items.quantity", "items.detail.quantity"],
+    filters: { id: receivedIds },
+  })
+  const ownReviews = [...reviews.values()]
+  const toReview = (received as unknown as ReceivedOrderRow[]).filter(
+    ({ seller, items }) =>
+      seller &&
+      reviewAction({
+        can_review: true,
+        seller,
+        items: (items ?? []).flatMap((i) =>
+          i ? [{ product_id: i.product_id, product_title: i.product_title, quantity: Number(i.detail?.quantity ?? i.quantity) }] : []
+        ),
+        reviews: ownReviews,
+      }) === "write"
+  )
+  return { reviews_written: reviews.size, orders_to_review: toReview.length }
 }
 
 /** A published review as any buyer sees it: the reviewer by first name and initial only. */
