@@ -1,4 +1,5 @@
-import { canReview, shopStatus, todaysHours, type DayHours, type OrderDelivery, type ShopHours } from "@oja/domain"
+import { canReview, shopStatus, type OrderPhase, todaysHours, type DayHours, type OrderDelivery, type ShopHours } from "@oja/domain"
+import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
@@ -18,6 +19,7 @@ import {
 } from "./order-fulfilment"
 import { refundMade, refusedByPaystack, totalOf } from "./order-refund"
 import { failedSinceLastMade, handedOver, needsAccount, owedRefundsOf, type OwedRefund } from "./owed-refunds"
+import { escapeLike } from "./listing-ranking"
 import { HOLD_LINE_FIELDS, holdLinesOf, type HoldLine } from "./pickup-hold"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
@@ -276,20 +278,63 @@ const ORDER_FIELDS = [
 
 type GroupRow = { id: string; display_id: number; created_at: Date | string; orders?: ({ id: string } | null)[] | null }
 
-/** The buyer's order groups, newest first. */
+/** Which of the buyer's checkouts to list: in progress or past, or with an item named like `q`. */
+export type BuyerOrderGroupFilters = { phase?: OrderPhase; q?: string }
+
+/**
+ * The buyer's order groups, newest first, found through each order's fulfilment row (#54): its
+ * buyer, checkout and stored phase. A checkout is in progress while any of its shops' orders
+ * is (#59), and past once all are. `q` matches an item's name on any of them. Paged unless
+ * `page` is null.
+ */
 export async function listBuyerOrderGroups(
   scope: Scope,
   customerId: string,
-  page: { limit: number; offset: number }
+  filters: BuyerOrderGroupFilters,
+  page: { limit: number; offset: number } | null
 ): Promise<{ order_groups: BuyerOrderGroup[]; count: number }> {
+  const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
+  const groups = knex("order_fulfilment as f")
+    .where("f.customer_id", customerId)
+    .whereNotNull("f.order_group_id")
+    .whereNull("f.deleted_at")
+    .groupBy("f.order_group_id")
+    .select("f.order_group_id", knex.raw("max(f.placed_at) AS placed_at"))
+  if (filters.phase) {
+    groups.havingRaw(`bool_or(f.phase = 'in_progress') = ?`, [filters.phase === "in_progress"])
+  }
+  if (filters.q) {
+    const name = `%${escapeLike(filters.q)}%`
+    groups.havingRaw(
+      `bool_or(EXISTS (
+        SELECT 1 FROM order_item AS oi JOIN order_line_item AS li ON li.id = oi.item_id
+        WHERE oi.order_id = f.order_id AND oi.deleted_at IS NULL AND li.deleted_at IS NULL
+          AND (li.product_title ILIKE ? ESCAPE '\\' OR li.title ILIKE ? ESCAPE '\\')
+      ))`,
+      [name, name]
+    )
+  }
+  const listed = knex.from(groups.as("g")).select("g.order_group_id").orderBy([
+    { column: "g.placed_at", order: "desc" },
+    { column: "g.order_group_id", order: "desc" },
+  ])
+  if (page) listed.limit(page.limit).offset(page.offset)
+  const [rows, [counted]] = (await Promise.all([listed, knex.from(groups.clone().as("g")).count({ count: "*" })])) as unknown as [
+    { order_group_id: string }[],
+    { count: string | number }[],
+  ]
+  const ids = rows.map((r) => r.order_group_id)
+  if (!ids.length) return { order_groups: [], count: Number(counted?.count ?? 0) }
+
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data, metadata } = await query.graph({
+  const { data } = await query.graph({
     entity: "order_group",
     fields: ["id", "display_id", "created_at", "orders.id"],
-    filters: { customer_id: customerId },
-    pagination: { skip: page.offset, take: page.limit, order: { created_at: "DESC" } },
+    filters: { id: ids, customer_id: customerId },
   })
-  return { order_groups: await withOrders(scope, customerId, data as unknown as GroupRow[]), count: metadata?.count ?? 0 }
+  const byId = new Map((data as unknown as GroupRow[]).map((g) => [g.id, g]))
+  const ordered = ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []))
+  return { order_groups: await withOrders(scope, customerId, ordered), count: Number(counted?.count ?? 0) }
 }
 
 /** One of the buyer's order groups; another buyer's is not found. */
@@ -322,16 +367,18 @@ async function withOrders(scope: Scope, customerId: string, groups: GroupRow[]):
 async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Promise<Map<string, BuyerOrder>> {
   if (!ids.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [{ data }, fulfilments, refunds, owed, reviews, payments] = await Promise.all([
+  const [{ data }, fulfilments, refunds, owed, payments] = await Promise.all([
     query.graph({ entity: "order", fields: ORDER_FIELDS, filters: { id: ids } }),
     fulfilmentsOf(scope, ids),
     fulfilmentService(scope).listOrderRefunds({ order_id: ids }),
     owedRefundsOf(scope, ids),
-    buyerReviews(scope, customerId),
     paymentsOfOrders(scope, ids),
   ])
-  const sellerIds = (data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id] : []))
-  const [hours, places, lines] = await Promise.all([
+  const sellerIds = [...new Set((data as any[]).flatMap((o) => (o.seller?.id ? [o.seller.id as string] : [])))]
+  const productIds = [...new Set((data as any[]).flatMap((o) => (o.items ?? []).flatMap((i: any) => (i?.product_id ? [i.product_id as string] : []))))]
+  const [reviews, hours, places, lines] = await Promise.all([
+    // Of these orders' shops and products alone (#54).
+    buyerReviews(scope, customerId, { seller_ids: sellerIds, product_ids: productIds }),
     shopHoursOf(scope, sellerIds),
     collectionPlacesOf(scope, sellerIds),
     holdLinesOf(scope, data as any[]),

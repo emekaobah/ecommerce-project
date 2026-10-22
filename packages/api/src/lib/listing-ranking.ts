@@ -69,7 +69,8 @@ function bandOf(km: string) {
   return `CASE WHEN ${km} IS NULL THEN NULL ${bands} ELSE ${DISTANCE_BANDS_KM.length} END`
 }
 
-const escapeLike = (word: string) => word.replaceAll(/[\\%_]/g, (c) => `\\${c}`)
+/** `word` with LIKE's wildcards escaped, for a pattern matched with `ESCAPE '\'`. */
+export const escapeLike = (word: string) => word.replaceAll(/[\\%_]/g, (c) => `\\${c}`)
 const escapeRegex = (word: string) => word.replaceAll(/[.*+?^${}()|[\]\\]/g, (c) => `\\${c}`)
 
 /**
