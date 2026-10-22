@@ -69,8 +69,9 @@ export type BuyerOrder = {
   /** What the buyer paid for it, refunded or not. */
   paid_total: number
   /**
-   * Its receipt, in shelf prices (VAT included): the items as placed, delivery, and the discount
-   * off them. Items plus delivery, less the discount, is `paid_total`.
+   * Its receipt, as charged at payment, in shelf prices (VAT included): the items as placed,
+   * delivery, and the discount off them then. Items plus delivery, less the discount, is
+   * `paid_total`, even once the shop removed items (whose refunds show in `refunds`).
    */
   item_subtotal: number
   delivery_total: number
@@ -424,17 +425,19 @@ function reviewsOf(o: any, reviews: Map<string, BuyerReview>): BuyerReview[] {
 }
 
 /**
- * What the buyer paid for the order: what was captured for it. Neither a refund (whose credit
- * line takes it off `total`, #20) nor items removed as unavailable (an order edit lowers
- * `total`, #22) change it. An order nothing was captured for (a demo order) is its total.
+ * What was captured for the order; null for an order nothing was captured for (a demo order).
+ * Neither a refund (whose credit line takes it off `total`, #20) nor items removed as
+ * unavailable (an order edit lowers `total`, #22) change it.
  */
-function paidTotal(o: any): number {
+function capturedTotal(o: any): number | null {
   const captures = ((o.transactions ?? []) as ({ amount: unknown; reference: string | null } | null)[]).filter(
     (t) => t?.reference === "capture"
   )
-  if (!captures.length) return Number(o.total) + Number(o.credit_line_total ?? 0)
-  return captures.reduce((sum, t) => sum + Number(t!.amount), 0)
+  return captures.length ? captures.reduce((sum, t) => sum + Number(t!.amount), 0) : null
 }
+
+/** An amount in the currency's unit, rid of floating-point dust. */
+const toCents = (amount: number) => Math.round(amount * 100) / 100
 
 /** The Paystack reference of the payment that paid for the order: the captured one's, else any. */
 function paymentReference(payments: { data?: Record<string, unknown> | null; captures?: unknown[] | null }[]): string | null {
@@ -462,16 +465,22 @@ function buyerOrder(
     unit_price: Number(i.unit_price),
     total: Number(i.total),
   }))
+  // As placed: items the shop removed as unavailable (#22) are refunded, not taken off the receipt.
+  const item_subtotal = items.reduce((sum, i) => sum + i.unit_price * (i.quantity + i.unavailable_quantity), 0)
+  const delivery_total = Number(o.original_shipping_total ?? 0)
+  const captured = capturedTotal(o)
   return {
     id: o.id,
     display_id: o.display_id,
     created_at: new Date(o.created_at).toISOString(),
     currency_code: o.currency_code,
-    paid_total: paidTotal(o),
-    // As placed: items the shop removed as unavailable (#22) are refunded, not taken off the receipt.
-    item_subtotal: items.reduce((sum, i) => sum + i.unit_price * (i.quantity + i.unavailable_quantity), 0),
-    delivery_total: Number(o.original_shipping_total ?? 0),
-    discount_total: Number(o.discount_total ?? 0),
+    // An order nothing was captured for (a demo order) was paid its total, refunds aside.
+    paid_total: captured ?? Number(o.total) + Number(o.credit_line_total ?? 0),
+    item_subtotal,
+    delivery_total,
+    // The discount as charged: what the items as placed and delivery came to above what was
+    // paid. Medusa works the order's `discount_total` out again when an edit removes items (#22).
+    discount_total: captured == null ? Number(o.discount_total ?? 0) : toCents(item_subtotal + delivery_total - captured),
     seller: {
       id: o.seller?.id,
       name: o.seller?.name,
