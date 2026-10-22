@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { updateSellerAddressWorkflow } from "@mercurjs/core/workflows"
 import { MercurModules } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
@@ -329,6 +330,44 @@ medusaIntegrationTestRunner({
         expect(JSON.stringify([shop, product])).not.toContain(String(SEED_SELLERS[0].pickup.latitude))
       })
 
+      it("pages through every band in one stable order, each listing once", async () => {
+        const ada = buyer("ada-pages@oja.test")
+        const addressId = await savedAddress(ada, NEAR_IKEJA)
+        await shipsIn("Adire House", 0)
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+        const key = (l: any) => `${l.seller.id}:${l.product.id}`
+
+        const all = (await listAs(ada, { address_id: addressId })).data
+        const paged: any[] = []
+        for (let offset = 0; offset < all.count; offset += 3) {
+          const { data } = await listAs(ada, { address_id: addressId, limit: 3, offset })
+          expect(data.count).toBe(all.count)
+          paged.push(...data.listings)
+        }
+
+        expect(shopOrder(all.listings)).toEqual(["Ikeja Gadget Hub", "Iya Bisi Foodstuff", "Adire House"])
+        expect(paged.map(key)).toEqual(all.listings.map(key))
+        expect(new Set(paged.map(key)).size).toBe(all.count)
+      })
+
+      it("measures from where the shop moved its pickup pin", async () => {
+        const ada = buyer("ada-shop-moved@oja.test")
+        const addressId = await savedAddress(ada, NEAR_IKEJA)
+        const adire = await sellerId("Adire House")
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: rows } = await query.graph({ entity: "seller", fields: ["address.metadata"], filters: { id: adire } })
+        // Next door to the buyer, as the vendor panel's pickup address routes save it.
+        await updateSellerAddressWorkflow(getContainer()).run({
+          input: { seller_id: adire, data: { metadata: { ...rows[0].address.metadata, latitude: 6.591, longitude: 3.345 } } },
+        })
+
+        const { data } = await listAs(ada, { address_id: addressId })
+
+        expect(data.listings.find((l: any) => l.seller.id === adire).seller.distance_km).toBe(0)
+        expect(shopOrder(data.listings)[0]).toBe("Adire House")
+      })
+
       it("keeps today's order, with no distance, without an address", async () => {
         const ada = buyer("ada-no-address@oja.test")
         await shipsIn("Adire House", 0)
@@ -360,6 +399,49 @@ medusaIntegrationTestRunner({
           expect(data.listings.every((l: any) => l.seller.distance_km === null)).toBe(true)
         }
         expect(shop.distance_km).toBeNull()
+      })
+    })
+
+    describe("shop logos and banners", () => {
+      const LOGO = "https://cdn.oja.test/gadgets/logo.png"
+      const BANNER = "https://cdn.oja.test/gadgets/banner.jpg"
+      /** Ikeja Gadget Hub uploads a logo and banner; Iya Bisi Foodstuff has neither. */
+      const withImages = async () => {
+        const sellers = getContainer().resolve(MercurModules.SELLER) as any
+        const gadgets = await sellerId("Ikeja Gadget Hub")
+        const grocery = await sellerId("Iya Bisi Foodstuff")
+        await sellers.updateSellers({ id: gadgets, logo: LOGO, banner: BANNER })
+        await sellers.updateSellers({ id: grocery, logo: null, banner: null })
+        return { gadgets, grocery }
+      }
+
+      it("shows each listing's shop with its logo and banner, or nulls when it has none", async () => {
+        const { gadgets, grocery } = await withImages()
+
+        const { data } = await list({ limit: 100 })
+
+        const images = (id: string) =>
+          data.listings.filter((l: any) => l.seller.id === id).map((l: any) => [l.seller.logo, l.seller.banner])
+        expect(new Set(images(gadgets).map(String))).toEqual(new Set([String([LOGO, BANNER])]))
+        expect(new Set(images(grocery).map(String))).toEqual(new Set([String([null, null])]))
+      })
+
+      it("shows the shop page's logo and banner, or nulls when it has none", async () => {
+        const { gadgets, grocery } = await withImages()
+
+        const shopOf = async (id: string) =>
+          (await api.get(`/store/shops/${id}?region_id=${regionId}`, { headers })).data.shop
+
+        expect(await shopOf(gadgets)).toMatchObject({ logo: LOGO, banner: BANNER })
+        expect(await shopOf(grocery)).toMatchObject({ logo: null, banner: null })
+      })
+
+      it("shows the product page's shop logo and banner", async () => {
+        const { gadgets } = await withImages()
+
+        const { data } = await detail(gadgets, await productId(LANTERN.title))
+
+        expect(data.listing.seller).toMatchObject({ logo: LOGO, banner: BANNER })
       })
     })
 

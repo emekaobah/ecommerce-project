@@ -124,7 +124,7 @@ export type CheckoutPromotion = {
   code: string
   /** Applied by itself, not by a code the buyer entered, so it can't be removed. */
   automatic: boolean
-  seller: CartSeller | null
+  seller: Pick<CartSeller, "id" | "name" | "handle"> | null
   /** What it takes off the cart, VAT included. */
   amount: number
 }
@@ -493,7 +493,7 @@ async function cartPromotions(scope: MedusaContainer, cart: CartRow, sellers: Ca
     filters: { code: [...amounts.keys()] },
   })
   const promotions = new Map(
-    (data as unknown as { code: string; is_automatic: boolean; seller?: CartSeller | null }[]).map((p) => [p.code, p])
+    (data as unknown as { code: string; is_automatic: boolean; seller?: CheckoutPromotion["seller"] }[]).map((p) => [p.code, p])
   )
   return [...amounts].map(([code, amount]) => {
     const promotion = promotions.get(code)

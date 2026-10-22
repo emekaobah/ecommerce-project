@@ -9,7 +9,8 @@ import { shopStatusesOf, type ShopStatusView } from "./shop-hours"
 // ships (and later becomes an order) on its own (docs/design.md). This reads the cart back
 // grouped; lines are priced and added in `cart-lines.ts`.
 
-export type CartSeller = { id: string; name: string; handle: string }
+/** The shop a cart group belongs to; `logo` and `banner` are null when it hasn't uploaded them. */
+export type CartSeller = { id: string; name: string; handle: string; logo: string | null; banner: string | null }
 
 export type CartItem = {
   id: string
@@ -100,9 +101,14 @@ async function sellersByOffer(scope: MedusaContainer, offerIds: string[]): Promi
   const { data: offers } = await query.graph({ entity: "offer", fields: ["id", "seller_id"], filters: { id: offerIds } })
   const sellerIds = [...new Set((offers as { seller_id: string }[]).map((o) => o.seller_id))]
   const { data: sellers } = sellerIds.length
-    ? await query.graph({ entity: "seller", fields: ["id", "name", "handle"], filters: { id: sellerIds } })
+    ? await query.graph({ entity: "seller", fields: ["id", "name", "handle", "logo", "banner"], filters: { id: sellerIds } })
     : { data: [] }
-  const byId = new Map((sellers as CartSeller[]).map((s) => [s.id, { id: s.id, name: s.name, handle: s.handle }]))
+  const byId = new Map(
+    (sellers as unknown as CartSeller[]).map((s) => [
+      s.id,
+      { id: s.id, name: s.name, handle: s.handle, logo: s.logo ?? null, banner: s.banner ?? null },
+    ])
+  )
   const byOffer = new Map<string, CartSeller>()
   for (const offer of offers as { id: string; seller_id: string }[]) {
     const seller = byId.get(offer.seller_id)

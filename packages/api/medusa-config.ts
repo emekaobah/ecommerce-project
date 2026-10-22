@@ -256,6 +256,8 @@ module.exports = withMercur({
     { resolve: './src/modules/push-token' },
     // Where each shop's buyers collect pickup orders, for shops that offer pickup (#12).
     { resolve: './src/modules/collection-point' },
+    // A copy of each shop's pickup pin that listings measure distance from in SQL (ADR 0014).
+    { resolve: './src/modules/shop-pin' },
     { resolve: '@medusajs/medusa/file', options: { providers: [fileProvider] } },
   ],
 })
