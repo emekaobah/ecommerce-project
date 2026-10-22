@@ -77,6 +77,8 @@ medusaIntegrationTestRunner({
         seller: { seller_id: await sellerId(shop) },
       })
       await recordPlacedOrderWorkflow(container).run({ input: { order_id: order.id } })
+      // Set on the row: driving orders into all 15 states through checkout, Paystack, Shipbubble
+      // and the staff routes would take minutes per test, and some states no route reaches now.
       const service = fulfilmentService(container)
       const [row] = await service.listOrderFulfilments({ order_id: order.id })
       await service.updateOrderFulfilments({

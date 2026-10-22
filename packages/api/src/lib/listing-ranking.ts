@@ -3,6 +3,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { ProductStatus } from "@mercurjs/types"
 import { DISTANCE_BANDS_KM, type Pin } from "@oja/domain"
+import { escapeLike, haversineKmSql } from "./sql"
 
 // Listings filtered, ranked and paged in Postgres (ADR 0014), in the order ADR 0011 sets: best
 // name match, nearest distance band, the shop that ships soonest, the nearest shop, then the
@@ -43,34 +44,12 @@ export type RankedListing = {
   exact_km: number | null
 }
 
-const EARTH_RADIUS_KM = 6371
-
-/**
- * The haversine distance in kilometres from a pin to a shop's pin columns, as SQL, worked out as
- * `distanceKm` in `@oja/domain` does; NULL without a pin to measure from. The pin's coordinates
- * are numbers, written into the SQL as such.
- */
-export function haversineKmSql(from: Pin | null | undefined, pin = { latitude: "sp.latitude", longitude: "sp.longitude" }) {
-  const fromLat = Number(from?.latitude)
-  const fromLng = Number(from?.longitude)
-  if (!from || !Number.isFinite(fromLat) || !Number.isFinite(fromLng)) return "NULL::double precision"
-  const lat = `${pin.latitude}::double precision`
-  const lng = `${pin.longitude}::double precision`
-  return (
-    `(2 * ${EARTH_RADIUS_KM} * asin(least(1, sqrt(` +
-    `power(sin(radians(${lat} - ${fromLat}) / 2), 2) + cos(radians(${fromLat})) * cos(radians(${lat})) * power(sin(radians(${lng} - ${fromLng}) / 2), 2)` +
-    `))))`
-  )
-}
-
 /** A distance's band in SQL, nearest first as `distanceBand` numbers them; NULL (ranked last) without a distance. */
 function bandOf(km: string) {
   const bands = DISTANCE_BANDS_KM.map((limit, band) => `WHEN ${km} < ${limit} THEN ${band}`).join(" ")
   return `CASE WHEN ${km} IS NULL THEN NULL ${bands} ELSE ${DISTANCE_BANDS_KM.length} END`
 }
 
-/** `word` with LIKE's wildcards escaped, for a pattern matched with `ESCAPE '\'`. */
-export const escapeLike = (word: string) => word.replaceAll(/[\\%_]/g, (c) => `\\${c}`)
 const escapeRegex = (word: string) => word.replaceAll(/[.*+?^${}()|[\]\\]/g, (c) => `\\${c}`)
 
 /**

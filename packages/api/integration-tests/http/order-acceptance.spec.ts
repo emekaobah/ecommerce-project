@@ -5,6 +5,7 @@ import { refundUnclaimedPayments, rejectOverdueOrders } from "../../src/lib/orde
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
 import { overrideProductPerishable } from "../../src/lib/perishable"
 import { backfillOrderFulfilments } from "../../src/migration-scripts/backfill-order-fulfilments"
+import { moveAcceptedOrdersToPicking } from "../../src/migration-scripts/move-accepted-orders-to-picking"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, RICE, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -208,11 +209,36 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("an order its shop sees before it is recorded", () => {
+      it("is left out of the shop's order list and its count, until it is recorded", async () => {
+        const { gadgets } = await paidOrders()
+        const list = async () => (await api.get("/vendor/orders?limit=100", await buyer.owner(GADGETS))).data
+        const before = await list()
+        // As the order stands between Mercur linking it to the shop and `order.placed` recording it.
+        const service = fulfilmentService(getContainer())
+        const [row] = await service.listOrderFulfilments({ order_id: gadgets })
+        await service.deleteOrderFulfilments(row.id)
+        try {
+          const { orders, count } = await list()
+
+          expect(before.count).toBeLessThanOrEqual(100)
+          expect(orders.map((o: any) => o.id)).not.toContain(gadgets)
+          expect([orders.length, count]).toEqual([before.count - 1, before.count - 1])
+          const asked = (await api.get(`/vendor/orders?id=${gadgets}`, await buyer.owner(GADGETS))).data
+          expect([asked.orders.length, asked.count]).toEqual([0, 0])
+        } finally {
+          await backfillOrderFulfilments(getContainer())
+        }
+        expect((await list()).count).toBe(before.count)
+      })
+    })
+
     describe("each order's phase, once backfilled", () => {
       it("puts an order finished before orders stored their phase in the past, and leaves one in progress there", async () => {
         const { gadgets, grocery } = await paidOrders()
         await reject(GADGETS, gadgets)
-        // As the migration that added phases left every row: in progress.
+        // As the migration that added phases left every row: in progress. Set on the row, as no
+        // route writes data from before a migration.
         const service = fulfilmentService(getContainer())
         const [gadgetsRow] = await service.listOrderFulfilments({ order_id: gadgets })
         await service.updateOrderFulfilments({ id: gadgetsRow.id, phase: "in_progress" })
@@ -221,6 +247,32 @@ medusaIntegrationTestRunner({
 
         expect((await shopOrder(GADGETS, gadgets)).fulfilment).toMatchObject({ state: "rejected", phase: "past" })
         expect((await shopOrder(GROCERY, grocery)).fulfilment).toMatchObject({ state: "new", phase: "in_progress" })
+      })
+    })
+
+    describe("an order accepted before accepting started picking (#70)", () => {
+      it("is moved on to picking, picked from when it was accepted, and stays in progress", async () => {
+        const { grocery } = await paidOrders()
+        const { data } = await accept(GROCERY, grocery)
+        const acceptedAt = data.fulfilment.timeline.find((s: any) => s.label === "Accepted").at
+        // As such an order stood: Accepted, its row written before accepting moved it on.
+        const service = fulfilmentService(getContainer())
+        const [row] = await service.listOrderFulfilments({ order_id: grocery })
+        await service.updateOrderFulfilments({
+          id: row.id,
+          state: "accepted",
+          fulfilment: { method: "delivery", state: "accepted" },
+          reached: { accepted: acceptedAt },
+        })
+
+        expect(await moveAcceptedOrdersToPicking(getContainer())).toBeGreaterThanOrEqual(1)
+
+        const order = await shopOrder(GROCERY, grocery)
+        expect(order.fulfilment).toMatchObject({ state: "picking", phase: "in_progress" })
+        expect(order.fulfilment.timeline.find((s: any) => s.label === "Picking")).toEqual({ label: "Picking", status: "current", at: acceptedAt })
+        const { pick_list } = (await api.get(`/vendor/orders/${grocery}/pick-list`, await buyer.owner(GROCERY))).data
+        expect(pick_list.progress).toMatchObject({ picked: 0, total: 2 })
+        expect(await moveAcceptedOrdersToPicking(getContainer())).toBe(0)
       })
     })
 

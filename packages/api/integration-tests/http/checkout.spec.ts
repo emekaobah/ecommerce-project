@@ -21,7 +21,7 @@ import {
 import { fakeClerk } from "../helpers/clerk"
 import { numbersIn } from "../helpers/numbers"
 import { fakePaystack } from "../helpers/paystack"
-import { BEST_VALUE_FEE, fakeShipbubble } from "../helpers/shipbubble"
+import { BEST_VALUE_FEE, COURIERS, fakeShipbubble } from "../helpers/shipbubble"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -564,6 +564,32 @@ medusaIntegrationTestRunner({
 
           expect(again.data.stock_changes).toEqual([])
           expect(paystack.transaction(again.data.payment.reference).amount).toBe((TOTAL - RICE.price) * 100)
+        } finally {
+          await restore()
+        }
+      })
+
+      it("quotes delivery again only for the shop whose lines were cut; the other keeps the delivery the buyer chose", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        const gadgets = await sellerId(GADGETS)
+        const cheapest = (await checkout(cartId)).sellers
+          .find((g: any) => g.seller.id === gadgets)
+          .delivery_choices.find((c: any) => c.tags.includes("cheapest"))
+        await api.post(`/store/carts/${cartId}/checkout/delivery`, { seller_id: gadgets, choice_id: cheapest.id }, ada())
+        const restore = await setStock(GROCERY, RICE.title, 1)
+        try {
+          const { data } = await pay(cartId)
+
+          expect(data.stock_changes).toHaveLength(1)
+          const shipping = Object.fromEntries(data.checkout.sellers.map((g: any) => [g.seller.name, g.shipping?.amount]))
+          expect(shipping).toEqual({ [GADGETS.name]: COURIERS.bike.amount, [GROCERY.name]: BEST_VALUE_FEE })
+          const total = TOTAL - BEST_VALUE_FEE + COURIERS.bike.amount - RICE.price
+          expect(data.checkout.total).toBe(total)
+
+          const again = await pay(cartId)
+
+          expect(paystack.transaction(again.data.payment.reference).amount).toBe(total * 100)
         } finally {
           await restore()
         }

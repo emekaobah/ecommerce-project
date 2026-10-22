@@ -13,6 +13,7 @@ import {
   type ShopHours,
   type TimelineStep,
 } from "@oja/domain"
+import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { InferTypeOf, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { isPickupMethod } from "./collection-point"
@@ -492,9 +493,6 @@ export async function placedOrdersOf(scope: Scope, orderIds: string[]): Promise<
   )
 }
 
-/** The order as placed; undefined for no such order. */
-export const placedOrderOf = async (scope: Scope, orderId: string) => (await placedOrdersOf(scope, [orderId])).get(orderId)
-
 /** A placed order's first fulfilment row: New, by the method it was placed with, and so in progress. */
 export const newFulfilmentRow = ({ method, ...order }: PlacedOrder) => ({
   ...order,
@@ -503,6 +501,24 @@ export const newFulfilmentRow = ({ method, ...order }: PlacedOrder) => ({
   fulfilment: newFulfilment(method),
 })
 
+/**
+ * The shop's orders `order.placed` hasn't recorded yet: linked to the shop (Mercur's order-seller
+ * link) but without a fulfilment row. A moment after placing, or until the backfill for an
+ * order whose recording failed. Read in SQL as an anti-join (ADR 0014).
+ */
+export async function unrecordedOrdersOf(scope: Scope, sellerId: string): Promise<string[]> {
+  const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
+  const rows = (await knex("order_order_seller_seller as os")
+    .leftJoin("order_fulfilment as f", function () {
+      this.on("f.order_id", "os.order_id").andOnNull("f.deleted_at")
+    })
+    .where("os.seller_id", sellerId)
+    .whereNull("os.deleted_at")
+    .whereNull("f.id")
+    .select("os.order_id")) as unknown as { order_id: string }[]
+  return rows.map((r) => r.order_id)
+}
+
 /** The shop's orders Ready for pickup (#12), by when they became ready, longest waiting first. */
 export async function readyForPickup(scope: Scope, sellerId: string): Promise<string[]> {
   const rows = (
@@ -510,11 +526,4 @@ export async function readyForPickup(scope: Scope, sellerId: string): Promise<st
   ).map(asFulfilmentRecord)
   const readyAt = (r: FulfilmentRecord) => r.reached?.ready_for_pickup ?? ""
   return rows.sort((a, b) => readyAt(a).localeCompare(readyAt(b))).map((r) => r.order_id)
-}
-/** The shop each order was placed with. */
-export async function sellersOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, string>> {
-  if (!orderIds.length) return new Map()
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "order_seller", fields: ["order_id", "seller_id"], filters: { order_id: orderIds } })
-  return new Map((data as { order_id: string; seller_id: string }[]).map((l) => [l.order_id, l.seller_id]))
 }

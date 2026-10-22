@@ -4,7 +4,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { expirePickupHoldWorkflow } from "../workflows/order-fulfilment/workflows/expire-pickup-hold"
 import { errorMessage } from "./errors"
 import { refundOrderEdit } from "./order-edit-refund"
-import { asFulfilmentRecord, fulfilmentService, sellersOfOrders, type FulfilmentRecord, type Picks } from "./order-fulfilment"
+import { asFulfilmentRecord, fulfilmentService, type FulfilmentRecord, type Picks } from "./order-fulfilment"
 import { collectByOf, HOLD_LINE_FIELDS, holdLinesOf, NOT_COLLECTED_NOTE, type HoldLine, type OrderLineRow } from "./pickup-hold"
 import { shopHoursOf } from "./shop-hours"
 
@@ -19,15 +19,12 @@ export async function heldOrders(scope: Scope, now: Date): Promise<HeldOrder[]> 
   if (!ready.length) return []
   const ids = ready.map((r) => r.order_id)
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [sellers, { data }] = await Promise.all([
-    sellersOfOrders(scope, ids),
-    query.graph({ entity: "order", fields: ["id", ...HOLD_LINE_FIELDS], filters: { id: ids } }),
-  ])
+  const { data } = await query.graph({ entity: "order", fields: ["id", ...HOLD_LINE_FIELDS], filters: { id: ids } })
   const [hours, lines] = await Promise.all([
-    shopHoursOf(scope, [...sellers.values()], now),
+    shopHoursOf(scope, [...new Set(ready.flatMap((r) => (r.seller_id ? [r.seller_id] : [])))], now),
     holdLinesOf(scope, data as unknown as { id: string; items?: OrderLineRow[] | null }[]),
   ])
-  return ready.map((row) => ({ row, hours: hours.get(sellers.get(row.order_id) ?? "") ?? null, lines: lines.get(row.order_id) }))
+  return ready.map((row) => ({ row, hours: (row.seller_id && hours.get(row.seller_id)) || null, lines: lines.get(row.order_id) }))
 }
 
 /**

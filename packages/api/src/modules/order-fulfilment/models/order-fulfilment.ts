@@ -22,7 +22,7 @@ const OrderFulfilment = model
     state: model.text(),
     /**
      * Whether the order is still happening for its buyer (#59), by `@oja/domain`'s `orderPhase`
-     * of its state and refunds: written with either (`lib/order-phase`).
+     * of its state and refunds: a new row starts in progress; from then on only the service's `refreshOrderPhases` writes it.
      */
     phase: model.enum([...ORDER_PHASES]),
     /** The `Fulfilment` itself, with what each state carries (who rejected, the handover). */

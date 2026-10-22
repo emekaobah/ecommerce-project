@@ -208,6 +208,18 @@ medusaIntegrationTestRunner({
         expect(ids(await listed(fay, { q: "lantern", limit: 1, offset: 1 }))).toEqual([lanternOnly.groupId])
         expect(ids(await listed(fay, { q: "palm oil" }))).toEqual([])
       })
+
+      it("pages a search of the checkouts in progress", async () => {
+        const gus = await newBuyer("gus")
+        const older = await checkout(gus)
+        const newer = await checkout(gus)
+
+        const first = await listed(gus, { phase: "in_progress", q: "lantern", limit: 1, offset: 0 })
+        const second = await listed(gus, { phase: "in_progress", q: "lantern", limit: 1, offset: 1 })
+
+        expect([ids(first), ids(second)]).toEqual([[newer.groupId], [older.groupId]])
+        expect([first.count, first.limit, second.offset]).toEqual([2, 1, 1])
+      })
     })
 
     describe("an order group", () => {
@@ -297,8 +309,8 @@ medusaIntegrationTestRunner({
         expect((await sellerOrder(groupId, gadgets)).refund).toBeNull()
       })
 
-      it("shows its receipt: the items, delivery and the shop's discount add up to what was paid, with the Paystack reference", async () => {
-        const code = `RECEIPT${process.pid}`
+      /** Ada's checkout paid with a grocery code taking a tenth off its items, VAT included. */
+      const discountedCheckout = async (code: string) => {
         await api.post(
           "/vendor/promotions",
           {
@@ -318,14 +330,37 @@ medusaIntegrationTestRunner({
         await buyer.postWebhook(paystack.chargeSuccess(reference))
         const groupId = await buyer.orderGroupOf(cartId)
         await buyer.capturedWithin(cartId)
+        return { cartId, reference, groupId }
+      }
+      const receipt = (o: any) => [o.item_subtotal, o.delivery_total, o.discount_total, o.paid_total, o.payment_reference]
+
+      it("shows its receipt: the items, delivery and the shop's discount add up to what was paid, with the Paystack reference", async () => {
+        const { cartId, reference, groupId } = await discountedCheckout(`RECEIPT${process.pid}`)
 
         const grocery = await sellerOrder(groupId, await buyer.shopOrderId(GROCERY, cartId))
         const gadgets = await sellerOrder(groupId, await buyer.shopOrderId(GADGETS, cartId))
 
         // Shelf prices, VAT included: the grocery's code takes a tenth off its two bags of rice.
-        const receipt = (o: any) => [o.item_subtotal, o.delivery_total, o.discount_total, o.paid_total, o.payment_reference]
         expect(receipt(grocery)).toEqual([2 * RICE.price, BEST_VALUE_FEE, (2 * RICE.price) / 10, 2 * RICE.price * 0.9 + BEST_VALUE_FEE, reference])
         expect(receipt(gadgets)).toEqual([LANTERN.price, BEST_VALUE_FEE, 0, LANTERN.price + BEST_VALUE_FEE, reference])
+      })
+
+      it("keeps the receipt as charged once the shop removes an item: the discount at payment, adding up to what was paid", async () => {
+        const { cartId, reference, groupId } = await discountedCheckout(`RECEIPTCUT${process.pid}`)
+        const orderId = await buyer.shopOrderId(GROCERY, cartId)
+        await accept(GROCERY, orderId)
+        const vendor = await buyer.owner(GROCERY)
+        const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, vendor)).data
+        await api.post(`/vendor/orders/${orderId}/pick-list/${pick_list.lines[0].id}/unavailable`, { quantity: 1 }, vendor)
+        await api.post(`/vendor/orders/${orderId}/remove-unavailable`, {}, vendor)
+
+        const grocery = await sellerOrder(groupId, orderId)
+
+        expect(receipt(grocery)).toEqual([2 * RICE.price, BEST_VALUE_FEE, (2 * RICE.price) / 10, 2 * RICE.price * 0.9 + BEST_VALUE_FEE, reference])
+        // The removed bag's refund shows apart, as a refund of its line: what the edit took off the
+        // order's total, which Medusa works out with the discount worked out again on what is left.
+        expect(grocery.items[0]).toMatchObject({ quantity: 1, unavailable_quantity: 1 })
+        expect(grocery.refunds).toEqual([{ amount: RICE.price, status: "pending", lines: [{ item_id: grocery.items[0].id, quantity: 1 }] }])
       })
 
       it("names each line's variant, so it can be ordered again", async () => {

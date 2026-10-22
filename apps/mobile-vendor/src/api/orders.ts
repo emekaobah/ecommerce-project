@@ -139,15 +139,6 @@ export function useCancelOrder(orderId: string) {
   });
 }
 
-/** Starts picking an accepted order; staff then work through its pick list. */
-export function useStartPicking(orderId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => vendorClient.vendor.orders.$id.startPicking.mutate({ $id: orderId }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
-  });
-}
-
 const fetchPickList = async (orderId: string) =>
   (await vendorClient.vendor.orders.$id.pickList.query({ $id: orderId })).pick_list;
 

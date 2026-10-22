@@ -1,7 +1,6 @@
 import type { ExecArgs, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { fulfilmentService, fulfilmentsOf, newFulfilmentRow, placedOrdersOf } from "../lib/order-fulfilment"
-import { syncOrderPhases } from "../lib/order-phase"
 
 /** How many orders the backfill reads at a time. */
 const BACKFILL_BATCH = 200
@@ -42,7 +41,7 @@ export async function backfillOrderFulfilments(
     }
     created += missing.length
     filled += unfilled.length
-    phased += await syncOrderPhases(scope, ids)
+    phased += await service.refreshOrderPhases(ids)
   }
   return { created, filled, phased }
 }

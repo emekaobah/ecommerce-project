@@ -87,6 +87,26 @@ describe("errors", () => {
     expect(error).toBeInstanceOf(ApiError)
     expect(error).toMatchObject({ status: 429, message: refusal.message, body: refusal })
   })
+
+  test("keep each refused call's own body when calls overlap", async () => {
+    let answerFirst: () => void = () => {}
+    const firstAnswered = new Promise<void>((resolve) => (answerFirst = resolve))
+    globalThis.fetch = mock(async (input: RequestInfo | URL) => {
+      const id = new URL(String(input)).pathname.split("/")[3]
+      // The first call is answered only after the second has been refused.
+      if (id === "order_1") await firstAnswered
+      return Response.json({ message: `Refused ${id}`, order: id }, { status: 400 })
+    }) as unknown as typeof fetch
+    const client = createVendorClient({ baseUrl, getToken: () => "token" })
+    const refusal = (id: string) => client.vendor.orders.$id.accept.mutate({ $id: id }).catch((e: unknown) => e)
+
+    const first = refusal("order_1")
+    const second = await refusal("order_2")
+    answerFirst()
+
+    expect(second).toMatchObject({ status: 400, body: { message: "Refused order_2", order: "order_2" } })
+    expect(await first).toMatchObject({ status: 400, body: { message: "Refused order_1", order: "order_1" } })
+  })
 })
 
 describe("createStoreClient", () => {
