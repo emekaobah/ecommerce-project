@@ -6,7 +6,6 @@ import { askForRefundAccount } from "./buyer-notifications"
 import { errorMessage } from "./errors"
 import { accountRefused, activeBanks, lookupsLimited, requirePaystack } from "./paystack"
 import { fulfilmentService, type OrderRefundRecord } from "./order-fulfilment"
-import { syncOrderPhases } from "./order-phase"
 import { needsAccount, needsAttentionSince } from "./owed-refunds"
 import { handOverOwedRefundsOf } from "./refund-retry"
 
@@ -182,13 +181,14 @@ export async function retryRefundToAccount(
         .warn(`Paystack refused retrying refund ${refund.id} to the buyer's account at ${bank.name} (${error instanceof PaystackRequestError ? error.status : "no status"})`)
       throw accountError(error, bank.name)
     }
-    await fulfilmentService(scope).updateOrderRefunds({
-      id: refund.id,
-      status: retried.status,
-      account_bank_name: bank.name,
-      account_last4: input.account_number.slice(-4),
-    })
-    await syncOrderPhases(scope, [refund.order_id])
+    await fulfilmentService(scope).changeRefunds([
+      {
+        id: refund.id,
+        status: retried.status,
+        account_bank_name: bank.name,
+        account_last4: input.account_number.slice(-4),
+      },
+    ])
   })
   return buyerRefundAccountView(scope, customerId, refundId)
 }
@@ -203,8 +203,7 @@ async function handOverUnanswered(scope: Scope, refundId: string, orderId: strin
   await scope.resolve<ILockingModule>(Modules.LOCKING).execute(refundLockKey(orderId), async () => {
     const [refund] = await fulfilmentService(scope).listOrderRefunds({ id: refundId })
     if (!refund || !needsAccount(refund)) return
-    await fulfilmentService(scope).updateOrderRefunds({ id: refundId, handed_over_at: now })
-    await syncOrderPhases(scope, [orderId])
+    await fulfilmentService(scope).changeRefunds([{ id: refundId, handed_over_at: now }])
   })
   await handOverOwedRefundsOf(scope, [orderId])
 }

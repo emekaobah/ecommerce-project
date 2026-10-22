@@ -3,7 +3,6 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { emitEventStep } from "@medusajs/medusa/core-flows"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow, transform } from "@medusajs/framework/workflows-sdk"
 import { fulfilmentService, ORDER_REFUND_NEEDS_ATTENTION, ORDER_REFUND_PROCESSED, type OrderRefundRecord } from "../../../lib/order-fulfilment"
-import { syncOrderPhases } from "../../../lib/order-phase"
 import { paystackClient } from "../../../modules/paystack"
 import { UNSETTLED_REFUND_STATUSES, type PaystackRefundStatus } from "../../../modules/paystack/client"
 
@@ -48,19 +47,17 @@ const updateRefundStatusesStep = createStep(
   async (changes: Change[], { container }) => {
     const now = new Date()
     if (changes.length) {
-      await fulfilmentService(container).updateOrderRefunds(
+      await fulfilmentService(container).changeRefunds(
         changes.map((c) => ({ id: c.id, status: c.to, ...(c.to === "needs-attention" && { needs_attention_at: now }) }))
       )
-      await syncOrderPhases(container, changes.map((c) => c.row.order_id))
     }
     return new StepResponse(undefined, changes)
   },
   async (changes: Change[] | undefined, { container }) => {
     if (changes?.length) {
-      await fulfilmentService(container).updateOrderRefunds(
+      await fulfilmentService(container).changeRefunds(
         changes.map((c) => ({ id: c.id, status: c.from, needs_attention_at: c.row.needs_attention_at }))
       )
-      await syncOrderPhases(container, changes.map((c) => c.row.order_id))
     }
   }
 )

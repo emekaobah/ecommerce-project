@@ -3,7 +3,6 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import { fulfilmentService, paymentsOfOrder, type OrderRefundRecord, type Picks } from "../../../lib/order-fulfilment"
-import { syncOrderPhases } from "../../../lib/order-phase"
 import {
   isDue,
   owedAttempts,
@@ -129,7 +128,7 @@ async function linesOwed(scope: Scope, orderId: string, added?: Picks): Promise<
  */
 async function recordRefusal(scope: Scope, owed: OrderOwedRefund, lines: Picks | null, amount: number, reason: string) {
   const [payment] = await paymentsOfOrder(scope, owed.order_id)
-  await fulfilmentService(scope).createOrderRefunds({
+  await fulfilmentService(scope).recordRefunds([{
     order_id: owed.order_id,
     payment_id: payment?.id ?? null,
     amount,
@@ -139,8 +138,7 @@ async function recordRefusal(scope: Scope, owed: OrderOwedRefund, lines: Picks |
     transaction_reference: (payment?.data as PaymentData | undefined)?.reference ?? "",
     status: "failed",
     failure_reason: reason,
-  })
-  await syncOrderPhases(scope, [owed.order_id])
+  }])
 }
 
 export type SettleOwedRefundInput = {

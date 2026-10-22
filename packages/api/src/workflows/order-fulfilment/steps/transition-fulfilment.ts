@@ -12,7 +12,6 @@ import {
   type FulfilmentRecord,
   type Shipment,
 } from "../../../lib/order-fulfilment"
-import { phaseOf, phaseRefundsOf } from "../../../lib/order-phase"
 
 export type TransitionFulfilmentInput = {
   order_id: string
@@ -76,8 +75,8 @@ export const checkTransitionStep = createStep(
  * by whichever trigger, may now be paid out, as may one Not collected with perishable lines
  * kept (#32); a shipment cancelled back to Packed may be alerted about again; a pickup order
  * Ready for pickup is issued its code (#12); a label booked clears any courier waiting for
- * approval (#19). The order's phase is written with its state, from its refunds as they stand
- * (#59). A new state emits `order_fulfilment.state_changed` once the workflow succeeds.
+ * approval (#19). Once the state is written, the order's phase is refreshed from it and its
+ * refunds under the order's row lock (#59), so a refund written meanwhile is never missed. A new state emits `order_fulfilment.state_changed` once the workflow succeeds.
  */
 export const transitionFulfilmentStep = createStep(
   "transition-order-fulfilment",
@@ -89,7 +88,6 @@ export const transitionFulfilmentStep = createStep(
     const reached = recordReached(previous?.reached ?? {}, from, fulfilment, trigger.at)
     const next = {
       state: fulfilment.state,
-      phase: phaseOf(fulfilment.state, await phaseRefundsOf(container, order_id)),
       fulfilment,
       reached,
       ...(fulfilment.state === "rejected" && { reject_reason: reject_reason ?? null }),
@@ -103,9 +101,11 @@ export const transitionFulfilmentStep = createStep(
       ...(fulfilment.state === "packed" && { handover_alerted_at: null }),
       ...(fulfilment.state === "ready_for_pickup" && { pickup_code: pickupCode(), pickup_code_attempts: [] }),
     }
-    const saved = current.previous
+    const written = current.previous
       ? await service.updateOrderFulfilments({ id: current.previous.id, ...next })
       : await service.createOrderFulfilments({ ...current.placed, ...next })
+    await service.refreshOrderPhases([order_id])
+    const saved = await service.retrieveOrderFulfilment(written.id)
     if (fulfilment.state !== from.state) {
       // Grouped with the workflow's other events: released only if it succeeds, cleared if not.
       await container.resolve(Modules.EVENT_BUS).emit({
@@ -125,7 +125,6 @@ export const transitionFulfilmentStep = createStep(
       await service.updateOrderFulfilments({
         id: previous.id,
         state: previous.state,
-        phase: previous.phase,
         fulfilment: previous.fulfilment,
         reject_reason: previous.reject_reason,
         shipment: previous.shipment,
@@ -137,6 +136,7 @@ export const transitionFulfilmentStep = createStep(
         pickup_code: previous.pickup_code,
         pickup_code_attempts: previous.pickup_code_attempts,
       })
+      await service.refreshOrderPhases([previous.order_id])
     }
   }
 )
