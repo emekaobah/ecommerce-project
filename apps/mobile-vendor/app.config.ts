@@ -1,5 +1,5 @@
 // Relative import of a plain-JS module: Expo's config loader doesn't transpile workspace TypeScript.
-import { appIdentity } from '../../packages/domain/src/app-identity.js';
+import { APPLE_TEAM_ID, appIdentity } from '../../packages/domain/src/app-identity.js';
 import { NEW_ORDER_ALARM } from '../../packages/domain/src/new-order-alarm.js';
 import { fontFiles } from '../../packages/ui/src/fonts.js';
 import type { ExpoConfig } from 'expo/config';
@@ -19,6 +19,7 @@ const config: ExpoConfig = {
   icon: './assets/icon.png',
   ios: {
     bundleIdentifier: bundleId,
+    appleTeamId: APPLE_TEAM_ID,
     // A new order's push is time-sensitive, breaking through Focus (#71); not a critical alert.
     entitlements: { 'com.apple.developer.usernotifications.time-sensitive': true },
   },

@@ -1,6 +1,9 @@
 /** The product's name. Rename the product here; app names, schemes and bundle ids follow. */
 export declare const PRODUCT_NAME: string
 
+/** The Apple Developer Program team both iOS apps are signed with. */
+export declare const APPLE_TEAM_ID: string
+
 export type AppIdentity = {
   /** Display name under the app icon. */
   name: string
