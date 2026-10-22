@@ -11,6 +11,8 @@ import {
   deliveryChoices,
   PERISHABLE_PICKUP_NOTE,
   PICKUP_HOLD_NOTICE,
+  pinOf,
+  roundedDistanceKm,
   type DeliveryTag,
   type FulfilmentMethod,
   type LinePrice,
@@ -28,6 +30,7 @@ import { offerLinePrice } from "./cart-lines"
 import { discountsByCode } from "./discount-funding"
 import {
   collectionPlacesOf,
+  collectionPointDistancesKm,
   collectionPointsOf,
   isPickupMethod,
   PICKUP_METHOD_DATA,
@@ -37,6 +40,7 @@ import {
 import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
 import { promoCodeProblem, type CodedPromotion } from "./promotions"
 import { unshareCode } from "./shared-codes"
+import { fulfilmentsOf } from "./order-fulfilment"
 import { closedShopError } from "./shop-hours"
 import { NOT_PLACED_KEY, type StoredNotPlaced } from "./unplaced-checkout"
 
@@ -95,7 +99,14 @@ export type DeliveryUnavailable = { code: "perishable_too_slow"; reason: string 
  * In-store pickup as checkout offers it for a shop with a collection point (#12): where, how,
  * and when (the shop's own hours), always free, with what happens if it isn't collected.
  */
-export type PickupOffer = CollectionPlace & { hold_notice: string }
+export type PickupOffer = CollectionPlace & {
+  hold_notice: string
+  /**
+   * How far the collection point is from the delivery address's pin, in whole kilometres (ADR
+   * 0011), never its pin; null without an address to measure from.
+   */
+  distance_km: number | null
+}
 
 export type CheckoutSellerGroup = CartSellerGroup & {
   /** How the shop's order reaches the buyer: delivered (preselected where it can be), or collected in store. */
@@ -150,7 +161,7 @@ export type Checkout = {
    * the buyer's name and phone given), so payment can start.
    */
   ready_to_pay: boolean
-  /** Set once payment is confirmed and the cart has become orders. */
+  /** Set once payment is confirmed and the cart has become orders, each recorded for its shop. */
   order_group_id: string | null
   /**
    * Set when the buyer paid but the cart failed to become orders (#38): it was refunded in full
@@ -396,26 +407,34 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
   const grouped = await retrieveCartBySeller(scope, cartId)
   const deliveries = await deliveriesBySeller(scope, cart)
   // The split writes the group before its orders and links; the cart is marked completed
-  // once they are all in place.
+  // once they are all in place. Its orders are recorded a moment after (`order.placed`), and
+  // only then shown: the checkout says it was placed once they are.
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: groups } = cart.completed_at
-    ? await query.graph({ entity: "order_group", fields: ["id"], filters: { cart_id: cartId } })
+    ? await query.graph({ entity: "order_group", fields: ["id", "orders.id"], filters: { cart_id: cartId } })
     : { data: [] }
+  const group = groups[0] as unknown as { id: string; orders?: ({ id: string } | null)[] | null } | undefined
+  const groupOrderIds = (group?.orders ?? []).flatMap((o) => (o ? [o.id] : []))
+  const placed = groupOrderIds.length > 0 && (await fulfilmentsOf(scope, groupOrderIds)).size === groupOrderIds.length
 
   // A cart in a one-country region carries that country as a stub address: no place to deliver to.
   const address = cart.shipping_address?.address_1 ? cart.shipping_address : null
   const receiverCode = addressCodeOf(address)
   const unavailable = unavailableDeliveries(cart)
   const sellerIds = grouped.sellers.flatMap((g) => (g.seller ? [g.seller.id] : []))
-  const [timeZone, collecting, places] = await Promise.all([
+  const [timeZone, collecting, places, distances] = await Promise.all([
     regionTimeZone(scope, grouped.region_id),
     collectedShops(scope, cart),
     collectionPlacesOf(scope, sellerIds),
+    collectionPointDistancesKm(scope, sellerIds, pinOf(address)),
   ])
   const sellers = grouped.sellers.map((group): CheckoutSellerGroup => {
     const sellerId = group.seller?.id
     const place = sellerId ? places.get(sellerId) : undefined
-    const pickup = place ? { ...place, hold_notice: PICKUP_HOLD_NOTICE } : null
+    const km = sellerId ? distances.get(sellerId) : undefined
+    const pickup = place
+      ? { ...place, hold_notice: PICKUP_HOLD_NOTICE, distance_km: km == null ? null : roundedDistanceKm(km) }
+      : null
     const method: FulfilmentMethod = sellerId && collecting.has(sellerId) ? "pickup" : "delivery"
     const delivery = sellerId && method === "delivery" ? deliveries.get(sellerId) : undefined
     // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
@@ -461,7 +480,7 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
       !!cart.email &&
       sellers.length > 0 &&
       sellers.every((g) => g.seller && (g.method === "pickup" || g.shipping) && g.shop_status?.orderable),
-    order_group_id: (groups[0] as { id: string } | undefined)?.id ?? null,
+    order_group_id: group && placed ? group.id : null,
     not_placed: cart.completed_at ? null : notPlacedOf(cart),
   }
 }

@@ -1,9 +1,11 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { Modules } from "@medusajs/framework/utils"
 import { ADDRESS, buyerCheckout, GADGETS, GROCERY, LANTERN, PIN, RETURN_URL, RICE, TOTAL } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
 import { BEST_VALUE_FEE, COURIERS, categoryId, fakeShipbubble } from "../helpers/shipbubble"
 import seedDemoData from "../../src/scripts/seed"
+import { SEED_SELLERS } from "../../src/scripts/seed-data"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -20,6 +22,7 @@ process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
 
 /** Ada's address with the pin she confirmed on the map (ADR 0002). */
 const PINNED = ADDRESS
+const FASHION = SEED_SELLERS.find((s) => s.name === "Adire House")!
 
 medusaIntegrationTestRunner({
   inApp: true,
@@ -257,16 +260,83 @@ medusaIntegrationTestRunner({
     })
 
     describe("product page delivery estimate", () => {
-      const estimateOf = async (shop: typeof GADGETS, title: string, config: { headers: Record<string, string> }) => {
+      const productId = async (title: string) => {
         const { data: products } = await buyer.query().graph({ entity: "product", fields: ["id"], filters: { title } })
+        return products[0].id as string
+      }
+      const estimateOf = async (
+        shop: typeof GADGETS,
+        title: string,
+        config: { headers: Record<string, string> },
+        params: Record<string, string> = {}
+      ) => {
+        const query = new URLSearchParams({ region_id: buyer.regionId(), ...params })
         const { data } = await api.get(
-          `/store/listings/${await buyer.sellerId(shop)}/${products[0].id}/delivery-estimate?region_id=${buyer.regionId()}`,
+          `/store/listings/${await buyer.sellerId(shop)}/${await productId(title)}/delivery-estimate?${query}`,
           config
         )
         return data.estimate
       }
-      const saveAddress = (email: string, address: Record<string, unknown>) =>
-        api.post("/store/customers/me/addresses", address, buyer.as(email))
+      /** Saves the address for the buyer and returns its id. */
+      const saveAddress = async (email: string, address: Record<string, unknown>) => {
+        const { data } = await api.post("/store/customers/me/addresses", address, buyer.as(email))
+        return data.customer.addresses.find((a: any) => a.address_1 === address.address_1).id as string
+      }
+      /** Another address of Chidi's, across the lagoon, pinned on the map. */
+      const YABA_PIN = { latitude: 6.5095, longitude: 3.3711 }
+      const YABA = { ...PINNED, address_1: "12 Herbert Macaulay Way", city: "Yaba", metadata: { ...YABA_PIN } }
+
+      it("estimates to the address the buyer picked rather than their default", async () => {
+        await saveAddress("chidi@oja.test", { ...PINNED, first_name: "Chidi", is_default_shipping: true })
+        const yaba = await saveAddress("chidi@oja.test", { ...YABA, first_name: "Chidi" })
+
+        expect(await estimateOf(GROCERY, RICE.title, buyer.as("chidi@oja.test"), { address_id: yaba })).toMatchObject({
+          amount: BEST_VALUE_FEE,
+        })
+
+        const [request] = shipbubble.rateRequests()
+        expect(request.reciever_address_code).toBe(shipbubble.codeOf(`${YABA_PIN.latitude},${YABA_PIN.longitude}`))
+      })
+
+      it("ignores an address that isn't the buyer's, estimating to their default as listings do", async () => {
+        await saveAddress("chidi@oja.test", { ...PINNED, first_name: "Chidi", is_default_shipping: true })
+        const dayos = await saveAddress("dayo@oja.test", { ...YABA, first_name: "Dayo" })
+
+        await estimateOf(GROCERY, RICE.title, buyer.as("chidi@oja.test"), { address_id: dayos })
+
+        const [request] = shipbubble.rateRequests()
+        expect(request.reciever_address_code).toBe(shipbubble.codeOf(`${PIN.latitude},${PIN.longitude}`))
+      })
+
+      it("estimates the size the buyer picked, by its own weight", async () => {
+        await saveAddress("chidi@oja.test", { ...PINNED, first_name: "Chidi", is_default_shipping: true })
+        const { data: variants } = await buyer
+          .query()
+          .graph({ entity: "product_variant", fields: ["id", "title"], filters: { product_id: await productId("Adire Kaftan") } })
+        const xl = variants.find((v: any) => v.title === "XL")!
+        // The XL ships heavier than the other sizes.
+        await getContainer().resolve(Modules.PRODUCT).updateProductVariants(xl.id, { weight: 2000 })
+
+        await estimateOf(FASHION, "Adire Kaftan", buyer.as("chidi@oja.test"), { variant_id: xl.id })
+
+        const [request] = shipbubble.rateRequests()
+        expect(request.package_items).toEqual([expect.objectContaining({ unit_weight: "2", quantity: "1" })])
+      })
+
+      it("refuses a variant the listing's shop doesn't sell", async () => {
+        await saveAddress("chidi@oja.test", { ...PINNED, first_name: "Chidi", is_default_shipping: true })
+        const { data: lanterns } = await buyer
+          .query()
+          .graph({ entity: "product_variant", fields: ["id"], filters: { product_id: await productId(LANTERN.title) } })
+
+        const status = await estimateOf(GROCERY, RICE.title, buyer.as("chidi@oja.test"), { variant_id: lanterns[0].id }).then(
+          () => 200,
+          (e: any) => e.response?.status
+        )
+
+        expect(status).toBe(404)
+        expect(shipbubble.rateRequests()).toEqual([])
+      })
 
       it("estimates the listing's shop's best-value delivery to the buyer's saved address", async () => {
         await saveAddress("chidi@oja.test", { ...PINNED, first_name: "Chidi", is_default_shipping: true })

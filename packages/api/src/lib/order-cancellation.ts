@@ -21,8 +21,8 @@ export type CancelPreview = { allowed: boolean; refund_amount: number; currency_
 /** Whether the order can be cancelled now (`canCancel`), and what cancelling it refunds (`cancelRefundOf`). */
 export async function cancelPreview(scope: Scope, orderId: string): Promise<CancelPreview> {
   const [{ amount, currency_code }, records] = await Promise.all([cancelRefundOf(scope, orderId), fulfilmentsOf(scope, [orderId])])
-  // An order without a fulfilment row yet is New.
-  return { allowed: canCancel(records.get(orderId)?.state ?? "new"), refund_amount: amount, currency_code }
+  const record = records.get(orderId)
+  return { allowed: !!record && canCancel(record.state), refund_amount: amount, currency_code }
 }
 
 export type CancelledOrder = {
