@@ -1,21 +1,16 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { deleteLineItemsWorkflow, deletePaymentSessionsWorkflow, updateLineItemInCartWorkflow } from "@medusajs/medusa/core-flows"
-import { stockShortfall, type NotPlacedChange, type NotPlacedReason } from "@oja/domain"
+import { deleteLineItemsWorkflow, deletePaymentSessionsWorkflow } from "@medusajs/medusa/core-flows"
+import type { NotPlacedChange, NotPlacedReason } from "@oja/domain"
 import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-promotions"
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
-import { retrieveCartBySeller, type CartItem } from "./cart"
+import { retrieveCartBySeller } from "./cart"
+import { cutCartToStock } from "./cart-stock"
 
 // Fixing a paid cart that failed to become orders, once it is refunded (#38): as checkout does
 // when prices change, the buyer then sees what changed and pays the new total.
 
 type Scope = Pick<MedusaContainer, "resolve">
-
-const item = (line: CartItem, seller: string | null) => ({
-  product_title: line.product_title,
-  variant_title: line.variant_title,
-  seller,
-})
 
 /**
  * Fixes a cart that was refunded because it failed to become orders, once its payment sessions
@@ -32,31 +27,16 @@ export async function fixUnplacedCart(
   const causes = new Set<NotPlacedReason>()
   const { sellers } = await retrieveCartBySeller(container, cartId)
 
-  const removed: string[] = []
-  for (const line of sellers.filter((g) => !g.seller).flatMap((g) => g.items)) {
-    removed.push(line.id)
-    changes.push({ type: "item_removed", ...item(line, null), quantity: line.quantity })
+  const gone = sellers.filter((g) => !g.seller).flatMap((g) => g.items)
+  for (const line of gone) {
+    const { product_title, variant_title, quantity } = line
+    changes.push({ type: "item_removed", product_title, variant_title, seller: null, quantity })
     causes.add("unavailable")
   }
-  const sold = sellers.filter((g) => g.seller).flatMap((g) => g.items.map((line) => ({ line, seller: g.seller!.name })))
-  const reduced: { id: string; quantity: number }[] = []
-  for (const { line, seller } of sold) {
-    const shortfall = stockShortfall(line.quantity, line.available_quantity)
-    if (!shortfall) continue
-    causes.add("sold_out")
-    if (shortfall.type === "sold_out") {
-      removed.push(line.id)
-      changes.push({ type: "item_removed", ...item(line, seller), quantity: line.quantity })
-    } else {
-      reduced.push({ id: line.id, quantity: shortfall.left })
-      changes.push({ type: "quantity_reduced", ...item(line, seller), was: line.quantity, now: shortfall.left })
-    }
-  }
-  if (removed.length) await deleteLineItemsWorkflow(container).run({ input: { cart_id: cartId, ids: removed } })
-  // One line at a time: each update is a workflow on the same cart.
-  for (const { id, quantity } of reduced) {
-    await updateLineItemInCartWorkflow(container).run({ input: { cart_id: cartId, item_id: id, update: { quantity } } })
-  }
+  if (gone.length) await deleteLineItemsWorkflow(container).run({ input: { cart_id: cartId, ids: gone.map((l) => l.id) } })
+  const cut = await cutCartToStock(container, cartId, sellers)
+  if (cut.length) causes.add("sold_out")
+  changes.push(...cut)
 
   for (const seller of await dropGoneDeliveries(scope, cartId)) {
     changes.push({ type: "delivery_removed", seller })

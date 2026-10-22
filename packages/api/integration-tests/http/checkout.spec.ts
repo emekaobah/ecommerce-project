@@ -64,6 +64,7 @@ medusaIntegrationTestRunner({
       ada,
       sellerId,
       offerId,
+      setStock,
       adasCart,
       prepare,
       startPayment,
@@ -387,11 +388,13 @@ medusaIntegrationTestRunner({
       })
     })
 
+    const setPrice = async (shop: Shop, title: string, amount: number) =>
+      updateOfferWorkflow(getContainer()).run({
+        input: { offer: { id: await offerId(shop, title), prices: [{ amount, currency_code: "ngn" }] } },
+      })
+    const pay = (cartId: string) => api.post(`/store/carts/${cartId}/checkout/payment`, { return_url: RETURN_URL }, ada())
+
     describe("repricing before payment", () => {
-      const setPrice = async (shop: Shop, title: string, amount: number) =>
-        updateOfferWorkflow(getContainer()).run({
-          input: { offer: { id: await offerId(shop, title), prices: [{ amount, currency_code: "ngn" }] } },
-        })
       /** An active price list giving the shop's offer of a product its own price; returns its id. */
       const priceList = async (shop: Shop, title: string, type: "sale", amount: number) => {
         const offer = await offerId(shop, title)
@@ -420,7 +423,6 @@ medusaIntegrationTestRunner({
           ])
         return list.id
       }
-      const pay = (cartId: string) => api.post(`/store/carts/${cartId}/checkout/payment`, { return_url: RETURN_URL }, ada())
 
       it("tells the buyer what a shop's new price is before they pay, then charges it", async () => {
         const cartId = await adasCart()
@@ -537,6 +539,84 @@ medusaIntegrationTestRunner({
 
         // Nor for the delivery of a shop the cart no longer holds anything from.
         expect(paystack.transaction(reference).amount).toBe((LANTERN.price + BEST_VALUE_FEE) * 100)
+      })
+    })
+
+    describe("checking stock before payment", () => {
+      const riceLine = (checkout: any) =>
+        checkout.sellers.find((g: any) => g.seller?.name === GROCERY.name)?.items.find((i: any) => i.product_title === RICE.title)
+
+      it("cuts a line wanting more than is left, says so, and charges the new total when the buyer pays again", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        const restore = await setStock(GROCERY, RICE.title, 1)
+        try {
+          const { data } = await pay(cartId)
+
+          expect(data.payment).toBeNull()
+          expect(data.stock_changes).toEqual([
+            { type: "quantity_reduced", product_title: RICE.title, variant_title: RICE.title, seller: GROCERY.name, was: 2, now: 1 },
+          ])
+          expect(riceLine(data.checkout).quantity).toBe(1)
+          expect(data.checkout.total).toBe(TOTAL - RICE.price)
+
+          const again = await pay(cartId)
+
+          expect(again.data.stock_changes).toEqual([])
+          expect(paystack.transaction(again.data.payment.reference).amount).toBe((TOTAL - RICE.price) * 100)
+        } finally {
+          await restore()
+        }
+      })
+
+      it("removes a sold-out line, with its shop's delivery, and charges for the rest when the buyer pays again", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        const restore = await setStock(GROCERY, RICE.title, 0)
+        try {
+          const { data } = await pay(cartId)
+
+          expect(data.payment).toBeNull()
+          expect(data.stock_changes).toEqual([
+            { type: "item_removed", product_title: RICE.title, variant_title: RICE.title, seller: GROCERY.name, quantity: 2 },
+          ])
+          expect(data.checkout.sellers.map((g: any) => g.seller.name)).toEqual([GADGETS.name])
+          expect(data.checkout.total).toBe(LANTERN.price + BEST_VALUE_FEE)
+
+          const { reference } = await startPayment(cartId)
+
+          expect(paystack.transaction(reference).amount).toBe((LANTERN.price + BEST_VALUE_FEE) * 100)
+        } finally {
+          await restore()
+        }
+      })
+
+      it("says what changed in price and in stock at once, and charges the new total when the buyer pays again", async () => {
+        const cartId = await adasCart()
+        await prepare(cartId)
+        await setPrice(GADGETS, LANTERN.title, LANTERN.price + 1000)
+        const restore = await setStock(GROCERY, RICE.title, 1)
+        try {
+          const { data } = await pay(cartId)
+
+          expect(data.payment).toBeNull()
+          expect(data.price_changes.map((c: any) => [c.product_title, c.was.unit_price, c.now.unit_price])).toEqual([
+            [LANTERN.title, LANTERN.price, LANTERN.price + 1000],
+          ])
+          expect(data.stock_changes).toEqual([
+            { type: "quantity_reduced", product_title: RICE.title, variant_title: RICE.title, seller: GROCERY.name, was: 2, now: 1 },
+          ])
+          const total = TOTAL + 1000 - RICE.price
+          expect(data.checkout.total).toBe(total)
+
+          const again = await pay(cartId)
+
+          expect(again.data).toMatchObject({ price_changes: [], stock_changes: [] })
+          expect(paystack.transaction(again.data.payment.reference).amount).toBe(total * 100)
+        } finally {
+          await restore()
+          await setPrice(GADGETS, LANTERN.title, LANTERN.price)
+        }
       })
     })
 
