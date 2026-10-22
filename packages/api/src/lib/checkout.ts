@@ -11,6 +11,8 @@ import {
   deliveryChoices,
   PERISHABLE_PICKUP_NOTE,
   PICKUP_HOLD_NOTICE,
+  pinOf,
+  roundedDistanceKm,
   type DeliveryTag,
   type FulfilmentMethod,
   type LinePrice,
@@ -28,6 +30,7 @@ import { offerLinePrice } from "./cart-lines"
 import { discountsByCode } from "./discount-funding"
 import {
   collectionPlacesOf,
+  collectionPointDistancesKm,
   collectionPointsOf,
   isPickupMethod,
   PICKUP_METHOD_DATA,
@@ -95,7 +98,14 @@ export type DeliveryUnavailable = { code: "perishable_too_slow"; reason: string 
  * In-store pickup as checkout offers it for a shop with a collection point (#12): where, how,
  * and when (the shop's own hours), always free, with what happens if it isn't collected.
  */
-export type PickupOffer = CollectionPlace & { hold_notice: string }
+export type PickupOffer = CollectionPlace & {
+  hold_notice: string
+  /**
+   * How far the collection point is from the delivery address's pin, in whole kilometres (ADR
+   * 0011), never its pin; null without an address to measure from.
+   */
+  distance_km: number | null
+}
 
 export type CheckoutSellerGroup = CartSellerGroup & {
   /** How the shop's order reaches the buyer: delivered (preselected where it can be), or collected in store. */
@@ -407,15 +417,19 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
   const receiverCode = addressCodeOf(address)
   const unavailable = unavailableDeliveries(cart)
   const sellerIds = grouped.sellers.flatMap((g) => (g.seller ? [g.seller.id] : []))
-  const [timeZone, collecting, places] = await Promise.all([
+  const [timeZone, collecting, places, distances] = await Promise.all([
     regionTimeZone(scope, grouped.region_id),
     collectedShops(scope, cart),
     collectionPlacesOf(scope, sellerIds),
+    collectionPointDistancesKm(scope, sellerIds, pinOf(address)),
   ])
   const sellers = grouped.sellers.map((group): CheckoutSellerGroup => {
     const sellerId = group.seller?.id
     const place = sellerId ? places.get(sellerId) : undefined
-    const pickup = place ? { ...place, hold_notice: PICKUP_HOLD_NOTICE } : null
+    const km = sellerId ? distances.get(sellerId) : undefined
+    const pickup = place
+      ? { ...place, hold_notice: PICKUP_HOLD_NOTICE, distance_km: km == null ? null : roundedDistanceKm(km) }
+      : null
     const method: FulfilmentMethod = sellerId && collecting.has(sellerId) ? "pickup" : "delivery"
     const delivery = sellerId && method === "delivery" ? deliveries.get(sellerId) : undefined
     // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
