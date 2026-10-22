@@ -363,6 +363,49 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("shop logos and banners", () => {
+      const LOGO = "https://cdn.oja.test/gadgets/logo.png"
+      const BANNER = "https://cdn.oja.test/gadgets/banner.jpg"
+      /** Ikeja Gadget Hub uploads a logo and banner; Iya Bisi Foodstuff has neither. */
+      const withImages = async () => {
+        const sellers = getContainer().resolve(MercurModules.SELLER) as any
+        const gadgets = await sellerId("Ikeja Gadget Hub")
+        const grocery = await sellerId("Iya Bisi Foodstuff")
+        await sellers.updateSellers({ id: gadgets, logo: LOGO, banner: BANNER })
+        await sellers.updateSellers({ id: grocery, logo: null, banner: null })
+        return { gadgets, grocery }
+      }
+
+      it("shows each listing's shop with its logo and banner, or nulls when it has none", async () => {
+        const { gadgets, grocery } = await withImages()
+
+        const { data } = await list({ limit: 100 })
+
+        const images = (id: string) =>
+          data.listings.filter((l: any) => l.seller.id === id).map((l: any) => [l.seller.logo, l.seller.banner])
+        expect(new Set(images(gadgets).map(String))).toEqual(new Set([String([LOGO, BANNER])]))
+        expect(new Set(images(grocery).map(String))).toEqual(new Set([String([null, null])]))
+      })
+
+      it("shows the shop page's logo and banner, or nulls when it has none", async () => {
+        const { gadgets, grocery } = await withImages()
+
+        const shopOf = async (id: string) =>
+          (await api.get(`/store/shops/${id}?region_id=${regionId}`, { headers })).data.shop
+
+        expect(await shopOf(gadgets)).toMatchObject({ logo: LOGO, banner: BANNER })
+        expect(await shopOf(grocery)).toMatchObject({ logo: null, banner: null })
+      })
+
+      it("shows the product page's shop logo and banner", async () => {
+        const { gadgets } = await withImages()
+
+        const { data } = await detail(gadgets, await productId(LANTERN.title))
+
+        expect(data.listing.seller).toMatchObject({ logo: LOGO, banner: BANNER })
+      })
+    })
+
     describe("GET /store/shops/:seller_id", () => {
       const shop = (seller: string, region = regionId) =>
         api.get(`/store/shops/${seller}?region_id=${region}`, { headers })

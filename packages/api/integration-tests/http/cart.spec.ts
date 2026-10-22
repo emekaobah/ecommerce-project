@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { MercurModules } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PRODUCTS } from "../../src/scripts/seed-data"
 import { fakeClerk } from "../helpers/clerk"
@@ -78,6 +79,25 @@ medusaIntegrationTestRunner({
           },
         ])
         expect(grouped.item_subtotal).toBe(LANTERN.price + LANTERN.also_at![0].price + 2 * RICE.price)
+      })
+
+      it("shows each shop's logo and banner on its group, or nulls when it has none", async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: shops } = await query.graph({ entity: "seller", fields: ["id", "name"] })
+        const idOf = (name: string) => shops.find((s: any) => s.name === name)!.id
+        const sellers = getContainer().resolve(MercurModules.SELLER) as any
+        await sellers.updateSellers({ id: idOf("Ikeja Gadget Hub"), logo: "https://cdn.oja.test/logo.png", banner: "https://cdn.oja.test/banner.jpg" })
+        await sellers.updateSellers({ id: idOf("Iya Bisi Foodstuff"), logo: null, banner: null })
+        const cart = await createCart()
+        await addOffer(cart.id, await offerId("Ikeja Gadget Hub", LANTERN.title))
+        await addOffer(cart.id, await offerId("Iya Bisi Foodstuff", RICE.title))
+
+        const grouped = await bySeller(cart.id)
+
+        expect(Object.fromEntries(grouped.sellers.map((g: any) => [g.seller.name, [g.seller.logo, g.seller.banner]]))).toEqual({
+          "Ikeja Gadget Hub": ["https://cdn.oja.test/logo.png", "https://cdn.oja.test/banner.jpg"],
+          "Iya Bisi Foodstuff": [null, null],
+        })
       })
 
       it("adds the same offer twice as one line", async () => {

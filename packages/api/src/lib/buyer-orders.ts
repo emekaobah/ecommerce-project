@@ -51,7 +51,8 @@ export type BuyerOrder = {
   display_id: number
   created_at: string
   currency_code: string
-  seller: { id: string; name: string; handle: string | null; logo: string | null }
+  /** `logo` and `banner` are null when the shop hasn't uploaded them; screens show its initials. */
+  seller: { id: string; name: string; handle: string | null; logo: string | null; banner: string | null }
   items: BuyerOrderItem[]
   /** Where the shop is with it: the same state its staff see. */
   fulfilment: BuyerFulfilmentView
@@ -207,6 +208,7 @@ const ORDER_FIELDS = [
   "seller.name",
   "seller.handle",
   "seller.logo",
+  "seller.banner",
   "items.id",
   "items.product_id",
   "items.product_title",
@@ -350,6 +352,7 @@ function buyerOrder(
       name: o.seller?.name,
       handle: o.seller?.handle ?? null,
       logo: o.seller?.logo ?? null,
+      banner: o.seller?.banner ?? null,
     },
     items: (o.items ?? []).map((i: any) => ({
       id: i.id,
