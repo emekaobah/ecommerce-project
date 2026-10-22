@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { formatMoney } from "./money"
-import { historyEntries, orderStatus, owedRefundStatus, refundStatus } from "./order-history"
+import { historyEntries, missingItemsNote, orderGroupSummary, orderStatus, owedRefundStatus, refundStatus } from "./order-history"
 
 const placed = { state: "new", rejected_by: null, reject_reason: null, cancellation: null } as const
 
@@ -129,5 +129,90 @@ describe("owedRefundStatus", () => {
       icon: "clock",
       note: `Our team is sending your ${formatMoney(30, "ngn")} refund`,
     })
+  })
+})
+
+describe("orderGroupSummary", () => {
+  const shopOrder = (state: (typeof placed)["state"] | "packed" | "in_transit" | "delivered", opens = false) => ({
+    fulfilment: { ...placed, state },
+    shop_opens: opens ? { at: "2026-10-26T09:00:00Z", time_zone: "Africa/Lagos" } : null,
+  })
+
+  test("a checkout split across shops says where each shop's part is", () => {
+    expect(orderGroupSummary([shopOrder("packed"), shopOrder("new", true)])).toBe("One packed, one waiting for the shop to open")
+  })
+
+  test("one shop's order reads as its state", () => {
+    expect(orderGroupSummary([shopOrder("in_transit")])).toBe("On its way")
+  })
+
+  test("shops at the same point are counted together", () => {
+    expect(orderGroupSummary([shopOrder("packed"), shopOrder("delivered"), shopOrder("packed")])).toBe(
+      "Two packed, one delivered"
+    )
+  })
+
+  test("every shop at the same point says so", () => {
+    expect(orderGroupSummary([shopOrder("delivered"), shopOrder("delivered")])).toBe("Both delivered")
+    expect(orderGroupSummary([shopOrder("packed"), shopOrder("packed"), shopOrder("packed")])).toBe("All three packed")
+  })
+})
+
+describe("missingItemsNote", () => {
+  const tomatoes = { id: "item_1", product_title: "Fresh Tomatoes 1kg", quantity: 0, unavailable_quantity: 2 }
+  const beans = { id: "item_2", product_title: "Honey Beans 2kg", quantity: 1, unavailable_quantity: 0 }
+  const refundFor = (status: "pending" | "processing" | "processed" | "failed" | "needs-attention", amount = 3500) => ({
+    amount,
+    status,
+    lines: [{ item_id: "item_1", quantity: 2 }],
+  })
+
+  test("an item the shop didn't have is explained with where its refund is", () => {
+    expect(missingItemsNote({ items: [tomatoes, beans], refunds: [refundFor("processing")], currency_code: "ngn" })).toEqual({
+      missing: "Fresh Tomatoes 1kg wasn't available.",
+      refund: `${formatMoney(3500, "ngn")} is on its way back to your card.`,
+    })
+  })
+
+  test("once the refund is made it says so, without promising when the bank shows it", () => {
+    expect(missingItemsNote({ items: [tomatoes], refunds: [refundFor("processed")], currency_code: "ngn" })?.refund).toBe(
+      `${formatMoney(3500, "ngn")} has been refunded to your card.`
+    )
+  })
+
+  test.each(["failed", "needs-attention"] as const)("a %s refund is left to its chip", (status) => {
+    expect(missingItemsNote({ items: [tomatoes], refunds: [refundFor(status)], currency_code: "ngn" })).toEqual({
+      missing: "Fresh Tomatoes 1kg wasn't available.",
+      refund: null,
+    })
+  })
+
+  test("refunds for other lines, or for no lines, aren't counted", () => {
+    const delivery = { amount: 1800, status: "processed" as const, lines: null }
+    const other = { amount: 900, status: "processed" as const, lines: [{ item_id: "item_9", quantity: 1 }] }
+    expect(missingItemsNote({ items: [tomatoes], refunds: [delivery, other], currency_code: "ngn" })?.refund).toBeNull()
+  })
+
+  test("several missing items are named together, and their refunds added up", () => {
+    const rice = { id: "item_3", product_title: "Ofada Rice 5kg", quantity: 0, unavailable_quantity: 1 }
+    const oil = { id: "item_4", product_title: "Red Palm Oil 3L", quantity: 0, unavailable_quantity: 1 }
+    const riceRefund = { amount: 9000, status: "pending" as const, lines: [{ item_id: "item_3", quantity: 1 }] }
+    expect(
+      missingItemsNote({ items: [tomatoes, rice, oil], refunds: [refundFor("processed"), riceRefund], currency_code: "ngn" })
+    ).toEqual({
+      missing: "Fresh Tomatoes 1kg, Ofada Rice 5kg and Red Palm Oil 3L weren't available.",
+      refund: `${formatMoney(12500, "ngn")} is on its way back to your card.`,
+    })
+  })
+
+  test("part of a line missing says how many of it", () => {
+    const some = { ...tomatoes, quantity: 1, unavailable_quantity: 2 }
+    expect(missingItemsNote({ items: [some], refunds: [], currency_code: "ngn" })?.missing).toBe(
+      "2 of 3 Fresh Tomatoes 1kg weren't available."
+    )
+  })
+
+  test("nothing missing, no note", () => {
+    expect(missingItemsNote({ items: [beans], refunds: [], currency_code: "ngn" })).toBeNull()
   })
 })

@@ -114,3 +114,98 @@ export function historyEntries<O extends { paid_total: number }, G extends Group
     return others.length ? [{ kind: "group", group, paid_total }] : [{ kind: "order", group, order: only, paid_total }]
   })
 }
+
+/** A shop's order as the order detail's headline reads it. */
+export type SummaryOrder = {
+  fulfilment: OrderFulfilmentView
+  /** When its closed shop next opens, while the order waits for that (ADR 0004). */
+  shop_opens: { at: string; time_zone: string } | null
+}
+
+const COUNTS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+const countWord = (n: number) => COUNTS[n - 1] ?? String(n)
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
+/** A shop's order's state in the headline's words: a new order at a closed shop waits for it to open. */
+function summaryState(order: SummaryOrder) {
+  if (order.fulfilment.state === "new" && order.shop_opens) return "waiting for the shop to open"
+  return orderStatus(order).label.toLowerCase()
+}
+
+/**
+ * The order detail's headline: where each shop's part of the checkout is, counted by state in
+ * the order the shops come: "One packed, one waiting for the shop to open". One shop's order
+ * reads as its state ("On its way"); shops all at one point read "Both delivered".
+ */
+export function orderGroupSummary(orders: readonly SummaryOrder[]): string {
+  const counts = new Map<string, number>()
+  for (const order of orders) {
+    const state = summaryState(order)
+    counts.set(state, (counts.get(state) ?? 0) + 1)
+  }
+  const [only, ...others] = [...counts]
+  if (only && !others.length) {
+    const [state, n] = only
+    if (n === 1) return capitalise(state)
+    return capitalise(`${n === 2 ? "both" : `all ${countWord(n)}`} ${state}`)
+  }
+  return capitalise([...counts].map(([state, n]) => `${countWord(n)} ${state}`).join(", "))
+}
+
+/** A shop's order as its missing-items note reads it (#22, #61). */
+export type MissingItemsOrder = {
+  items: readonly { id: string; product_title: string | null; quantity: number; unavailable_quantity: number }[]
+  /** Each refund of the order, with the lines it was for; null lines for one of no lines. */
+  refunds: readonly (OrderRefundView & { lines: readonly { item_id: string; quantity: number }[] | null })[]
+  currency_code: string
+}
+
+/** What the shop didn't have, and where the money for it is; the first sentence leads. */
+export type MissingItemsNote = { missing: string; refund: string | null }
+
+/**
+ * What a shop's order is missing, in plain words: "Fresh Tomatoes 1kg wasn't available.", and
+ * the refund for it: "₦3,500 is on its way back to your card." Null while nothing is missing.
+ */
+export function missingItemsNote({ items, refunds, currency_code }: MissingItemsOrder): MissingItemsNote | null {
+  const missing = items.filter((item) => item.unavailable_quantity > 0)
+  const [first, ...others] = missing
+  if (!first) return null
+  const plural = others.length > 0 || (first.quantity > 0 && first.unavailable_quantity > 1)
+  const ids = new Set(missing.map((item) => item.id))
+  const forMissing = refunds.filter((refund) => refund.lines?.some((line) => ids.has(line.item_id)))
+  return {
+    missing: `${listed(missing.map(missingName))} ${plural ? "weren't" : "wasn't"} available.`,
+    refund: refundSentence(forMissing, currency_code),
+  }
+}
+
+/** A missing line by name; part of a line says how many of it: "2 of 3 Fresh Tomatoes 1kg". */
+function missingName(item: MissingItemsOrder["items"][number]) {
+  const name = item.product_title ?? "An item"
+  if (!item.quantity) return name
+  return `${item.unavailable_quantity} of ${item.quantity + item.unavailable_quantity} ${name}`
+}
+
+/** "A", "A and B", "A, B and C". */
+function listed(names: readonly string[]) {
+  const last = names.at(-1) ?? ""
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${last}` : last
+}
+
+/**
+ * Where the refund for missing items is: on its way while Paystack works on it, refunded once
+ * made (banks take a few working days to show it; no date is promised). A delayed refund is
+ * left to its chip, and to the bank-details screen when it waits on the buyer.
+ */
+function refundSentence(refunds: MissingItemsOrder["refunds"], currencyCode: string) {
+  if (!refunds.length) return null
+  if (refunds.some((refund) => refund.status === "failed" || refund.status === "needs-attention")) return null
+  const amount = formatMoney(
+    refunds.reduce((sum, refund) => sum + refund.amount, 0),
+    currencyCode
+  )
+  return refunds.every((refund) => refund.status === "processed")
+    ? `${amount} has been refunded to your card.`
+    : `${amount} is on its way back to your card.`
+}
