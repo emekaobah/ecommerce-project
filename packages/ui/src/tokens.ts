@@ -88,8 +88,8 @@ export const block = {
   railTile: points(118),
   /** The add and save buttons on a product photo: drawn small, with a 44pt hit area. */
   photoButton: points(26),
-  /** The quantity stepper's minus and plus, each a 44pt target. */
-  stepperHalf: points(32),
+  /** The quantity stepper's minus and plus: drawn 32 mockup px, never under the 44pt touch target. */
+  stepperHalf: Math.max(HIT_AREA, points(32)),
   /** A shop's banner, under the status bar. */
   banner: points(150),
   /** The empty state's pattern emblem, and the error state's quieter one. */
