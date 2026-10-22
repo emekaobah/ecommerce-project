@@ -351,6 +351,15 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .avatar{width:56px; height:56px; border-radius:16px; background:var(--p-sun); color:#12162B; display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:20px; flex:none}
 .B .mono{width:32px; height:32px; border-radius:12px; background:var(--p-indigo); color:#fff; display:grid; place-items:center; font-family:"Bricolage Grotesque", sans-serif; font-weight:800; font-size:11.5px; flex:none}
 .B .mono.lg{width:52px; height:52px; border-radius:16px; font-size:18px; border:3px solid #fff}
+.B .mono.logo{background:#fff; box-shadow:inset 0 0 0 1px var(--p-line); overflow:hidden}
+.B .mono.logo img{width:100%; height:100%; object-fit:cover; display:block}
+.B .cover .bnr{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+.B .cover .scrim{position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.4), rgba(0,0,0,0) 50%)}
+.B .ln.so .ph img{filter:grayscale(1); opacity:.5}
+.B .ln.so b{color:var(--p-muted)}
+.B .soact{display:flex; gap:16px; font-size:11.5px; font-weight:700; color:var(--p-link); padding-top:4px}
+.B .lnote{font-size:11.5px; color:var(--p-muted); padding:4px 0 0}
+.B .addbtn.off{background:var(--p-tile); color:var(--p-muted)}
 .B .sumrow{display:flex; justify-content:space-between; font-size:13px; color:var(--p-muted)}
 .B .sumrow b{color:var(--p-ink)}
 .B .sumrow.total{font-size:14px; color:var(--p-ink); font-weight:800; border-top:1px solid var(--p-line); padding-top:8px}
@@ -1185,7 +1194,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="tokrow"><i style="background:#EEF0F7"></i><div><b>Mist</b><span>Secondary buttons, fact boxes, subtotal blocks, chips</span> <code>#EEF0F7</code></div></div>
       <div class="tokrow"><i style="background:#F2B33D"></i><div><b>Sun</b><span>Deal badges and progress only</span> <code>#F2B33D</code></div></div>
       <div class="tokrow"><i style="background:#186441"></i><div><b>Leaf</b><span>Open, done and picked, as chips, badges and pills only. Never a screen or a button</span> <code>#186441</code></div></div>
-      <div class="tokrow"><i style="background:#90411A"></i><div><b>Ember</b><span>Short items, deadlines under 4 hours, needs attention</span> <code>#90411A</code></div></div>
+      <div class="tokrow"><i style="background:#90411A"></i><div><b>Ember</b><span>Short items, the last two hours to accept, waiting on the buyer</span> <code>#90411A</code></div></div>
       <div class="tokrow"><i style="background:#AA2318"></i><div><b>Red</b><span>Reject, cancel, destructive actions only</span> <code>#AA2318</code></div></div>
     </div>
     <div class="sysc"><h3>Numbers and dates</h3><ul><li>Prices are whole naira with ₦ and thousands commas. No kobo.</li><li>Dates beat durations: "Arrives Thu 23 Oct", never "Ships in 2 days".</li></ul>
@@ -1204,11 +1213,12 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     <div class="sysc">
       <h3>Built only on what exists</h3>
       <ul>
-        <li>Every screen uses data the buyer app, vendor app and backend already have, except the ones marked <span class="cap-tag">New</span>: My reviews and the Handed to courier confirm need app work only; Order again and the In progress / Past order sections also need backend changes (filed as #54).</li>
+        <li>Every screen was checked against the code on 21 Oct 2026. Where a screen needs backend work, its notes say so; the work is in the redesign readiness spec: In progress / Past orders and order search, the shops route for Home, stock in listings, cart and payment, the shop's closing time, logos and banners, receipt totals, refunds that name their items, Order again, vendor stage counts and the new-order alarm.</li>
         <li>Deals are shown the way the backend has them: a shop's sale price crossed out, and its automatic promotion as a badge. There's no deals feed or countdown, because sale end dates don't reach the buyer.</li>
-        <li>Shops and categories have no images, so shops use monograms and the pattern, and categories are name chips.</li>
-        <li>Search matches product names only, so it has no filters or sort. Listings come nearest first.</li>
-        <li>Reviews show an average and count, with no star breakdown or photos. Reject reasons are free text, as the vendor app has them today.</li>
+        <li>Shops show the logo and banner they upload in the vendor panel, falling back to a monogram and the indigo pattern. Categories have no images, so they are name chips.</li>
+        <li>Search matches product names only, so it has no filters or sort. Shops rank by distance band (under 5, 5–15, over 15 km), then by how fast they ship, and distances show in whole kilometres so no shop can be pinpointed (ADR 0011).</li>
+        <li>Reviews show an average and count, with no star breakdown or photos. Reject reasons are free text; cancelling an accepted order picks one of four reasons, with a note for "Other".</li>
+        <li>There are no delivery areas: every courier delivers nationwide, and checkout finds a shop it can't deliver from by its courier rates. Perishable items go only with couriers arriving by the end of the next day, otherwise pickup.</li>
       </ul>
     </div>
     
@@ -1341,7 +1351,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <tr><td><code>tabInactive</code></td><td>#5B6178</td><td>#B4B4BC</td><td>Unselected tab labels</td></tr>
         <tr><td><code>sun</code></td><td>#F2B33D</td><td>#F2B33D</td><td>Deal badges, progress</td></tr>
         <tr><td><code>leaf</code> / <code>leafText</code></td><td>#186441 / #165A3C</td><td>#186441 / #6FD6A0</td><td>Open, done, picked</td></tr>
-        <tr><td><code>ember</code> / <code>emberText</code></td><td>#90411A / #84391A</td><td>#90411A / #F0A474</td><td>Needs attention, deadlines under 4 hours</td></tr>
+        <tr><td><code>ember</code> / <code>emberText</code></td><td>#90411A / #84391A</td><td>#90411A / #F0A474</td><td>Waiting on the buyer, the last two hours to accept</td></tr>
         <tr><td><code>danger</code> / <code>dangerText</code> / <code>dangerBg</code></td><td>#AA2318 / #962218 / #FBEAE8</td><td>#AA2318 / #F2938A / #3A1717</td><td>Destructive buttons, errors</td></tr>
       </tbody>
     </table></div>
@@ -1454,7 +1464,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <h3>Android, and the tab bar</h3>
       <ul>
         <li>On Android, values are in dp, the same numbers as pt. The layout runs edge to edge under transparent system bars. The system back gesture does what the header's back button does, and press feedback is a ripple.</li>
-        <li>Both apps use native tabs (<code>NativeTabs</code>): Liquid Glass on iOS 26 and Material on Android. Native tabs can't take the drawn floating bar's 24pt corners and custom fill, and they draw their icons from SF Symbols and Material Symbols, not Lucide. <b>Decided:</b> keep native tabs. The five tab icons are the platform's; every other icon is Lucide. The drawn tab bar shows order, labels and icons only.</li>
+        <li>The buyer app uses native tabs (<code>NativeTabs</code>); the vendor app is a stack with no tab bar, as today: Liquid Glass on iOS 26 and Material on Android. Native tabs can't take the drawn floating bar's 24pt corners and custom fill, and they draw their icons from SF Symbols and Material Symbols, not Lucide. <b>Decided:</b> keep native tabs. The five tab icons are the platform's; every other icon is Lucide. The drawn tab bar shows order, labels and icons only.</li>
       </ul>
     </div>
   </div>
@@ -1621,7 +1631,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 <tr><th>2.2.3 No timing</th><td class="now">The 24-hour accept clock is a real-time business event, which this criterion allows. Nothing else is timed.</td><td><span class="res pass">Pass</span></td></tr>
 <tr><th>2.2.4 Interruptions</th><td class="now">The new-order takeover has "Not now" in its corner, which sends the order to the queue. Staff can switch it to a banner in Settings.</td><td><span class="res fixed">Fixed</span></td></tr>
 <tr><th>2.2.5 Re-authenticating</th><td class="now">When a session expires, the cart, checkout step and pick progress must survive signing in again.</td><td><span class="res impl">Build</span></td></tr>
-<tr><th>2.2.6 Timeouts</th><td class="now">The pickup counter's lockout states the time it ends. No data is lost to inactivity, because carts are saved on the account.</td><td><span class="res pass">Pass</span></td></tr>
+<tr><th>2.2.6 Timeouts</th><td class="now">The pickup counter's lockout states the time it ends. No data is lost to inactivity: the cart is kept on the phone, and picks are stored on the server.</td><td><span class="res pass">Pass</span></td></tr>
 <tr><th>2.3.2 Three flashes</th><td class="now">The alarm ring fades over 1.6 seconds. It never flashes.</td><td><span class="res pass">Pass</span></td></tr>
 <tr><th>2.3.3 Animation from interactions</th><td class="now">With Reduce Motion on, the pulse stops and screens change without sliding.</td><td><span class="res impl">Build</span></td></tr>
 <tr><th>2.4.8 Location</th><td class="now">Checkout shows "Step 2 of 3" with a progress bar, and every screen has a title.</td><td><span class="res pass">Pass</span></td></tr>
@@ -1682,18 +1692,18 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="bsheet">
           <span class="grab"></span>
           <h4>Where should we deliver?</h4>
-          <p>We'll show shops that deliver there.</p>
+          <p>We'll show the shops nearest to it first.</p>
           <div class="inp ph"><svg class="ico"><use href="#i-search"/></svg>Street, estate or area</div>
           <span class="btn pri"><svg class="ico"><use href="#i-locate"/></svg>Use my current location</span>
           <span class="btn sec">Enter it later</span>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Delivery address prompt.</b> Asked once, as a sheet over Home, with location as the quick path.<span class="route">delivering-to.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Delivery address prompt.</b> For a signed-in buyer with no saved address, asked once as a sheet over Home, with location as the quick path. Addresses belong to accounts, so a guest's band reads "Sign in to see shops near you" instead.<span class="route">delivering-to.tsx</span></figcaption></figure>
   </div>
 </section>
 
 <section id="b-home">
-  <div class="flow-h"><h3>Home, full scroll</h3><p>The whole page for a returning buyer in Surulere, top to bottom, with the fold marked. Everything on it comes from what the app and backend already do.</p></div>
+  <div class="flow-h"><h3>Home, full scroll</h3><p>The whole page for a returning buyer in Surulere, top to bottom, with the fold marked. It needs the new shops route; everything else on it exists.</p></div>
   <div class="homegrid">
     <figure class="ph-wrap"><div class="phone B tall"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
@@ -1705,8 +1715,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="sheet">
           <div class="cchips"><span class="fchip on">All</span><span class="fchip">Foodstuff</span><span class="fchip">Fresh food</span><span class="fchip">Fashion</span><span class="fchip">Gadgets</span></div>
           <div class="sec"><h5>Near you</h5><a>Nearest first</a></div>
-          <div class="lrow gh"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1.2 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦8,550 <s>₦9,500</s></span><span class="n">Red Palm Oil 3L</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div></div><div class="divider"></div><div class="lrow gh"><span class="mono">IG</span><div><b>Ikeja Gadget Hub</b><small><span class="stat"><i></i>Open</span> · closes 6pm · 9.8 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cut-powerbank.png" alt=""><span class="dealb">10% off at this shop</span><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦24,000</span><span class="n">Power Bank 20,000mAh</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-earbuds.jpg" alt=""><span class="dealb">10% off at this shop</span><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦18,500</span><span class="n">Wireless Earbuds</span></div></div><div class="divider"></div><div class="lrow gh"><span class="mono">AH</span><div><b>Adire House</b><small><span class="chip c-mute"><svg class="ico"><use href="#i-clock"/></svg>Closed · opens 10am Mon</span> · 4.1 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-kaftan.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦28,000</span><span class="n">Adire Kaftan</span></div></div>
-          <div class="endnote">That's every shop that delivers to Surulere.<br><b>Change address</b></div>
+          <div class="lrow gh"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦8,550 <s>₦9,500</s></span><span class="n">Red Palm Oil 3L</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div></div><div class="divider"></div><div class="lrow gh"><span class="mono">AH</span><div><b>Adire House</b><small><span class="chip c-mute"><svg class="ico"><use href="#i-clock"/></svg>Closed · opens 10am Mon</span> · 4 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-kaftan.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦28,000</span><span class="n">Adire Kaftan</span></div></div><div class="divider"></div><div class="lrow gh"><span class="mono logo"><img src="img/logo-igh.svg" alt=""></span><div><b>Ikeja Gadget Hub</b><small><span class="stat"><i></i>Open</span> · closes 6pm · 10 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cut-powerbank.png" alt=""><span class="dealb">10% off at this shop</span><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦24,000</span><span class="n">Power Bank 20,000mAh</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-earbuds.jpg" alt=""><span class="dealb">10% off at this shop</span><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦18,500</span><span class="n">Wireless Earbuds</span></div></div>
+          <div class="endnote">That's every shop near 14 Bode Thomas St.<br><b>Change address</b></div>
         </div>
         <div class="fold"><span>First screen ends here</span></div>
       </div>
@@ -1718,19 +1728,19 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <ol>
         <li><b>Band.</b> The delivery address the buyer chose, their first name from their account, and search. <span class="src2">delivering-to · Clerk · <code>GET /store/listings?q=</code></span></li>
         <li><b>Category chips.</b> The store's top-level categories, as names: categories carry no images. <span class="src2"><code>useCategories</code></span></li>
-        <li><b>Near you.</b> Today's Home list, regrouped by shop. Listings already arrive grouped by shop, nearest first, with each shop's distance and open or closed state. Sale prices show crossed out, and a shop's automatic promotion shows as its "10% off at this shop" badge. <span class="src2"><code>GET /store/listings</code> · <code>offerPrice</code> · <code>dealLabel</code></span></li>
-        <li><b>End of list.</b> The last shop that delivers to this address, then a way to change the address. <span class="src2">listings paging</span></li>
+        <li><b>Near you.</b> A page of shops, each with its logo (or monogram), distance, open state with today's closing time, and its top products. Shops rank by distance band, then ship time, then distance, so a nearer shop can follow one in the same band that ships faster; distances are whole kilometres. Sale prices show crossed out, and a shop's automatic promotion shows as its "10% off at this shop" badge. A sold-out product shows "Sold out" in place of its add button. <span class="src2">new <code>GET /store/shops</code>, ranked in the database · <code>closes_at</code> · <code>seller.logo</code> · <code>offerPrice</code> · <code>dealLabel</code></span></li>
+        <li><b>End of list.</b> More shops load as the buyer scrolls; after the last one, a way to change the address. Every live shop in the region is listed: couriers deliver nationwide, so there is no delivery area. <span class="src2">shops paging</span></li>
       </ol>
       <h4>For a first-time buyer or a guest</h4>
       <ul>
-        <li>The band asks for an address instead of greeting by name, and the address sheet opens on first launch.</li>
+        <li>A signed-in buyer with no address gets the address sheet once; a guest's band reads "Sign in to see shops near you", because addresses belong to accounts.</li>
         <li>Without an address, listings aren't ranked by distance and the distance is left off each shop.</li>
       </ul>
       <h4>Left out because nothing supports it yet</h4>
       <ul>
         <li>A deals section with a countdown: sale end dates stay inside the shop's price list and never reach the buyer, and listings can't be filtered to "on sale".</li>
         <li>A "Buy again" rail, "market staples" and a featured shop on Home. Order again lives on delivered orders instead (After purchase); a Home rail can follow once that proves useful.</li>
-        <li>Shop cover photos and category images: shops and categories carry no images.</li>
+        <li>Category images: categories carry none.</li>
       </ul>
     </div>
   </div>
@@ -1749,11 +1759,11 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="sheet">
           <div class="cchips"><span class="fchip on">All</span><span class="fchip">Foodstuff</span><span class="fchip">Fresh food</span><span class="fchip">Fashion</span><span class="fchip">Gadgets</span></div>
           <div class="sec"><h5>Near you</h5><a>Nearest first</a></div>
-          <div class="lrow gh"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1.2 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦8,550 <s>₦9,500</s></span><span class="n">Red Palm Oil 3L</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div></div>
+          <div class="lrow gh"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦8,550 <s>₦9,500</s></span><span class="n">Red Palm Oil 3L</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div></div>
         </div>
       </div>
       <div class="tabbar"><span class="on"><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>Home, first screen.</b> Category chips, then listings grouped by shop, nearest first. The full page is in "Home, full scroll" above.<span class="route">(tabs)/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Home, first screen.</b> Category chips, then shops nearest first, each with its top products. The full page is in "Home, full scroll" above.<span class="route">(tabs)/index.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -1761,21 +1771,21 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="inp focus"><svg class="ico"><use href="#i-search"/></svg>rice<span style="margin-left:auto;color:var(--p-muted)">×</span></div>
                   </div>
         <div class="lbl2" style="padding-top:2px">2 shops · 5 products</div>
-        <div class="lrow" style="border:0;padding-bottom:4px"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1.2 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div>
+        <div class="lrow" style="border:0;padding-bottom:4px"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div>
         <div class="rrail" style="display:flex;gap:8px;padding:8px 16px 12px;overflow:hidden">
           <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦14,500</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
           <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦5,200</span><span style="font-size:11.5px;font-weight:600">Ijebu Garri 4kg</span></div>
           <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-beans.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦6,800</span><span style="font-size:11.5px;font-weight:600">Honey Beans 2kg</span></div>
         </div>
         <div style="height:8px;background:var(--p-tile)"></div>
-        <div class="lrow" style="border:0;padding-bottom:4px"><span class="mono">MN</span><div><b>Mama Ngozi Provisions</b><small><span class="stat"><i></i>Open</span> · closes 8pm · 5.6 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div>
+        <div class="lrow" style="border:0;padding-bottom:4px"><span class="mono">MN</span><div><b>Mama Ngozi Provisions</b><small><span class="stat"><i></i>Open</span> · closes 8pm · 6 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div>
         <div style="display:flex;gap:8px;padding:8px 16px 12px;overflow:hidden">
           <div style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦13,900</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
           <div style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦9,200</span><span style="font-size:11.5px;font-weight:600">Red Palm Oil 3L</span></div>
         </div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span class="on"><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>Search.</b> Results stay grouped by shop, as the backend returns them, with each shop's open state and distance. Search matches product names; there are no filters to add.<span class="route">(tabs)/search.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Search.</b> Results grouped by shop, with each shop's open state and distance; the shop and product counts cover every match, not just the loaded page. Search matches product names; there are no filters to add.<span class="route">(tabs)/search.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -1783,22 +1793,22 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="subcats"><span class="fchip on">All</span><span class="fchip">Rice and grains</span><span class="fchip">Beans</span><span class="fchip">Oils</span><span class="fchip">Garri</span></div>
         <div class="sortrow">From 6 shops near you, nearest first</div>
         <div class="grid">
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span><span class="s">Iya Bisi · 1.2 km</span></div>
-          <div class="pcard"><div class="ph"><img class="img" src="img/ugc-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span><span class="s">Iya Bisi · 1.2 km</span></div>
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-beans.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦6,800</span><span class="n">Honey Beans 2kg</span><span class="s">Iya Bisi · 1.2 km</span></div>
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦9,200</span><span class="n">Red Palm Oil 3L</span><span class="s">Mama Ngozi · 5.6 km</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span><span class="s">Iya Bisi · 1 km</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/ugc-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span><span class="s">Iya Bisi · 1 km</span></div>
+          <div class="pcard off"><div class="ph"><img class="img" src="img/cat-beans.jpg" alt=""><span class="chip c-mute closedtag">Sold out</span></div><span class="p num">₦6,800</span><span class="n">Honey Beans 2kg</span><span class="s">Iya Bisi · 1 km</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦9,200</span><span class="n">Red Palm Oil 3L</span><span class="s">Mama Ngozi · 6 km</span></div>
         </div>
       </div>
       <div class="tabbar"><span class="on"><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>Category.</b> Sub-category chips from the category tree; every card ends with the shop that sells it and how far away it is.<span class="route">category/[id].tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Category.</b> Sub-category chips from the category tree; every card ends with the shop that sells it and how far away it is. A sold-out product stays in place, greyed, with "Sold out" instead of the add button.<span class="route">category/[id].tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
-        <div class="cover" style="background:var(--p-band);overflow:hidden"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-share"/></svg></span></div></div>
+        <div class="cover" style="background:var(--p-band);overflow:hidden"><img class="bnr" src="img/ugc-garri.jpg" alt=""><span class="scrim"></span><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-share"/></svg></span></div></div>
         <div class="shophd">
           <span class="mono lg">IB</span>
           <h4>Iya Bisi Foodstuff</h4>
-          <div class="meta2"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Open · closes 7pm</span><span>★ 4.8 (212)</span><span>Surulere · 1.2 km</span></div>
+          <div class="meta2"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Open · closes 7pm</span><span>★ 4.8 (212)</span><span>Surulere · 1 km</span></div>
           <div class="meta2" style="color:var(--p-ink)">Rice, beans, garri and oils, bagged fresh every morning.</div>
         </div>
         <div class="tabs"><span class="on">Products</span><span>Reviews</span></div>
@@ -1807,7 +1817,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="pcard"><div class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦3,500</span><span class="n">Fresh Tomatoes 1kg</span></div>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Shop.</b> Shops have no photos, so the header is the indigo pattern with the monogram, then the open state, rating, distance and the shop's own description.<span class="route">seller/[id].tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Shop.</b> The banner and logo the shop uploaded in the vendor panel; without them, the indigo pattern and the monogram. Then the open state, rating, distance and the shop's own description.<span class="route">seller/[id].tsx</span></figcaption></figure>
   </div>
 </section>
 
@@ -1822,8 +1832,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <h4>Ofada Rice, 5kg</h4>
           <span class="price num">₦14,500</span>
           <div class="facts">
-            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-truck"/></svg></span><b>Thu 23 Oct</b>from ₦1,800</div>
-            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><b>Pick up today</b>Surulere · free</div>
+            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-truck"/></svg></span><b>Thu 23 Oct</b>₦1,800 delivery</div>
+            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><b>Pick up</b>Surulere · free</div>
           </div>
           
         </div>
@@ -1838,14 +1848,26 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <h4>Ofada Rice, 5kg</h4>
           <span class="price num">₦14,500</span>
           <div class="facts">
-            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-truck"/></svg></span><b>Thu 23 Oct</b>from ₦1,800</div>
-            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><b>Pick up today</b>Surulere · free</div>
+            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-truck"/></svg></span><b>Thu 23 Oct</b>₦1,800 delivery</div>
+            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><b>Pick up</b>Surulere · free</div>
           </div>
           
         </div>
       </div>
       <div class="buybar incart"><span class="qstep"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>2</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span><span class="addbtn sec2"><span>In cart · View cart</span></span></div>
     </div></div><figcaption class="ph-cap"><b>Product, in your cart.</b> After adding, the bar shows the quantity already in the cart and changes it there, so a second tap never adds a duplicate line. "View cart" goes straight to it.<span class="route">product/[id].tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb" style="background:var(--p-tile)"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body">
+        <div class="hero" style="height:228px"><img class="img" src="img/cat-beans.jpg" alt="" style="opacity:.55;filter:grayscale(.7)"><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div></div>
+        <div class="pd">
+          <span class="shopline"><span class="av">IB</span>Iya Bisi Foodstuff · ★ 4.8</span>
+          <h4>Honey Beans, 2kg</h4>
+          <span class="price num">₦6,800</span>
+          <div class="note2"><svg class="ico"><use href="#i-info"/></svg><span><b>Sold out at Iya Bisi Foodstuff.</b> Save it to see it back in stock in your saved items.</span></div>
+        </div>
+      </div>
+      <div class="buybar"><span class="addbtn off" style="flex:1;width:100%;max-width:none;justify-content:center"><span>Sold out</span></span></div>
+    </div></div><figcaption class="ph-cap"><b>Product, sold out.</b> <span class="cap-tag">New</span> Shown when the shop tracks stock and has none left. Add is disabled and the heart stays the way to keep it. Below five left, the quantity stepper stops at what's in stock and says "Only 3 left".<span class="route">product/[id].tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -1856,7 +1878,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="rev"><div class="who"><b>Adaeze O.</b><span>12 Oct</span></div><div class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg></div>Stone-free and properly sorted. Arrived the next morning, well sealed.</div>
         <div class="rev"><div class="who"><b>Kunle B.</b><span>3 Oct</span></div><div class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></div>Good rice, but the bag was smaller than I expected for the price.<div class="reply"><b>Iya Bisi Foodstuff replied:</b> It's a full 5kg; we've added the weight to the photo. Thank you!</div></div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Reviews.</b> The average and count, then reviews newest first with the shop's public replies inline.<span class="route">reviews.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Reviews.</b> The product's average and count across every shop that sells it, then reviews newest first with the replying shop's public reply inline.<span class="route">reviews.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -1885,8 +1907,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="price num">₦14,500</span>
           <div class="vchips" role="radiogroup" aria-label="Size"><span>2kg</span><span class="on">5kg</span><span>10kg</span></div>
           <div class="facts">
-            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-truck"/></svg></span><b>Thu 23 Oct</b>from ₦1,800</div>
-            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><b>Pick up today</b>Surulere · free</div>
+            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-truck"/></svg></span><b>Thu 23 Oct</b>₦1,800 delivery</div>
+            <div class="fact"><span style="color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><b>Pick up</b>Surulere · free</div>
           </div>
           <p class="pdesc">Stone-free Ofada rice from Abeokuta, parboiled and bagged at the shop each morning. Nutty and aromatic; best with ayamase.</p>
         </div>
@@ -1911,12 +1933,12 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <h4>What each part is, and where its data comes from</h4>
       <ol>
         <li><b>Photos.</b> Every image the product has, swiped sideways, with dots for position. Save sits in the header. <span class="src2"><code>product.images</code> · wishlist toggle</span></li>
-        <li><b>Summary.</b> Name, this shop's unit price (a sale shows crossed out, with the shop's deal badge), and the shop and its rating. Quantity lives in the sticky bar with Add to cart. A closed shop shows when it reopens, and Add to cart is disabled. <span class="src2"><code>offerPrice</code> · <code>ShopRating</code> · <code>ShopStatusBadge</code></span></li>
+        <li><b>Summary.</b> Name, this shop's unit price (a sale shows crossed out, with the shop's deal badge), and the shop and its rating. Quantity lives in the sticky bar with Add to cart, and stops at what's in stock ("Only 3 left"). A shop closed outside its hours still takes orders ("Prepared when it opens Mon 10am"); a paused shop, or one closed for a date, shows when it reopens and disables Add. A sold-out product shows "Sold out" in the bar, with Add disabled. <span class="src2"><code>offerPrice</code> · <code>ShopRating</code> · <code>ShopStatusBadge</code></span></li>
         <li><b>Size.</b> One chip per variant this shop offers; the price and button follow the choice. Hidden when there's only one. <span class="src2"><code>offers[].variant_title</code></span></li>
-        <li><b>Delivery and pickup.</b> The shop's best-value courier date and fee to the buyer's address, or its dispatch time ("Ships in 2 days") when there's no address yet. Pickup shows only where the shop has a collection point. <span class="src2"><code>useDeliveryEstimate</code> · <code>leadtime_to_ship</code></span></li>
+        <li><b>Delivery and pickup.</b> The best-value courier's date and fee to the address in "Delivering to", for the size chosen, or the shop's dispatch time ("Ships in 2 days") when there's no address yet. Pickup shows the shop's area and "free" only where the shop has a collection point; there is no ready time to promise. <span class="src2"><code>useDeliveryEstimate</code> (needs <code>address_id</code> and the variant) · <code>leadtime_to_ship</code> · collection point</span></li>
         <li><b>Description.</b> The catalogue description, when there is one. <span class="src2"><code>product.description</code></span></li>
         <li><b>Details.</b> The category's attributes and the weight, as label and value. <span class="src2"><code>product.attributes</code> · <code>weight</code></span></li>
-        <li><b>Reviews.</b> The product's average, count and latest reviews, then "See all". Hidden until it has reviews. <span class="src2"><code>useReviewPreview</code></span></li>
+        <li><b>Reviews.</b> The product's average, count and latest reviews, across every shop that sells it, then "See all". Hidden until it has reviews. <span class="src2"><code>useReviewPreview</code></span></li>
         <li><b>Credit.</b> Shown only for data from a source whose licence requires it. <span class="src2"><code>product.attribution</code></span></li>
         <li><b>More from this shop.</b> Other products from the same shop, as small cards. Left out when there are none. <span class="src2">shop suggestions</span></li>
       </ol>
@@ -1945,20 +1967,21 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="lines">
             <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦14,500</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
             <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small class="num">₦5,200</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
+            <div class="ln so"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small><span class="chip c-mute">Sold out</span></small><div class="soact"><span>Remove</span><span>Save for later</span></div></div><b class="num" style="font-size:13px;color:var(--p-muted)">₦6,800</b></div>
           </div>
-          <div class="shopsum"><div><b>Subtotal</b><small>2 items + delivery</small></div><div class="r"><b class="num">₦19,700</b><span class="lnk">Checkout this shop</span></div></div>
+          <div class="shopsum"><div><b>Subtotal</b><small>3 items + delivery</small></div><div class="r"><b class="num">₦26,500</b><span class="lnk">Checkout this shop</span></div></div>
         </div>
         <div class="card2">
-          <div class="hd"><span class="mono">AH</span><div><b>Adire House</b><small>Closed now · prepared when it opens Mon 10am</small></div></div>
+          <div class="hd"><span class="mono">AH</span><div><b>Adire House</b><small>Closed · opens 10am Mon · prepared then</small></div></div>
           <div class="lines">
             <div class="ln"><span class="ph"><img class="img" src="img/cat-kaftan.jpg" alt="" style="object-position:top"></span><div><b>Adire Kaftan · M</b><small class="num">₦28,000</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
           </div>
           <div class="shopsum"><div><b>Subtotal</b><small>1 item + delivery</small></div><div class="r"><b class="num">₦28,000</b><span class="lnk">Checkout this shop</span></div></div>
         </div>
-        <div class="pad cartsum"><div class="sumrow"><span>Iya Bisi Foodstuff</span><b class="num">₦19,700</b></div><div class="sumrow"><span>Adire House</span><b class="num">₦28,000</b></div><div class="sumrow total"><span>Items total</span><b class="num">₦47,700</b></div></div>
+        <div class="pad cartsum"><div class="sumrow"><span>Iya Bisi Foodstuff</span><b class="num">₦26,500</b></div><div class="sumrow"><span>Adire House</span><b class="num">₦28,000</b></div><div class="sumrow total"><span>Items total</span><b class="num">₦54,500</b></div></div>
       </div>
-      <div class="cta"><span>Checkout 2 shops</span><span class="num">₦47,700</span></div>
-    </div></div><figcaption class="ph-cap"><b>Cart.</b> Grouped by shop, like Etsy: each shop ends with its own subtotal and a "Checkout this shop" link, which pays for that shop alone and leaves the rest in the cart (shown only when the cart has more than one shop). The main button checks out every shop and says how many. Delivery is priced per shop at checkout, as today.<span class="route">(tabs)/cart.tsx</span></figcaption></figure>
+      <div class="cta"><span>Remove 1 sold-out item</span></div>
+    </div></div><figcaption class="ph-cap"><b>Cart.</b> Grouped by shop, like Etsy: each shop ends with its own subtotal and a "Checkout this shop" link, which pays for that shop alone and leaves the rest in the cart (shown only when the cart has more than one shop). The main button checks out every shop and says how many. Delivery is priced per shop at checkout, as today. <span class="cap-tag">New</span> A line that sold out stays, greyed, with Remove and Save for later, and the main button becomes "Remove 1 sold-out item" until it's dealt with; checkout can't start before. Totals are the cart's own, so they change once the line goes; a line wanting more than is left reads "Only 2 left · Change to 2".<span class="route">(tabs)/cart.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -1998,7 +2021,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="hd"><span class="mono" style="width:26px;height:26px;font-size:10.5px;border-radius:8px">IB</span><b>Iya Bisi Foodstuff</b><small class="end">2 items</small></div>
           <div class="opt on"><span class="rb"></span><div><b>Best value · Thu 23 Oct</b><small>GIG Logistics</small></div><span class="pr num">₦1,800</span></div>
           <div class="opt"><span class="rb"></span><div><b>Fastest · Tomorrow</b><small>Kwik</small></div><span class="pr num">₦3,400</span></div>
-          <div class="opt"><span class="rb"></span><div><b>Pick up · today from 2pm</b><small>At the shop in Surulere · 1.2 km</small></div><span class="pr">Free</span></div>
+          <div class="opt"><span class="rb"></span><div><b>Cheapest · Fri 24 Oct</b><small>Sendbox</small></div><span class="pr num">₦1,500</span></div>
+          <div class="opt"><span class="rb"></span><div><b>Pick up at the shop</b><small>Surulere · 1 km · collect within 5 open days</small></div><span class="pr">Free</span></div>
         </div>
         <div class="card2" style="gap:8px">
           <div class="hd"><span class="mono" style="width:26px;height:26px;font-size:10.5px;border-radius:8px">AH</span><b>Adire House</b><small class="end">1 item</small></div>
@@ -2008,7 +2032,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="pad"><div class="sumrow"><span>Delivery, 2 shops</span><b class="num">₦3,900</b></div></div>
       </div>
       <div class="cta"><span>Continue</span><span class="num">₦51,600</span></div>
-    </div></div><figcaption class="ph-cap"><b>Delivery.</b> One list per shop, the same for every shop: each option is a row with its date, its courier or pickup place, and its price, with the best value selected. Rows have room for a note like "Prepared when it opens".<span class="route">checkout/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Delivery.</b> One list per shop, the same for every shop: each option is a row with its date, its courier or pickup place, and its price, with the best value selected; couriers are tagged Best value, Fastest or Cheapest. Rows have room for a note like "Prepared when it opens". A shop with perishable items offers only couriers arriving by the end of tomorrow, otherwise pickup, and says so. Choosing pickup shows the hold: "Collect within 5 open days. If you don't, non-perishable items are refunded; fresh items aren't."<span class="route">checkout/index.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -2018,7 +2042,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="lrow"><svg class="ico"><use href="#i-truck"/></svg><div><b>Iya Bisi · Thu 23 Oct</b><small>Adire House · Wed 29 Oct</small></div><span class="chev">Change</span></div>
         <div class="pad" style="padding-top:12px">
           <div class="inp" style="border-color:var(--p-leaftext)"><svg class="ico"><use href="#i-tag"/></svg><b>LAGOS2K</b><span class="chip c-go" style="margin-left:auto"><svg class="ico"><use href="#i-check"/></svg>−₦2,000</span></div>
-          <span class="hint">Applied to Iya Bisi Foodstuff.</span>
+          <span class="hint">Iya Bisi Foodstuff's code. An Oja-wide code reads "Applied by Oja".</span>
           <div class="sumrow"><span>Items</span><b class="num">₦47,700</b></div>
           <div class="sumrow"><span>Delivery</span><b class="num">₦3,900</b></div>
           <div class="sumrow"><span>Promo LAGOS2K</span><b class="num" style="color:var(--p-leaftext)">−₦2,000</b></div>
@@ -2027,6 +2051,22 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       </div>
       <div class="cta"><span>Pay with Paystack</span><span class="num">₦49,600</span></div>
     </div></div><figcaption class="ph-cap"><b>Review and pay.</b> Everything editable in one tap, and the promo code with its result inline. Refunds are explained only when one happens.<span class="route">checkout/index.tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body">
+        <div class="hdr"><svg class="ico"><use href="#i-back"/></svg><b>Review and pay</b><span style="margin-left:auto;font-size:11.5px;color:var(--p-muted);font-weight:700">Step 3 of 3</span></div>
+        <div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i></div>
+        <div class="dim"></div>
+        <div class="bsheet">
+          <span class="grab"></span>
+          <h4>Some items changed</h4>
+          <p>Nothing has been charged. Since you added them:</p>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small>Sold out · removed</small></div></div>
+          <div class="sumrow total"><span>New total</span><b class="num">₦44,400</b></div>
+          <span class="btn pri addall"><span>Update and pay</span><span class="num">₦44,400</span></span>
+          <span class="btn sec">Back to cart</span>
+        </div>
+      </div>
+    </div></div><figcaption class="ph-cap"><b>Stock changed before paying.</b> <span class="cap-tag">New</span> Starting payment checks stock as it already checks prices. If something sold out, payment doesn't start: the sheet lists each change in the words "Order not placed" uses, with the new total. Something that sells out while the buyer is on Paystack's page still ends in "Order not placed" and a full refund.<span class="route">checkout/index.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -2040,7 +2080,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="hero2" style="padding-top:28px"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <span class="ok"><svg class="ico"><use href="#i-check"/></svg></span>
           <h4>Order placed</h4>
-          <p>Order OJ-2410 · ₦49,600 paid · receipt sent to tolu@example.com</p>
+          <p>Order OJ-2410 · ₦49,600 paid · confirmation sent to tolu@example.com</p>
         </div>
         <div class="lbl2">What happens next</div>
         <div class="tl">
@@ -2051,7 +2091,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
       </div>
       <div class="cta"><span>Track order</span><svg class="ico"><use href="#i-fwd"/></svg></div>
-    </div></div><figcaption class="ph-cap"><b>Confirmation.</b> A brand moment, then a dated timeline per shop so the buyer knows when to expect each part.<span class="route">checkout/confirmation.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Confirmation.</b> A brand moment, then a dated timeline per shop so the buyer knows when to expect each part. The confirmation email goes now; each shop's receipt follows by email once its part is delivered or collected.<span class="route">checkout/confirmation.tsx</span></figcaption></figure>
   </div>
 </section>
 
@@ -2076,11 +2116,11 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="ocard">
           <div class="t"><div><b>Iya Bisi Foodstuff</b><small>Thu 2 Oct · 3 items · ₦24,800</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div>
           <div class="thumbs"><span><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span></div>
-          <div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund needs your bank</span></div>
+          <div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund delayed · add your bank</span></div>
         </div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>Orders.</b> One list in two sections: In progress at the top, then Past. With nothing in progress, the list starts at Past, under one search field that covers every order. One row per checkout, titled with its shop (or "2 shops"); each shop's state shows as chips, and anything waiting on the buyer is in ember. A delivered or collected order swaps its chevron for Order again, which opens the same sheet as on the order; tapping the row still opens the order.<span class="route">(tabs)/orders.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Orders.</b> One list in two sections: In progress at the top, then Past. With nothing in progress, the list starts at Past, under one search field that covers every order. One row per checkout, titled with its shop (or "2 shops"); each shop's state shows as chips, and anything waiting on the buyer is in ember, a colour no other order state uses ("Waiting for the shop" moves to the neutral tone). A delivered or collected order swaps its chevron for Order again, which opens the same sheet as on the order; tapping the row still opens the order.<span class="route">(tabs)/orders.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-bg2)">
@@ -2092,7 +2132,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="card2">
             <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Arrives Thu 23 Oct</small></div><span class="end chip c-ind"><svg class="ico"><use href="#i-box"/></svg>Packed</span></div>
             <div class="tsteps" style="display:flex;align-items:center"><i style="width:12px;height:12px;border-radius:50%;background:var(--p-leaf)"></i><s style="flex:1;height:2px;background:var(--p-leaf)"></s><i style="width:12px;height:12px;border-radius:50%;background:var(--p-leaf)"></i><s style="flex:1;height:2px;background:var(--p-leaf)"></s><i style="width:12px;height:12px;border-radius:50%;background:var(--p-surface);border:3px solid var(--p-leaf)"></i><s style="flex:1;height:2px;background:var(--p-line)"></s><i style="width:12px;height:12px;border-radius:50%;background:var(--p-line)"></i></div>
-            <div class="note2 warn"><svg class="ico"><use href="#i-info"/></svg><span><b>Fresh Tomatoes 1kg wasn't available.</b> ₦3,500 has been refunded to your card.</span></div>
+            <div class="note2 warn"><svg class="ico"><use href="#i-info"/></svg><span><b>Fresh Tomatoes 1kg wasn't available.</b> ₦3,500 is on its way back to your card.</span></div>
           </div>
           <div class="card2">
             <div class="hd"><span class="mono">AH</span><div><b>Adire House</b><small>Prepared when it opens Mon 10am</small></div><span class="end chip c-new"><svg class="ico"><use href="#i-clock"/></svg>Waiting</span></div>
@@ -2100,39 +2140,39 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           </div>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Order detail.</b> Per-shop progress, and a missing item explained with the refund amount and when it lands.<span class="route">order/[id].tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Order detail.</b> Per-shop progress, and a missing item explained with its refund. The words follow the refund: "is on its way back to your card" while Paystack works on it, "has been refunded to your card" once it's made. Banks take a few working days to show it, and the app doesn't promise a date.<span class="route">order/[id].tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>OJ-2301</b></span><span style="font-size:11.5px;font-weight:700;color:var(--p-accent)">Receipt</span></div>
         <div class="card2">
           <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Delivered Thu 2 Oct</small></div><span class="end chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div>
           <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:13px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:13px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:13px">₦9,200</b></div></div>
-          <div class="sumrow"><span>Paid, with delivery</span><b class="num">₦24,800</b></div>
+          <div class="sumrow"><span>Items</span><b class="num">₦23,000</b></div><div class="sumrow"><span>Delivery</span><b class="num">₦1,800</b></div><div class="sumrow total"><span>Paid</span><b class="num">₦24,800</b></div><small class="lnote">Paystack ref T482913660</small>
           <div class="act2"><span class="btn pri"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span><span class="btn sec"><svg class="ico"><use href="#i-star"/></svg>Write a review</span></div>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Delivered order.</b> <span class="cap-tag">New</span> Each shop's part of the order gets Order again once it is delivered or collected, beside Write a review. An order across shops has one per shop, because each shop delivers on its own.<span class="route">order/[id].tsx · new</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Delivered order.</b> <span class="cap-tag">New</span> Each shop's part of the order gets Order again once it is delivered or collected, beside Write a review. An order across shops has one per shop, because each shop delivers on its own. The receipt rows (items, delivery, any discount, what was paid and the Paystack reference) come from the order.<span class="route">order/[id].tsx · new</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>OJ-2301</b></span><span style="font-size:11.5px;font-weight:700;color:var(--p-accent)">Receipt</span></div>
         <div class="card2">
           <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Delivered Thu 2 Oct</small></div><span class="end chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div>
           <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:13px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:13px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:13px">₦9,200</b></div></div>
-          <div class="sumrow"><span>Paid, with delivery</span><b class="num">₦24,800</b></div>
+          <div class="sumrow"><span>Items</span><b class="num">₦23,000</b></div><div class="sumrow"><span>Delivery</span><b class="num">₦1,800</b></div><div class="sumrow total"><span>Paid</span><b class="num">₦24,800</b></div><small class="lnote">Paystack ref T482913660</small>
           <div class="act2"><span class="btn pri"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span><span class="btn sec"><svg class="ico"><use href="#i-star"/></svg>Write a review</span></div>
         </div>
         <div class="dim"></div>
         <div class="bsheet">
           <span class="grab"></span>
           <h4>Order again from Iya Bisi Foodstuff</h4>
-          <small class="rsub"><span class="stat"><i></i>Open</span> · closes 7pm · delivers to 14 Bode Thomas St</small>
+          <small class="rsub"><span class="stat"><i></i>Open</span> · closes 7pm · 1 km from 14 Bode Thomas St</small>
           <div class="rline"><span class="rcb on"><svg class="ico"><use href="#i-check"/></svg></span><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small><span class="rnote">Now ₦3,800 each, was ₦3,500</span></div><b class="num">₦7,600</b></div>
           <div class="rline"><span class="rcb on"><svg class="ico"><use href="#i-check"/></svg></span><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num">₦6,800</b></div>
           <div class="rline off"><span class="rcb"></span><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>Not available now</small></div><b class="num">—</b></div>
           <span class="btn pri addall"><span>Add 3 items to cart</span><span class="num">₦14,400</span></span>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Order again.</b> <span class="cap-tag">New</span> A sheet, not a new screen: every item ticked, at today's price, with a changed price called out and anything unavailable greyed and unticked. It adds to the cart and shows "3 items added · View cart"; delivery is still chosen at checkout. Outside its hours a shop still takes orders, so the sheet says "Prepared when it opens Mon 10am" and works as usual. A paused shop, or one closed for a date, takes no orders: the sheet says "Closed until Tue 14 Oct" with the shop's note and offers no button, the same as a shop that no longer delivers to the buyer's address.<span class="route">sheet on order/[id].tsx and (tabs)/orders.tsx · new</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Order again.</b> <span class="cap-tag">New</span> A sheet, not a new screen: every item ticked, at today's price, with a changed price called out and anything unavailable greyed and unticked. It adds to the cart and shows "3 items added · View cart"; delivery is still chosen at checkout. Outside its hours a shop still takes orders, so the sheet says "Prepared when it opens Mon 10am" and works as usual. A paused shop, or one closed for a date, takes no orders: the sheet says "Closed until Tue 14 Oct" with the shop's note and offers no button. So does a shop that has left Oja: "Iya Bisi Foodstuff isn't selling on Oja now."<span class="route">sheet on order/[id].tsx and (tabs)/orders.tsx · new</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
@@ -2145,7 +2185,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="lrow"><svg class="ico"><use href="#i-clock"/></svg><div><b>Collect by Sat 25 Oct, 6pm</b><small>Open today 10am–6pm</small></div></div>
         <div class="lrow"><svg class="ico"><use href="#i-pin"/></svg><div><b>12 Allen Avenue, Ikeja</b><small>Ask at the front counter</small></div><span class="chev">Map</span></div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Pickup code.</b> A full-screen brand moment that works at a counter: big QR, digits, collect-by date and hours.<span class="route">order/[id].tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Pickup code.</b> A full-screen brand moment that works at a counter: big QR, digits, collect-by date and today's hours, which account for a closure today.<span class="route">order/[id].tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -2181,11 +2221,11 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="bigstars" style="padding:8px 0 2px"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></div>
           <p style="margin:0;text-align:center;font-size:11.5px;color:var(--p-muted);font-weight:700">Good</p>
           <div class="ta">Clean rice, no stones. The rider called ahead, which helped.</div>
-                    <span class="hint">Shown as Tolu A.</span>
+                    <span class="hint">Shown as Tolu A., once Oja's team has checked it.</span>
         </div>
       </div>
       <div class="cta"><span>Post review</span></div>
-    </div></div><figcaption class="ph-cap"><b>Write a review.</b> Stars and words, and a clear note on what's public.<span class="route">review/[id].tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Write a review.</b> Stars and words, and a clear note on what's public. One screen reviews the shop and each product in the order together, as today; every review is checked by Oja's team before others see it, and the note says so.<span class="route">review/[id].tsx</span></figcaption></figure>
   </div>
 </section>
 <section id="b-orders">
@@ -2214,7 +2254,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="ocard">
           <div class="t"><div><b>Iya Bisi Foodstuff</b><small>Thu 2 Oct · 3 items · OJ-2301 · ₦24,800</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div>
           <div class="thumbs"><span><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span></div>
-          <div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund needs your bank</span></div></div>
+          <div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund delayed · add your bank</span></div></div>
         </div>
         <div class="sec"><h5>Past</h5></div>
         <div class="ocard"><div class="t"><div><b>Adire House</b><small>20 Sep · 1 item · ₦28,000</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-kaftan.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Collected</span></div></div></div>
@@ -2232,10 +2272,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <li><b>One row per checkout.</b> A checkout with one shop is titled with the shop; one split across shops says "2 shops" and lists each shop's state underneath. Newest first. <span class="src2"><code>GET /store/order-history</code> · <code>historyEntries</code></span></li>
         <li><b>Date, items and order number.</b> When it was placed, how many items, and the number the shop and Oja's support use. <span class="src2"><code>created_at</code> · <code>items.quantity</code> · <code>display_id</code></span></li>
         <li><b>Photos.</b> The first items' thumbnails, so a buyer finds an order by what was in it. <span class="src2"><code>items.thumbnail</code></span></li>
-        <li><b>Status chips.</b> Each shop's own state, in the same words as the order: Waiting for the shop, Packed, On its way, Ready for pickup, Delivered, Collected, Rejected by the shop, Refunded. Anything waiting on the buyer is ember. <span class="src2"><code>OrderStatusChips</code></span></li>
-        <li><b>Order again.</b> Replaces the total on a delivered or collected order (the total moves to the meta line). Opens the Order again sheet. <span class="src2">designed, not built</span></li>
-        <li><b>In progress and Past sections.</b> In progress holds anything not finished: waiting for the shop, being prepared, packed, on its way, ready for pickup, or waiting on the buyer (like a refund that needs bank details). A checkout split across shops stays here until every shop is done. Past holds delivered, collected, rejected, cancelled and refunded checkouts, with Order again. A section with nothing in it doesn't show. <span class="src2">needs the order-history route to return each checkout's phase, filtered on the server, not built</span></li>
-        <li><b>Search your orders.</b> Searches by item ("palm oil") across both sections. Results are one list, newest first, with the same rows. <span class="src2">needs <code>?q=</code>, not built</span></li>
+        <li><b>Status chips.</b> Each shop's own state, in the order's words: Waiting for the shop, Accepted, Being prepared, Packed, Courier booked, On its way, Ready for pickup, Delivered, Collected, Not collected, Not accepted in time, Rejected by the shop, Cancelled by the shop. Money still moving adds a chip: Refund on its way, Refunded, Refund delayed, Refund pending. Only waiting on the buyer is ember. <span class="src2"><code>OrderStatusChips</code></span></li>
+        <li><b>Order again.</b> Replaces the total on a delivered or collected order (the total moves to the meta line). Opens the Order again sheet. <span class="src2">new: order lines carry their variant; preview and add-several routes</span></li>
+        <li><b>In progress and Past sections.</b> In progress holds every order whose state isn't final, and any order waiting on the buyer (a refund that needs bank details). A checkout split across shops stays here until every shop is done. Past holds final orders: delivered, collected, not collected, rejected and cancelled, with Order again where it applies; a refund still moving shows as its chip and doesn't hold the order in progress. A section with nothing in it doesn't show. <span class="src2">new: each order's phase stored with its buyer and shop, filtered on the server</span></li>
+        <li><b>Search your orders.</b> Searches by item ("palm oil") across both sections. Results are one list, newest first, with the same rows. <span class="src2">new: <code>?q=</code> on order history</span></li>
         <li><b>End of list.</b> In progress is short and loads whole. Past loads more as the buyer scrolls. <span class="src2"><code>limit</code> · <code>offset</code></span></li>
       </ol>
       <h4>Orders and order history are the same list</h4>
@@ -2249,7 +2289,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
   <div id="orders-search" class="stack" style="margin-top:32px">
     <div class="flow-h"><h3>Searching orders</h3><p>One search across every order, in progress or past. Results drop the sections and list matching checkouts newest first.</p></div>
-    <div class="phones"><figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div><div class="body"><div class="bigt">Orders</div><div class="pad" style="padding-bottom:4px"><div class="search" style="background:var(--p-tile);color:var(--p-ink)"><svg class="ico"><use href="#i-search"/></svg>palm oil<span style="margin-left:auto;color:var(--p-muted)"><svg class="ico"><use href="#i-x"/></svg></span></div></div><div class="endnote" style="padding:8px 16px;text-align:left">2 orders with "palm oil"</div><div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>Tue 14 Oct · 2 items · OJ-2366</small></div><b class="num" style="font-size:13px">₦18,400</b></div><div class="thumbs"><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-ind"><svg class="ico"><use href="#i-truck"/></svg>On its way</span></div></div></div><div class="ocard"><div class="t"><div><b>Iya Bisi Foodstuff</b><small>Thu 2 Oct · 3 items · OJ-2301 · ₦24,800</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund needs your bank</span></div></div></div></div><div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div></div></div><figcaption class="ph-cap"><b>Search results.</b> <span class="cap-tag">New</span> Matches item names in any order. No match: "No orders with "palm oil". Try another item." Clearing the search brings back the sections.<span class="route">needs ?q= on order-history</span></figcaption></figure></div>
+    <div class="phones"><figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div><div class="body"><div class="bigt">Orders</div><div class="pad" style="padding-bottom:4px"><div class="search" style="background:var(--p-tile);color:var(--p-ink)"><svg class="ico"><use href="#i-search"/></svg>palm oil<span style="margin-left:auto;color:var(--p-muted)"><svg class="ico"><use href="#i-x"/></svg></span></div></div><div class="endnote" style="padding:8px 16px;text-align:left">2 orders with "palm oil"</div><div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>Tue 14 Oct · 2 items · OJ-2366</small></div><b class="num" style="font-size:13px">₦18,400</b></div><div class="thumbs"><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-ind"><svg class="ico"><use href="#i-truck"/></svg>On its way</span></div></div></div><div class="ocard"><div class="t"><div><b>Iya Bisi Foodstuff</b><small>Thu 2 Oct · 3 items · OJ-2301 · ₦24,800</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund delayed · add your bank</span></div></div></div></div><div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div></div></div><figcaption class="ph-cap"><b>Search results.</b> <span class="cap-tag">New</span> Matches item names in any order. No match: "No orders with "palm oil". Try another item." Clearing the search brings back the sections.<span class="route">(tabs)/orders.tsx · ?q= on order history</span></figcaption></figure></div>
   </div>
 </section>
 
@@ -2261,22 +2301,22 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="bigt">Account</div>
         <div class="acct"><span class="avatar">TA</span><div><b>Tolu Adeyemi</b><small>tolu@example.com · signed in with Google</small></div></div>
-        <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-pin"/></svg></span><div><b>Addresses</b><small>2 saved · Surulere is default</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
+        <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-pin"/></svg></span><div><b>Addresses</b><small>2 saved · 14 Bode Thomas St is default</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
         <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-heart"/></svg></span><div><b>Saved items</b><small>4 items</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
-        <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-star"/></svg></span><div><b>My reviews</b><small>3 reviews · 1 waiting</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
-                        <div class="lrow" style="border:0"><span class="ic" style="color:var(--p-bad);background:var(--p-badbg)"><svg class="ico"><use href="#i-logout"/></svg></span><div><b style="color:var(--p-bad)">Sign out</b><small>Your cart stays with your account</small></div></div>
+        <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-star"/></svg></span><div><b>My reviews</b><small>3 reviews · 1 order to review</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
+                        <div class="lrow" style="border:0"><span class="ic" style="color:var(--p-bad);background:var(--p-badbg)"><svg class="ico"><use href="#i-logout"/></svg></span><div><b style="color:var(--p-bad)">Sign out</b><small>Your cart stays on this phone</small></div></div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span class="on"><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>Account.</b> The buyer's own things in one list; sign-out says what happens to the cart. Saved items and a product's Reviews are drawn in Decide, above; My reviews is next.<span class="route">(tabs)/account.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Account.</b> The buyer's own things in one list, with counts from one summary request; "1 order to review" counts delivered or collected orders not yet reviewed. Sign-out says what happens to the cart. Saved items and a product's Reviews are drawn in Decide, above; My reviews is next.<span class="route">(tabs)/account.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>My reviews</b></div>
         <div class="seg2"><span class="on">All 3</span><span>Shops 1</span><span>Products 2</span></div>
         <div class="myrev">
             <div class="mhd"><span class="ph mth"><img class="img" src="img/cat-earbuds.jpg" alt=""></span><div><b>Wireless Earbuds</b><small>Ikeja Gadget Hub</small></div><span class="end more">···</span></div>
-            <div class="between"><span class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></span><span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>Waiting</span></div>
+            <div class="between"><span class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></span><span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>Waiting for moderation</span></div>
             <p>Clear sound and the case charges fast. Left bud is a little loose.</p>
-            <small class="mdate">Edited 19 Oct</small>
+            <small class="mdate">19 Oct</small>
           </div><div class="myrev">
             <div class="mhd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Shop</small></div><span class="end more">···</span></div>
             <div class="between"><span class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg></span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Published</span></div>
@@ -2295,16 +2335,16 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Addresses</b></div>
-        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-home"/></svg></span><div><b>Home</b><small>14 Bode Thomas St, Surulere</small></div><span class="end chip c-ind">Default</span></div><span class="hint">Blue gate opposite the pharmacy</span></div>
-        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><div><b>Office</b><small>3 Adeola Odeku St, Victoria Island</small></div><span class="end"><svg class="ico"><use href="#i-edit"/></svg></span></div><span class="hint">Reception, 4th floor</span></div>
+        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-home"/></svg></span><div><b>14 Bode Thomas St</b><small>Surulere, Lagos · Tolu Adeyemi</small></div><span class="end chip c-ind">Default</span></div><span class="hint">Blue gate opposite the pharmacy</span></div>
+        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><div><b>3 Adeola Odeku St</b><small>Victoria Island, Lagos · Tolu Adeyemi</small></div><span class="end"><svg class="ico"><use href="#i-edit"/></svg></span></div><span class="hint">Reception, 4th floor</span></div>
         <div class="pad"><span class="btn sec"><svg class="ico"><use href="#i-plus"/></svg>Add an address</span></div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Addresses.</b> Named places with the rider's landmark shown, one default.<span class="route">addresses/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Addresses.</b> Each saved address by its street, with the area and the name the courier asks for, the rider's landmark shown, and one default.<span class="route">addresses/index.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Addresses</b></div>
-        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-home"/></svg></span><div><b>Home</b><small>14 Bode Thomas St, Surulere</small></div><span class="end chip c-ind">Default</span></div><span class="hint">Blue gate opposite the pharmacy</span></div>
-        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><div><b>Office</b><small>3 Adeola Odeku St, Victoria Island</small></div><span class="end"><svg class="ico"><use href="#i-edit"/></svg></span></div><span class="hint">Reception, 4th floor</span></div>
+        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-home"/></svg></span><div><b>14 Bode Thomas St</b><small>Surulere, Lagos · Tolu Adeyemi</small></div><span class="end chip c-ind">Default</span></div><span class="hint">Blue gate opposite the pharmacy</span></div>
+        <div class="card2"><div class="hd"><span class="ic" style="width:36px;height:36px;border-radius:12px;background:var(--p-tile);display:grid;place-items:center;color:var(--p-accent)"><svg class="ico"><use href="#i-store"/></svg></span><div><b>3 Adeola Odeku St</b><small>Victoria Island, Lagos · Tolu Adeyemi</small></div><span class="end"><svg class="ico"><use href="#i-edit"/></svg></span></div><span class="hint">Reception, 4th floor</span></div>
         <div class="pad"><span class="btn sec"><svg class="ico"><use href="#i-plus"/></svg>Add an address</span></div>
       </div>
     
@@ -2363,10 +2403,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="bigt">Which shop today?</div>
         <div class="lrow"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Surulere</small></div><span class="rb2 on" style="margin-left:auto"></span></div>
-        <div class="lrow"><span class="mono">IG</span><div><b>Ikeja Gadget Hub</b><small>Ikeja</small></div><span class="rb2" style="margin-left:auto"></span></div>
+        <div class="lrow"><span class="mono logo"><img src="img/logo-igh.svg" alt=""></span><div><b>Ikeja Gadget Hub</b><small>Ikeja</small></div><span class="rb2" style="margin-left:auto"></span></div>
       </div>
       <div class="cta"><span>Open Iya Bisi Foodstuff</span><svg class="ico"><use href="#i-fwd"/></svg></div>
-    </div></div><figcaption class="ph-cap"><b>Shop picker.</b> The shops this account belongs to, with their monograms. The same screen serves "Switch shop".<span class="route">(auth)/shop-picker.tsx · switch-shop.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Shop picker.</b> The shops this account belongs to, with their logos (or monograms) and areas. The same screen serves "Switch shop".<span class="route">(auth)/shop-picker.tsx · switch-shop.tsx</span></figcaption></figure>
   </div>
 </section>
 
@@ -2376,19 +2416,19 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="vtop"><div><b>Iya Bisi Foodstuff</b><small>Mon 20 Oct · open until 7pm</small></div><span class="openpill"><i></i>Open</span></div>
-        <div class="seg"><span class="on"><b>2</b>To accept</span><span><b>1</b>Picking</span><span><b>3</b>Ready</span><span><b>4</b>Out</span></div>
+        <div class="seg"><span class="on"><b>2</b>New</span><span><b>1</b>Picking</span><span><b>3</b>Ready</span><span><b>4</b>Out</span></div>
         <div class="vcard urgent">
-          <div class="t"><b>#1042 · <span class="num">₦51,000</span></b><span class="tchip urgent" role="timer" aria-label="3h 12m left to accept"><svg class="tring" aria-hidden="true"><rect class="trk" pathLength="100"/><rect class="prg" pathLength="100" style="stroke-dasharray:13 100"/></svg><svg class="ico"><use href="#i-clock"/></svg>3h 12m left</span></div>
-          <div class="items">2 × Ofada Rice 5kg · 1 × Long Grain Rice 10kg · Delivery</div>
+          <div class="t"><b>#1042 · <span class="num">₦51,000</span></b><span class="tchip urgent" role="timer" aria-label="1h 48m left to accept"><svg class="tring" aria-hidden="true"><rect class="trk" pathLength="100"/><rect class="prg" pathLength="100" style="stroke-dasharray:8 100"/></svg><svg class="ico"><use href="#i-clock"/></svg>1h 48m left</span></div>
+          <div class="items">Delivery · 2 × Ofada Rice 5kg · 1 × Long Grain Rice 10kg</div>
           <div class="act"><span class="btn sec">Details</span><span class="btn pri">Accept</span></div>
         </div>
         <div class="vcard">
-          <div class="t"><b>#1043 · <span class="num">₦16,300</span></b><span class="tchip " role="timer" aria-label="21h left to accept"><svg class="tring" aria-hidden="true"><rect class="trk" pathLength="100"/><rect class="prg" pathLength="100" style="stroke-dasharray:88 100"/></svg><svg class="ico"><use href="#i-clock"/></svg>21h left</span></div>
-          <div class="items">1 × Red Palm Oil 3L · 1 × Honey Beans 2kg · Pickup</div>
+          <div class="t"><b>#1043 · <span class="num">₦16,300</span></b><span class="tchip " role="timer" aria-label="21h of open time left to accept"><svg class="tring" aria-hidden="true"><rect class="trk" pathLength="100"/><rect class="prg" pathLength="100" style="stroke-dasharray:88 100"/></svg><svg class="ico"><use href="#i-clock"/></svg>21h left</span></div>
+          <div class="items">Pickup · 1 × Red Palm Oil 3L · 1 × Honey Beans 2kg</div>
           <div class="act"><span class="btn sec">Details</span><span class="btn pri">Accept</span></div>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Orders.</b> Stage counts (four equal tiles; counts above 99 show as 99+, and the stage itself lists every order), the open state in the header, a light divider between orders. The outline around each time chip drains as the 24-hour accept window runs down, and turns ember under four hours.<span class="route">(app)/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Orders.</b> Stage counts from the server (four equal tiles; counts above 99 show as 99+, and tapping a tile lists every order in it): New is new; Picking is accepted, picking and some-items-unavailable; Ready is packed, label booked and ready for pickup; Out is courier confirmed, handed to courier and in transit. The open state with today's closing time sits in the header, and each order leads with delivery or pickup. A shop has 24 hours of its open time to accept: the outline around each time chip drains with the open time left, and turns ember in the last two hours, when the reminder push goes.<span class="route">(app)/index.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="takeover"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
@@ -2402,23 +2442,23 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="clock"><svg class="ico"><use href="#i-clock"/></svg>Accept within 23h 58m</div>
         <div class="tkact"><span class="acc">Accept order</span><span class="viewo">View order</span></div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>New order.</b> The whole screen takes over in indigo with a sound and a vibration. Two choices: Accept order, or View order to check the lines or reject it there. "Not now" sits in the corner like dismissing a notification and sends the order to the queue; staff can switch the takeover to a banner in Settings.<span class="route">push → (app)/orders/[id]</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>New order.</b> The whole screen takes over in indigo with a sound and a vibration. Two choices: Accept order, or View order to check the lines or reject it there. "Not now" sits in the corner like dismissing a notification and sends the order to the queue; staff can switch the takeover to a banner in Settings. The push is marked as a new order and plays Oja's alarm sound: on Android through a high-importance channel, on iOS as a time-sensitive notification, which breaks through Focus without Apple's critical-alert approval. Its text gives the total and delivery or pickup.<span class="route">push → (app)/orders/[id]</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
         <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
           <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1044</span><span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>23h 58m</span></div>
           <div class="big">New · delivery</div>
-          <span style="font-size:11.5px;opacity:.85">For Tolu A. · Surulere · courier by tomorrow</span>
+          <span style="font-size:11.5px;opacity:.85">For Tolu A. · Surulere · buyer chose GIG, arriving Thu</span>
         </div>
         <div class="pad" style="padding-top:12px">
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Delivery</small></div><span class="qp">×2</span></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦14,500 each</small></div><span class="qp">×2</span></div>
           <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>Perishable</small></div><span class="qp">×1</span></div>
           <div class="sumrow total"><span>Order total</span><b class="num">₦32,500</b></div>
         </div>
       </div>
       <div class="scanbtn"><span class="s2" style="background:var(--p-badbg);color:var(--p-bad)">Reject</span><span class="s1">Accept order</span></div>
-    </div></div><figcaption class="ph-cap"><b>Order detail.</b> Lines and the order total, before accepting.<span class="route">(app)/orders/[id]/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Order detail.</b> Lines with their unit price, a Perishable tag where it applies, and the order total, before accepting. Accepting starts picking straight away, so there is no separate Start picking step.<span class="route">(app)/orders/[id]/index.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
@@ -2427,7 +2467,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="bsheet">
           <span class="grab"></span>
           <h4>Why can't you take it?</h4>
-          <p>Tolu sees this reason and gets a full refund of ₦32,500 right away.</p>
+          <p>Tolu sees this reason and is refunded all ₦32,500, delivery included.</p>
           <div class="ta" style="min-height:96px">Sorry, we've run out of Ofada rice this week.</div>
           <span class="btn danger">Reject and refund</span>
         </div>
@@ -2442,13 +2482,13 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
         <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
-          <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1042</span><span style="font-weight:700">Courier 4pm</span></div>
+          <div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1042</span><span style="font-weight:700">Delivery · GIG</span></div>
           <div class="big">Picking · 3 of 5</div>
           <div class="ring" style="display:flex;gap:12px;align-items:center;font-size:11.5px"><span style="flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden"><i style="display:block;height:100%;width:60%;background:#F2B33D"></i></span><b>60%</b></div>
         </div>
         <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Picked</small></div><span class="qp ok" style="margin-left:auto">2/2</span></div>
         <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small>Picked</small></div><span class="qp ok" style="margin-left:auto">1/1</span></div>
-        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small style="color:var(--p-embertext)">1 not available</small></div><span class="qp short" style="margin-left:auto">0/2</span></div>
+        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small style="color:var(--p-embertext)">Perishable · 1 not available</small></div><span class="qp short" style="margin-left:auto">0/2</span></div>
         <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>Tap to tick</small></div><span class="qp" style="margin-left:auto">0/1</span></div>
       </div>
       <div class="scanbtn"><span class="s1"><svg class="ico"><use href="#i-scan"/></svg>Scan item</span><span class="s2">Packed</span></div>
@@ -2476,11 +2516,11 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>2 ordered</small></div></div>
           <h4>How many can't you supply?</h4>
           <div style="display:flex;justify-content:center;align-items:center;gap:24px;padding:8px 0"><span class="round" style="width:48px;height:48px;border-radius:16px;background:var(--p-tile);display:grid;place-items:center"><svg class="ico"><use href="#i-minus"/></svg></span><span class="disp" style="font-size:40px;font-weight:800">1</span><span class="round" style="width:48px;height:48px;border-radius:16px;background:var(--p-tile);display:grid;place-items:center"><svg class="ico"><use href="#i-plus"/></svg></span></div>
-          <div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>The buyer is told and refunded <b>₦3,500</b> automatically when you finish packing.</span></div>
+          <div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>The buyer is refunded <b>₦3,500</b> for it when you remove the unavailable items, before packing.</span></div>
           <span class="btn pri">Mark 1 not available</span>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Not available.</b> A counter, not a form, with the refund the buyer will get spelled out.<span class="route">(app)/orders/[id]/unavailable.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Not available.</b> A counter, not a form, with the refund the buyer will get spelled out, per unit, from the server.<span class="route">(app)/orders/[id]/unavailable.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Refund to the buyer</b></div>
@@ -2491,7 +2531,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
       </div>
       <div style="position:absolute;left:16px;right:16px;bottom:16px;display:grid;gap:8px"><span class="btn danger" style="width:100%;height:52px;justify-content:space-between;padding:0 16px"><span>Remove and refund</span><span class="num">₦3,500</span></span><span class="btn sec" style="width:100%">Keep picking</span></div>
-    </div></div><figcaption class="ph-cap"><b>Refund summary.</b> Shown when picking finishes with items marked short. If every item is short, the button becomes "Cancel the order" instead.<span class="route">(app)/orders/[id]/remove-unavailable.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Refund summary.</b> Shown when picking finishes with items marked short; packing waits until they are removed and refunded here. If every item is short, the button becomes "Cancel the order" instead.<span class="route">(app)/orders/[id]/remove-unavailable.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh"><b>Items removed</b></div>
@@ -2510,12 +2550,12 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="big">Packed. Book the courier.</div>
         </div>
         <div class="pad" style="padding-top:12px">
-          <div class="opt on"><span class="rb"></span><div><b>GIG Logistics</b><small>Arrives Thu 23 Oct, as the buyer chose</small></div><span class="pr">Paid</span></div>
-          <div class="lrow" style="padding:8px 0"><svg class="ico"><use href="#i-box"/></svg><div><b>1 parcel · about 16 kg</b><small>Weights from the products</small></div><span class="chev">Edit</span></div>
+          <div class="opt on"><span class="rb"></span><div><b>GIG Logistics</b><small>Buyer chose it · arrives Thu 23 Oct (quoted at checkout)</small></div><span class="pr">Paid</span></div>
+          <div class="lrow" style="padding:8px 0"><svg class="ico"><use href="#i-box"/></svg><div><b>1 parcel · about 16 kg</b><small>Weights from the products</small></div></div>
         </div>
       </div>
       <div class="cta"><span>Book courier label</span><svg class="ico"><use href="#i-fwd"/></svg></div>
-    </div></div><figcaption class="ph-cap"><b>Book courier.</b> The buyer's choice of courier carried through, and the parcel described.<span class="route">(app)/orders/[id]/packed.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Book courier.</b> The courier and date the buyer chose at checkout, and the parcel as the catalogue weighs it (not editable). Booking fetches rates again: if that courier is gone or now costs more than the cap above what the buyer paid, staff pick from the couriers quoting now, as today.<span class="route">(app)/orders/[id]/packed.tsx</span></figcaption></figure>
   </div>
 </section>
 
@@ -2536,7 +2576,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
       </div>
       <div class="cta"><span>Handed to courier</span><svg class="ico"><use href="#i-check"/></svg></div>
-    </div></div><figcaption class="ph-cap"><b>Handover.</b> A timeline that shows which half of the handover is still missing, with the staff tap as the one primary button.<span class="route">(app)/orders/[id]/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Handover.</b> A timeline that shows which half of the handover is still missing, with the staff tap as the one primary button. The order is Handed to courier once both the staff tap and GIG's pickup have arrived, in either order.<span class="route">(app)/orders/[id]/index.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr bandtop"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body" style="background:var(--p-surface)">
         <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg>
@@ -2653,7 +2693,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
                 <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-clock"/></svg></span><div><b>Opening hours</b><small>Edit in the vendor panel on the web</small></div><span class="chev"><svg class="ico"><use href="#i-share"/></svg></span></div>
         <div class="lrow" style="border:0"><span class="ic" style="color:var(--p-bad);background:var(--p-badbg)"><svg class="ico"><use href="#i-logout"/></svg></span><div><b style="color:var(--p-bad)">Sign out</b><small>bisi@iyabisi.ng</small></div></div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Settings.</b> Pause is a switch at the top, not a buried row. The full-screen alert can be turned off, a phone-only setting AAA requires. Things done on the web say so.<span class="route">(app)/settings.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Settings.</b> Pause is a switch at the top, not a buried row. Only owners and managers can pause; for other staff the switch is off-limits and reads "Only the owner or a manager can pause the shop". The full-screen alert can be turned off on this phone, a setting AAA requires. Things done on the web say so.<span class="route">(app)/settings.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -2663,13 +2703,14 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="grab"></span>
           <h4>Pause orders until…</h4>
           <div class="radio"><span class="rb2"></span>1 hour · until 3:47pm</div>
-          <div class="radio on"><span class="rb2 on"></span>Closing time today · 7pm</div>
+          <div class="radio on"><span class="rb2 on"></span>Until tomorrow, 8am</div>
           <div class="radio"><span class="rb2"></span>I turn it back on</div>
+          <div class="field"><label for="pn">Note for buyers <em>(optional)</em></label><div class="inp" id="pn">Back after the market run</div></div>
           
           <span class="btn pri">Pause orders</span>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Pause.</b> Plain-language durations. If orders are waiting, a confirm follows (next).<span class="route">(app)/settings.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Pause.</b> Plain-language durations, and an optional note buyers see on the shop. There's no "until closing time": outside its hours a shop still takes orders, so that pause would end as it closed. If orders are waiting, a confirm follows (next).<span class="route">(app)/settings.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="bigt">Settings</div>
@@ -2690,12 +2731,16 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body" style="background:var(--p-surface)">
         <div class="vband2"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><div class="row2"><span class="row"><svg class="ico"><use href="#i-back"/></svg>Order #1040</span><span class="chip c-ind" style="background:var(--p-surface)"><svg class="ico"><use href="#i-box"/></svg>Picking</span></div><div class="big">Cancel this order</div></div>
         <div class="pad" style="padding-top:12px">
-          <div class="field"><label for="cr">Reason the buyer will see</label><div class="ta" id="cr">Our supplier didn't deliver the rice this week. Sorry for the trouble.</div></div>
-          <div class="note2 warn"><svg class="ico"><use href="#i-info"/></svg><span><b>Chidi O. gets a full refund of ₦19,700.</b> Stock goes back to your shelves. This can't be undone.</span></div>
+          <div class="field"><label>Reason the buyer will see</label>
+            <div class="radio on"><span class="rb2 on"></span>Items unavailable</div>
+            <div class="radio"><span class="rb2"></span>Shop can't fulfil this order</div>
+            <div class="radio"><span class="rb2"></span>Buyer asked to cancel</div>
+            <div class="radio"><span class="rb2"></span>Other (write why)</div></div>
+          <div class="note2 warn"><svg class="ico"><use href="#i-info"/></svg><span><b>Chidi O. is refunded the ₦19,700 left on the order.</b> Stock goes back to your shelves. This can't be undone.</span></div>
         </div>
       </div>
       <div class="cta" style="background:var(--p-redfill)"><span>Cancel and refund ₦19,700</span></div>
-    </div></div><figcaption class="ph-cap"><b>Cancel accepted order.</b> The reason is written for the buyer; the irreversible part is said once, clearly, in the button too.<span class="route">(app)/orders/[id]/cancel.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Cancel accepted order.</b> One of four reasons, with a note for "Other" (a note can add to any of them); the buyer reads the reason. The refund is what's left of the order after any earlier refund. The irreversible part is said once, clearly, in the button too.<span class="route">(app)/orders/[id]/cancel.tsx</span></figcaption></figure>
   </div>
 </section>
 <section id="states">
@@ -2778,7 +2823,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="btn sec" style="width:100%;margin-top:8px">Back to shops near you</span>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Shop closed.</b> A shop link that no longer works for this address, from a share or an old order.<span class="route">seller/[id].tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Shop closed.</b> A shop that has left Oja or doesn't sell in the buyer's region, opened from a share or an old order.<span class="route">seller/[id].tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-x"/></svg><b>Pay <span class="num">₦49,600</span></b></span><span class="chip c-go"><svg class="ico"><use href="#i-lock"/></svg>Secure</span></div>
@@ -2842,18 +2887,18 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="vtop"><div><b>Iya Bisi Foodstuff</b><small>Mon 20 Oct · open until 7pm</small></div><span class="openpill"><i></i>Open</span></div>
-        <div class="seg"><span class="on"><b>·</b>To accept</span><span><b>·</b>Picking</span><span><b>·</b>Ready</span><span><b>·</b>Out</span></div>
+        <div class="seg"><span class="on"><b>·</b>New</span><span><b>·</b>Picking</span><span><b>·</b>Ready</span><span><b>·</b>Out</span></div>
         <div style="display:grid;gap:8px;padding:20px 0 24px;margin:0 16px;border-bottom:1px solid #E4E6EE">
           <div class="between"><i class="sk" style="width:45%;height:16px;border-radius:8px;"></i><i class="sk" style="width:72px;height:24px;border-radius:999px;"></i></div><i class="sk" style="width:80%;height:11px;border-radius:8px;"></i>
           <div style="display:flex;gap:8px;margin-top:8px"><i class="sk" style="width:50%;height:42px;border-radius:12px;"></i><i class="sk" style="width:50%;height:42px;border-radius:12px;"></i></div></div><div style="display:grid;gap:8px;padding:20px 0 24px;margin:0 16px;border-bottom:1px solid #E4E6EE">
           <div class="between"><i class="sk" style="width:45%;height:16px;border-radius:8px;"></i><i class="sk" style="width:72px;height:24px;border-radius:999px;"></i></div><i class="sk" style="width:80%;height:11px;border-radius:8px;"></i>
           <div style="display:flex;gap:8px;margin-top:8px"><i class="sk" style="width:50%;height:42px;border-radius:12px;"></i><i class="sk" style="width:50%;height:42px;border-radius:12px;"></i></div></div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Orders, loading.</b> The shop's name and open state come from the session, so they show at once; counts and orders fill in.<span class="route">(app)/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Orders, loading.</b> The shop's name and open state are cached from the last visit, so they show at once; counts and orders fill in.<span class="route">(app)/index.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="vtop"><div><b>Iya Bisi Foodstuff</b><small>Mon 20 Oct · open until 7pm</small></div><span class="openpill"><i></i>Open</span></div>
-        <div class="seg"><span class="on"><b>0</b>To accept</span><span><b>1</b>Picking</span><span><b>3</b>Ready</span><span><b>4</b>Out</span></div>
+        <div class="seg"><span class="on"><b>0</b>New</span><span><b>1</b>Picking</span><span><b>3</b>Ready</span><span><b>4</b>Out</span></div>
         <div class="empty" style="padding-top:40px">
           <span class="emblem"><svg class="pat" aria-hidden="true"><rect width="100%" height="100%" fill="url(#adire)"/></svg><svg class="ico"><use href="#i-bell"/></svg></span>
           <h4>No orders yet</h4>
