@@ -104,7 +104,6 @@ medusaIntegrationTestRunner({
     const deliver = async (cartId: string) => {
       const orderId = await buyer.shopOrderId(GROCERY, cartId)
       await post(GROCERY, `${orderId}/accept`)
-      await post(GROCERY, `${orderId}/start-picking`)
       const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
       for (const line of pick_list.lines) await post(GROCERY, `${orderId}/pick-list/${line.id}`, { picked: line.quantity })
       await post(GROCERY, `${orderId}/pack`)

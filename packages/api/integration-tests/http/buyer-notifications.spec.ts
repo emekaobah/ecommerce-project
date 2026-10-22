@@ -83,7 +83,6 @@ medusaIntegrationTestRunner({
     /** The grocery accepts, picks and packs the order, and books its courier label; returns the waybill. */
     const packAndBook = async (orderId: string) => {
       await post(GROCERY, `${orderId}/accept`)
-      await post(GROCERY, `${orderId}/start-picking`)
       const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
       for (const line of pick_list.lines) await post(GROCERY, `${orderId}/pick-list/${line.id}`, { picked: line.quantity })
       await post(GROCERY, `${orderId}/pack`)
@@ -219,7 +218,6 @@ medusaIntegrationTestRunner({
         const device = await registerAda()
         const { orderId, groupId } = await confirmedCheckout(device)
         await post(GROCERY, `${orderId}/accept`)
-        await post(GROCERY, `${orderId}/start-picking`)
         const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
         await post(GROCERY, `${orderId}/pick-list/${pick_list.lines[0].id}/unavailable`, { quantity: 1 })
 

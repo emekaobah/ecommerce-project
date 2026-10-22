@@ -3,7 +3,7 @@ import { startPickingWorkflow } from "../../../../../workflows/order-fulfilment/
 import { fulfilmentResponse, type OrderFulfilmentResponse } from "../../../../fulfilment-response"
 import { shopsOwnOrder, type VendorRequest } from "../../fulfilment"
 
-/** Staff start picking an accepted order (Accepted → Picking); any other order is refused. */
+/** Staff start picking an order accepted before accepting started picking (Accepted → Picking, #70); any other order is refused. */
 export const POST = async (req: VendorRequest, res: MedusaResponse<OrderFulfilmentResponse>) => {
   const orderId = await shopsOwnOrder(req)
   const { result } = await startPickingWorkflow(req.scope).run({

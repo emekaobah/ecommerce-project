@@ -67,7 +67,6 @@ medusaIntegrationTestRunner({
     const packedOrder = async () => {
       const orderId = await buyer.shopOrderId(GROCERY, (await buyer.paidCheckout()).cartId)
       await post(GROCERY, `${orderId}/accept`)
-      await post(GROCERY, `${orderId}/start-picking`)
       const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
       for (const line of pick_list.lines) await post(GROCERY, `${orderId}/pick-list/${line.id}`, { picked: line.quantity })
       await post(GROCERY, `${orderId}/pack`)
@@ -106,7 +105,7 @@ medusaIntegrationTestRunner({
         await post(GROCERY, `${orderId}/accept`)
 
         expect(await status(bookLabel(orderId))).toBe(400)
-        expect((await order(orderId)).fulfilment).toMatchObject({ state: "accepted", shipment: null })
+        expect((await order(orderId)).fulfilment).toMatchObject({ state: "picking", shipment: null })
 
         const packed = await packedOrder()
         await bookLabel(packed)

@@ -248,14 +248,14 @@ medusaIntegrationTestRunner({
     })
 
     describe("each shop's order", () => {
-      it("is new until its shop accepts it", async () => {
+      it("is new until its shop accepts it, which starts picking it", async () => {
         const { groupId, gadgets, grocery } = await paidGroup()
         await accept(GROCERY, grocery)
 
         expect((await sellerOrder(groupId, gadgets)).fulfilment).toMatchObject({ state: "new", rejected_by: null, reject_reason: null })
-        expect((await sellerOrder(groupId, grocery)).fulfilment).toMatchObject({ state: "accepted" })
+        expect((await sellerOrder(groupId, grocery)).fulfilment).toMatchObject({ state: "picking" })
         const listed = (await history()).find((g: any) => g.id === groupId)
-        expect(listed.orders.map((o: any) => o.fulfilment.state).sort()).toEqual(["accepted", "new"])
+        expect(listed.orders.map((o: any) => o.fulfilment.state).sort()).toEqual(["new", "picking"])
       })
 
       it("shows the delivery estimate checkout quoted, counted from when its closed shop opens, which prepares it then", async () => {
@@ -374,7 +374,7 @@ medusaIntegrationTestRunner({
         const rejected = await sellerOrder(groupId, gadgets)
         expect(rejected.fulfilment).toMatchObject({ state: "rejected", rejected_by: "accept_deadline" })
         expect(rejected.refund).toEqual({ amount: ORDER_TOTALS.get(GADGETS), status: "pending" })
-        expect((await sellerOrder(groupId, grocery)).fulfilment.state).toBe("accepted")
+        expect((await sellerOrder(groupId, grocery)).fulfilment.state).toBe("picking")
       })
     })
 

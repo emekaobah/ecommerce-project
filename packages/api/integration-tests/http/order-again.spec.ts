@@ -70,8 +70,6 @@ medusaIntegrationTestRunner({
     /** Takes the grocery's order all the way: accepted, picked, packed, handed to the courier and delivered. */
     const deliver = async (orderId: string) => {
       await vendor(GROCERY, `orders/${orderId}/accept`)
-      // Accepting starts picking once #70 lands; until then picking is its own step.
-      await vendor(GROCERY, `orders/${orderId}/start-picking`).catch(() => undefined)
       const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
       for (const line of pick_list.lines) await vendor(GROCERY, `orders/${orderId}/pick-list/${line.id}`, { picked: line.quantity })
       await vendor(GROCERY, `orders/${orderId}/pack`)

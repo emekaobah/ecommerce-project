@@ -114,7 +114,6 @@ medusaIntegrationTestRunner({
       const { cartId, reference } = await buyer.paidCheckout()
       const orderId = await buyer.shopOrderId(GROCERY, cartId)
       await post(`${orderId}/accept`)
-      await post(`${orderId}/start-picking`)
       const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await buyer.owner(GROCERY))).data
       await post(`${orderId}/pick-list/${pick_list.lines[0].id}/unavailable`, { quantity: 1 })
       paystack.refuseRefunds(BALANCE)

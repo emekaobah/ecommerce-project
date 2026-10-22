@@ -7,6 +7,23 @@ export type OjaClient = TypedClient<Routes>
 
 export { ClientError }
 
+/**
+ * A refused request, with the error response's whole JSON body, so an app reads a refusal's own
+ * fields, such as when a locked pickup counter may try again (`retry_at`, #70). Still a
+ * `ClientError`; `@mercurjs/client` keeps only the body's message and code.
+ */
+export class ApiError extends ClientError {
+  constructor(
+    error: ClientError,
+    /** The error response's JSON body; empty when it wasn't JSON. */
+    readonly body: Record<string, unknown>
+  ) {
+    super(error.message, error.statusText, error.status, error.code)
+    this.name = "ApiError"
+    this.stack = error.stack
+  }
+}
+
 type Awaitable<T> = T | Promise<T>
 /** Reads a value at request time; null or undefined means "don't send it". */
 export type Getter = () => Awaitable<string | null | undefined>
@@ -32,10 +49,32 @@ type DynamicClientConfig = {
  */
 function createDynamicClient({ baseUrl, headers, retryHeaders, onUnauthorized }: DynamicClientConfig): OjaClient {
   const isUnauthorized = (error: unknown) => error instanceof ClientError && error.status === 401
-  const send = (path: string[], args: unknown[], sent: Record<string, string>) => {
+  const send = async (path: string[], args: unknown[], sent: Record<string, string>) => {
     let target: any = createClient({ baseUrl, fetchOptions: { headers: sent } })
     for (const segment of path) target = target[segment]
-    return target(...args)
+    // `@mercurjs/client` reads a refused response's body and keeps only its message and code. It
+    // calls `fetch` before the call returns, so a copy of this request's refused response is
+    // kept by swapping `fetch` for the call alone; no other request can run in between.
+    const fetchNow = globalThis.fetch
+    let refused: Response | undefined
+    globalThis.fetch = (async (...request: Parameters<typeof fetch>) => {
+      const response = await fetchNow(...request)
+      if (response.status >= 300) refused = response.clone()
+      return response
+    }) as typeof fetch
+    let pending: Promise<unknown>
+    try {
+      pending = target(...args)
+    } finally {
+      globalThis.fetch = fetchNow
+    }
+    try {
+      return await pending
+    } catch (error) {
+      if (!(error instanceof ClientError) || !refused) throw error
+      const body = await refused.json().catch(() => ({}))
+      throw new ApiError(error, body && typeof body === "object" ? (body as Record<string, unknown>) : {})
+    }
   }
   const call = async (path: string[], args: unknown[]) => {
     let sent = await headers()

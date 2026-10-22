@@ -76,7 +76,6 @@ medusaIntegrationTestRunner({
     /** The order accepted and being picked. */
     const startPicking = async (orderId: string) => {
       await post(`${orderId}/accept`)
-      await post(`${orderId}/start-picking`)
       return pickList(orderId)
     }
 
@@ -118,12 +117,11 @@ medusaIntegrationTestRunner({
 
       it("refuses more units than are left unpicked, and an order not being picked", async () => {
         const { orderId } = await paidRice()
-        await post(`${orderId}/accept`)
         const [rice] = (await pickList(orderId)).lines
 
         expect(await status(markUnavailable(orderId, rice.id, 1))).toBe(400)
 
-        await post(`${orderId}/start-picking`)
+        await post(`${orderId}/accept`)
         await pick(orderId, rice.id, 1)
         expect(await status(markUnavailable(orderId, rice.id, 2))).toBe(400)
         expect(await status(markUnavailable(orderId, rice.id, -1))).toBe(400)

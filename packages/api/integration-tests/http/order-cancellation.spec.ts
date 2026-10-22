@@ -89,7 +89,6 @@ medusaIntegrationTestRunner({
     /** The grocery's order accepted and being picked; returns its pick list. */
     const startPicking = async (orderId: string) => {
       await post(`${orderId}/accept`)
-      await post(`${orderId}/start-picking`)
       return pickList(orderId)
     }
     const reservationsOf = async (orderId: string) => {

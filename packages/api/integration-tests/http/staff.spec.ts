@@ -179,14 +179,20 @@ medusaIntegrationTestRunner({
         return (data.orders as { id: string }[]).map((o) => o.id)
       }
 
-      it("lists both shops and sees each shop's own orders when it switches", async () => {
+      it("lists both shops, each with its city, and sees each shop's own orders when it switches", async () => {
         const groceryOrder = await orderWith(grocery, "Ofada Rice 5kg")
         const fashionOrder = await orderWith(fashion, "Adire Kaftan")
         await joinFashion()
 
         const { data } = await api.get("/vendor/sellers", await staffLogin())
-        expect((data.seller_members as { seller_id: string }[]).map((m) => m.seller_id).sort()).toEqual(
-          [await sellerId(grocery), await sellerId(fashion)].sort()
+        const shops = (data.seller_members as { seller_id: string; seller: { name: string; city: string | null } }[])
+          .map((m) => ({ id: m.seller_id, name: m.seller.name, city: m.seller.city }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+        expect(shops).toEqual(
+          [
+            { id: await sellerId(grocery), name: grocery.name, city: grocery.pickup.city },
+            { id: await sellerId(fashion), name: fashion.name, city: fashion.pickup.city },
+          ].sort((a, b) => a.name.localeCompare(b.name))
         )
 
         expect(await orderIds(await signedIn(grocery.staff.email, grocery))).toEqual([groceryOrder])

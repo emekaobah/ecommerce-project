@@ -1,5 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import seedDemoData from "../../src/scripts/seed"
+import { fulfilmentService } from "../../src/lib/order-fulfilment"
 import { buyerCheckout, GADGETS, GROCERY, LANTERN, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
@@ -47,21 +48,28 @@ medusaIntegrationTestRunner({
       post(shop, `${orderId}/pick-list/${itemId}`, { picked })
     const pack = (orderId: string, shop = GROCERY) => post(shop, `${orderId}/pack`)
     const state = async (orderId: string) => (await get(GROCERY, orderId)).order.fulfilment.state
-    /** An accepted order the shop has started picking, and its one line. */
+    /** An accepted order, which the shop is picking, and its one line. */
     const picking = async () => {
       const orderId = await groceryOrder()
       await accept(orderId)
-      await startPicking(orderId)
       const { pick_list } = await pickList(orderId)
       return { orderId, itemId: pick_list.lines[0].id as string }
     }
+    /** A grocery order left Accepted, as accepting did before it started picking too (#70). */
+    const acceptedNotPicking = async () => {
+      const orderId = await groceryOrder()
+      await accept(orderId)
+      const service = fulfilmentService(getContainer())
+      const [row] = await service.listOrderFulfilments({ order_id: orderId })
+      await service.updateOrderFulfilments({ id: row.id, state: "accepted", fulfilment: { method: "delivery", state: "accepted" } })
+      return orderId
+    }
 
     describe("starting to pick", () => {
-      it("moves an accepted order to picking, with a checklist of its lines and nothing picked", async () => {
+      it("starts when the order is accepted, with a checklist of its lines, each unit's refund, and nothing picked", async () => {
         const orderId = await groceryOrder()
-        await accept(orderId)
 
-        const { data } = await startPicking(orderId)
+        const { data } = await accept(orderId)
 
         expect(data.fulfilment.state).toBe("picking")
         expect(await state(orderId)).toBe("picking")
@@ -74,6 +82,7 @@ medusaIntegrationTestRunner({
               variant_title: RICE.title,
               thumbnail: expect.any(String),
               quantity: 2,
+              unit_refund: RICE.price,
               picked: 0,
               unavailable: 0,
               codes: [RICE.barcode],
@@ -85,11 +94,24 @@ medusaIntegrationTestRunner({
         })
       })
 
-      it("refuses an order that isn't accepted", async () => {
+      it("still moves an order accepted before accepting started picking to picking", async () => {
+        const orderId = await acceptedNotPicking()
+
+        const { data } = await startPicking(orderId)
+
+        expect(data.fulfilment).toMatchObject({ state: "picking", phase: "in_progress" })
+        expect(await state(orderId)).toBe("picking")
+      })
+
+      it("refuses an order that isn't accepted, or is already being picked", async () => {
         const orderId = await groceryOrder()
 
         expect(await status(startPicking(orderId))).toBe(400)
         expect(await state(orderId)).toBe("new")
+
+        await accept(orderId)
+        expect(await status(startPicking(orderId))).toBe(400)
+        expect(await state(orderId)).toBe("picking")
       })
     })
 
@@ -129,8 +151,7 @@ medusaIntegrationTestRunner({
       })
 
       it("refuses picks while the order isn't being picked", async () => {
-        const orderId = await groceryOrder()
-        await accept(orderId)
+        const orderId = await acceptedNotPicking()
         const itemId = (await pickList(orderId)).pick_list.lines[0].id
 
         expect(await status(pick(orderId, itemId, 1))).toBe(400)
@@ -159,8 +180,7 @@ medusaIntegrationTestRunner({
       })
 
       it("refuses an accepted order not yet picked", async () => {
-        const orderId = await groceryOrder()
-        await accept(orderId)
+        const orderId = await acceptedNotPicking()
 
         expect(await status(pack(orderId))).toBe(400)
         expect(await state(orderId)).toBe("accepted")
