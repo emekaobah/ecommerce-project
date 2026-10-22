@@ -10,14 +10,16 @@ import type { CartSellerGroup } from "./cart"
 /**
  * Removes the cart's sold-out lines and cuts those wanting more than is left to what is, from its
  * lines grouped by shop (`retrieveCartBySeller`, which says what each line's offer has left).
- * Lines whose shop is gone are not this function's to fix. Returns what changed.
+ * Lines whose shop is gone are not this function's to fix. Returns what changed, and the shops
+ * whose lines it changed.
  */
 export async function cutCartToStock(
   container: MedusaContainer,
   cartId: string,
   sellers: CartSellerGroup[]
-): Promise<NotPlacedChange[]> {
+): Promise<{ changes: NotPlacedChange[]; sellerIds: Set<string> }> {
   const changes: NotPlacedChange[] = []
+  const sellerIds = new Set<string>()
   const removed: string[] = []
   const reduced: { id: string; quantity: number }[] = []
   for (const group of sellers) {
@@ -25,6 +27,7 @@ export async function cutCartToStock(
     for (const line of group.items) {
       const shortfall = stockShortfall(line.quantity, line.available_quantity)
       if (!shortfall) continue
+      sellerIds.add(group.seller.id)
       const item = { product_title: line.product_title, variant_title: line.variant_title, seller: group.seller.name }
       if (shortfall.type === "sold_out") {
         removed.push(line.id)
@@ -40,5 +43,5 @@ export async function cutCartToStock(
   for (const { id, quantity } of reduced) {
     await updateLineItemInCartWorkflow(container).run({ input: { cart_id: cartId, item_id: id, update: { quantity } } })
   }
-  return changes
+  return { changes, sellerIds }
 }

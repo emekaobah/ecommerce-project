@@ -34,7 +34,7 @@ export async function fixUnplacedCart(
     causes.add("unavailable")
   }
   if (gone.length) await deleteLineItemsWorkflow(container).run({ input: { cart_id: cartId, ids: gone.map((l) => l.id) } })
-  const cut = await cutCartToStock(container, cartId, sellers)
+  const { changes: cut } = await cutCartToStock(container, cartId, sellers)
   if (cut.length) causes.add("sold_out")
   changes.push(...cut)
 
