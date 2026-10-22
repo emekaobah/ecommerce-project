@@ -24,6 +24,30 @@ export class ApiError extends ClientError {
   }
 }
 
+/** Where `keepRefusedResponses`' fetch leaves a copy of a request's refused response. */
+type RefusedSink = { response?: Response }
+/** The request option naming a request's sink; `@mercurjs/client` copies its `fetchOptions` onto each request. */
+const REFUSED_SINK = Symbol("oja.refusedSink")
+const KEEPS_REFUSED = Symbol("oja.keepsRefused")
+
+/**
+ * `@mercurjs/client` calls the global `fetch` and reads a refused response's body itself, so
+ * `fetch` is wrapped, once, to leave a copy of each refused response in the sink its request
+ * names. The wrapper holds no state of its own: overlapping requests each have their own sink.
+ * Wraps whichever `fetch` is current if it isn't wrapped yet (a test may install its own).
+ */
+function keepRefusedResponses() {
+  const underlying = globalThis.fetch as typeof fetch & { [KEEPS_REFUSED]?: true }
+  if (underlying[KEEPS_REFUSED]) return
+  const keeping = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const response = await underlying(input, init)
+    const sink = (init as { [REFUSED_SINK]?: RefusedSink } | undefined)?.[REFUSED_SINK]
+    if (sink && response.status >= 300) sink.response = response.clone()
+    return response
+  }
+  globalThis.fetch = Object.assign(keeping, { [KEEPS_REFUSED]: true as const }) as unknown as typeof fetch
+}
+
 type Awaitable<T> = T | Promise<T>
 /** Reads a value at request time; null or undefined means "don't send it". */
 export type Getter = () => Awaitable<string | null | undefined>
@@ -50,29 +74,15 @@ type DynamicClientConfig = {
 function createDynamicClient({ baseUrl, headers, retryHeaders, onUnauthorized }: DynamicClientConfig): OjaClient {
   const isUnauthorized = (error: unknown) => error instanceof ClientError && error.status === 401
   const send = async (path: string[], args: unknown[], sent: Record<string, string>) => {
-    let target: any = createClient({ baseUrl, fetchOptions: { headers: sent } })
+    keepRefusedResponses()
+    const sink: RefusedSink = {}
+    let target: any = createClient({ baseUrl, fetchOptions: { headers: sent, [REFUSED_SINK]: sink } as RequestInit })
     for (const segment of path) target = target[segment]
-    // `@mercurjs/client` reads a refused response's body and keeps only its message and code. It
-    // calls `fetch` before the call returns, so a copy of this request's refused response is
-    // kept by swapping `fetch` for the call alone; no other request can run in between.
-    const fetchNow = globalThis.fetch
-    let refused: Response | undefined
-    globalThis.fetch = (async (...request: Parameters<typeof fetch>) => {
-      const response = await fetchNow(...request)
-      if (response.status >= 300) refused = response.clone()
-      return response
-    }) as typeof fetch
-    let pending: Promise<unknown>
     try {
-      pending = target(...args)
-    } finally {
-      globalThis.fetch = fetchNow
-    }
-    try {
-      return await pending
+      return await target(...args)
     } catch (error) {
-      if (!(error instanceof ClientError) || !refused) throw error
-      const body = await refused.json().catch(() => ({}))
+      if (!(error instanceof ClientError) || !sink.response) throw error
+      const body = await sink.response.json().catch(() => ({}))
       throw new ApiError(error, body && typeof body === "object" ? (body as Record<string, unknown>) : {})
     }
   }
