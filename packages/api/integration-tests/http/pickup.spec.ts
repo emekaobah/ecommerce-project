@@ -378,7 +378,6 @@ medusaIntegrationTestRunner({
       }
       const packed = async (orderId: string, shop = GROCERY) => {
         await post(shop, `${orderId}/accept`)
-        await post(shop, `${orderId}/start-picking`)
         const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await owner(shop))).data
         for (const line of pick_list.lines) await post(shop, `${orderId}/pick-list/${line.id}`, { picked: line.quantity })
         return post(shop, `${orderId}/pack`)
@@ -528,9 +527,15 @@ medusaIntegrationTestRunner({
         const { code } = (await adasOrder(groupId, orderId)).pickup
         const wrong = wrongCodeFor(code)
 
+        const firstWrong = Date.now()
         for (let i = 0; i < 5; i++) expect(await status(collect(orderId, wrong))).toBe(400)
 
-        expect(await status(collect(orderId, code))).toBe(429)
+        const locked = await collect(orderId, code).catch((e: any) => e.response)
+        expect(locked.status).toBe(429)
+        // The counter opens again 15 minutes after the first of the five wrong codes.
+        const retryAt = Date.parse(locked.data.retry_at)
+        expect(retryAt).toBeGreaterThanOrEqual(firstWrong + 15 * 60 * 1000 - 1000)
+        expect(retryAt).toBeLessThanOrEqual(Date.now() + 15 * 60 * 1000)
         expect((await vendorOrder(GROCERY, orderId)).fulfilment.state).toBe("ready_for_pickup")
       })
 

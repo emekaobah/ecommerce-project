@@ -17,6 +17,8 @@ export type PickListLine = PickLine & {
   product_title: string | null
   variant_title: string | null
   thumbnail: string | null
+  /** What the buyer is refunded for each unit of the line removed as unavailable (#70). */
+  unit_refund: number
 }
 
 export type PickList = {
@@ -65,6 +67,7 @@ export async function pickListOf(scope: Scope, orderId: string): Promise<PickLis
       variant_title: item.variant_title,
       thumbnail: item.thumbnail,
       quantity: item.quantity,
+      unit_refund: removalAmount([item], { [item.id]: 1 }),
       picked: picks[item.id] ?? 0,
       unavailable: unavailable[item.id] ?? 0,
       codes: [...new Set(codes.filter((c): c is string => !!c))],

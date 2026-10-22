@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
-import { ClientError, createStoreClient, createVendorClient } from "./index"
+import { ApiError, ClientError, createStoreClient, createVendorClient } from "./index"
 
 const baseUrl = "http://api.test"
 const realFetch = globalThis.fetch
@@ -70,6 +70,22 @@ describe("createVendorClient", () => {
     await expect(client.vendor.orders.query()).rejects.toBeInstanceOf(ClientError)
     expect(requests[0]?.headers.get("authorization")).toBe("Bearer member-a")
     expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+})
+
+describe("errors", () => {
+  test("keep the error body's fields, such as when a locked pickup counter may try again", async () => {
+    const refusal = { type: "too_many_attempts", message: "Too many wrong codes.", retry_at: "2026-10-22T15:15:00.000Z" }
+    globalThis.fetch = mock(async () => Response.json(refusal, { status: 429 })) as unknown as typeof fetch
+    const client = createVendorClient({ baseUrl, getToken: () => "token" })
+
+    const error = await client.vendor.orders.$id.collect
+      .mutate({ $id: "order_1", code: "000000", collected_by: "Tolu" })
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(ClientError)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 429, message: refusal.message, body: refusal })
   })
 })
 

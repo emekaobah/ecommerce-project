@@ -747,7 +747,7 @@ medusaIntegrationTestRunner({
         const [line] = order.items
         const items = [{ id: line.id, quantity: 1 }]
         // A courier fulfilment comes only from booking the label (#24).
-        for (const step of ["accept", "start-picking", `pick-list/${line.id}`, "pack", "book-label"]) {
+        for (const step of ["accept", `pick-list/${line.id}`, "pack", "book-label"]) {
           await api.post(`/vendor/orders/${order.id}/${step}`, step.startsWith("pick-list") ? { picked: 1 } : {}, owner)
         }
         const { data: booked } = await query().graph({ entity: "order", fields: ["fulfillments.id"], filters: { id: order.id } })

@@ -120,7 +120,6 @@ medusaIntegrationTestRunner({
       const orderId = await buyer.shopOrderId(GROCERY, cartId)
       await eventually(() => vendorOrder(orderId), (o) => o.fulfilment?.state === "new")
       await post(`${orderId}/accept`)
-      await post(`${orderId}/start-picking`)
       const { pick_list } = (await api.get(`/vendor/orders/${orderId}/pick-list`, await owner(GROCERY))).data
       for (const line of pick_list.lines) await post(`${orderId}/pick-list/${line.id}`, { picked: line.quantity })
       await post(`${orderId}/pack`)
