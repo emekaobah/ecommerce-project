@@ -485,32 +485,45 @@ type CheckoutFacts = {
 /** One shop's part of checkout: pickup or delivery, the delivery still standing, and its pickup place. */
 function checkoutSellerGroup(group: CartSellerGroup, facts: CheckoutFacts): CheckoutSellerGroup {
   const sellerId = group.seller?.id
-  const place = sellerId ? facts.places.get(sellerId) : undefined
-  const km = sellerId ? facts.distances.get(sellerId) : undefined
-  const pickup = place
-    ? { ...place, hold_notice: PICKUP_HOLD_NOTICE, distance_km: km == null ? null : roundedDistanceKm(km) }
-    : null
   const method: FulfilmentMethod = sellerId && facts.collecting.has(sellerId) ? "pickup" : "delivery"
-  const delivery = sellerId && method === "delivery" ? facts.deliveries.get(sellerId) : undefined
-  // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
-  // So does a shop's word that it can't deliver. An order with perishable items (perhaps only
-  // since the quote) takes only a delivery still arriving by the end of tomorrow, and a shop
-  // refused one only while it has perishable items.
-  const basis = quoteBasis(facts.receiverCode, parcelLines(group))
-  const inTime =
-    !!delivery && ratesFor([delivery.data.quote], { perishable: group.perishable, timeZone: facts.timeZone }).length > 0
-  const current = delivery?.data.basis === basis && inTime ? delivery : undefined
-  const refused = sellerId ? facts.unavailable[sellerId] : undefined
-  const delivery_unavailable =
-    group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null
+  const { current, delivery_unavailable } = standingDelivery(group, method, facts)
   return {
     ...group,
     method,
     ...shopDelivery(current),
     delivery_unavailable,
-    pickup,
+    pickup: sellerId ? pickupPlace(sellerId, facts) : null,
     // Checkout switched it to pickup: no courier brings its fresh items in time (#69).
     pickup_note: method === "pickup" && delivery_unavailable ? PERISHABLE_PICKUP_NOTE : null,
+  }
+}
+
+/** The shop's collection point with its hold notice and rounded distance; null where it has none. */
+function pickupPlace(sellerId: string, facts: CheckoutFacts) {
+  const place = facts.places.get(sellerId)
+  if (!place) return null
+  const km = facts.distances.get(sellerId)
+  return { ...place, hold_notice: PICKUP_HOLD_NOTICE, distance_km: km == null ? null : roundedDistanceKm(km) }
+}
+
+/**
+ * The shop's chosen delivery if it still stands, and why the shop can't deliver, if it said so.
+ * A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
+ * So does a shop's word that it can't deliver. An order with perishable items (perhaps only
+ * since the quote) takes only a delivery still arriving by the end of tomorrow, and a shop
+ * refused one only while it has perishable items.
+ */
+function standingDelivery(group: CartSellerGroup, method: FulfilmentMethod, facts: CheckoutFacts) {
+  const sellerId = group.seller?.id
+  const basis = quoteBasis(facts.receiverCode, parcelLines(group))
+  const delivery = sellerId && method === "delivery" ? facts.deliveries.get(sellerId) : undefined
+  const inTime =
+    !!delivery && ratesFor([delivery.data.quote], { perishable: group.perishable, timeZone: facts.timeZone }).length > 0
+  const refused = sellerId ? facts.unavailable[sellerId] : undefined
+  return {
+    current: delivery?.data.basis === basis && inTime ? delivery : undefined,
+    delivery_unavailable:
+      group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null,
   }
 }
 
