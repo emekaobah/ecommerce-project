@@ -31,9 +31,9 @@ export function RefundAccountScreen({ refundId }: Readonly<{ refundId: string }>
 
   if (refund.error && !refund.data) {
     if (isNotFound(refund.error)) {
-      return <ErrorState title="Refund not found" message="This refund isn't one of yours." />;
+      return <ErrorState title="Refund not found" body="This refund isn't one of yours." />;
     }
-    return <ErrorState title="Couldn't load this refund" message={refund.error.message} onRetry={() => void refund.refetch()} />;
+    return <ErrorState title="Couldn't load this refund" body="Check your connection and try again. Your refund is safe." error={refund.error} onRetry={() => void refund.refetch()} />;
   }
   if (!refund.data) return <LoadingState />;
   return refund.data.needs_account ? <AccountForm refund={refund.data} /> : <RefundState refund={refund.data} />;
@@ -220,7 +220,7 @@ function BankField({
   const [search, setSearch] = useState('');
 
   if (banks.error && !banks.data) {
-    return <ErrorState title="Couldn't load the banks" message={banks.error.message} onRetry={() => void banks.refetch()} />;
+    return <ErrorState title="Couldn't load the banks" body="Check your connection and try again. Your refund is safe." error={banks.error} onRetry={() => void banks.refetch()} />;
   }
   if (!choosing) {
     const bank = banks.data?.find((b) => b.code === bankCode) ?? null;

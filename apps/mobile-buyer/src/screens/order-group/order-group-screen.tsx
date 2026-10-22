@@ -29,7 +29,7 @@ export function OrderGroupScreen() {
   const { refreshing, refresh } = usePullToRefresh(() => group.refetch());
 
   if (group.error && !group.data) {
-    return <ErrorState title="Couldn't load this order" message={group.error.message} onRetry={refresh} />;
+    return <ErrorState title="Couldn't load this order" body="Check your connection and try again." error={group.error} onRetry={refresh} />;
   }
   if (!group.data) return <LoadingState />;
 

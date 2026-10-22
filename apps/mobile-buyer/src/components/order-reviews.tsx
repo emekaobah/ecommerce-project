@@ -26,7 +26,7 @@ export function OrderReviews({ groupId, order }: Readonly<{ groupId: string; ord
             <Text>{reviewTitle(order, review)}</Text>
             <Stars rating={review.rating} />
             {review.customer_note ? <Text tone="muted">{review.customer_note}</Text> : null}
-            <StatusChip label={status.label} tone={status.tone} />
+            <StatusChip label={status.label} tone={status.tone} icon={status.icon} />
             {status.note ? (
               <Text variant="meta" tone="muted">
                 {status.note}

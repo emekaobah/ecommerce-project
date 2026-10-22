@@ -3,5 +3,5 @@ import { router } from 'expo-router';
 
 /** What a guest sees in place of signed-in-only content: the way into the sign-in modal. */
 export function SignInPrompt({ title, message }: Readonly<{ title: string; message: string }>) {
-  return <EmptyState title={title} message={message} action={{ label: 'Sign in', onPress: () => router.push('/sign-in') }} />;
+  return <EmptyState title={title} body={message} action={{ label: 'Sign in', onPress: () => router.push('/sign-in') }} />;
 }

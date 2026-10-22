@@ -21,7 +21,7 @@ export function CollectScreen() {
 
   const content = () => {
     if (order.error && !order.data) {
-      return <ErrorState title="Couldn't load the order" message={order.error.message} onRetry={() => void order.refetch()} />;
+      return <ErrorState title="Couldn't load the order" body="Check your connection and try again." error={order.error} onRetry={() => void order.refetch()} />;
     }
     if (!order.data) return <LoadingState />;
     if (!code) return <CodeEntry onCode={setCode} />;

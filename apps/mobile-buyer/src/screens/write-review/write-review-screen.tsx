@@ -30,7 +30,7 @@ export function WriteReviewScreen({ groupId, orderId }: Readonly<{ groupId: stri
   const group = useOrderGroup(userId, groupId);
 
   if (group.error && !group.data) {
-    return <ErrorState title="Couldn't load this order" message={group.error.message} onRetry={() => void group.refetch()} />;
+    return <ErrorState title="Couldn't load this order" body="Check your connection and try again." error={group.error} onRetry={() => void group.refetch()} />;
   }
   if (!group.data) return <LoadingState />;
   const order = group.data.orders.find((o) => o.id === orderId);
@@ -38,7 +38,7 @@ export function WriteReviewScreen({ groupId, orderId }: Readonly<{ groupId: stri
     return (
       <EmptyState
         title="Not ready for review"
-        message="You can review an order once you have received it."
+        body="You can review an order once you have received it."
         action={{ label: 'Back to the order', onPress: () => router.back() }}
       />
     );

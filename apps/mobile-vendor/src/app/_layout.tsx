@@ -1,5 +1,5 @@
 import { initSentry, useSentryNavigation, withSentry } from '@oja/expo-sentry';
-import { ThemeProvider } from '@oja/ui';
+import { ThemeProvider, ToastProvider } from '@oja/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -38,18 +38,20 @@ function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false }}>
-          {/* Flipping a guard redirects to the group that is allowed: sign-out lands on sign-in, and a
-              member who must pick a shop (several shops, none saved or the saved one lost) on the
-              picker, which (auth) shows instead of sign-in. */}
-          <Stack.Protected guard={signedIn} redirectTo={choosingShop ? '/shop-picker' : '/sign-in'}>
-            <Stack.Screen name="(app)" />
-          </Stack.Protected>
-          <Stack.Protected guard={!signedIn} redirectTo="/">
-            <Stack.Screen name="(auth)" />
-          </Stack.Protected>
-        </Stack>
+        <ToastProvider>
+          <StatusBar style="auto" />
+          <Stack screenOptions={{ headerShown: false }}>
+            {/* Flipping a guard redirects to the group that is allowed: sign-out lands on sign-in, and a
+                member who must pick a shop (several shops, none saved or the saved one lost) on the
+                picker, which (auth) shows instead of sign-in. */}
+            <Stack.Protected guard={signedIn} redirectTo={choosingShop ? '/shop-picker' : '/sign-in'}>
+              <Stack.Screen name="(app)" />
+            </Stack.Protected>
+            <Stack.Protected guard={!signedIn} redirectTo="/">
+              <Stack.Screen name="(auth)" />
+            </Stack.Protected>
+          </Stack>
+        </ToastProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

@@ -17,11 +17,11 @@ export function HomeScreen() {
 
   const content = () => {
     if (region.error) {
-      return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
+      return <ErrorState title="Couldn't reach the store" body="Check your connection and try again. Anything in your cart is saved." error={region.error} onRetry={region.retry} />;
     }
     // A failed refresh keeps the list already on screen.
     if (listings.error && !listings.data) {
-      return <ErrorState title="Couldn't load products" message={listings.error.message} onRetry={refresh} />;
+      return <ErrorState title="Couldn't load products" body="Check your connection and try again." error={listings.error} onRetry={refresh} />;
     }
     if (!region.region || !listings.data) return <LoadingState />;
 
@@ -31,7 +31,7 @@ export function HomeScreen() {
         data={listings.data}
         keyExtractor={(l) => `${l.seller.id}:${l.product.id}`}
         contentContainerStyle={listings.data.length === 0 && styles.emptyList}
-        ListEmptyComponent={<EmptyState title="No products yet" message="Check back soon." />}
+        ListEmptyComponent={<EmptyState title="No products yet" body="Check back soon." />}
         refreshing={refreshing}
         onRefresh={refresh}
         renderItem={({ item }) => <ListingRow listing={item} currencyCode={currency_code} showShop />}

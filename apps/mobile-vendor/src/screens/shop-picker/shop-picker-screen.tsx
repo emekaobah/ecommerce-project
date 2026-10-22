@@ -33,7 +33,7 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
       return (
         <ErrorState
           title="Couldn't load your shops"
-          message={memberships.error.message}
+          body="Check your connection and try again." error={memberships.error}
           onRetry={() => void memberships.refetch()}
         />
       );
@@ -48,7 +48,7 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
         keyExtractor={(m) => m.seller_id}
         contentContainerStyle={shops.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space[4] }}
         ListEmptyComponent={
-          <EmptyState title="No shops" message="This account isn't a member of any shop. Ask the owner to invite you." />
+          <EmptyState title="No shops" body="This account isn't a member of any shop. Ask the owner to invite you." />
         }
         renderItem={({ item }) => (
           <ListRow

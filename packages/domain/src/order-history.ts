@@ -1,14 +1,12 @@
 import { cancelledBy, cancelReasonText } from "./cancellation"
 import type { Cancellation, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
+import type { StatusView } from "./status"
 
 /**
  * How the buyer app shows its order history (#17): each checkout is an order group, split into
  * one order per shop, each with its own state, and its refund if the shop rejected it.
  */
-
-/** A status chip's colour; the app pairs it with a symbol and the label. */
-export type StatusTone = "neutral" | "info" | "success" | "warning" | "danger"
 
 export type OrderFulfilmentView = {
   state: FulfilmentState
@@ -18,26 +16,23 @@ export type OrderFulfilmentView = {
   cancellation: Pick<Cancellation, "by" | "reason" | "note"> | null
 }
 
-/** A label for a status chip, and a line to say more under it. */
-export type StatusView = { label: string; tone: StatusTone; note: string | null }
-
 /** What the buyer is told of each state; staff's finer steps read as one to the buyer. */
 const STATES: Record<Exclude<FulfilmentState, "rejected" | "cancelled">, Omit<StatusView, "note">> = {
-  new: { label: "Waiting for the shop", tone: "warning" },
-  accepted: { label: "Accepted", tone: "info" },
-  picking: { label: "Being prepared", tone: "info" },
-  partially_available: { label: "Being prepared", tone: "info" },
-  packed: { label: "Packed", tone: "info" },
-  label_booked: { label: "Courier booked", tone: "info" },
-  courier_confirmed: { label: "Courier booked", tone: "info" },
-  handed_to_courier: { label: "On its way", tone: "info" },
-  in_transit: { label: "On its way", tone: "info" },
-  delivered: { label: "Delivered", tone: "success" },
+  new: { label: "Waiting for the shop", tone: "new", icon: "clock" },
+  accepted: { label: "Accepted", tone: "info", icon: "box" },
+  picking: { label: "Being prepared", tone: "info", icon: "box" },
+  partially_available: { label: "Being prepared", tone: "info", icon: "box" },
+  packed: { label: "Packed", tone: "info", icon: "box" },
+  label_booked: { label: "Courier booked", tone: "info", icon: "truck" },
+  courier_confirmed: { label: "Courier booked", tone: "info", icon: "truck" },
+  handed_to_courier: { label: "On its way", tone: "info", icon: "truck" },
+  in_transit: { label: "On its way", tone: "info", icon: "truck" },
+  delivered: { label: "Delivered", tone: "success", icon: "check" },
   // Ready is the buyer's cue to come for it.
-  ready_for_pickup: { label: "Ready for pickup", tone: "success" },
-  collected: { label: "Collected", tone: "success" },
+  ready_for_pickup: { label: "Ready for pickup", tone: "success", icon: "store" },
+  collected: { label: "Collected", tone: "success", icon: "check" },
   // The hold expired (#32): the shop kept what was fresh, the rest is refunded.
-  not_collected: { label: "Not collected", tone: "danger" },
+  not_collected: { label: "Not collected", tone: "neutral", icon: "x" },
 }
 
 /** Paystack's refund statuses (`order_refund.status`). */
@@ -45,15 +40,16 @@ export type RefundStatus = "pending" | "processing" | "processed" | "failed" | "
 export type OrderRefundView = { amount: number; status: RefundStatus }
 
 const REFUNDS: Record<RefundStatus, StatusView> = {
-  pending: { label: "Refund on its way", tone: "info", note: null },
-  processing: { label: "Refund on its way", tone: "info", note: null },
-  processed: { label: "Refunded", tone: "success", note: null },
+  pending: { label: "Refund on its way", tone: "success", icon: "check", note: null },
+  processing: { label: "Refund on its way", tone: "success", icon: "check", note: null },
+  processed: { label: "Refunded", tone: "success", icon: "check", note: null },
   // The accept-deadline job refunds it again (#20).
-  failed: { label: "Refund delayed", tone: "warning", note: "It didn't go through, so we're trying again." },
+  failed: { label: "Refund delayed", tone: "new", icon: "clock", note: "It didn't go through, so we're trying again." },
   // Paystack needs the buyer's bank account to retry it (#13); after 7 days Oja's team sends it.
   "needs-attention": {
-    label: "Refund delayed",
-    tone: "warning",
+    label: "Refund delayed · add your bank",
+    tone: "attention",
+    icon: "info",
     note: "Your bank couldn't take it back to your card. Add a bank account to receive it.",
   },
 }
@@ -78,7 +74,8 @@ export function owedRefundStatus(owed: OwedRefundView | null, currencyCode: stri
   const amount = formatMoney(owed.amount, currencyCode)
   return {
     label: "Refund pending",
-    tone: "warning",
+    tone: "new",
+    icon: "clock",
     note: owed.state === "manual" ? `Our team is sending your ${amount} refund` : `Refund of ${amount} pending`,
   }
 }
@@ -88,11 +85,11 @@ export function orderStatus({ fulfilment }: { fulfilment: OrderFulfilmentView })
   if (fulfilment.state === "cancelled") {
     const { cancellation } = fulfilment
     const label = `Cancelled by ${cancelledBy(cancellation?.by ?? "seller")}`
-    return { label, tone: "danger", note: cancellation ? cancelReasonText(cancellation) : null }
+    return { label, tone: "neutral", icon: "x", note: cancellation ? cancelReasonText(cancellation) : null }
   }
   if (fulfilment.state !== "rejected") return { ...STATES[fulfilment.state], note: null }
-  if (fulfilment.rejected_by === "accept_deadline") return { label: "Not accepted in time", tone: "danger", note: null }
-  return { label: "Rejected by the shop", tone: "danger", note: fulfilment.reject_reason }
+  if (fulfilment.rejected_by === "accept_deadline") return { label: "Not accepted in time", tone: "neutral", icon: "x", note: null }
+  return { label: "Rejected by the shop", tone: "neutral", icon: "x", note: fulfilment.reject_reason }
 }
 
 type GroupLike<O> = { orders: readonly O[] }

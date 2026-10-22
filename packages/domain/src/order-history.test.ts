@@ -6,31 +6,32 @@ const placed = { state: "new", rejected_by: null, reject_reason: null, cancellat
 
 describe("orderStatus", () => {
   test("a new order waits for its shop to accept it", () => {
-    expect(orderStatus({ fulfilment: placed })).toEqual({ label: "Waiting for the shop", tone: "warning", note: null })
+    expect(orderStatus({ fulfilment: placed })).toEqual({ label: "Waiting for the shop", tone: "new", icon: "clock", note: null })
   })
 
   test.each([
-    ["accepted", "Accepted", "info"],
-    ["picking", "Being prepared", "info"],
-    ["partially_available", "Being prepared", "info"],
-    ["packed", "Packed", "info"],
-    ["label_booked", "Courier booked", "info"],
-    ["courier_confirmed", "Courier booked", "info"],
-    ["handed_to_courier", "On its way", "info"],
-    ["in_transit", "On its way", "info"],
-    ["delivered", "Delivered", "success"],
-    ["ready_for_pickup", "Ready for pickup", "success"],
-    ["collected", "Collected", "success"],
-    ["not_collected", "Not collected", "danger"],
-  ] as const)("a %s order reads %s", (state, label, tone) => {
-    expect(orderStatus({ fulfilment: { ...placed, state } })).toEqual({ label, tone, note: null })
+    ["accepted", "Accepted", "info", "box"],
+    ["picking", "Being prepared", "info", "box"],
+    ["partially_available", "Being prepared", "info", "box"],
+    ["packed", "Packed", "info", "box"],
+    ["label_booked", "Courier booked", "info", "truck"],
+    ["courier_confirmed", "Courier booked", "info", "truck"],
+    ["handed_to_courier", "On its way", "info", "truck"],
+    ["in_transit", "On its way", "info", "truck"],
+    ["delivered", "Delivered", "success", "check"],
+    ["ready_for_pickup", "Ready for pickup", "success", "store"],
+    ["collected", "Collected", "success", "check"],
+    ["not_collected", "Not collected", "neutral", "x"],
+  ] as const)("a %s order reads %s", (state, label, tone, icon) => {
+    expect(orderStatus({ fulfilment: { ...placed, state } })).toEqual({ label, tone, icon, note: null })
   })
 
   test("an order its shop cancelled after accepting it says why (#17)", () => {
     const cancellation = { by: "seller", reason: "items_unavailable", note: null } as const
     expect(orderStatus({ fulfilment: { ...placed, state: "cancelled", cancellation } })).toEqual({
       label: "Cancelled by the shop",
-      tone: "danger",
+      tone: "neutral",
+      icon: "x",
       note: "Items unavailable",
     })
   })
@@ -39,19 +40,20 @@ describe("orderStatus", () => {
     const cancellation = { by: "operator", reason: "other", note: "The shop has closed" } as const
     expect(orderStatus({ fulfilment: { ...placed, state: "cancelled", cancellation } })).toEqual({
       label: "Cancelled by Oja's team",
-      tone: "danger",
+      tone: "neutral",
+      icon: "x",
       note: "The shop has closed",
     })
   })
 
   test("a rejected order gives the shop's reason", () => {
     const fulfilment = { state: "rejected", rejected_by: "seller", reject_reason: "Out of stock", cancellation: null } as const
-    expect(orderStatus({ fulfilment })).toEqual({ label: "Rejected by the shop", tone: "danger", note: "Out of stock" })
+    expect(orderStatus({ fulfilment })).toEqual({ label: "Rejected by the shop", tone: "neutral", icon: "x", note: "Out of stock" })
   })
 
   test("an order the shop didn't accept in time says so, whatever reason was recorded", () => {
     const fulfilment = { state: "rejected", rejected_by: "accept_deadline", reject_reason: "Not accepted in time", cancellation: null } as const
-    expect(orderStatus({ fulfilment })).toEqual({ label: "Not accepted in time", tone: "danger", note: null })
+    expect(orderStatus({ fulfilment })).toEqual({ label: "Not accepted in time", tone: "neutral", icon: "x", note: null })
   })
 })
 
@@ -84,22 +86,23 @@ describe("refundStatus", () => {
   })
 
   test.each([
-    ["pending", "Refund on its way", "info"],
-    ["processing", "Refund on its way", "info"],
-    ["processed", "Refunded", "success"],
-    ["failed", "Refund delayed", "warning"],
-  ] as const)("a %s refund reads %s", (status, label, tone) => {
-    expect(refundStatus({ amount: 12300, status })).toMatchObject({ label, tone })
+    ["pending", "Refund on its way", "success", "check"],
+    ["processing", "Refund on its way", "success", "check"],
+    ["processed", "Refunded", "success", "check"],
+    ["failed", "Refund delayed", "new", "clock"],
+  ] as const)("a %s refund reads %s", (status, label, tone, icon) => {
+    expect(refundStatus({ amount: 12300, status })).toMatchObject({ label, tone, icon })
   })
 
   test("a refund that failed is tried again for the buyer", () => {
     expect(refundStatus({ amount: 12300, status: "failed" })?.note).toBe("It didn't go through, so we're trying again.")
   })
 
-  test("a refund Paystack couldn't return to the card waits for the buyer's bank account (#13)", () => {
+  test("a refund Paystack couldn't return to the card waits for the buyer's bank account (#13), in ember", () => {
     expect(refundStatus({ amount: 12300, status: "needs-attention" })).toEqual({
-      label: "Refund delayed",
-      tone: "warning",
+      label: "Refund delayed · add your bank",
+      tone: "attention",
+      icon: "info",
       note: "Your bank couldn't take it back to your card. Add a bank account to receive it.",
     })
   })
@@ -113,7 +116,8 @@ describe("owedRefundStatus", () => {
   test("a refund still being retried is pending", () => {
     expect(owedRefundStatus({ amount: 12300, state: "retrying" }, "ngn")).toEqual({
       label: "Refund pending",
-      tone: "warning",
+      tone: "new",
+      icon: "clock",
       note: `Refund of ${formatMoney(12300, "ngn")} pending`,
     })
   })
@@ -121,7 +125,8 @@ describe("owedRefundStatus", () => {
   test("a refund Oja's team sends by hand says so", () => {
     expect(owedRefundStatus({ amount: 30, state: "manual" }, "ngn")).toEqual({
       label: "Refund pending",
-      tone: "warning",
+      tone: "new",
+      icon: "clock",
       note: `Our team is sending your ${formatMoney(30, "ngn")} refund`,
     })
   })

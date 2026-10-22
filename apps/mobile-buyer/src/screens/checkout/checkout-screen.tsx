@@ -84,14 +84,14 @@ export function CheckoutScreen() {
   const emptyCart = (
     <EmptyState
       title="Your cart is empty"
-      message="Add something from a shop to check out."
+      body="Add something from a shop to check out."
       action={{ label: 'Start shopping', onPress: () => router.navigate('/') }}
     />
   );
   if (cartId === null) return emptyCart;
   if (checkout.error && !checkout.data) {
     return (
-      <ErrorState title="Couldn't load checkout" message={checkout.error.message} onRetry={() => void checkout.refetch()} />
+      <ErrorState title="Couldn't load checkout" body="Check your connection and try again. You haven't been charged." error={checkout.error} onRetry={() => void checkout.refetch()} />
     );
   }
   const countryCode = region?.countries?.[0]?.iso_2;

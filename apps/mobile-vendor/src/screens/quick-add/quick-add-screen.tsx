@@ -25,7 +25,7 @@ export function QuickAddScreen() {
 
   const content = () => {
     if (lookup.error) {
-      return <ErrorState title="Couldn't look the barcode up" message={lookup.error.message} onRetry={() => void lookup.refetch()} />;
+      return <ErrorState title="Couldn't look the barcode up" body="Check your connection and try again." error={lookup.error} onRetry={() => void lookup.refetch()} />;
     }
     if (!lookup.data) return <LoadingState />;
     const { product, offer, currency_code } = lookup.data;
@@ -46,7 +46,7 @@ export function QuickAddScreen() {
     if (product?.in_review) {
       return (
         <Notice
-          chip={<StatusChip label="In review" tone="warning" />}
+          chip={<StatusChip label="In review" tone="new" icon="clock" />}
           title={product.title}
           lines={['This product is still being reviewed for the catalogue. Add it once it is approved.']}
           onScanAgain={scanAgain}

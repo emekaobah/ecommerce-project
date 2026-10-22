@@ -13,7 +13,7 @@ import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
  */
 export function DeliveringToPicker() {
   const theme = useTheme();
-  const { address, saved, signedIn, failed, retry } = useDeliveringTo();
+  const { address, saved, signedIn, error, retry } = useDeliveringTo();
 
   const { label, value, onPress } = (() => {
     if (address) {
@@ -21,7 +21,7 @@ export function DeliveringToPicker() {
     }
     if (address === undefined) return { label: 'Delivering to', value: '…', onPress: undefined };
     if (!signedIn) return { label: null, value: 'Sign in to see shops near you', onPress: () => router.push('/sign-in') };
-    if (failed || !saved) return { label: null, value: "Couldn't load your addresses. Tap to retry", onPress: retry };
+    if (error || !saved) return { label: null, value: "Couldn't load your addresses. Tap to retry", onPress: retry };
     if (!saved.length) return { label: null, value: 'Add a delivery address', onPress: addAddress };
     return { label: null, value: 'Choose a delivery address', onPress: openPicker };
   })();

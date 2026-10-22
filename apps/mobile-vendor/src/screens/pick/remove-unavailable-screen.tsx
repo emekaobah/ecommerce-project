@@ -27,12 +27,12 @@ export function RemoveUnavailableScreen() {
         <Text variant="titlePushed">Items removed</Text>
         {done.refund ? (
           <View style={{ gap: theme.space[1] }}>
-            <StatusChip label="Refund on its way" tone="success" />
+            <StatusChip label="Refund on its way" tone="success" icon="check" />
             <Text>{`${formatMoney(done.refund.amount, currency)} is being refunded to the buyer.`}</Text>
           </View>
         ) : (
           <View style={{ gap: theme.space[1] }}>
-            <StatusChip label="Refund not made" tone="warning" />
+            <StatusChip label="Refund not made" tone="new" icon="clock" />
             <Text>
               {`The order was changed, but the refund of ${formatMoney(done.removed_amount, currency)} didn't go through. Contact Oja support to finish it.`}
             </Text>
@@ -44,7 +44,7 @@ export function RemoveUnavailableScreen() {
   }
 
   if (pickList.error && !pickList.data) {
-    return <ErrorState title="Couldn't load the pick list" message={pickList.error.message} onRetry={() => void pickList.refetch()} />;
+    return <ErrorState title="Couldn't load the pick list" body="Check your connection and try again. Nothing you've picked is lost." error={pickList.error} onRetry={() => void pickList.refetch()} />;
   }
   if (!pickList.data) return <LoadingState />;
   const { lines, progress, unavailable_amount, currency_code } = pickList.data;

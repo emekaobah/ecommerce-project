@@ -30,7 +30,7 @@ export function CartScreen() {
       return (
         <EmptyState
           title="Your cart is empty"
-          message="Add something from a shop and it will show up here."
+          body="Add something from a shop and it will show up here."
           action={{ label: 'Start shopping', onPress: () => router.navigate('/') }}
         />
       );
@@ -38,7 +38,7 @@ export function CartScreen() {
     // A failed refresh keeps the cart already on screen.
     if (cart.error && !cart.data) {
       return (
-        <ErrorState title="Couldn't load your cart" message={cart.error.message} onRetry={() => void cart.refetch()} />
+        <ErrorState title="Couldn't load your cart" body="Check your connection and try again. Anything in your cart is saved." error={cart.error} onRetry={() => void cart.refetch()} />
       );
     }
     if (!cartId || !cart.data) return <LoadingState />;

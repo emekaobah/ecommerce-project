@@ -38,14 +38,14 @@ export function CancelScreen() {
   }
 
   if (preview.error && !preview.data) {
-    return <ErrorState title="Couldn't load the order" message={preview.error.message} onRetry={() => void preview.refetch()} />;
+    return <ErrorState title="Couldn't load the order" body="Check your connection and try again." error={preview.error} onRetry={() => void preview.refetch()} />;
   }
   if (!preview.data) return <LoadingState />;
   if (!preview.data.allowed) {
     return (
       <EmptyState
         title="This order can't be cancelled now"
-        message="Only an accepted order can be cancelled, up until its courier label is booked."
+        body="Only an accepted order can be cancelled, up until its courier label is booked."
       />
     );
   }
@@ -110,7 +110,7 @@ function RefundOutcome({ amount, refunded, nothingLeft }: Readonly<{ amount: str
   if (nothingLeft) return <Text>The buyer had already been refunded in full.</Text>;
   return (
     <View style={{ gap: theme.space[1] }}>
-      <StatusChip label={refunded ? 'Refund on its way' : 'Refund pending'} tone={refunded ? 'success' : 'warning'} />
+      <StatusChip label={refunded ? 'Refund on its way' : 'Refund pending'} tone={refunded ? 'success' : 'new'} icon={refunded ? 'check' : 'clock'} />
       <Text>
         {refunded
           ? `${amount} is being refunded to the buyer.`

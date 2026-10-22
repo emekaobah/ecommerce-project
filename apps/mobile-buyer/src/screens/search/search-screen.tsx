@@ -66,11 +66,11 @@ function Results({ search, onClear }: Readonly<{ search: string; onClear: () => 
   const listings = useListings(region.region?.id, { search, limit: 100 });
 
   if (region.error) {
-    return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
+    return <ErrorState title="Couldn't reach the store" body="Check your connection and try again. Anything in your cart is saved." error={region.error} onRetry={region.retry} />;
   }
   if (listings.error) {
     return (
-      <ErrorState title="Couldn't search" message={listings.error.message} onRetry={() => void listings.refetch()} />
+      <ErrorState title="Couldn't search" body="Check your connection and try again." error={listings.error} onRetry={() => void listings.refetch()} />
     );
   }
   if (!region.region || !listings.data) return <LoadingState />;
@@ -82,7 +82,7 @@ function Results({ search, onClear }: Readonly<{ search: string; onClear: () => 
       empty={
         <EmptyState
           title={`No results for “${search}”`}
-          message="Check the spelling, or try fewer or shorter words."
+          body="Check the spelling, or try fewer or shorter words."
           action={{ label: 'Clear search', onPress: onClear }}
         />
       }
@@ -98,7 +98,7 @@ function Browse() {
     return (
       <ErrorState
         title="Couldn't load categories"
-        message={categories.error.message}
+        body="Check your connection and try again." error={categories.error}
         onRetry={() => void categories.refetch()}
       />
     );
@@ -122,7 +122,7 @@ function Browse() {
         { paddingHorizontal: theme.space[4], paddingBottom: theme.space[8] },
         !sections.length && styles.grow,
       ]}
-      ListEmptyComponent={<EmptyState title="No categories yet" message="Search for a product by name." />}
+      ListEmptyComponent={<EmptyState title="No categories yet" body="Search for a product by name." />}
       renderSectionHeader={({ section }) => (
         <Text variant="heading" style={{ marginTop: theme.space[6], marginBottom: theme.space[1] }}>
           {section.title}

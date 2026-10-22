@@ -1,26 +1,30 @@
+import type { StatusTone } from "@oja/domain"
 import { StyleSheet, View } from "react-native"
 import { useTheme } from "../theme"
-import type { StatusTone } from "../tokens"
 import { Icon, type IconName } from "./icon"
 import { Text } from "./text"
 
 const ICONS: Record<StatusTone, IconName> = {
-  neutral: "clock",
+  neutral: "x",
   info: "box",
   success: "check",
-  warning: "info",
-  danger: "x",
   new: "clock",
+  attention: "info",
+  danger: "alert",
 }
 
 export type StatusChipProps = {
   label: string
   tone?: StatusTone
-  /** Overrides the tone's default icon. */
+  /** The status's own symbol (`@oja/domain` gives one with each label); otherwise the tone's. */
   icon?: IconName
 }
 
-/** Always pairs an icon and a label with colour, so status never relies on colour alone. */
+/**
+ * A status as `@oja/domain` words it: `<StatusChip {...orderStatus(order)} />`. Always pairs a
+ * symbol and a label with the colour, so status never relies on colour alone. Ember
+ * (`attention`) is only for what waits on the buyer and a new order's last two hours to accept.
+ */
 export function StatusChip({ label, tone = "neutral", icon = ICONS[tone] }: Readonly<StatusChipProps>) {
   const theme = useTheme()
   const { foreground, background } = theme.status[tone]

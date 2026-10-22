@@ -19,7 +19,7 @@ export function SettingsScreen() {
       return (
         <ErrorState
           title="Couldn't load your shops"
-          message={memberships.error.message}
+          body="Check your connection and try again." error={memberships.error}
           onRetry={() => void memberships.refetch()}
         />
       );

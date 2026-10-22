@@ -4,6 +4,8 @@
  * in the shop's region's timezone.
  */
 
+import type { StatusChipView } from "./status"
+
 export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const
 export type Weekday = (typeof WEEKDAYS)[number]
 
@@ -362,6 +364,11 @@ export function shopStatusLabel(status: ShopStatus, now: Date, timeZone: string)
     return `Closed until ${sameDay ? timeLabel(instant, timeZone) : dayLabel(instant, timeZone, { weekday: "short", day: "numeric", month: "short" })}`
   }
   return `Closed · opens ${openingLabel(at, now, timeZone)}`
+}
+
+/** A shop's open state as a chip, with the label `shopStatusLabel` gives it: leaf while open, grey while closed. */
+export function shopStatusChip(state: ShopStatus["state"], label: string): StatusChipView {
+  return state === "open" ? { label, tone: "success", icon: "check" } : { label, tone: "neutral", icon: "clock" }
 }
 
 /** "7pm" (today), "midnight" (tonight's), "2am Tue": when an open shop closes (ISO 8601 `closesAt`), in the region's timezone. */

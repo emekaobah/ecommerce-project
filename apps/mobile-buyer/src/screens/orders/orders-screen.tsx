@@ -40,7 +40,7 @@ function OrderHistory({ userId }: Readonly<{ userId: string | null | undefined }
   const { refreshing, refresh } = usePullToRefresh(() => history.refetch());
 
   if (history.error && !history.data) {
-    return <ErrorState title="Couldn't load your orders" message={history.error.message} onRetry={refresh} />;
+    return <ErrorState title="Couldn't load your orders" body="Check your connection and try again." error={history.error} onRetry={refresh} />;
   }
   if (!history.data) return <LoadingState />;
 
@@ -55,7 +55,7 @@ function OrderHistory({ userId }: Readonly<{ userId: string | null | undefined }
       ListEmptyComponent={
         <EmptyState
           title="No orders yet"
-          message="When you buy something, it shows up here."
+          body="When you buy something, it shows up here."
           action={{ label: 'Start shopping', onPress: () => router.navigate('/') }}
         />
       }

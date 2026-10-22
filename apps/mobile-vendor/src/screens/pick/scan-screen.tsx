@@ -1,5 +1,5 @@
-import { scanBarcode, type ScanResult } from '@oja/domain';
-import { Button, ErrorState, LoadingState, Text, useTheme, type StatusTone } from '@oja/ui';
+import { scanBarcode, type ScanResult, type StatusTone } from '@oja/domain';
+import { Button, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -48,7 +48,7 @@ export function ScanScreen() {
   if (pickList.error && !pickList.data) {
     return (
       <View style={styles.fill}>
-        <ErrorState title="Couldn't load the pick list" message={pickList.error.message} onRetry={() => void pickList.refetch()} />
+        <ErrorState title="Couldn't load the pick list" body="Check your connection and try again. Nothing you've picked is lost." error={pickList.error} onRetry={() => void pickList.refetch()} />
         <View style={{ padding: theme.space[4] }}>{done}</View>
       </View>
     );
@@ -104,7 +104,7 @@ function feedbackFor(result: ScanResult, lines: PickListLine[]): Feedback {
   const line = lines.find((l) => l.id === result.lineId);
   const name = line?.product_title ?? 'Item';
   if (result.kind === 'already_picked') {
-    return { tone: 'warning', symbol: '!', message: `${name}: all ${line?.quantity ?? ''} already picked.` };
+    return { tone: 'new', symbol: '!', message: `${name}: all ${line?.quantity ?? ''} already picked.` };
   }
   return { tone: 'success', symbol: '✓', message: `${name}: ${result.picked} of ${line?.quantity ?? ''} picked.` };
 }

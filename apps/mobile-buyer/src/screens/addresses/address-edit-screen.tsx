@@ -27,7 +27,7 @@ export function AddressEditScreen() {
     return (
       <ErrorState
         title="Couldn't load your addresses"
-        message={addresses.error.message}
+        body="Check your connection and try again." error={addresses.error}
         onRetry={() => void addresses.refetch()}
       />
     );
@@ -39,7 +39,7 @@ export function AddressEditScreen() {
     return (
       <EmptyState
         title="Address not found"
-        message="It may have been deleted."
+        body="It may have been deleted."
         action={{ label: 'Back to addresses', onPress: () => router.back() }}
       />
     );

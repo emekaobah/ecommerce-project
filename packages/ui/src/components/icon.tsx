@@ -35,6 +35,7 @@ import User from "lucide-react-native/icons/user"
 import X from "lucide-react-native/icons/x"
 import Zap from "lucide-react-native/icons/zap"
 import { useTheme } from "../theme"
+import type { icon } from "../tokens"
 
 // Imported one file each: the package's index would bundle all of Lucide.
 
@@ -81,7 +82,7 @@ const ICONS = {
 export type IconName = keyof typeof ICONS
 
 /** Where the icon sits: each place has its size and stroke. */
-export type IconUse = "default" | "add" | "step" | "chip"
+export type IconUse = keyof typeof icon.size
 
 export type IconProps = {
   name: IconName

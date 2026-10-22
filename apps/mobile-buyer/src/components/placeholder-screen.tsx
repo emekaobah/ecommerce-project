@@ -16,7 +16,7 @@ export function PlaceholderScreen({
   const theme = useTheme();
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <EmptyState title={title} message={message ?? 'Coming soon.'} action={action} />
+      <EmptyState title={title} body={message ?? 'Coming soon.'} action={action} />
     </SafeAreaView>
   );
 }
