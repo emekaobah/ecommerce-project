@@ -82,6 +82,15 @@ export async function listWishlist(
     }))
 }
 
+/** How many products the customer saved, as their wishlist lists them: not one since deleted from the catalogue. */
+export async function countWishlist(scope: MedusaContainer, customerId: string): Promise<number> {
+  const { saved } = await savedProducts(scope, customerId)
+  if (!saved.length) return 0
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({ entity: "product", fields: ["id"], filters: { id: saved.map((s) => s.product_id) } })
+  return data.length
+}
+
 /**
  * Moves a saved product into the customer's cart as its saved shop's offer, then takes it
  * off the wishlist. The offer may be omitted when the shop sells the product in one variant
