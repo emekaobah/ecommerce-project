@@ -32,6 +32,9 @@ export type ListingSeller = {
   id: string
   name: string
   handle: string
+  /** The logo and banner the shop uploads in the vendor web panel; null when it hasn't, and screens show its initials. */
+  logo: string | null
+  banner: string | null
   /** Where the shop is: its pickup address's LGA or city (ADR 0002). */
   area: string | null
   /** The shop's usual days to ship; null when it hasn't set one. */
@@ -151,6 +154,8 @@ async function sellersServing(scope: MedusaContainer, region: Region, sellerId?:
       "id",
       "name",
       "handle",
+      "logo",
+      "banner",
       "description",
       "default_leadtime_to_ship",
       "address.country_code",
@@ -365,6 +370,8 @@ function toListingSeller(seller: SellerRow): ListingSeller {
     id: seller.id,
     name: seller.name,
     handle: seller.handle,
+    logo: seller.logo ?? null,
+    banner: seller.banner ?? null,
     area: seller.address?.city ?? null,
     default_leadtime_to_ship: seller.default_leadtime_to_ship,
     shop_status: seller.shop_status,
