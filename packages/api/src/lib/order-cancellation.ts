@@ -4,7 +4,8 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { cancelAcceptedOrderWorkflow, type CancelOrderInput } from "../workflows/order-fulfilment/workflows/cancel-order"
 import { buyerRefund, type BuyerRefund } from "./buyer-orders"
 import { errorMessage } from "./errors"
-import { fulfilmentsOf, type FulfilmentRecord } from "./order-fulfilment"
+import { fulfilmentsOf, type FulfilmentRecord, type Picks } from "./order-fulfilment"
+import { itemsOf } from "./order-picking"
 import { cancelRefundOf } from "./owed-refunds"
 import { refundOwed } from "./refund-retry"
 
@@ -37,9 +38,14 @@ export type CancelledOrder = {
 const refundNote = (cancellation: Cancellation) =>
   `Order cancelled by ${cancelledBy(cancellation.by)}: ${cancelReasonText(cancellation)}`
 
+/** Each line still on the order, and how many of it: what refunding a cancelled order is for. */
+async function linesLeft(scope: Scope, orderId: string): Promise<Picks> {
+  return Object.fromEntries((await itemsOf(scope, orderId)).filter((i) => i.quantity > 0).map((i) => [i.id, i.quantity]))
+}
+
 /**
  * Cancels an accepted order (`cancelAcceptedOrderWorkflow`), then refunds its buyer all that is
- * left of its share (`refundOwed`, #16): a refund Paystack turns down leaves the order cancelled
+ * left of its share (`refundOwed`, #16), for every line still on it (#61): a refund Paystack turns down leaves the order cancelled
  * and owing it, and is retried; one it can't make goes to Oja's team. A refund that fails
  * otherwise is logged: the order still owes it, and the retry job tries it.
  */
@@ -50,6 +56,7 @@ export async function cancelAndRefund(scope: Scope, input: CancelOrderInput): Pr
   try {
     const { refunds } = await refundOwed(scope, {
       order_id: input.order_id,
+      lines: await linesLeft(scope, input.order_id),
       created_by: input.actor,
       note: refundNote(fulfilment.cancellation),
     })

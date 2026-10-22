@@ -2,8 +2,16 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
-import { fulfilmentService, paymentsOfOrder, type OrderRefundRecord } from "../../../lib/order-fulfilment"
-import { isDue, owedRefundOf, PAYSTACK_MIN_REFUND, paystackPart, type OrderOwedRefund } from "../../../lib/owed-refunds"
+import { fulfilmentService, paymentsOfOrder, type OrderRefundRecord, type Picks } from "../../../lib/order-fulfilment"
+import {
+  isDue,
+  owedAttempts,
+  owedLines,
+  owedRefundOf,
+  PAYSTACK_MIN_REFUND,
+  paystackPart,
+  type OrderOwedRefund,
+} from "../../../lib/owed-refunds"
 import type { SettlementMethod } from "../../../modules/order-fulfilment/models/refund-settlement"
 import { UNSETTLED_REFUND_STATUSES } from "../../../modules/paystack/client"
 import { refundOrderShare, RefundRefusedError } from "../steps/refund-order-share"
@@ -20,6 +28,11 @@ export type RefundOwedInput = {
   /** The member or operator that asked for it; none for the retry job. */
   created_by?: string
   note?: string
+  /**
+   * The order lines the edit or cancellation that owed the refund took off, and how many units
+   * of each (#61). A retry names none: it is for the lines its earlier attempts were for.
+   */
+  lines?: Picks
   /**
    * Set when the refund is retried rather than tried after the edit that owed it. The retry job
    * tries it only once due (`isDue`); Oja's staff whatever its backoff. Neither tries it while
@@ -78,10 +91,12 @@ const refundOwedStep = createStep("refund-owed", async (input: RefundOwedInput, 
   if (!owed || paystackPart(owed) < PAYSTACK_MIN_REFUND || inProgress) return unchanged()
   if (retry?.by === "job" && !isDue(owed, new Date(retry.at))) return unchanged()
 
+  const lines = await linesOwed(container, orderId, input.lines)
   try {
     const refunds = await refundOrderShare(container, {
       order_id: orderId,
       covers: owed.covers,
+      lines,
       amount: paystackPart(owed),
       created_by: input.created_by,
       note: input.note,
@@ -92,19 +107,29 @@ const refundOwedStep = createStep("refund-owed", async (input: RefundOwedInput, 
     container
       .resolve(ContainerRegistrationKeys.LOGGER)
       .warn(`Paystack refused the refund of ${error.left} owed on order ${orderId}: ${error.refusal.reason}`)
-    await recordRefusal(container, owed, error.left, error.refusal.reason)
+    await recordRefusal(container, owed, lines, error.left, error.refusal.reason)
     return new StepResponse({ refunds: error.made, owed: await owedRefundOf(container, orderId) })
   }
 })
 
+/** The order lines what the order owes is for (`owedLines`): its earlier attempts', and those just `added`. */
+async function linesOwed(scope: Scope, orderId: string, added?: Picks): Promise<Picks | null> {
+  const [refunds, settlements] = await Promise.all([
+    fulfilmentService(scope).listOrderRefunds({ order_id: orderId }),
+    fulfilmentService(scope).listRefundSettlements({ order_id: orderId }),
+  ])
+  return owedLines(owedAttempts({ refunds, settlements }), added)
+}
+
 /** Records a refund Paystack refused: a failed order refund of what was owed with its reason, which no Medusa refund backs. */
-async function recordRefusal(scope: Scope, owed: OrderOwedRefund, amount: number, reason: string) {
+async function recordRefusal(scope: Scope, owed: OrderOwedRefund, lines: Picks | null, amount: number, reason: string) {
   const [payment] = await paymentsOfOrder(scope, owed.order_id)
   await fulfilmentService(scope).createOrderRefunds({
     order_id: owed.order_id,
     payment_id: payment?.id ?? null,
     amount,
     covers: owed.covers,
+    lines,
     currency_code: owed.currency_code,
     transaction_reference: (payment?.data as PaymentData | undefined)?.reference ?? "",
     status: "failed",

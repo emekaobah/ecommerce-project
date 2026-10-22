@@ -687,6 +687,11 @@ medusaIntegrationTestRunner({
           expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([kobo(2 * RICE.price)])
           expect(await reservedOf(lines)).toEqual({ [RICE.title]: 0, [TOMATOES.title]: 1 })
           expect((await adasOrder(groupId, orderId)).refund).toMatchObject({ amount: 2 * RICE.price })
+          // The refund is for the rice alone: the tomatoes stay the shop's.
+          const rice = lines.find((l) => l.product_title === RICE.title)!
+          expect((await adasOrder(groupId, orderId)).refunds).toEqual([
+            { amount: 2 * RICE.price, status: "pending", lines: [{ item_id: rice.id, quantity: 2 }] },
+          ])
           await settleRefunds(reference)
           expect(await eventually(() => payoutOf(orderId), (p) => p.state !== "waiting_for_refund")).toMatchObject({
             state: "due",

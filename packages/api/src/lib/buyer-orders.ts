@@ -77,6 +77,8 @@ export type BuyerOrder = {
   payment_reference: string | null
   /** What has been refunded of it, and where that is; null while nothing has been. */
   refund: BuyerRefund | null
+  /** Each refund of it that `refund` counts, oldest first, with the lines it was for (#61). */
+  refunds: BuyerRefundEntry[]
   /**
    * A refund the order owes and hasn't made (#16), and where it is: still `retrying`, or
    * `manual` once Oja's team sends it by hand; null while it owes nothing.
@@ -174,11 +176,19 @@ function buyerPickup(
 /** An order's refunds as its buyer sees them: what comes back, and how far it has got. */
 export type BuyerRefund = { amount: number; status: PaystackRefundStatus }
 
+/**
+ * One refund of an order as its buyer sees it, and the order lines it was for with how many
+ * units of each (#61): "₦3,500 for Fresh Tomatoes 1kg". `lines` is null for a refund of no lines
+ * (of delivery alone) and for refunds made before refunds named their lines.
+ */
+export type BuyerRefundEntry = BuyerRefund & { lines: { item_id: string; quantity: number }[] | null }
+
 /** A refund the order owes its buyer, as the buyer sees it (#16). */
 export type BuyerOwedRefund = Pick<OwedRefund, "amount" | "state">
 
 type RefundRow = {
   amount: unknown
+  lines?: unknown
   status: string
   created_at: Date | string
   failure_reason?: string | null
@@ -197,15 +207,30 @@ const LEAST_SETTLED: PaystackRefundStatus[] = ["needs-attention", "failed", "pen
  * Oja's team (#13): it is owed too, by hand, until Paystack settles it.
  */
 export function buyerRefund(all: RefundRow[]): BuyerRefund | null {
-  const rows = all.filter((r) => !refusedByPaystack(r) && !handedOver(r))
-  const latestFailed = failedSinceLastMade(rows).at(-1)
-  const counted = [...rows.filter(refundMade), ...(latestFailed ? [latestFailed] : [])]
+  const counted = countedRefunds(all)
   if (!counted.length) return null
   const statuses = new Set(counted.map((r) => r.status))
   return {
     amount: totalOf(counted.map((r) => r.amount)),
     status: LEAST_SETTLED.find((s) => statuses.has(s)) ?? "pending",
   }
+}
+
+/** The refunds `buyerRefund` counts, oldest first. */
+function countedRefunds<R extends RefundRow>(all: R[]): R[] {
+  const rows = all.filter((r) => !refusedByPaystack(r) && !handedOver(r))
+  const latestFailed = failedSinceLastMade(rows).at(-1)
+  const counted = [...rows.filter(refundMade), ...(latestFailed ? [latestFailed] : [])]
+  return counted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+}
+
+/** Each refund of the order its buyer is told of (`buyerRefund`), with the lines it was for. */
+function buyerRefunds(all: RefundRow[]): BuyerRefundEntry[] {
+  return countedRefunds(all).map((r) => ({
+    amount: Number(r.amount),
+    status: r.status as PaystackRefundStatus,
+    lines: r.lines ? Object.entries(r.lines as Picks).map(([item_id, quantity]) => ({ item_id, quantity })) : null,
+  }))
 }
 
 const buyerOwedRefund = (owed: OwedRefund | undefined): BuyerOwedRefund | null =>
@@ -329,6 +354,7 @@ async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Pro
           delivery: fulfilment.method === "delivery" ? buyerDelivery(o, record.shipment) : null,
           shop_opens: shopOpens(fulfilment.state, shopHours, now),
           refund: buyerRefund(refundsOf(o.id)),
+          refunds: buyerRefunds(refundsOf(o.id)),
           owed_refund: buyerOwedRefund(owed.get(o.id)),
           refund_needing_account: refundsOf(o.id).find(needsAccount)?.id ?? null,
           pickup: buyerPickup(record, places.get(o.seller?.id), shopHours, now),
@@ -375,7 +401,7 @@ function buyerOrder(
   removed: Picks
 ): Omit<
   BuyerOrder,
-  "fulfilment" | "delivery" | "shop_opens" | "refund" | "owed_refund" | "refund_needing_account" | "pickup" | "can_review" | "reviews" | "payment_reference"
+  "fulfilment" | "delivery" | "shop_opens" | "refund" | "refunds" | "owed_refund" | "refund_needing_account" | "pickup" | "can_review" | "reviews" | "payment_reference"
 > {
   const items: BuyerOrderItem[] = (o.items ?? []).map((i: any) => ({
     id: i.id,

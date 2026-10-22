@@ -1,7 +1,7 @@
 import type { IOrderModuleService } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN, MedusaError, Modules } from "@medusajs/framework/utils"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
-import { orderMoney, paymentsOfOrder, type OrderRefundRecord } from "../../../lib/order-fulfilment"
+import { orderMoney, paymentsOfOrder, type OrderRefundRecord, type Picks } from "../../../lib/order-fulfilment"
 import { owedToBuyerOf, refundableShareOf, refundPlan, type OrderSummary } from "../../../lib/order-refund"
 import type { RefundCovers } from "../../../modules/order-fulfilment/models/order-refund"
 import { PaystackRequestError } from "../../../modules/paystack/client"
@@ -40,6 +40,11 @@ export type RefundOrderShareInput = {
    * earlier refunds; or all of the order's share, for an order rejected.
    */
   covers: RefundCovers
+  /**
+   * The order lines it is for, and how many units of each (#61), recorded on each refund made;
+   * none for a refund of no lines.
+   */
+  lines?: Picks | null
   /** All that is left of what it covers when left out. */
   amount?: number
   /** The shop or member that asked for it; none for the accept deadline. */
@@ -64,7 +69,7 @@ export type RefundOrderShareInput = {
  */
 export async function refundOrderShare(
   container: Scope,
-  { order_id, covers, amount, created_by, note, refund_reason_id }: RefundOrderShareInput
+  { order_id, covers, lines, amount, created_by, note, refund_reason_id }: RefundOrderShareInput
 ): Promise<OrderRefundRecord[]> {
   const payments = await paymentsOfOrder(container, order_id)
   const money = await orderMoney(container, order_id, payments)
@@ -84,6 +89,7 @@ export async function refundOrderShare(
         currency_code: money.currency_code,
         order_id,
         covers,
+        lines,
         earlier_refund_ids: payments.find((p) => p.id === part.payment_id)?.refunds?.map((r) => r.id) ?? [],
         created_by,
         note,
