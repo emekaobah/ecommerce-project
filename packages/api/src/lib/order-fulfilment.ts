@@ -428,11 +428,17 @@ export async function orderMoney(scope: Scope, orderId: string, payments: Paymen
 
 /**
  * What staff see of each order's fulfilment, its accept deadline counted in its shop's open
- * hours; an order still being placed (not yet recorded) has none.
+ * hours. An order its shop already sees but `order.placed` hasn't recorded yet is New, as a
+ * transition takes it to be (`newFulfilmentRow`); an order not found has none.
  */
 export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentView>> {
   if (!orderIds.length) return new Map()
   const records = await fulfilmentsOf(scope, orderIds)
+  const placed = await placedOrdersOf(
+    scope,
+    orderIds.filter((id) => !records.has(id))
+  )
+  for (const order of placed.values()) records.set(order.order_id, unrecordedFulfilment(order))
   if (!records.size) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({ entity: "order", fields: ["id", ...HOLD_LINE_FIELDS], filters: { id: [...records.keys()] } })
@@ -498,6 +504,26 @@ export const newFulfilmentRow = ({ method, ...order }: PlacedOrder) => ({
   state: "new" as const,
   phase: orderPhase("new", []),
   fulfilment: newFulfilment(method),
+})
+
+/** An order not recorded yet, as its fulfilment row will first record it: New, and nothing done to it. */
+const unrecordedFulfilment = (order: PlacedOrder): FulfilmentRecord => ({
+  id: "",
+  ...newFulfilmentRow(order),
+  reject_reason: null,
+  picks: null,
+  unavailable: null,
+  removed: null,
+  accept_reminded_at: null,
+  shipment: null,
+  courier_approval: null,
+  shipment_id: null,
+  reached: null,
+  payout_eligible_at: null,
+  handover_alerted_at: null,
+  pickup_code: null,
+  pickup_code_attempts: null,
+  hold_reminded: null,
 })
 
 /** The shop's orders Ready for pickup (#12), by when they became ready, longest waiting first. */

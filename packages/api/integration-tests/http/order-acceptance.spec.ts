@@ -209,11 +209,32 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("an order its shop sees before it is recorded", () => {
+      it("is listed as new, so the list holds every order its count counts", async () => {
+        const { gadgets } = await paidOrders()
+        // As the order stands between Mercur linking it to the shop and `order.placed` recording it.
+        const service = fulfilmentService(getContainer())
+        const [row] = await service.listOrderFulfilments({ order_id: gadgets })
+        await service.deleteOrderFulfilments(row.id)
+        try {
+          const { data } = await api.get("/vendor/orders?limit=100", await buyer.owner(GADGETS))
+
+          expect(data.count).toBeLessThanOrEqual(100)
+          expect(data.orders).toHaveLength(data.count)
+          expect(data.orders.find((o: any) => o.id === gadgets).fulfilment).toMatchObject({ state: "new", phase: "in_progress" })
+          expect((await shopOrder(GADGETS, gadgets)).fulfilment.state).toBe("new")
+        } finally {
+          await backfillOrderFulfilments(getContainer())
+        }
+      })
+    })
+
     describe("each order's phase, once backfilled", () => {
       it("puts an order finished before orders stored their phase in the past, and leaves one in progress there", async () => {
         const { gadgets, grocery } = await paidOrders()
         await reject(GADGETS, gadgets)
-        // As the migration that added phases left every row: in progress.
+        // As the migration that added phases left every row: in progress. Set on the row, as no
+        // route writes data from before a migration.
         const service = fulfilmentService(getContainer())
         const [gadgetsRow] = await service.listOrderFulfilments({ order_id: gadgets })
         await service.updateOrderFulfilments({ id: gadgetsRow.id, phase: "in_progress" })

@@ -8,9 +8,8 @@ import { shareFor, sharesOf, viewResponses } from "../shop-share"
 /**
  * Every vendor order response shows the shop its own order: its payment share and its own
  * prices. Each order also carries its `fulfilment`: its state, and while New, its accept deadline.
- * Each line it shows says whether it is `perishable` (#70).
- * An order still being placed, not yet recorded, is shown once it is: it is left out of a list,
- * and not found on its own.
+ * Each line it shows says whether it is `perishable` (#70). An order not recorded yet is New
+ * (`fulfilmentViews`), so a list shows every order its count counts.
  */
 export const showTheShopItsOwnOrder = viewResponses(async (req, body) => {
   const { order, orders } = body as { order?: VendorOrder; orders?: VendorOrder[] }

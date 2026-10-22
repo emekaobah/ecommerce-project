@@ -208,6 +208,18 @@ medusaIntegrationTestRunner({
         expect(ids(await listed(fay, { q: "lantern", limit: 1, offset: 1 }))).toEqual([lanternOnly.groupId])
         expect(ids(await listed(fay, { q: "palm oil" }))).toEqual([])
       })
+
+      it("pages a search of the checkouts in progress", async () => {
+        const gus = await newBuyer("gus")
+        const older = await checkout(gus)
+        const newer = await checkout(gus)
+
+        const first = await listed(gus, { phase: "in_progress", q: "lantern", limit: 1, offset: 0 })
+        const second = await listed(gus, { phase: "in_progress", q: "lantern", limit: 1, offset: 1 })
+
+        expect([ids(first), ids(second)]).toEqual([[newer.groupId], [older.groupId]])
+        expect([first.count, first.limit, second.offset]).toEqual([2, 1, 1])
+      })
     })
 
     describe("an order group", () => {
