@@ -15,7 +15,7 @@ import {
 import { COLLECTION_POINT_MODULE, type CollectionPointModuleService } from "../modules/collection-point"
 import { ORDER_FULFILMENT_MODULE, type OrderFulfilmentModuleService } from "../modules/order-fulfilment"
 import { SHIPBUBBLE_PROVIDER_ID } from "../modules/shipbubble"
-import { haversineKmSql } from "./listing-ranking"
+import { haversineKmSql } from "./sql"
 import type { PickupAddressInput } from "./onboarding"
 import { sellersWithHours, shopHoursOf } from "./shop-hours"
 

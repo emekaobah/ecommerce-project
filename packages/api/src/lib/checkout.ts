@@ -27,6 +27,7 @@ import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-pr
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
 import { cutCartToStock } from "./cart-stock"
+import { escapeLike } from "./sql"
 import { offerLinePrice } from "./cart-lines"
 import { discountsByCode } from "./discount-funding"
 import {
@@ -938,8 +939,8 @@ type CodeLookup = CodedPromotion & { id: string; is_automatic: boolean; seller?:
 
 /** The promotion a buyer's code names, ignoring case, or none. */
 async function promotionByCode(scope: MedusaContainer, code: string): Promise<CodeLookup | null> {
-  // `%`, `_` and `\` are pattern characters in ILIKE; a code matches them literally.
-  const pattern = code.replaceAll(/[\\%_]/g, (c) => `\\${c}`)
+  // A code matches ILIKE's pattern characters literally.
+  const pattern = escapeLike(code)
   const { data } = await scope.resolve(ContainerRegistrationKeys.QUERY).graph({
     entity: "promotion",
     fields: [

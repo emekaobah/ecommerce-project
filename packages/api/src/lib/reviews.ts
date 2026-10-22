@@ -101,13 +101,15 @@ export async function authorReviews(
 export const subjectKey = ({ reference, reference_id }: ReviewSubject) => `${reference}:${reference_id}`
 
 /**
- * Mercur's links of a review to its author and to what it is of: link tables, named by Medusa
- * after each side's module and entity.
+ * A review has no author or target column, only Mercur's links of it to its author and to what
+ * it is of: link tables, named by Medusa after each side's module and entity, each with the
+ * linked side's id column. Mercur's review service joins the product and seller ones by these
+ * names for its own (status-blind) ratings.
  */
-const REVIEW_LINK_TABLES = {
-  customer: "customer_customer_review_review",
-  product: "product_product_review_review",
-  seller: "seller_seller_review_review",
+const REVIEW_LINKS = {
+  customer: { table: "customer_customer_review_review", column: "customer_id" },
+  product: { table: "product_product_review_review", column: "product_id" },
+  seller: { table: "seller_seller_review_review", column: "seller_id" },
 } as const
 
 /** Which shops and products to read the buyer's reviews of. */
@@ -123,12 +125,12 @@ type BuyerReviewRow = Omit<BuyerReview, "rating"> & { rating: unknown }
 export async function buyerReviews(scope: Scope, customerId: string, of?: ReviewSubjects): Promise<Map<string, BuyerReview>> {
   if (of && !of.seller_ids.length && !of.product_ids.length) return new Map()
   const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
-  const query = knex(`${REVIEW_LINK_TABLES.customer} as cr`)
+  const query = knex(`${REVIEW_LINKS.customer.table} as cr`)
     .join("review as r", "r.id", "cr.review_id")
-    .leftJoin(`${REVIEW_LINK_TABLES.product} as pr`, function () {
+    .leftJoin(`${REVIEW_LINKS.product.table} as pr`, function () {
       this.on("pr.review_id", "r.id").andOnNull("pr.deleted_at")
     })
-    .leftJoin(`${REVIEW_LINK_TABLES.seller} as sr`, function () {
+    .leftJoin(`${REVIEW_LINKS.seller.table} as sr`, function () {
       this.on("sr.review_id", "r.id").andOnNull("sr.deleted_at")
     })
     .where("cr.customer_id", customerId)
@@ -227,20 +229,10 @@ type ReviewRow = {
   customer?: { first_name: string | null; last_name: string | null } | null
 }
 
-/**
- * A review has no target column, only a link table to its product or shop: Mercur's
- * product-review and seller-review links, whose tables Mercur's review service joins by these
- * names for its own (status-blind) ratings.
- */
-const LINK_TABLES = {
-  product: { table: "product_product_review_review", column: "product_id" },
-  seller: { table: "seller_seller_review_review", column: "seller_id" },
-} as const
-
 /** The target's published reviews, as a query to aggregate or page through. */
 function publishedOf(scope: Scope, { reference, reference_id }: ReviewSubject) {
   const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
-  const { table, column } = LINK_TABLES[reference]
+  const { table, column } = REVIEW_LINKS[reference]
   return knex("review")
     .join(table, `${table}.review_id`, "review.id")
     .where(`${table}.${column}`, reference_id)

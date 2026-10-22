@@ -19,7 +19,7 @@ import {
 } from "./order-fulfilment"
 import { refundMade, refusedByPaystack, totalOf } from "./order-refund"
 import { failedSinceLastMade, handedOver, needsAccount, owedRefundsOf, type OwedRefund } from "./owed-refunds"
-import { escapeLike } from "./listing-ranking"
+import { escapeLike } from "./sql"
 import { HOLD_LINE_FIELDS, holdLinesOf, type HoldLine } from "./pickup-hold"
 import { buyerReviews, subjectKey, type BuyerReview } from "./reviews"
 import { shopHoursOf } from "./shop-hours"
