@@ -1,5 +1,5 @@
 // Relative import of a plain-JS module: Expo's config loader doesn't transpile workspace TypeScript.
-import { appIdentity } from '../../packages/domain/src/app-identity.js';
+import { APPLE_TEAM_ID, appIdentity } from '../../packages/domain/src/app-identity.js';
 import { fontFiles } from '../../packages/ui/src/fonts.js';
 import type { ExpoConfig } from 'expo/config';
 
@@ -27,7 +27,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'automatic',
   // Placeholder wordmarks until the design pass supplies the real brand mark.
   icon: './assets/icon.png',
-  ios: { bundleIdentifier: bundleId },
+  ios: { bundleIdentifier: bundleId, appleTeamId: APPLE_TEAM_ID },
   android: {
     package: bundleId,
     predictiveBackGestureEnabled: false,
