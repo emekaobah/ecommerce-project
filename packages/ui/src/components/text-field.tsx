@@ -1,7 +1,7 @@
 import { useState, type Ref } from "react"
 import { StyleSheet, TextInput, View, type TextInputInstance, type TextInputProps } from "react-native"
 import { useTheme } from "../theme"
-import { MAX_FONT_SCALE, type Theme } from "../tokens"
+import { focusRing, MAX_FONT_SCALE, type Theme } from "../tokens"
 import { Icon } from "./icon"
 import { Text } from "./text"
 
@@ -64,7 +64,7 @@ export function TextField({ label, optional, hint, error, disabled, multiline, o
             backgroundColor: disabled ? theme.colors.tile : theme.colors.raised,
           },
           multiline && styles.multiline,
-          focused && !error ? { boxShadow: `0px 0px 0px ${theme.line.ring}px ${theme.colors.ring}` } : null,
+          focused && !error ? { boxShadow: focusRing(theme) } : null,
         ]}
       />
       {error ? (

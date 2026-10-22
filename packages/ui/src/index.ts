@@ -3,6 +3,7 @@ export {
   control,
   darkTheme,
   elevation,
+  focusRing,
   HIT_AREA,
   lightTheme,
   line,

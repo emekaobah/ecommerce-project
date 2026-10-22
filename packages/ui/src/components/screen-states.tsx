@@ -83,7 +83,7 @@ export function ErrorState({
       body={body}
       emblem={
         <View style={[styles.emblem, { width: size, height: size, borderRadius: theme.radius.sheet, backgroundColor: theme.colors.tile }]}>
-          <Icon name={icon} use="emblem" color={theme.colors.accent} />
+          <Icon name={icon} use="quietEmblem" color={theme.colors.accent} />
         </View>
       }
     >

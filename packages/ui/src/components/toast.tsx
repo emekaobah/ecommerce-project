@@ -18,7 +18,7 @@ export function useToast(): (toast: ToastMessage) => void {
 }
 
 /**
- * Each app wraps its screens in one, inside the theme. A toast slides in under the status bar,
+ * Each app wraps its screens in one, inside the theme. A toast slides up under the status bar,
  * stays 4s and leaves; under Reduce Motion it cross-fades instead. A new one replaces the last.
  */
 export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
@@ -59,7 +59,8 @@ function Toast({ toast, onDone }: Readonly<{ toast: ToastMessage; onDone: () => 
     return () => run.stop()
   }, [shown, reduceMotion, theme.motion, toast.message, onDone])
 
-  const translateY = shown.interpolate({ inputRange: [0, 1], outputRange: [reduceMotion ? 0 : -theme.space[6], 0] })
+  // Slides up into place from just below it (Foundations, Motion), and back down as it leaves.
+  const translateY = shown.interpolate({ inputRange: [0, 1], outputRange: [reduceMotion ? 0 : theme.space[6], 0] })
 
   return (
     <Animated.View

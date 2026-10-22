@@ -1,7 +1,7 @@
 import { useState, type Ref } from "react"
 import { StyleSheet, TextInput, View, type TextInputInstance } from "react-native"
 import { useTheme } from "../theme"
-import type { Theme } from "../tokens"
+import { focusRing, type Theme } from "../tokens"
 import { Text } from "./text"
 
 export type CodeBoxesProps = {
@@ -48,7 +48,7 @@ export function CodeBoxes({ label, value, onChangeText, length = 6, error, disab
                   borderColor: boxOutline(theme, { error, disabled, next }),
                   backgroundColor: disabled ? theme.colors.tile : theme.colors.raised,
                 },
-                next && !error ? { boxShadow: `0px 0px 0px ${theme.line.ring}px ${theme.colors.ring}` } : null,
+                next && !error ? { boxShadow: focusRing(theme) } : null,
               ]}
             >
               <Text variant="titleNamed" tabular accessibilityElementsHidden importantForAccessibility="no">

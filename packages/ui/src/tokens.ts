@@ -75,6 +75,8 @@ export const line = {
   tab: points(2.5),
   /** The focus ring, outside the shape. */
   ring: points(3),
+  /** A row's focus ring, inside its edge-to-edge shape (Foundations gives it in points). */
+  ringInset: 2,
 }
 
 /** How far text grows with the system's text-size setting. Once text reaches it, grids drop to one column. */
@@ -163,8 +165,8 @@ export const DISPLAY_VARIANTS: ReadonlySet<TextVariant> = new Set<DisplayVariant
 
 /** Lucide icons, in points as Foundations gives them, and the drawn stroke, which scales with the size. */
 export const icon = {
-  size: { default: 24, add: 22, step: 20, chip: 16, emblem: points(40) },
-  stroke: { default: 1.8, add: 2.4, step: 1.8, chip: 2.2, emblem: 1.6 },
+  size: { default: 24, add: 22, step: 20, chip: 16, emblem: points(40), quietEmblem: points(34) },
+  stroke: { default: 1.8, add: 2.4, step: 1.8, chip: 2.2, emblem: 1.6, quietEmblem: 1.6 },
 } as const
 
 /** Durations in ms (Foundations, Motion). Under Reduce Motion nothing slides or pulses: everything cross-fades. */
@@ -397,3 +399,9 @@ export const darkTheme: Theme = {
   },
   ...sizes,
 }
+
+/** The focus ring as a box shadow: 4pt outside the shape, or 2pt inside it for rows. */
+export const focusRing = (theme: Theme, inset = false) =>
+  inset
+    ? `inset 0px 0px 0px ${theme.line.ringInset}px ${theme.colors.ring}`
+    : `0px 0px 0px ${theme.line.ring}px ${theme.colors.ring}`
