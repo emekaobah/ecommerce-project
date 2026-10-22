@@ -2,6 +2,7 @@ import { pickProgress, type PickLine, type PickProgress } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN, MedusaError } from "@medusajs/framework/utils"
 import { fulfilmentsOf, type Picks } from "./order-fulfilment"
+import { perishableProductIds } from "./perishable"
 
 // Staff pick an accepted order against a checklist of its lines, and pack it once every line
 // is picked in full (#21). Each line's picked count is kept on the order's fulfilment row, so
@@ -19,6 +20,8 @@ export type PickListLine = PickLine & {
   thumbnail: string | null
   /** What the buyer is refunded for each unit of the line removed as unavailable (#70). */
   unit_refund: number
+  /** Whether the line is fresh or chilled (#69), which staff see tagged on the checklist (#70). */
+  perishable: boolean
 }
 
 export type PickList = {
@@ -39,6 +42,7 @@ type ItemRow = {
   product_title: string | null
   variant_title: string | null
   thumbnail: string | null
+  product_id: string | null
   variant_id: string | null
   variant_barcode: string | null
 }
@@ -53,10 +57,16 @@ export async function pickListOf(scope: Scope, orderId: string): Promise<PickLis
   const unavailable = row?.unavailable ?? {}
   // A line removed in full is no longer on the order to pick.
   const items = all.filter((item) => item.quantity > 0)
-  const variants = await variantsOf(
-    scope,
-    items.map((item) => item.variant_id).filter((id): id is string => !!id)
-  )
+  const [variants, perishable] = await Promise.all([
+    variantsOf(
+      scope,
+      items.map((item) => item.variant_id).filter((id): id is string => !!id)
+    ),
+    perishableProductIds(
+      scope,
+      items.flatMap((item) => (item.product_id ? [item.product_id] : []))
+    ),
+  ])
   const lines = items.map((item): PickListLine => {
     const variant = item.variant_id ? variants.get(item.variant_id) : undefined
     // The variant's codes now, or the barcode the line kept when ordered if the variant is gone.
@@ -68,6 +78,7 @@ export async function pickListOf(scope: Scope, orderId: string): Promise<PickLis
       thumbnail: item.thumbnail,
       quantity: item.quantity,
       unit_refund: removalAmount([item], { [item.id]: 1 }),
+      perishable: !!item.product_id && perishable.has(item.product_id),
       picked: picks[item.id] ?? 0,
       unavailable: unavailable[item.id] ?? 0,
       codes: [...new Set(codes.filter((c): c is string => !!c))],
@@ -134,6 +145,7 @@ async function orderItemsOf(scope: Scope, orderId: string): Promise<{ currency_c
       "items.product_title",
       "items.variant_title",
       "items.thumbnail",
+      "items.product_id",
       "items.variant_id",
       "items.variant_barcode",
     ],

@@ -5,6 +5,7 @@ import { refundUnclaimedPayments, rejectOverdueOrders } from "../../src/lib/orde
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
 import { overrideProductPerishable } from "../../src/lib/perishable"
 import { backfillOrderFulfilments } from "../../src/migration-scripts/backfill-order-fulfilments"
+import { moveAcceptedOrdersToPicking } from "../../src/migration-scripts/move-accepted-orders-to-picking"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, RICE, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -221,6 +222,32 @@ medusaIntegrationTestRunner({
 
         expect((await shopOrder(GADGETS, gadgets)).fulfilment).toMatchObject({ state: "rejected", phase: "past" })
         expect((await shopOrder(GROCERY, grocery)).fulfilment).toMatchObject({ state: "new", phase: "in_progress" })
+      })
+    })
+
+    describe("an order accepted before accepting started picking (#70)", () => {
+      it("is moved on to picking, picked from when it was accepted, and stays in progress", async () => {
+        const { grocery } = await paidOrders()
+        const { data } = await accept(GROCERY, grocery)
+        const acceptedAt = data.fulfilment.timeline.find((s: any) => s.label === "Accepted").at
+        // As such an order stood: Accepted, its row written before accepting moved it on.
+        const service = fulfilmentService(getContainer())
+        const [row] = await service.listOrderFulfilments({ order_id: grocery })
+        await service.updateOrderFulfilments({
+          id: row.id,
+          state: "accepted",
+          fulfilment: { method: "delivery", state: "accepted" },
+          reached: { accepted: acceptedAt },
+        })
+
+        expect(await moveAcceptedOrdersToPicking(getContainer())).toBeGreaterThanOrEqual(1)
+
+        const order = await shopOrder(GROCERY, grocery)
+        expect(order.fulfilment).toMatchObject({ state: "picking", phase: "in_progress" })
+        expect(order.fulfilment.timeline.find((s: any) => s.label === "Picking")).toEqual({ label: "Picking", status: "current", at: acceptedAt })
+        const { pick_list } = (await api.get(`/vendor/orders/${grocery}/pick-list`, await buyer.owner(GROCERY))).data
+        expect(pick_list.progress).toMatchObject({ picked: 0, total: 2 })
+        expect(await moveAcceptedOrdersToPicking(getContainer())).toBe(0)
       })
     })
 
