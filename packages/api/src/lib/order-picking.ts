@@ -1,7 +1,7 @@
 import { pickProgress, type PickLine, type PickProgress } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN, MedusaError } from "@medusajs/framework/utils"
-import { fulfilmentsOf } from "./order-fulfilment"
+import { fulfilmentsOf, type Picks } from "./order-fulfilment"
 
 // Staff pick an accepted order against a checklist of its lines, and pack it once every line
 // is picked in full (#21). Each line's picked count is kept on the order's fulfilment row, so
@@ -105,6 +105,11 @@ function removalAmount(items: Pick<ItemRow, "id" | "quantity" | "total">[], unit
     return MathBN.add(sum, MathBN.div(MathBN.mult(item.total, count), item.quantity))
   }, MathBN.convert(0))
   return MathBN.convert(amount).toNumber()
+}
+
+/** Each line still on the order and how many of it: what refunding a rejected or cancelled order is for (#61). */
+export async function unitsOnOrder(scope: Scope, orderId: string): Promise<Picks> {
+  return Object.fromEntries((await itemsOf(scope, orderId)).filter((i) => i.quantity > 0).map((i) => [i.id, i.quantity]))
 }
 
 /** The order's line items; a 404 for an order that doesn't exist. */

@@ -4,7 +4,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { expirePickupHoldWorkflow } from "../workflows/order-fulfilment/workflows/expire-pickup-hold"
 import { errorMessage } from "./errors"
 import { refundOrderEdit } from "./order-edit-refund"
-import { asFulfilmentRecord, fulfilmentService, sellersOfOrders, type FulfilmentRecord } from "./order-fulfilment"
+import { asFulfilmentRecord, fulfilmentService, sellersOfOrders, type FulfilmentRecord, type Picks } from "./order-fulfilment"
 import { collectByOf, HOLD_LINE_FIELDS, holdLinesOf, NOT_COLLECTED_NOTE, type HoldLine, type OrderLineRow } from "./pickup-hold"
 import { shopHoursOf } from "./shop-hours"
 
@@ -42,15 +42,19 @@ export async function expirePickupHolds(scope: Scope, now = new Date()) {
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
   // One order at a time: each edits its order and calls Paystack.
   for (const row of expired) {
-    let removedAmount: number
+    let edit: { removed_amount: number; refunded: Picks }
     try {
-      const { result } = await expirePickupHoldWorkflow(scope as MedusaContainer).run({ input: { order_id: row.order_id } })
-      removedAmount = result.removed_amount
+      edit = (await expirePickupHoldWorkflow(scope as MedusaContainer).run({ input: { order_id: row.order_id } })).result
     } catch (error) {
       // Collected meanwhile, most likely; the next run looks again.
       logger.warn(`Expiring the pickup hold of order ${row.order_id} failed: ${errorMessage(error)}`)
       continue
     }
-    await refundOrderEdit(scope, { order_id: row.order_id, removed_amount: removedAmount, note: NOT_COLLECTED_NOTE })
+    await refundOrderEdit(scope, {
+      order_id: row.order_id,
+      removed_amount: edit.removed_amount,
+      lines: edit.refunded,
+      note: NOT_COLLECTED_NOTE,
+    })
   }
 }

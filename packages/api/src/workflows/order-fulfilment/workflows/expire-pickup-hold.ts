@@ -17,7 +17,8 @@ const SYSTEM_ACTOR = "system"
  * returned, and the shop is paid for them (the order is payout-eligible only while any remain).
  *
  * Refunding the buyer is separate (`refundOrderEdit`), as for items removed while picking.
- * The response carries what the edit took off the order's total, which is the refund; so does
+ * The response carries what the edit took off the order's total, which is the refund, and the
+ * units of each line taken off, which the refund is for (#61); so does
  * `order_fulfilment.not_collected`, which tells the buyer and the shop (#33).
  */
 export const expirePickupHoldWorkflow = createWorkflow("expire-pickup-hold", (input: { order_id: string }) => {
@@ -53,6 +54,10 @@ export const expirePickupHoldWorkflow = createWorkflow("expire-pickup-hold", (in
   emitEventStep({ eventName: ORDER_NOT_COLLECTED, data: event }).config({ name: "emit-not-collected" })
   releaseLockStep({ key: lock })
   return new WorkflowResponse(
-    transform({ fulfilment, edited }, ({ fulfilment, edited }) => ({ fulfilment, removed_amount: edited ?? 0 }))
+    transform({ fulfilment, edited, plan }, ({ fulfilment, edited, plan }) => ({
+      fulfilment,
+      removed_amount: edited ?? 0,
+      refunded: plan.refunded,
+    }))
   )
 })

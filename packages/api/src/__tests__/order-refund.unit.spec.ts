@@ -1,4 +1,4 @@
-import { RefundExceedsShareError, refundableShare, refundPlan, type OrderMoney } from "../lib/order-refund"
+import { linesOnce, RefundExceedsShareError, refundableShare, refundPlan, type OrderMoney } from "../lib/order-refund"
 
 // A shop refunds only items, and Oja's staff only delivery (#22): neither can refund the other.
 describe("refundableShare", () => {
@@ -92,5 +92,32 @@ describe("refundPlan", () => {
 
   it("refuses a refund of nothing", () => {
     expect(() => refundPlan(shared, 0)).toThrow(/greater than 0/)
+  })
+})
+
+// A refund split across an order's payments is one refund to its buyer: it names its lines
+// once, so order history lists each item once (#61).
+describe("linesOnce", () => {
+  const money: OrderMoney = {
+    transactions: [
+      { amount: 3000, reference: "capture", reference_id: "capt_1" },
+      { amount: 5000, reference: "capture", reference_id: "capt_2" },
+    ],
+    paymentOfCapture: new Map([
+      ["capt_1", "pay_1"],
+      ["capt_2", "pay_2"],
+    ]),
+    paymentOfRefund: new Map(),
+  }
+
+  it("puts the lines on the first payment's refund alone", () => {
+    expect(linesOnce(refundPlan(money), { ordli_rice: 2 })).toEqual([
+      { payment_id: "pay_1", amount: 3000, lines: { ordli_rice: 2 } },
+      { payment_id: "pay_2", amount: 5000, lines: null },
+    ])
+  })
+
+  it("names no lines on any part of a refund of no lines", () => {
+    expect(linesOnce(refundPlan(money), null).map((p) => p.lines)).toEqual([null, null])
   })
 })

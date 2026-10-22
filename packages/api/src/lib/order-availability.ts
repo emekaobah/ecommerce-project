@@ -40,10 +40,11 @@ export async function removeUnavailableAndRefund(scope: Scope, input: { order_id
       CANCEL_INSTEAD
     )
   }
-  const { result } = await removeUnavailableWorkflow(scope as MedusaContainer).run({ input })
+  const { result: { removed, ...result } } = await removeUnavailableWorkflow(scope as MedusaContainer).run({ input })
   const refund = await refundOrderEdit(scope, {
     order_id: input.order_id,
     removed_amount: result.removed_amount,
+    lines: removed,
     created_by: input.actor,
     note: UNAVAILABLE_NOTE,
   })
