@@ -118,11 +118,12 @@ export {
   openTimeBetween,
   shopStatus,
   shopStatusLabel,
+  todaysHours,
   WEEKDAY_NAMES,
   WEEKDAYS,
   weeklyHoursErrors,
 } from "./shop-hours"
-export type { HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
+export type { DayHours, HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
 export { courierChangedNote, deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
 export type { DeliveryChoice, DeliveryRate, DeliveryTag, OrderDelivery } from "./delivery"
 export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from "./perishable"
