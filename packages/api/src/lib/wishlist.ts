@@ -60,11 +60,8 @@ export async function listWishlist(
   if (!saved.length) return []
   const productIds = saved.map((s) => s.product_id)
 
-  const { listings } = await listListings(
-    scope,
-    { ...filters, productIds },
-    { limit: Number.MAX_SAFE_INTEGER, offset: 0 }
-  )
+  // Each saved product is at most one listing: its saved shop's.
+  const { listings } = await listListings(scope, { ...filters, pairs: saved }, { limit: saved.length, offset: 0 })
   const listingOf = new Map(listings.map((l) => [`${l.seller.id}:${l.product.id}`, l]))
 
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
