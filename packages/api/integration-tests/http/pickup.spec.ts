@@ -399,6 +399,33 @@ medusaIntegrationTestRunner({
         expect(JSON.stringify(await vendorOrder(GROCERY, orderId))).not.toContain(after.pickup.code)
       })
 
+      it("shows the buyer today's hours at the collection point, with a closure today applied", async () => {
+        const { orderId, groupId } = await pickupOrder()
+        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(Date.now())
+
+        expect((await adasOrder(groupId, orderId)).pickup.today).toEqual({
+          date: today,
+          periods: [{ opens: "00:00", closes: "24:00" }],
+          closure: null,
+        })
+
+        const grocery = await owner(GROCERY)
+        const { data } = await api.post(
+          "/vendor/shop-hours/exceptions",
+          { starts_on: today, ends_on: today, closed: true, note: "Closed for stocktaking" },
+          grocery
+        )
+        try {
+          expect((await adasOrder(groupId, orderId)).pickup.today).toEqual({
+            date: today,
+            periods: [],
+            closure: { reason: "exception", note: "Closed for stocktaking" },
+          })
+        } finally {
+          await api.delete(`/vendor/shop-hours/exceptions/${data.shop_hours.exceptions[0].id}`, grocery)
+        }
+      })
+
       it("still holds a Ready for pickup order's stock, which cancelling it returns, and takes no code after (#17)", async () => {
         const { orderId, reference } = await pickupOrder()
         await packed(orderId)

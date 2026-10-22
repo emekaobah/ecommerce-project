@@ -1,4 +1,4 @@
-import { canReview, shopStatus, type OrderDelivery, type ShopHours } from "@oja/domain"
+import { canReview, shopStatus, todaysHours, type DayHours, type OrderDelivery, type ShopHours } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import type { PaystackRefundStatus } from "../modules/paystack/client"
@@ -138,17 +138,27 @@ function buyerFulfilment(record: FulfilmentRecord | undefined, order: PlacedOrde
 
 /**
  * A pickup order's collection details as its buyer sees them: the shop's collection point, open
- * the shop's hours, and the code to show at the counter, only while the order is Ready for pickup.
+ * the shop's hours, today's hours with any closure applied (null for a shop without hours), and
+ * the code to show at the counter, only while the order is Ready for pickup.
  */
-export type BuyerPickup = CollectionPlace & { code: string | null }
+export type BuyerPickup = CollectionPlace & { today: DayHours | null; code: string | null }
 
 /**
  * A shop removes its collection point only once none of its pickup orders is left to collect
  * (#12), so an order still to collect has one; a collected order then shows its timeline alone.
  */
-function buyerPickup(record: FulfilmentRecord | undefined, place: CollectionPlace | undefined): BuyerPickup | null {
+function buyerPickup(
+  record: FulfilmentRecord | undefined,
+  place: CollectionPlace | undefined,
+  hours: ShopHours | null,
+  now: Date
+): BuyerPickup | null {
   if (record?.fulfilment.method !== "pickup" || !place) return null
-  return { ...place, code: record.fulfilment.state === "ready_for_pickup" ? record.pickup_code : null }
+  return {
+    ...place,
+    today: hours && todaysHours(hours, now),
+    code: record.fulfilment.state === "ready_for_pickup" ? record.pickup_code : null,
+  }
 }
 
 /** An order's refunds as its buyer sees them: what comes back, and how far it has got. */
@@ -304,7 +314,7 @@ async function buyerOrders(scope: Scope, customerId: string, ids: string[]): Pro
           refund: buyerRefund(refundsOf(o.id)),
           owed_refund: buyerOwedRefund(owed.get(o.id)),
           refund_needing_account: refundsOf(o.id).find(needsAccount)?.id ?? null,
-          pickup: buyerPickup(record, places.get(o.seller?.id)),
+          pickup: buyerPickup(record, places.get(o.seller?.id), shopHours, now),
           // An order without a fulfilment row yet is New.
           can_review: canReview(record?.state ?? "new"),
           reviews: reviewsOf(o, reviews),

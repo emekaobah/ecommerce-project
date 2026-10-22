@@ -152,6 +152,22 @@ export function nextOpening(hours: ShopHours, at: Date): Date | null {
   return first.done ? null : new Date(first.value.start)
 }
 
+/**
+ * When the shop, open at an instant, next closes: the end of the stretch of open time it is in,
+ * which runs on past midnight when the hours do. Null when it isn't open, or doesn't close
+ * before the horizon (open round the clock).
+ */
+export function closingTime(hours: ShopHours, at: Date): Date | null {
+  let end: number | null = null
+  for (const interval of openIntervalsFrom(hours, at.getTime())) {
+    if (end === null ? interval.start !== at.getTime() : interval.start > end) break
+    end = interval.end
+  }
+  // Still open at the horizon: or not open at all.
+  if (end === null || end >= at.getTime() + HORIZON_MS) return null
+  return new Date(end)
+}
+
 /** How much open time (ms) passes between two instants: closed hours, closed exceptions and pauses don't count. */
 export function openTimeBetween(hours: ShopHours, from: Date, to: Date): number {
   if (to <= from) return 0
@@ -206,14 +222,14 @@ export function isOpenAt(hours: ShopHours, at: Date): boolean {
 
 /**
  * Whether buyers can order from the shop, and what they see (ADR 0004):
- * - `open`;
+ * - `open`: until `closes_at` (null: open round the clock);
  * - `closed`: outside its hours (regular or a day's special hours). Still orderable: the order
  *   is prepared when it opens at `opens_at`;
  * - `closed_until`: in a closed exception or paused. Not orderable until `until` (null: not
  *   set to reopen), with the shop's note.
  */
 export type ShopStatus =
-  | { state: "open" }
+  | { state: "open"; closes_at: string | null }
   | { state: "closed"; opens_at: string | null }
   | { state: "closed_until"; reason: "exception" | "pause"; until: string | null; note: string | null }
 
@@ -227,7 +243,41 @@ export function shopStatus(hours: ShopHours, at: Date): ShopStatus {
   else if (exception?.closed) closure = { reason: "exception", note: exception.note }
   const opens = nextOpening(hours, at)?.toISOString() ?? null
   if (closure) return { state: "closed_until", ...closure, until: opens }
-  return opens === at.toISOString() ? { state: "open" } : { state: "closed", opens_at: opens }
+  if (opens !== at.toISOString()) return { state: "closed", opens_at: opens }
+  return { state: "open", closes_at: closingTime(hours, at)?.toISOString() ?? null }
+}
+
+/**
+ * The shop's hours on the local day of an instant, with the day's closures applied: none on a
+ * day closed by an exception, and what a pause leaves of them. `closure` says why hours are
+ * missing or cut, with the shop's note.
+ */
+export type DayHours = {
+  /** Local YYYY-MM-DD. */
+  date: string
+  periods: OpenPeriod[]
+  closure: { reason: "exception" | "pause"; note: string | null } | null
+}
+
+/** The local "HH:MM" of an instant. */
+const localTime = (instant: number, timeZone: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone, hourCycle: "h23", hour: "2-digit", minute: "2-digit" }).format(instant)
+
+/** The shop's hours today, as of an instant, with today's closure or pause applied. */
+export function todaysHours(hours: ShopHours, at: Date): DayHours {
+  const date = dateIn(at.getTime(), hours.time_zone)
+  const start = instantOf(date, "00:00", hours.time_zone)
+  const end = instantOf(date, "24:00", hours.time_zone)
+  const pause = hours.pauses.find((p) => Date.parse(p.starts_at) < end && (!p.ends_at || Date.parse(p.ends_at) > start))
+  const exception = exceptionOn(hours, date)
+  let closure: DayHours["closure"] = null
+  if (pause) closure = { reason: "pause", note: pause.note ?? null }
+  else if (exception?.closed) closure = { reason: "exception", note: exception.note }
+  const periods = openIntervals(hours, start, end).map((i) => ({
+    opens: localTime(i.start, hours.time_zone),
+    closes: i.end === end ? "24:00" : localTime(i.end, hours.time_zone),
+  }))
+  return { date, periods, closure }
 }
 
 /** Buyers can add the shop's items to a cart and pay for them: not in an exception or pause. */
@@ -299,11 +349,11 @@ export const dayLabel = (instant: number, timeZone: string, options: Intl.DateTi
 }
 
 /**
- * What the buyer app shows for the shop's status (docs/design.md): "Closed · opens 8am Mon",
- * "Closed until Tue 14 Oct", in the region's timezone.
+ * What the buyer app shows for the shop's status (docs/design.md): "Open · closes 7pm",
+ * "Closed · opens 8am Mon", "Closed until Tue 14 Oct", in the region's timezone.
  */
 export function shopStatusLabel(status: ShopStatus, now: Date, timeZone: string): string {
-  if (status.state === "open") return "Open"
+  if (status.state === "open") return status.closes_at ? `Open · closes ${closingLabel(status.closes_at, now, timeZone)}` : "Open"
   const at = status.state === "closed" ? status.opens_at : status.until
   if (!at) return status.state === "closed" ? "Closed" : "Closed until further notice"
   const instant = Date.parse(at)
@@ -312,6 +362,13 @@ export function shopStatusLabel(status: ShopStatus, now: Date, timeZone: string)
     return `Closed until ${sameDay ? timeLabel(instant, timeZone) : dayLabel(instant, timeZone, { weekday: "short", day: "numeric", month: "short" })}`
   }
   return `Closed · opens ${openingLabel(at, now, timeZone)}`
+}
+
+/** "7pm" (today), "midnight" (tonight's), "2am Tue": when an open shop closes (ISO 8601 `closesAt`), in the region's timezone. */
+function closingLabel(closesAt: string, now: Date, timeZone: string): string {
+  const instant = Date.parse(closesAt)
+  const tonight = instantOf(addDays(dateIn(now.getTime(), timeZone), 1), "00:00", timeZone)
+  return instant === tonight ? "midnight" : openingLabel(closesAt, now, timeZone)
 }
 
 /** "9:30pm" (today), "8am Tue", "8am Tue 13 Oct": when a closed shop opens (ISO 8601 `opensAt`), in the region's timezone. */
