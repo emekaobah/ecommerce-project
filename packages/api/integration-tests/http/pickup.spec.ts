@@ -203,8 +203,21 @@ medusaIntegrationTestRunner({
           weekly: GROCERY.hours,
           time_zone: "Africa/Lagos",
           hold_notice: PICKUP_HOLD_NOTICE,
+          // From Ada's pin to the shop's, 10.5 km, in whole kilometres; never the pin itself.
+          distance_km: 11,
         })
+        expect(grocery.pickup.address).not.toHaveProperty("latitude")
         expect((await shopIn(data.checkout, GADGETS)).pickup).toBeNull()
+      })
+
+      it("measures pickup to a separate collection point from its own pin", async () => {
+        await setCollectionPoint(GROCERY, KIOSK)
+        const cartId = await adasCart()
+
+        const { data } = await prepare(cartId, { shipping_address: ADDRESS })
+
+        // From Ada's pin to the kiosk's, 9.95 km.
+        expect((await shopIn(data.checkout, GROCERY)).pickup).toMatchObject({ follows_pickup_address: false, distance_km: 10 })
       })
 
       it("places one order of each method from a checkout with a delivery shop and a pickup shop", async () => {
@@ -241,6 +254,8 @@ medusaIntegrationTestRunner({
           total: LANTERN.price + 2 * RICE.price,
           ready_to_pay: true,
         })
+        // Without an address there is nowhere to measure the shops from.
+        expect((await shopIn(data.checkout, GROCERY)).pickup.distance_km).toBeNull()
         expect(shipbubble.validations()).toEqual([])
         expect(shipbubble.rateRequests()).toEqual([])
 
