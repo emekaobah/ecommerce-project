@@ -20,7 +20,7 @@ The shop's pickup pin lived only in its seller address's `metadata` (JSON, owned
 - **The pin is copied into `shop_pin`** (our `shop-pin` module): latitude and longitude columns per shop. The pickup address's metadata stays the source. Every write of a pickup address runs Mercur's `updateSellerAddressWorkflow` (the onboarding checklist, the vendor and admin address routes, a new seller account, the seed), and a handler on its `addressUpdated` hook refreshes the copy, undone if the workflow rolls back. A migration copied the pins saved before.
 - **Deals are worked out once per page**: one promotion computation over a cart holding every offer on the page, each item keeping only its own shop's promotions. A promotion whose conditions ask about anything other than the region, currency, sales channel or country gets no badge, since the shared cart would answer them for items it doesn't hold.
 - **The wishlist asks for exactly its saved listings** (shop and product pairs), a page as long as the wishlist.
-- `GET /store/shops` (#65) builds on `rankedListings`, grouping it by shop.
+- `GET /store/shops` (#65) builds on `rankedListings` (`rankShopPage`): a window numbers each shop's listings in `LISTING_ORDER`, and a shop ranks where its first listing would come in the feed, so its ship time is its soonest listing's. Its top listings are its first few by that number, and its listing count the window's count. One row per shop, so shop pages never repeat or skip a shop. `GET /store/listings` also counts the shops its matches come from (`shop_count`), for search.
 
 ## Consequences
 
