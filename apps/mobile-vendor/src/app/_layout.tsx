@@ -8,9 +8,13 @@ import { useEffect } from 'react';
 
 import { queryClient } from '@/api/query-client';
 import { env } from '@/config/env';
+import { createNewOrderChannel } from '@/push/new-order-channel';
 import { hydrateSession, useSessionState } from '@/session/session-store';
 
 initSentry(env.sentryDsn);
+
+// A new order's push rings on its own channel, which must exist before the first one arrives.
+void createNewOrderChannel();
 
 // Keep the splash up until the stored session is read, so the first frame is already the right group.
 void SplashScreen.preventAutoHideAsync();
