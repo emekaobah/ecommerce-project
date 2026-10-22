@@ -349,33 +349,50 @@ type PaymentRow = {
 
 /** The payments an order may have been paid by: its checkout's (on the cart Mercur split) and its own (#65). */
 export async function paymentsOfOrder(scope: Scope, orderId: string): Promise<PaymentRow[]> {
+  return (await paymentsOfOrders(scope, [orderId])).get(orderId) ?? []
+}
+
+/** The payments each order may have been paid by, as `paymentsOfOrder`, read for many orders at once. */
+export async function paymentsOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, PaymentRow[]>> {
+  if (!orderIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: links } = await query.graph({ entity: "order_cart", fields: ["cart_id"], filters: { order_id: orderId } })
-  const { data: carts } = links.length
+  type WithPayments = { payments?: ({ id: string } | null)[] | null } | null | undefined
+  const [{ data: links }, { data: orders }] = await Promise.all([
+    query.graph({ entity: "order_cart", fields: ["order_id", "cart_id"], filters: { order_id: orderIds } }),
+    query.graph({ entity: "order", fields: ["id", "payment_collections.payments.id"], filters: { id: orderIds } }),
+  ])
+  const cartLinks = links as unknown as { order_id: string; cart_id: string }[]
+  const { data: carts } = cartLinks.length
     ? await query.graph({
         entity: "cart",
-        fields: ["payment_collection.payments.id"],
-        filters: { id: links.map((l: { cart_id: string }) => l.cart_id) },
+        fields: ["id", "payment_collection.payments.id"],
+        filters: { id: [...new Set(cartLinks.map((l) => l.cart_id))] },
       })
     : { data: [] }
-  const { data: orders } = await query.graph({
-    entity: "order",
-    fields: ["payment_collections.payments.id"],
-    filters: { id: orderId },
-  })
-  type WithPayments = { payments?: ({ id: string } | null)[] | null } | null | undefined
-  const ids = [
-    ...carts.map((c: { payment_collection: WithPayments }) => c.payment_collection),
-    ...(orders[0]?.payment_collections ?? []),
-  ].flatMap((collection: WithPayments) => (collection?.payments ?? []).map((p) => p?.id))
-  const paymentIds = [...new Set(ids.filter((id): id is string => !!id))]
-  if (!paymentIds.length) return []
-  const { data: payments } = await query.graph({
-    entity: "payment",
-    fields: ["id", "currency_code", "data", "captures.id", "refunds.id"],
-    filters: { id: paymentIds },
-  })
-  return payments as PaymentRow[]
+  const cartCollections = new Map((carts as unknown as { id: string; payment_collection: WithPayments }[]).map((c) => [c.id, c.payment_collection]))
+  const ownCollections = new Map(
+    (orders as unknown as { id: string; payment_collections?: WithPayments[] | null }[]).map((o) => [o.id, o.payment_collections ?? []])
+  )
+  const paymentIdsOf = new Map(
+    orderIds.map((orderId) => {
+      const collections = [
+        ...cartLinks.filter((l) => l.order_id === orderId).map((l) => cartCollections.get(l.cart_id)),
+        ...(ownCollections.get(orderId) ?? []),
+      ]
+      const ids = collections.flatMap((collection) => (collection?.payments ?? []).map((p) => p?.id))
+      return [orderId, new Set(ids.filter((id): id is string => !!id))]
+    })
+  )
+  const allIds = [...new Set([...paymentIdsOf.values()].flatMap((ids) => [...ids]))]
+  const { data: payments } = allIds.length
+    ? await query.graph({
+        entity: "payment",
+        fields: ["id", "currency_code", "data", "captures.id", "refunds.id"],
+        filters: { id: allIds },
+      })
+    : { data: [] }
+  const rows = payments as unknown as PaymentRow[]
+  return new Map(orderIds.map((orderId) => [orderId, rows.filter((p) => paymentIdsOf.get(orderId)!.has(p.id))]))
 }
 
 /** The order's own transactions, and which payment each of their captures and refunds belongs to. */

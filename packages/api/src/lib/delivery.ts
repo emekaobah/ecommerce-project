@@ -317,8 +317,11 @@ type CustomerRow = {
   addresses?: (DeliveryAddress & { id: string; is_default_shipping?: boolean; created_at: string | Date })[] | null
 }
 
-/** The address a buyer's deliveries go to by default: their default shipping address, else their newest. */
-async function deliveryAddressOf(scope: MedusaContainer, customerId: string) {
+/**
+ * The address a buyer is delivering to: the saved address they picked (`addressId`), when it is
+ * theirs; else their default shipping address, else their newest.
+ */
+async function deliveryAddressOf(scope: MedusaContainer, customerId: string, addressId: string | undefined) {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "customer",
@@ -328,6 +331,7 @@ async function deliveryAddressOf(scope: MedusaContainer, customerId: string) {
   const customer = data[0] as CustomerRow | undefined
   const addresses = [...(customer?.addresses ?? [])].sort(
     (a, b) =>
+      Number(b.id === addressId) - Number(a.id === addressId) ||
       Number(!!b.is_default_shipping) - Number(!!a.is_default_shipping) ||
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   )
@@ -335,15 +339,16 @@ async function deliveryAddressOf(scope: MedusaContainer, customerId: string) {
 }
 
 /**
- * How a shop would deliver one of a product to the buyer's saved address: its best-value rate,
- * for the product page (#23). Null for a guest, a buyer with no saved address, an address
- * Shipbubble can't place, or a parcel no courier takes (for a perishable product, none in time):
- * the page then shows the shop's dispatch time. A saved address validated here keeps its code.
+ * How a shop would deliver the line to the saved address the buyer is delivering to: its
+ * best-value rate, for the product page (#23). Null for a guest, a buyer with no saved address,
+ * an address Shipbubble can't place, or a parcel no courier takes (for a perishable product, none
+ * in time): the page then shows the shop's dispatch time. A saved address validated here keeps its code.
  */
 export async function estimateDelivery(
   scope: MedusaContainer,
   {
     customerId,
+    addressId,
     sellerId,
     line,
     currencyCode,
@@ -351,6 +356,8 @@ export async function estimateDelivery(
     timeZone,
   }: {
     customerId: string | null | undefined
+    /** The saved address the buyer picked; ignored when it isn't theirs. */
+    addressId: string | undefined
     sellerId: string
     line: ParcelLine
     currencyCode: string
@@ -359,7 +366,7 @@ export async function estimateDelivery(
   }
 ): Promise<DeliveryEstimate | null> {
   if (!customerId) return null
-  const saved = await deliveryAddressOf(scope, customerId)
+  const saved = await deliveryAddressOf(scope, customerId, addressId)
   if (!saved) return null
   const { customer, address } = saved
 

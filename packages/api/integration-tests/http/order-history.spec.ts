@@ -6,7 +6,7 @@ import { buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, ORDER_TOTALS, RIC
 import { fakeClerk } from "../helpers/clerk"
 import { ALWAYS_OPEN, keepShopsOpen } from "../helpers/shop-hours"
 import { fakePaystack } from "../helpers/paystack"
-import { COURIERS, fakeShipbubble, LATER_PICKUP_TIME } from "../helpers/shipbubble"
+import { BEST_VALUE_FEE, COURIERS, fakeShipbubble, LATER_PICKUP_TIME } from "../helpers/shipbubble"
 import { setWeeklyHours } from "../../src/lib/shop-hours"
 import { WEEKDAYS } from "@oja/domain"
 import { MercurModules } from "@mercurjs/types"
@@ -183,6 +183,46 @@ medusaIntegrationTestRunner({
         expect((await sellerOrder(groupId, gadgets)).paid_total).toBe(ORDER_TOTALS.get(GADGETS))
         expect((await sellerOrder(groupId, grocery)).paid_total).toBe(ORDER_TOTALS.get(GROCERY))
         expect((await sellerOrder(groupId, gadgets)).refund).toBeNull()
+      })
+
+      it("shows its receipt: the items, delivery and the shop's discount add up to what was paid, with the Paystack reference", async () => {
+        const code = `RECEIPT${process.pid}`
+        await api.post(
+          "/vendor/promotions",
+          {
+            code,
+            type: "standard",
+            status: "active",
+            is_tax_inclusive: true,
+            application_method: { type: "percentage", target_type: "items", allocation: "across", value: 10 },
+          },
+          await buyer.owner(GROCERY)
+        )
+        const cartId = await buyer.adasCart()
+        await buyer.prepare(cartId)
+        await api.post(`/store/carts/${cartId}/checkout/promo-codes`, { code }, buyer.ada())
+        const { reference } = await buyer.startPayment(cartId)
+        paystack.pay(reference)
+        await buyer.postWebhook(paystack.chargeSuccess(reference))
+        const groupId = await buyer.orderGroupOf(cartId)
+        await buyer.capturedWithin(cartId)
+
+        const grocery = await sellerOrder(groupId, await buyer.shopOrderId(GROCERY, cartId))
+        const gadgets = await sellerOrder(groupId, await buyer.shopOrderId(GADGETS, cartId))
+
+        // Shelf prices, VAT included: the grocery's code takes a tenth off its two bags of rice.
+        const receipt = (o: any) => [o.item_subtotal, o.delivery_total, o.discount_total, o.paid_total, o.payment_reference]
+        expect(receipt(grocery)).toEqual([2 * RICE.price, BEST_VALUE_FEE, (2 * RICE.price) / 10, 2 * RICE.price * 0.9 + BEST_VALUE_FEE, reference])
+        expect(receipt(gadgets)).toEqual([LANTERN.price, BEST_VALUE_FEE, 0, LANTERN.price + BEST_VALUE_FEE, reference])
+      })
+
+      it("names each line's variant, so it can be ordered again", async () => {
+        const { groupId, grocery } = await paidGroup()
+        const { data } = await buyer.query().graph({ entity: "product", fields: ["variants.id"], filters: { title: RICE.title } })
+
+        const [line] = (await sellerOrder(groupId, grocery)).items
+
+        expect(line).toMatchObject({ product_title: RICE.title, variant_id: data[0].variants[0].id })
       })
 
       it("shows a rejected order with the shop's reason, what was paid for it and its refund on the way; the other shop's order carries on", async () => {

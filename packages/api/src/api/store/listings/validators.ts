@@ -1,16 +1,21 @@
 import { z } from "@medusajs/framework/zod"
 
-/** The region, which delivery estimates are scoped to like a listing. */
-export const StoreGetDeliveryEstimateParams = z.object({
+export const StoreGetListingParams = z.object({
   region_id: z.string(),
-})
-
-export const StoreGetListingParams = StoreGetDeliveryEstimateParams.extend({
   /**
    * The signed-in buyer's saved address they are delivering to: shops are measured from its pin
    * (ADR 0011). Ignored for a guest or an address that isn't theirs.
    */
   address_id: z.string().optional(),
+})
+
+/**
+ * The product page's estimate, scoped like a listing: to the address the buyer is delivering to
+ * (`address_id`, else their default), for the variant they picked (`variant_id`, else the shop's
+ * cheapest).
+ */
+export const StoreGetDeliveryEstimateParams = StoreGetListingParams.extend({
+  variant_id: z.string().optional(),
 })
 
 export const StoreGetListingsParams = StoreGetListingParams.extend({
