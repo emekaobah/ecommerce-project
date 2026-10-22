@@ -1,7 +1,8 @@
 import { shopChoice } from '@oja/domain';
-import { Button, EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
+import { Button, EmptyState, ErrorState, PressableSurface, ShopMark, Skeleton, Text, useTheme } from '@oja/ui';
 import { useMutation } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,9 +11,15 @@ import { selectShop } from '@/session/select-shop';
 import { useSession } from '@/session/session-store';
 import { signOut } from '@/session/sign-out';
 
+type Membership = NonNullable<ReturnType<typeof useMemberships>['data']>[number];
+
+/** The shop's area, as its vendor panel profile gives it (#70). */
+const areaOf = (membership: Membership) => (membership.seller as { city?: string | null } | null | undefined)?.city ?? null;
+
 /**
- * Picks the shop to act for: straight after signing in to several shops
- * (`signIn`), and from settings (`switch`).
+ * "Which shop today?": the shops the member belongs to, with their logos (or monograms) and
+ * areas, and Open for the one picked. Straight after signing in to several shops (`signIn`),
+ * and from settings to switch (`switch`).
  */
 export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' }>) {
   const theme = useTheme();
@@ -20,6 +27,7 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
   const memberships = useMemberships();
   const switching = mode === 'switch';
   const currentSellerId = useSession()?.sellerId;
+  const [picked, setPicked] = useState<string | undefined>(currentSellerId);
   const select = useMutation({
     mutationFn: selectShop,
     // Signing in, the session flip swaps to the signed-in group; switching returns to the orders.
@@ -28,67 +36,136 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
     },
   });
 
+  const shops = memberships.data ? shopsOf(memberships.data) : null;
+  const chosen = shops?.find((m) => m.seller_id === picked) ?? shops?.[0];
+  const open = () => {
+    if (!chosen) return;
+    if (chosen.seller_id === currentSellerId) router.back();
+    else select.mutate(chosen.seller_id);
+  };
+
   const content = () => {
     if (memberships.error && !memberships.data) {
       return (
         <ErrorState
           title="Couldn't load your shops"
-          body="Check your connection and try again." error={memberships.error}
+          body="Check your connection and try again."
+          error={memberships.error}
           onRetry={() => void memberships.refetch()}
         />
       );
     }
-    if (!memberships.data) return <LoadingState />;
-
-    const choice = shopChoice(memberships.data);
-    const shops = choice.kind === 'pick' ? choice.shops : memberships.data;
+    if (!shops) return <RowsLoading />;
     return (
       <FlatList
         data={shops}
         keyExtractor={(m) => m.seller_id}
-        contentContainerStyle={shops.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space[4] }}
+        contentContainerStyle={shops.length === 0 ? styles.fill : undefined}
         ListEmptyComponent={
-          <EmptyState title="No shops" body="This account isn't a member of any shop. Ask the owner to invite you." />
+          <EmptyState icon="store" title="No shops" body="This account isn't a member of any shop. Ask the owner to invite you." />
         }
         renderItem={({ item }) => (
-          <ListRow
-            title={item.seller?.name ?? item.seller_id}
-            onPress={item.seller_id === currentSellerId ? undefined : () => select.mutate(item.seller_id)}
-            trailing={
-              item.seller_id === currentSellerId ? (
-                <Text variant="meta" tone="muted">
-                  Current
-                </Text>
-              ) : null
-            }
-          />
+          <ShopRow membership={item} selected={item.seller_id === chosen?.seller_id} onPress={() => setPicked(item.seller_id)} />
         )}
       />
     );
   };
 
   return (
-    <SafeAreaView edges={switching ? ['bottom'] : undefined} style={styles.container}>
+    <SafeAreaView edges={switching ? ['bottom'] : ['top', 'bottom']} style={[styles.grow, { backgroundColor: theme.colors.bg }]}>
       <Stack.Screen options={{ title: 'Switch shop' }} />
-      {switching ? null : (
-        <View style={{ padding: theme.space[4] }}>
-          <Text variant="titlePushed">Choose a shop</Text>
-        </View>
-      )}
-      {select.error ? (
-        <Text tone="danger" style={{ paddingHorizontal: theme.space[4] }}>
-          {select.error.message}
-        </Text>
-      ) : null}
-      <View style={styles.container}>{content()}</View>
-      {switching ? null : (
-        <Button label="Sign out" variant="link" onPress={() => void signOut()} style={{ margin: theme.space[4] }} />
-      )}
+      <Text variant="titleRoot" style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[4], paddingBottom: theme.space[2] }}>
+        Which shop today?
+      </Text>
+      <View style={styles.grow}>{content()}</View>
+      <View style={{ padding: theme.space[4], gap: theme.space[2] }}>
+        {select.error ? (
+          // TODO(#79): use @oja/ui InlineNote.
+          <Text tone="ember" accessibilityRole="alert" accessibilityLiveRegion="polite">
+            {"Couldn't open that shop. Check your connection and try again."}
+          </Text>
+        ) : null}
+        {chosen ? (
+          <Button label={`Open ${chosen.seller?.name ?? 'shop'}`} size="main" onPress={open} loading={select.isPending} />
+        ) : null}
+        {switching ? null : <Button label="Sign out" variant="link" onPress={() => void signOut()} />}
+      </View>
     </SafeAreaView>
   );
 }
 
+/** The member's shops, by name when there are several. */
+function shopsOf(memberships: Membership[]) {
+  const choice = shopChoice(memberships);
+  return choice.kind === 'pick' ? choice.shops : memberships;
+}
+
+/** One shop: its mark, name and area, with a radio for picking it. */
+function ShopRow({ membership, selected, onPress }: Readonly<{ membership: Membership; selected: boolean; onPress: () => void }>) {
+  const theme = useTheme();
+  const name = membership.seller?.name ?? 'Shop';
+  const area = areaOf(membership);
+  const radio = theme.icon.size.step;
+  return (
+    <PressableSurface
+      ringInset
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={[name, area].filter(Boolean).join(', ')}
+      onPress={onPress}
+      style={[
+        styles.row,
+        {
+          gap: theme.space[3],
+          minHeight: theme.control.row,
+          paddingVertical: theme.space[3],
+          paddingHorizontal: theme.space[4],
+          borderBottomWidth: theme.line.divider,
+          borderBottomColor: theme.colors.line,
+        },
+      ]}>
+      <ShopMark name={name} logoUrl={membership.seller?.logo} />
+      <View style={styles.grow}>
+        <Text weight="bold">{name}</Text>
+        {area ? (
+          <Text variant="meta" tone="muted">
+            {area}
+          </Text>
+        ) : null}
+      </View>
+      <View
+        style={{
+          width: radio,
+          height: radio,
+          borderRadius: theme.radius.pill,
+          borderWidth: selected ? theme.line.ring * 2 : theme.line.input,
+          borderColor: selected ? theme.colors.accent : theme.colors.control,
+        }}
+      />
+    </PressableSurface>
+  );
+}
+
+/** Two shop rows in their shape while the member's shops load. */
+function RowsLoading() {
+  const theme = useTheme();
+  return (
+    <View accessible accessibilityLabel="Loading your shops" style={{ padding: theme.space[4], gap: theme.space[4] }}>
+      {[0, 1].map((key) => (
+        <View key={key} style={[styles.row, { gap: theme.space[3] }]}>
+          <Skeleton width={theme.shopMark.sm.size} height={theme.shopMark.sm.size} radius="md" />
+          <View style={[styles.grow, { gap: theme.space[1] }]}>
+            <Skeleton width="60%" height={theme.type.body.fontSize} />
+            <Skeleton width="30%" height={theme.type.meta.fontSize} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  emptyList: { flexGrow: 1 },
+  grow: { flex: 1 },
+  fill: { flexGrow: 1 },
+  row: { flexDirection: 'row', alignItems: 'center' },
 });

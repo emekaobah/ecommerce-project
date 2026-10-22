@@ -1,12 +1,18 @@
+import { ClientError } from '@oja/api-client';
 import { PRODUCT_NAME } from '@oja/domain';
-import { Button, line, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
+import { AdirePattern, Button, Text, TextField, useTheme } from '@oja/ui';
 import { useMutation } from '@tanstack/react-query';
+import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { signIn } from '@/session/sign-in';
+import { NoShopError, signIn } from '@/session/sign-in';
 
+/**
+ * Sign in, branded: the indigo pattern with what the app is for, then email and password, and
+ * the one thing new staff need to know, that accounts come by invitation.
+ */
 export function SignInScreen() {
   const theme = useTheme();
   const [email, setEmail] = useState('');
@@ -15,58 +21,80 @@ export function SignInScreen() {
   const submit = useMutation({ mutationFn: () => signIn(email.trim(), password) });
   const canSubmit = email.trim() !== '' && password !== '';
 
-  const inputStyle = [
-    styles.input,
-    theme.type.body,
-    {
-      color: theme.colors.ink,
-      borderColor: theme.colors.control,
-      borderRadius: theme.radius.md,
-      minHeight: theme.hitArea,
-      paddingHorizontal: theme.space[4],
-    },
-  ];
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg, padding: theme.space[6] }]}>
-      <View style={{ gap: theme.space[4] }}>
-        <Text variant="titleRoot">{PRODUCT_NAME} Vendor</Text>
-        <TextInput
-          maxFontSizeMultiplier={MAX_FONT_SCALE}
-          testID="email"
-          style={inputStyle}
-          placeholder="Email"
-          placeholderTextColor={theme.colors.muted}
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          textContentType="username"
-          returnKeyType="next"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          maxFontSizeMultiplier={MAX_FONT_SCALE}
-          testID="password"
-          style={inputStyle}
-          placeholder="Password"
-          placeholderTextColor={theme.colors.muted}
-          autoComplete="current-password"
-          textContentType="password"
-          secureTextEntry
-          returnKeyType="go"
-          value={password}
-          onChangeText={setPassword}
-          onSubmitEditing={() => canSubmit && submit.mutate()}
-        />
-        {submit.error ? <Text tone="danger">{submit.error.message}</Text> : null}
-        <Button label="Sign in" onPress={() => submit.mutate()} disabled={!canSubmit} loading={submit.isPending} />
-      </View>
-    </SafeAreaView>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[styles.fill, { backgroundColor: theme.colors.raised }]}>
+      <StatusBar style="light" />
+      <ScrollView contentContainerStyle={styles.grow} keyboardShouldPersistTaps="handled" bounces={false}>
+        <SafeAreaView
+          edges={['top']}
+          style={[styles.top, { padding: theme.space[6], gap: theme.space[2], backgroundColor: theme.colors.band }]}>
+          <AdirePattern fade="top" opacity={0.55} />
+          <Text variant="displayXxl" tone="onBand">
+            {PRODUCT_NAME.toLowerCase()}
+            <Text variant="titlePushed" weight="bold" tone="onBand" style={styles.soft}>
+              {' for shops'}
+            </Text>
+          </Text>
+          <Text variant="titleNamed" weight="bold" tone="onBand">
+            Accept, pick, pack and hand over.
+          </Text>
+        </SafeAreaView>
+        <SafeAreaView edges={['bottom']} style={{ padding: theme.space[4], paddingBottom: theme.space[6], gap: theme.space[2] }}>
+          <TextField
+            label="Email"
+            testID="email"
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            textContentType="username"
+            returnKeyType="next"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextField
+            label="Password"
+            testID="password"
+            autoComplete="current-password"
+            textContentType="password"
+            secureTextEntry
+            returnKeyType="go"
+            value={password}
+            onChangeText={setPassword}
+            onSubmitEditing={() => canSubmit && submit.mutate()}
+          />
+          <View style={{ gap: theme.space[2], marginTop: theme.space[2] }}>
+            {submit.error ? (
+              // TODO(#79): use @oja/ui InlineNote.
+              <Text tone="ember" accessibilityRole="alert" accessibilityLiveRegion="polite">
+                {signInProblem(submit.error)}
+              </Text>
+            ) : null}
+            <Button label="Sign in" onPress={() => submit.mutate()} disabled={!canSubmit} loading={submit.isPending} />
+            <Text variant="meta" tone="muted" style={styles.centred}>
+              No account? Your shop owner invites you from the vendor panel.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
+/** Why signing in failed, in plain words; the raw error isn't shown. */
+function signInProblem(error: Error): string {
+  if (error instanceof NoShopError) return error.message;
+  if (error instanceof ClientError && (error.status === 400 || error.status === 401)) {
+    return "That email and password don't match. Check them and try again.";
+  }
+  return "Couldn't sign in. Check your connection and try again.";
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  input: { borderWidth: line.input },
+  fill: { flex: 1 },
+  grow: { flexGrow: 1 },
+  top: { flexGrow: 1, justifyContent: 'flex-end', overflow: 'hidden' },
+  soft: { opacity: 0.8 },
+  centred: { textAlign: 'center' },
 });
