@@ -3,7 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createPayoutAccountWorkflow } from "@mercurjs/core/workflows"
 import { payOutOrderWorkflow } from "../workflows/payouts/pay-out-order"
 import { errorMessage } from "./errors"
-import { fulfilmentService, sellersOfOrders } from "./order-fulfilment"
+import { fulfilmentService } from "./order-fulfilment"
 import { nextPayoutAttempt, owedBackBy, payoutAttemptsOf, withUnsettledRefunds, type Scope } from "./payouts"
 
 // The daily payout run (#29): every delivered order not yet paid out, to its shop.
@@ -12,15 +12,12 @@ import { nextPayoutAttempt, owedBackBy, payoutAttemptsOf, withUnsettledRefunds, 
 async function ordersDueForPayout(scope: Scope): Promise<Map<string, string[]>> {
   const eligible = await fulfilmentService(scope).listOrderFulfilments(
     { payout_eligible_at: { $ne: null } },
-    { select: ["order_id", "payout_eligible_at"], order: { payout_eligible_at: "ASC" } }
+    { select: ["order_id", "seller_id", "payout_eligible_at"], order: { payout_eligible_at: "ASC" } }
   )
   const ids = eligible.map((r) => r.order_id)
   if (!ids.length) return new Map()
-  const [attempts, waiting, sellers] = await Promise.all([
-    payoutAttemptsOf(scope, ids),
-    withUnsettledRefunds(scope, ids),
-    sellersOfOrders(scope, ids),
-  ])
+  const sellers = new Map(eligible.flatMap((r) => (r.seller_id ? [[r.order_id, r.seller_id] as const] : [])))
+  const [attempts, waiting] = await Promise.all([payoutAttemptsOf(scope, ids), withUnsettledRefunds(scope, ids)])
   // Paid out, on its way, or failed every attempt.
   const done = new Set(ids.filter((id) => nextPayoutAttempt((attempts.get(id) ?? []).map((a) => a.status)) === null))
   // An order cancelled after delivery is never paid out.

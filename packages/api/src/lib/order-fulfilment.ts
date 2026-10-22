@@ -492,9 +492,6 @@ export async function placedOrdersOf(scope: Scope, orderIds: string[]): Promise<
   )
 }
 
-/** The order as placed; undefined for no such order. */
-export const placedOrderOf = async (scope: Scope, orderId: string) => (await placedOrdersOf(scope, [orderId])).get(orderId)
-
 /** A placed order's first fulfilment row: New, by the method it was placed with, and so in progress. */
 export const newFulfilmentRow = ({ method, ...order }: PlacedOrder) => ({
   ...order,
@@ -510,11 +507,4 @@ export async function readyForPickup(scope: Scope, sellerId: string): Promise<st
   ).map(asFulfilmentRecord)
   const readyAt = (r: FulfilmentRecord) => r.reached?.ready_for_pickup ?? ""
   return rows.sort((a, b) => readyAt(a).localeCompare(readyAt(b))).map((r) => r.order_id)
-}
-/** The shop each order was placed with. */
-export async function sellersOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, string>> {
-  if (!orderIds.length) return new Map()
-  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "order_seller", fields: ["order_id", "seller_id"], filters: { order_id: orderIds } })
-  return new Map((data as { order_id: string; seller_id: string }[]).map((l) => [l.order_id, l.seller_id]))
 }

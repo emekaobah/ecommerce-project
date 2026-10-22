@@ -1,14 +1,14 @@
 import { releaseLockStep } from "@medusajs/medusa/core-flows"
 import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { fundingToRecord } from "../../../lib/discount-funding"
-import { fulfilmentService, fulfilmentsOf, newFulfilmentRow, placedOrderOf } from "../../../lib/order-fulfilment"
+import { fulfilmentService, fulfilmentsOf, newFulfilmentRow, placedOrdersOf } from "../../../lib/order-fulfilment"
 import { lockOrderFulfilment } from "../compose"
 
 const recordNewOrderStep = createStep(
   "record-new-order-fulfilment",
   async ({ order_id: orderId }: { order_id: string }, { container }) => {
     if ((await fulfilmentsOf(container, [orderId])).has(orderId)) return new StepResponse<string | null, string | null>(null, null)
-    const placed = await placedOrderOf(container, orderId)
+    const placed = (await placedOrdersOf(container, [orderId])).get(orderId)
     if (!placed) return new StepResponse<string | null, string | null>(null, null)
     const created = await fulfilmentService(container).createOrderFulfilments(newFulfilmentRow(placed))
     return new StepResponse<string | null, string | null>(created.id, created.id)

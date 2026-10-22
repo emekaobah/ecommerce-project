@@ -8,7 +8,7 @@ import {
   fulfilmentsOf,
   newFulfilmentRow,
   ORDER_STATE_CHANGED,
-  placedOrderOf,
+  placedOrdersOf,
   type FulfilmentRecord,
   type Shipment,
 } from "../../../lib/order-fulfilment"
@@ -48,7 +48,7 @@ async function currentFulfilment(
 ): Promise<{ from: Fulfilment } & ({ previous: FulfilmentRecord; placed?: never } | { previous?: never; placed: ReturnType<typeof newFulfilmentRow> })> {
   const previous = (await fulfilmentsOf(container, [orderId])).get(orderId)
   if (previous) return { previous, from: previous.fulfilment }
-  const placed = await placedOrderOf(container, orderId)
+  const placed = (await placedOrdersOf(container, [orderId])).get(orderId)
   if (!placed) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Order with id: ${orderId} was not found`)
   const row = newFulfilmentRow(placed)
   return { placed: row, from: row.fulfilment }
