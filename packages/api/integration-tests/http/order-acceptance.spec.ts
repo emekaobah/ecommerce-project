@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import seedDemoData from "../../src/scripts/seed"
 import { refundUnclaimedPayments, rejectOverdueOrders } from "../../src/lib/order-acceptance"
-import { fulfilmentService } from "../../src/lib/order-fulfilment"
+import { backfillOrderFulfilments, fulfilmentService } from "../../src/lib/order-fulfilment"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import { buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, TOTAL, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -118,6 +118,51 @@ medusaIntegrationTestRunner({
         expect(await status(accept(GROCERY, gadgets))).toBe(404)
         expect(await status(reject(GROCERY, gadgets))).toBe(404)
         expect((await shopOrder(GADGETS, gadgets)).fulfilment.state).toBe("new")
+      })
+    })
+
+    describe("each shop's own orders", () => {
+      const newOrders = async (shop: Shop) =>
+        (await api.get("/vendor/shop-hours", await buyer.owner(shop))).data.shop_hours.new_orders as number
+
+      it("counts only the shop's own orders waiting to be accepted", async () => {
+        const before = { gadgets: await newOrders(GADGETS), grocery: await newOrders(GROCERY) }
+        const { grocery } = await paidOrders()
+        await accept(GROCERY, grocery)
+
+        expect(await newOrders(GADGETS)).toBe(before.gadgets + 1)
+        expect(await newOrders(GROCERY)).toBe(before.grocery)
+      })
+
+      it("shows an order placed before orders were recorded with their shop as new, once backfilled", async () => {
+        const { cartId, gadgets, grocery } = await paidOrders()
+        const before = await newOrders(GADGETS)
+        // As an order placed before this change stood: Gadgets' with no row at all, Grocery's
+        // accepted with a row that doesn't say whose order it is.
+        await accept(GROCERY, grocery)
+        const service = fulfilmentService(getContainer())
+        const [gadgetsRow] = await service.listOrderFulfilments({ order_id: gadgets })
+        const [groceryRow] = await service.listOrderFulfilments({ order_id: grocery })
+        await service.deleteOrderFulfilments(gadgetsRow.id)
+        await service.updateOrderFulfilments({ id: groceryRow.id, customer_id: null, seller_id: null, order_group_id: null })
+
+        await backfillOrderFulfilments(getContainer())
+
+        const order = await shopOrder(GADGETS, gadgets)
+        expect(order.fulfilment).toMatchObject({
+          method: "delivery",
+          state: "new",
+          accept_by: new Date(Date.parse(order.created_at) + 24 * HOUR).toISOString(),
+        })
+        expect(await newOrders(GADGETS)).toBe(before)
+        expect((await accept(GADGETS, gadgets)).data.fulfilment.state).toBe("accepted")
+        expect((await shopOrder(GROCERY, grocery)).fulfilment.state).toBe("accepted")
+        const groupId = await buyer.orderGroupOf(cartId)
+        const { data } = await api.get(`/store/order-history/${groupId}`, buyer.ada())
+        expect(Object.fromEntries(data.order_group.orders.map((o: any) => [o.id, o.fulfilment.state]))).toEqual({
+          [gadgets]: "accepted",
+          [grocery]: "accepted",
+        })
       })
     })
 

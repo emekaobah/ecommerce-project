@@ -57,6 +57,8 @@ Visual direction: **Monochrome** (option C on the design canvas, researched in R
 
 ### Order state machine
 
+Every seller order has an `order_fulfilment` row (#58), written New when the order is placed (or by the first transition, when staff act on it the moment it appears), and carrying its buyer (`customer_id`), shop (`seller_id`) and checkout (`order_group_id`), indexed by buyer and placed at, and by shop and state, so per-shop and per-buyer questions never scan the platform. Orders placed before were backfilled by the `backfill-order-fulfilments` migration script. Readers no longer take a missing row for New: an order not yet recorded is left out of lists until it is, and the checkout reports its `order_group_id` only once every order of it is recorded.
+
 Each seller order's **fulfilment method** (delivery or pickup) is fixed when the order is created. Both share the start; each then has its own typed path, so a pickup order can never book a label and a delivery order can never take a pickup code. The courier provider is one implementation of the delivery path (own riders would be another).
 
 ```
