@@ -49,7 +49,8 @@ import { refuseMercurClosures } from "./no-mercur-closures";
 import { vendorAddressLookupMiddlewares } from "./vendor/address-lookup/middlewares";
 import { vendorQuickAddMiddlewares } from "./vendor/quick-add/middlewares";
 import { vendorPriceListMiddlewares } from "./vendor/price-lists/middlewares";
-import { StoreGetOrderHistory } from "./store/order-history/validators";
+import { StoreGetOrderAgain, StoreGetOrderHistory } from "./store/order-history/validators";
+import { StoreAddOfferLines } from "./store/carts/[id]/offer-lines/validators";
 import { StoreRefundAccount } from "./store/refunds/validators";
 import { StoreGetPublishedReviews } from "./store/reviews/validators";
 import { adminVariantPriceMiddlewares } from "./admin/products/no-variant-prices";
@@ -126,6 +127,12 @@ export default defineMiddlewares({
                 authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
                 validateAndTransformQuery(StoreGetShopParams, {}),
             ],
+        },
+        // Order again adds the ticked offers at once (#72); like add-to-cart, for guests too.
+        {
+            method: ["POST"],
+            matcher: "/store/carts/:id/offer-lines",
+            middlewares: [validateAndTransformBody(StoreAddOfferLines)],
         },
         {
             method: ["POST"],
@@ -207,6 +214,12 @@ export default defineMiddlewares({
             method: ["GET"],
             matcher: "/store/order-history/:id",
             middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
+        // Ordering one shop's part of a received order again (#72).
+        {
+            method: ["GET"],
+            matcher: "/store/order-history/:id/order-again",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreGetOrderAgain, {})],
         },
         // A refund that needs the buyer's bank account (#13): theirs only.
         { matcher: "/store/refunds/*", middlewares: [authenticate("customer", ["session", "bearer"])] },
