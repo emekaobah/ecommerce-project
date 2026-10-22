@@ -17,7 +17,7 @@ env:
 - extendedWaitUntil:
     visible: ${SHOP}
     timeout: 15000
-- tapOn: ".*, New · .*"
+- tapOn: "Details"
 # A new order is rejected, not cancelled: Cancel order shows once it is accepted.
 - assertNotVisible: "Cancel order"
 - tapOn: "Accept order"
