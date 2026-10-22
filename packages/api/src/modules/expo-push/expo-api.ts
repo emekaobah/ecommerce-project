@@ -14,13 +14,26 @@ export type ExpoPushOptions = {
   apiUrl?: string
 }
 
+/**
+ * How a push rings when it shouldn't sound like any other: a sound bundled in the app (iOS plays
+ * it by file name; Android plays the channel's), the Android channel it is shown on, and its iOS
+ * interruption level. Passed as the notification's `provider_data`.
+ */
+export type ExpoPushAlert = {
+  sound: string
+  channelId: string
+  interruptionLevel: "time-sensitive"
+}
+
 export type ExpoPushMessage = {
   to: string
   title?: string
   body?: string
   data: Record<string, unknown>
-  sound: "default"
+  sound: string
   priority: "high"
+  channelId?: string
+  interruptionLevel?: ExpoPushAlert["interruptionLevel"]
 }
 
 type ExpoError = { status: "error"; message: string; details?: { error?: string } }

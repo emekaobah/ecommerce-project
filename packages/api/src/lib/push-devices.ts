@@ -1,7 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PUSH_CHANNEL } from "../modules/expo-push"
-import { DEVICE_NOT_REGISTERED } from "../modules/expo-push/expo-api"
+import { DEVICE_NOT_REGISTERED, type ExpoPushAlert } from "../modules/expo-push/expo-api"
 import { errorMessage } from "./errors"
 import { forgetPushDevices } from "./push-receipts"
 
@@ -18,6 +18,8 @@ export type DevicePush = {
   idempotencyKey: (device: string) => string
   /** What the push is about, for the log when Expo refuses it. */
   about: string
+  /** How it rings, when not as every other push does (the new-order alarm, #71). */
+  alert?: ExpoPushAlert
 }
 
 /**
@@ -36,6 +38,7 @@ export async function pushToDevices(scope: Scope, devices: string[], push: Devic
         template: push.template,
         content: { subject: push.title, text: push.body },
         data: push.data,
+        provider_data: push.alert ?? null,
         idempotency_key: push.idempotencyKey(to),
       })
     )

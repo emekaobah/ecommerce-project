@@ -9,6 +9,10 @@ export type PushMessage = {
   data?: Record<string, unknown>
   sound?: string
   priority?: string
+  /** The Android notification channel it is shown on. */
+  channelId?: string
+  /** How it interrupts on iOS, e.g. `time-sensitive` to break through Focus. */
+  interruptionLevel?: string
 }
 
 /** A made-up Expo push token, as `getExpoPushTokenAsync` returns on a device. */

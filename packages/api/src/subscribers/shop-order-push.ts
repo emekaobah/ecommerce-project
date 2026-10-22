@@ -4,7 +4,7 @@ import { ORDER_ACCEPT_DEADLINE_NEAR, ORDER_HANDOVER_DISAGREEMENT, ORDER_NOT_COLL
 import { pushToShop, type ShopPushDetail, type ShopPushKind } from "../lib/shop-push"
 
 const KIND_OF_EVENT: Record<string, ShopPushKind> = {
-  [OrderWorkflowEvents.PLACED]: "order_placed",
+  [OrderWorkflowEvents.PLACED]: "new_order",
   [ORDER_ACCEPT_DEADLINE_NEAR]: "accept_deadline_near",
   [ORDER_PICKUP_SCHEDULED]: "pickup_scheduled",
   [ORDER_HANDOVER_DISAGREEMENT]: "handover_disagreement",

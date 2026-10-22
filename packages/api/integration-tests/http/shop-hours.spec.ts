@@ -96,7 +96,9 @@ medusaIntegrationTestRunner({
       })
       const { data: listing } = await api.get(`/store/listings/${gadgetsId}/${products.data[0].id}?${region()}`, store())
       const { data: shop } = await api.get(`/store/shops/${gadgetsId}?${region()}`, store())
+      const { data: home } = await api.get(`/store/shops?${region()}&limit=50`, store())
       return {
+        home: home.shops.find((s: any) => s.id === gadgetsId)?.shop_status,
         feed: await listed(""),
         search: await listed("q=lantern"),
         category: await listed(`category_id=${categories.data[0].id}`),
@@ -106,6 +108,7 @@ medusaIntegrationTestRunner({
       }
     }
     const everywhere = (status: unknown) => ({
+      home: status,
       feed: status,
       search: status,
       category: status,

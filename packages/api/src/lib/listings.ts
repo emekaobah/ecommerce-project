@@ -9,7 +9,7 @@ import {
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
 import { pinOf, roundedDistanceKm, type Pin, type ShopDeal } from "@oja/domain"
 import { attributionOf, type Attribution } from "./enrichment"
-import { rankListingPage, shopDistancesKm, type RankedListing, type RankingFilters } from "./listing-ranking"
+import { rankListingPage, rankShopPage, shopDistancesKm, type RankedListing, type RankingFilters } from "./listing-ranking"
 import { perishableProductIds } from "./perishable"
 import { isLive, liveSellerIds } from "./onboarding"
 import { shopStatusesOf, type ShopStatusView } from "./shop-hours"
@@ -244,9 +244,14 @@ const dealKey = (sellerId: string, productId: string) => `${sellerId}:${productI
  * The ranked listings, in their order, each with its shop and its offers priced in the region,
  * in the order they were listed. A listing none of whose offers Mercur could price is left out.
  */
-async function groupsOf(scope: MedusaContainer, region: Region, ranked: RankedListing[]): Promise<ListingGroup[]> {
+async function groupsOf(
+  scope: MedusaContainer,
+  region: Region,
+  ranked: RankedListing[],
+  sellers?: Map<string, SellerRow>
+): Promise<ListingGroup[]> {
   if (!ranked.length) return []
-  const sellers = await sellerRows(scope, new Map(ranked.map((r) => [r.seller_id, r.exact_km])))
+  sellers ??= await sellerRows(scope, new Map(ranked.map((r) => [r.seller_id, r.exact_km])))
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "offer",
@@ -439,17 +444,29 @@ async function dealsOf(
   return deals
 }
 
-/** Listings visible in a region, one per shop and product, in the documented order (ADR 0011), a page at a time. */
+/**
+ * Listings visible in a region, one per shop and product, in the documented order (ADR 0011), a
+ * page at a time; with how many listings match in all, and from how many shops (search's counts).
+ */
 export async function listListings(
   scope: MedusaContainer,
   filters: ListingFilters,
   page: { limit: number; offset: number }
-): Promise<{ listings: Listing[]; count: number }> {
+): Promise<{ listings: Listing[]; count: number; shopCount: number }> {
   const region = await loadRegion(scope, filters.regionId)
   const ranked = await rankListingPage(scope, await rankingFiltersOf(scope, region, filters), page)
   const groups = await groupsOf(scope, region, ranked.listings)
-  if (!groups.length) return { listings: [], count: ranked.count }
+  return { listings: await listingsOf(scope, region, filters, groups), count: ranked.count, shopCount: ranked.shopCount }
+}
 
+/** The groups as listings, with their products and deals. */
+async function listingsOf(
+  scope: MedusaContainer,
+  region: Region,
+  filters: Pick<ListingFilters, "salesChannelIds">,
+  groups: ListingGroup[]
+): Promise<Listing[]> {
+  if (!groups.length) return []
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "product",
@@ -458,9 +475,50 @@ export async function listListings(
   })
   const products = new Map((data as ListingProduct[]).map((p) => [p.id, p]))
   const deals = await dealsOf(scope, region, filters, groups)
+  return groups.map((g) => toListing(g, products.get(g.productId)!, deals.get(dealKey(g.seller.id, g.productId)) ?? []))
+}
+
+/** How many listings each shop on Home shows: its first in feed order. */
+const LISTINGS_PER_SHOP = 3
+
+/** A listing within its shop on Home, which already names the shop. */
+export type ShopListing = Omit<Listing, "seller">
+
+/** A shop on Home: its header, its top listings in feed order, and how many listings it has. */
+export type ShopWithListings = ListingSeller & { listings: ShopListing[]; listing_count: number }
+
+/**
+ * Shops serving the region, each once, in the order their first listings come in the feed
+ * (ADR 0011, 0014), a page at a time; each with its first few listings.
+ */
+export async function listShops(
+  scope: MedusaContainer,
+  filters: Pick<ListingFilters, "regionId" | "salesChannelIds" | "categoryId" | "deliveringTo">,
+  page: { limit: number; offset: number }
+): Promise<{ shops: ShopWithListings[]; count: number }> {
+  const region = await loadRegion(scope, filters.regionId)
+  const ranked = await rankShopPage(scope, await rankingFiltersOf(scope, region, filters), page, LISTINGS_PER_SHOP)
+  const sellers = await sellerRows(scope, new Map(ranked.shops.map((s) => [s.seller_id, s.exact_km])))
+  const groups = await groupsOf(
+    scope,
+    region,
+    ranked.shops.flatMap((s) => s.listings),
+    sellers
+  )
+  const listings = await listingsOf(scope, region, filters, groups)
   return {
-    listings: groups.map((g) => toListing(g, products.get(g.productId)!, deals.get(dealKey(g.seller.id, g.productId)) ?? [])),
     count: ranked.count,
+    shops: ranked.shops.flatMap((s) => {
+      const seller = sellers.get(s.seller_id)
+      if (!seller) return []
+      return [
+        {
+          ...toListingSeller(seller),
+          listing_count: s.listing_count,
+          listings: listings.filter((l) => l.seller.id === s.seller_id).map(({ seller: _, ...listing }) => listing),
+        },
+      ]
+    }),
   }
 }
 
