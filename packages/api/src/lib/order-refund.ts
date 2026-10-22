@@ -1,7 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN, MedusaError } from "@medusajs/framework/utils"
 import type { RefundCovers } from "../modules/order-fulfilment/models/order-refund"
-import { fulfilmentService } from "./order-fulfilment"
+import { fulfilmentService, type Picks } from "./order-fulfilment"
 import { transactionsOf, type OrderTransaction } from "./shop-order"
 
 // A shop refunds its own order's share of what the buyer paid (#20). A checkout split across
@@ -123,6 +123,15 @@ export async function deliveryRefundableOf(scope: Scope, orderId: string): Promi
 
 /** One refund to make: an amount of one payment. */
 export type RefundPart = { payment_id: string; amount: number }
+
+/**
+ * The refund's parts, each with the order lines it names (#61): a refund split across the
+ * order's payments is one refund to its buyer, so only its first part names them, and order
+ * history lists each item once.
+ */
+export function linesOnce(plan: RefundPart[], lines: Picks | null): (RefundPart & { lines: Picks | null })[] {
+  return plan.map((part, i) => ({ ...part, lines: i === 0 ? lines : null }))
+}
 
 export class RefundExceedsShareError extends MedusaError {
   constructor(requested: number, refundable: number) {

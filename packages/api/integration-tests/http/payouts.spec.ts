@@ -268,6 +268,15 @@ medusaIntegrationTestRunner({
         expect((await refundsOf(orderId)).map((r) => r.covers)).toEqual(["items", "items", "delivery"])
       })
 
+      it("shows the buyer a refund of delivery as its amount alone: it is for no lines (#61)", async () => {
+        const { orderId, cartId } = await bookedOrder()
+
+        await refundDelivery(orderId, { amount: 500 })
+
+        const { order_group } = (await api.get(`/store/order-history/${await buyer.orderGroupOf(cartId)}`, buyer.ada())).data
+        expect(order_group.orders.find((o: any) => o.id === orderId).refunds).toEqual([{ amount: 500, status: "pending", lines: null }])
+      })
+
       it("lets Oja's staff refund delivery, up to the delivery fee less what was refunded of it already", async () => {
         const { orderId } = await bookedOrder()
 

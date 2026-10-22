@@ -32,6 +32,13 @@ const OrderRefund = model
      * refunds said what they cover; each refund made now says.
      */
     covers: model.enum([...REFUND_COVERS]).default("items"),
+    /**
+     * The order lines the refund is for, and how many units of each (#61): `{ [item_id]: quantity }`.
+     * Units removed as unavailable while picking, an accepted order's lines when it is cancelled,
+     * or a pickup's non-perishable lines when it isn't collected. Null for a refund of no lines
+     * (delivery, a payment no order claims) and for refunds made before refunds named their lines.
+     */
+    lines: model.json().nullable(),
     currency_code: model.text(),
     /** The Paystack transaction refunded, which Paystack's `refund.*` webhooks name. */
     transaction_reference: model.text(),
