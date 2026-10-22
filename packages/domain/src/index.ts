@@ -145,6 +145,8 @@ export {
 } from "./buyer-push"
 export { notPlacedChangeMessage, notPlacedMessage, notPlacedPush } from "./not-placed"
 export type { NotPlaced, NotPlacedChange, NotPlacedReason } from "./not-placed"
+export { availableQuantity, stockShortfall } from "./stock"
+export type { OfferStock, StockLevel, StockShortfall } from "./stock"
 export type { BuyerPush, BuyerPushOrder, BuyerPushPickup, ConfirmedShop, RefundAccountReminder, RefundNotice, RemovedItem } from "./buyer-push"
 export { pickProgress, scanBarcode } from "./picking"
 export type { PickLine, PickProgress, ScanResult } from "./picking"

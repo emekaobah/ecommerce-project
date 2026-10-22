@@ -8,6 +8,7 @@ import {
 } from "@medusajs/framework/utils"
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
 import { pinOf, roundedDistanceKm, type Pin, type ShopDeal } from "@oja/domain"
+import { availableQuantities } from "./availability"
 import { attributionOf, type Attribution } from "./enrichment"
 import { rankListingPage, rankShopPage, shopDistancesKm, type RankedListing, type RankingFilters } from "./listing-ranking"
 import { perishableProductIds } from "./perishable"
@@ -27,6 +28,8 @@ export type ListingOffer = {
   variant_title: string | null
   /** In the region's currency. `original_amount` above `calculated_amount` means a sale. */
   calculated_price: ListingPrice
+  /** How many can still be ordered (0: sold out); null when the shop doesn't track its stock or takes backorders. */
+  available_quantity: number | null
 }
 
 /** The shop a listing belongs to, with what its header shows wherever it appears. */
@@ -125,7 +128,7 @@ type OfferRow = OfferPricingRow & {
   variant_id: string
   product_variant?: { id: string; title: string | null; price_set?: { id: string } | null } | null
 }
-type PricedOfferRow = OfferRow & { calculated_price: CalculatedOfferPrice }
+type PricedOfferRow = OfferRow & { calculated_price: CalculatedOfferPrice; available_quantity: number | null }
 type ProductDetailRow = Omit<ListingProductDetail, "attributes" | "attribution" | "weight"> & { weight: number | string | null }
 
 async function loadRegion(scope: MedusaContainer, regionId: string): Promise<Region> {
@@ -261,10 +264,14 @@ async function groupsOf(
   })
   const onPage = new Set(ranked.map((r) => dealKey(r.seller_id, r.product_id)))
   const pageOffers = (data as OfferRow[]).filter((o) => onPage.has(dealKey(o.seller_id, o.product_id)))
+  const [priced, available] = await Promise.all([
+    priceOffers(scope, region, pageOffers),
+    availableQuantities(scope, pageOffers.map((o) => o.id)),
+  ])
   const offers = new Map<string, PricedOfferRow[]>()
-  for (const offer of await priceOffers(scope, region, pageOffers)) {
+  for (const offer of priced) {
     const key = dealKey(offer.seller_id, offer.product_id)
-    offers.set(key, [...(offers.get(key) ?? []), offer])
+    offers.set(key, [...(offers.get(key) ?? []), { ...offer, available_quantity: available.get(offer.id) ?? null }])
   }
   return ranked.flatMap((r) => {
     const seller = sellers.get(r.seller_id)
@@ -293,7 +300,7 @@ function toListing<P extends ListingProduct>(group: ListingGroup, product: P, de
   return {
     seller: toListingSeller(seller),
     product,
-    offers: offers.map(({ id, variant_id, product_variant, calculated_price }) => ({
+    offers: offers.map(({ id, variant_id, product_variant, calculated_price, available_quantity }) => ({
       id,
       variant_id,
       variant_title: product_variant?.title ?? null,
@@ -302,6 +309,7 @@ function toListing<P extends ListingProduct>(group: ListingGroup, product: P, de
         original_amount: Number(calculated_price.original_amount ?? calculated_price.calculated_amount),
         currency_code: calculated_price.currency_code,
       },
+      available_quantity,
     })),
     leadtime_to_ship: group.leadtime_to_ship,
     deals,

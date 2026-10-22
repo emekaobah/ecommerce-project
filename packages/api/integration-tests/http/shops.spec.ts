@@ -186,6 +186,30 @@ medusaIntegrationTestRunner({
         for (const shop of data.shops) for (const l of shop.listings) expect(titles.has(l.product.title)).toBe(true)
       })
 
+      it("says how many of each top listing's offers are left, a sold-out one with none", async () => {
+        const gadgets = await sellerId("Ikeja Gadget Hub")
+        const { data: before } = await shops(guest())
+        const [first] = before.shops.find((s: any) => s.id === gadgets).listings
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: offers } = await query.graph({
+          entity: "offer",
+          fields: ["inventory_item_link.inventory_item.location_levels.*"],
+          filters: { id: first.offers[0].id },
+        })
+        const [level] = (offers[0] as any).inventory_item_link[0].inventory_item.location_levels
+        await getContainer()
+          .resolve(Modules.INVENTORY)
+          .updateInventoryLevels([{ inventory_item_id: level.inventory_item_id, location_id: level.location_id, stocked_quantity: 0 }])
+
+        const { data } = await shops(guest())
+
+        const shop = data.shops.find((s: any) => s.id === gadgets)
+        expect(shop.listings.map((l: any) => l.offers.map((o: any) => o.available_quantity))).toEqual([
+          [0, ...first.offers.slice(1).map(() => 50)],
+          ...shop.listings.slice(1).map((l: any) => l.offers.map(() => 50)),
+        ])
+      })
+
       it("hides a suspended shop", async () => {
         const adire = await sellerId("Adire House")
         await (getContainer().resolve(MercurModules.SELLER) as any).updateSellers({ id: adire, status: "suspended" })

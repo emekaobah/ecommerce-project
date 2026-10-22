@@ -1,5 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PRODUCTS } from "../../src/scripts/seed-data"
@@ -175,6 +175,76 @@ medusaIntegrationTestRunner({
         const res = await api.get("/store/carts/cart_missing/sellers", { headers }).catch((e) => e.response)
 
         expect(res.status).toBe(404)
+      })
+    })
+
+    describe("stock", () => {
+      /** Stocks the shop's offer of a product with `units`, at its one location. */
+      const stock = async (offer: string, units: number) => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({
+          entity: "offer",
+          fields: ["inventory_item_link.inventory_item.location_levels.*"],
+          filters: { id: offer },
+        })
+        const [level] = (data[0] as any).inventory_item_link[0].inventory_item.location_levels
+        await getContainer()
+          .resolve(Modules.INVENTORY)
+          .updateInventoryLevels([
+            { inventory_item_id: level.inventory_item_id, location_id: level.location_id, stocked_quantity: units },
+          ])
+      }
+
+      it("says how many of each line's offer are left", async () => {
+        const cart = await createCart()
+        const rice = await offerId("Iya Bisi Foodstuff", RICE.title)
+        await addOffer(cart.id, rice, 2)
+        await stock(rice, 5)
+
+        const [shop] = (await bySeller(cart.id)).sellers
+
+        expect(shop.items.map((i: any) => [i.quantity, i.available_quantity])).toEqual([[2, 5]])
+      })
+
+      it("keeps a line that sold out, reported as sold out, with Medusa's totals unchanged", async () => {
+        const cart = await createCart()
+        const lantern = await offerId("Ikeja Gadget Hub", LANTERN.title)
+        const rice = await offerId("Iya Bisi Foodstuff", RICE.title)
+        await addOffer(cart.id, lantern)
+        await addOffer(cart.id, rice, 2)
+        const before = (await api.get(`/store/carts/${cart.id}`, { headers })).data.cart
+
+        await stock(rice, 0)
+
+        const grouped = await bySeller(cart.id)
+        expect(
+          grouped.sellers.map((g: any) => g.items.map((i: any) => [i.product_title, i.quantity, i.available_quantity]))
+        ).toEqual([[[LANTERN.title, 1, 50]], [[RICE.title, 2, 0]]])
+        expect(grouped).toMatchObject({ item_count: 3, item_subtotal: LANTERN.price + 2 * RICE.price })
+        const after = (await api.get(`/store/carts/${cart.id}`, { headers })).data.cart
+        expect([after.items.length, after.total]).toEqual([2, before.total])
+      })
+
+      it("tells a line wanting more than is left how many are left", async () => {
+        const cart = await createCart()
+        const rice = await offerId("Iya Bisi Foodstuff", RICE.title)
+        await addOffer(cart.id, rice, 4)
+
+        await stock(rice, 1)
+
+        const [shop] = (await bySeller(cart.id)).sellers
+        expect(shop.items.map((i: any) => [i.quantity, i.available_quantity])).toEqual([[4, 1]])
+      })
+
+      it("leaves the count out for an offer whose stock the shop doesn't track", async () => {
+        const cart = await createCart()
+        const rice = await offerId("Iya Bisi Foodstuff", RICE.title)
+        await addOffer(cart.id, rice)
+        await (getContainer().resolve(MercurModules.OFFER) as any).updateOffers({ id: rice, manage_inventory: false })
+
+        const [shop] = (await bySeller(cart.id)).sellers
+
+        expect(shop.items[0].available_quantity).toBeNull()
       })
     })
 
