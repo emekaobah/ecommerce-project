@@ -17,6 +17,11 @@ const RECEIVED: ReadonlySet<FulfilmentState> = new Set<FulfilmentState>(["delive
  * order reached its terminal success state, so every review is of goods the buyer received.
  */
 export function canReview(state: FulfilmentState): boolean {
+  return isReceived(state)
+}
+
+/** Whether the buyer has the shop's order: delivered or collected. Such an order can be reviewed and ordered again. */
+export function isReceived(state: FulfilmentState): boolean {
   return RECEIVED.has(state)
 }
 

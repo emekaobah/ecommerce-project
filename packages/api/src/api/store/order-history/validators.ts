@@ -6,3 +6,10 @@ export const StoreGetOrderHistory = z.object({
 })
 
 export type StoreGetOrderHistoryType = z.infer<typeof StoreGetOrderHistory>
+
+export const StoreGetOrderAgain = z.object({
+  /** The shop whose part of the order is ordered again. */
+  seller_id: z.string().min(1),
+})
+
+export type StoreGetOrderAgainType = z.infer<typeof StoreGetOrderAgain>
