@@ -87,9 +87,9 @@ export const PICKING_STATES = new Set(["picking", "partially_available"])
 /** The order's fulfilment row and one of its lines, while the order is being picked; refuses any other. */
 export async function lineBeingPicked(scope: Scope, orderId: string, itemId: string) {
   const record = (await fulfilmentsOf(scope, [orderId])).get(orderId)
-  const state = record?.state ?? "new"
-  if (!record || !PICKING_STATES.has(state)) {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Order ${orderId} is ${state.replaceAll("_", " ")}: it isn't being picked`)
+  if (!record) throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Order ${orderId} isn't being picked`)
+  if (!PICKING_STATES.has(record.state)) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Order ${orderId} is ${record.state.replaceAll("_", " ")}: it isn't being picked`)
   }
   // A line removed in full is no longer on the order.
   const item = (await itemsOf(scope, orderId)).find((i) => i.id === itemId && i.quantity > 0)

@@ -130,6 +130,12 @@ export const switchedFrom = (shipment: Pick<Shipment, "courier" | "chosen">): Co
 export type FulfilmentRecord = {
   id: string
   order_id: string
+  /** The order's buyer; null for an order placed without a customer account. */
+  customer_id: string | null
+  /** The order's shop. */
+  seller_id: string | null
+  /** The checkout (order group) the order was split from. */
+  order_group_id: string | null
   state: FulfilmentState
   fulfilment: Fulfilment
   placed_at: Date
@@ -182,7 +188,10 @@ export const cancelledOnceAccepted = (record: Pick<FulfilmentRecord, "state"> | 
 export const givesShareBack = (record: Pick<FulfilmentRecord, "state"> | undefined) =>
   record?.state === "rejected" || cancelledOnceAccepted(record)
 
-/** Each order's fulfilment row; an order without one is New. */
+/**
+ * Each order's fulfilment row. Every order has one once it is recorded, a moment after it is
+ * placed; an order not in the map is still being placed.
+ */
 export async function fulfilmentsOf(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentRecord>> {
   if (!orderIds.length) return new Map()
   const rows = (await fulfilmentService(scope).listOrderFulfilments({ order_id: orderIds })).map(asFulfilmentRecord)
@@ -270,33 +279,26 @@ function cancellationOf(fulfilment: Fulfilment): FulfilmentView["cancellation"] 
 export type FulfilmentViewOptions = { names?: Map<string, string>; audience?: "buyer" | "staff" }
 
 /**
- * The order a fulfilment view is of: when it was placed, how it was to reach its buyer, and the
- * lines still on it, which set a pickup order's hold (left out, no hold is counted).
- */
-export type PlacedOrder = { placed_at: Date | string; method: FulfilmentMethod; lines?: HoldLine[] }
-
-/**
- * `order`: an order without a row yet is New, by the method it was placed with. `hours`: the
- * shop's, which the accept deadline counts in; null for a shop without hours.
+ * `lines`: the lines still on the order, which set a pickup order's hold (left out, no hold is
+ * counted). `hours`: the shop's, which the accept deadline counts in; null for a shop without hours.
  */
 export function fulfilmentView(
-  record: FulfilmentRecord | undefined,
-  order: PlacedOrder,
+  record: FulfilmentRecord,
+  lines: HoldLine[] | undefined,
   hours: ShopHours | null,
   { names = new Map<string, string>(), audience = "staff" }: FulfilmentViewOptions = {}
 ): FulfilmentView {
-  const fulfilment = record?.fulfilment ?? newFulfilment(order.method)
-  const shipment = record?.shipment
+  const { fulfilment, shipment } = record
   const handover = handoverOf(fulfilment)
   const collection = collectionOf(fulfilment)
-  const placed_at = new Date(order.placed_at).toISOString()
+  const placed_at = new Date(record.placed_at).toISOString()
   return {
     method: fulfilment.method,
     state: fulfilment.state,
     accept_by: fulfilment.state === "new" ? acceptDeadline(placed_at, hours) : null,
     rejected_by: fulfilment.state === "rejected" ? fulfilment.rejectedBy : null,
-    collect_by: collectByOf(record, hours, order.lines),
-    reject_reason: record?.reject_reason ?? null,
+    collect_by: collectByOf(record, hours, lines),
+    reject_reason: record.reject_reason ?? null,
     cancellation: cancellationOf(fulfilment),
     shipment: shipment
       ? {
@@ -308,7 +310,7 @@ export function fulfilmentView(
           price: { checkout: shipment.chosen.amount, booked: shipment.courier.amount, difference: shipment.difference },
         }
       : null,
-    courier_approval: record?.courier_approval ?? null,
+    courier_approval: record.courier_approval ?? null,
     handover: handover && {
       staff: handover.staff ? { name: names.get(handover.staff.actor) ?? null, at: handover.staff.at } : null,
       picked_up_at: handover.pickup?.at ?? null,
@@ -318,7 +320,7 @@ export function fulfilmentView(
       collected_by: collection.collectedBy,
     },
     timeline: fulfilmentTimeline(
-      { method: fulfilment.method, state: fulfilment.state, placed_at, reached: record?.reached ?? {} },
+      { method: fulfilment.method, state: fulfilment.state, placed_at, reached: record.reached ?? {} },
       audience
     ),
   }
@@ -397,32 +399,26 @@ export async function orderMoney(scope: Scope, orderId: string, payments: Paymen
   }
 }
 
-/** What staff see of each order's fulfilment, its accept deadline counted in its shop's open hours. */
+/**
+ * What staff see of each order's fulfilment, its accept deadline counted in its shop's open
+ * hours; an order still being placed (not yet recorded) has none.
+ */
 export async function fulfilmentViews(scope: Scope, orderIds: string[]): Promise<Map<string, FulfilmentView>> {
   if (!orderIds.length) return new Map()
+  const records = await fulfilmentsOf(scope, orderIds)
+  if (!records.size) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({
-    entity: "order",
-    fields: ["id", "created_at", "seller.id", ...METHOD_FIELDS, ...HOLD_LINE_FIELDS],
-    filters: { id: orderIds },
-  })
-  type Row = OrderWithMethods & { id: string; created_at: Date | string; seller?: { id: string } | null; items?: OrderLineRow[] | null }
-  const orders = data as unknown as Row[]
-  const [records, hours, lines] = await Promise.all([
-    fulfilmentsOf(scope, orderIds),
-    shopHoursOf(scope, orders.flatMap((o) => (o.seller ? [o.seller.id] : []))),
-    holdLinesOf(scope, orders),
+  const { data } = await query.graph({ entity: "order", fields: ["id", ...HOLD_LINE_FIELDS], filters: { id: [...records.keys()] } })
+  const sellerIds = [...records.values()].flatMap((r) => (r.seller_id ? [r.seller_id] : []))
+  const [hours, lines, names] = await Promise.all([
+    shopHoursOf(scope, sellerIds),
+    holdLinesOf(scope, data as unknown as { id: string; items?: OrderLineRow[] | null }[]),
+    handoverNames(scope, records.values()),
   ])
-  const names = await handoverNames(scope, records.values())
   return new Map(
-    orders.map((o) => [
-      o.id,
-      fulfilmentView(
-        records.get(o.id),
-        { placed_at: o.created_at, method: methodOfOrder(o), lines: lines.get(o.id) },
-        (o.seller && hours.get(o.seller.id)) || null,
-        { names }
-      ),
+    [...records.values()].map((record) => [
+      record.order_id,
+      fulfilmentView(record, lines.get(record.order_id), (record.seller_id && hours.get(record.seller_id)) || null, { names }),
     ])
   )
 }
@@ -435,25 +431,94 @@ export type OrderWithMethods = { shipping_methods?: ({ data?: Record<string, unk
 export const methodOfOrder = (order: OrderWithMethods): FulfilmentMethod =>
   (order.shipping_methods ?? []).some(isPickupMethod) ? "pickup" : "delivery"
 
-/** When the order was placed and how, to reach its buyer, read from the order itself; undefined for no such order. */
-export async function placedOrderOf(scope: Scope, orderId: string): Promise<{ placed_at: Date; method: FulfilmentMethod } | undefined> {
+/** Whose order it is, and when and how it was placed: what a fulfilment row records of its order. */
+export type PlacedOrder = Pick<FulfilmentRecord, "order_id" | "customer_id" | "seller_id" | "order_group_id"> & {
+  placed_at: Date
+  method: FulfilmentMethod
+}
+
+/** The order fields `placedOrdersOf` reads. */
+const PLACED_FIELDS = ["id", "created_at", "customer_id", "seller.id", ...METHOD_FIELDS]
+type PlacedRow = OrderWithMethods & { id: string; created_at: Date | string; customer_id?: string | null; seller?: { id: string } | null }
+
+/** Each order as placed, read from the order itself and its checkout; an order not found is left out. */
+export async function placedOrdersOf(scope: Scope, orderIds: string[]): Promise<Map<string, PlacedOrder>> {
+  if (!orderIds.length) return new Map()
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const { data } = await query.graph({ entity: "order", fields: ["created_at", ...METHOD_FIELDS], filters: { id: orderId } })
-  const order = data[0] as unknown as (OrderWithMethods & { created_at: Date | string }) | undefined
-  return order && { placed_at: new Date(order.created_at), method: methodOfOrder(order) }
+  const [{ data: orders }, { data: groups }] = await Promise.all([
+    query.graph({ entity: "order", fields: PLACED_FIELDS, filters: { id: orderIds } }),
+    query.graph({ entity: "order_group_order", fields: ["order_id", "order_group_id"], filters: { order_id: orderIds } }),
+  ])
+  const groupOf = new Map((groups as unknown as { order_id: string; order_group_id: string }[]).map((l) => [l.order_id, l.order_group_id]))
+  return new Map(
+    (orders as unknown as PlacedRow[]).map((o) => [
+      o.id,
+      {
+        order_id: o.id,
+        customer_id: o.customer_id ?? null,
+        seller_id: o.seller?.id ?? null,
+        order_group_id: groupOf.get(o.id) ?? null,
+        placed_at: new Date(o.created_at),
+        method: methodOfOrder(o),
+      },
+    ])
+  )
+}
+
+/** The order as placed; undefined for no such order. */
+export const placedOrderOf = async (scope: Scope, orderId: string) => (await placedOrdersOf(scope, [orderId])).get(orderId)
+
+/** A placed order's first fulfilment row: New, by the method it was placed with. */
+export const newFulfilmentRow = ({ method, ...order }: PlacedOrder) => ({ ...order, state: "new" as const, fulfilment: newFulfilment(method) })
+
+/** How many orders the backfill reads at a time. */
+const BACKFILL_BATCH = 200
+
+/**
+ * Gives every order without a fulfilment row one, New as readers took it to be, and fills in
+ * whose order each row is on rows recorded before rows said (#58). Run once by the
+ * `backfill-order-fulfilments` migration script; running it again changes nothing.
+ */
+export async function backfillOrderFulfilments(scope: Scope): Promise<{ created: number; filled: number }> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const service = fulfilmentService(scope)
+  let created = 0
+  let filled = 0
+  for (let skip = 0; ; skip += BACKFILL_BATCH) {
+    const { data } = await query.graph({
+      entity: "order",
+      fields: ["id"],
+      filters: { is_draft_order: false },
+      pagination: { skip, take: BACKFILL_BATCH, order: { created_at: "ASC" } },
+    })
+    const ids = (data as { id: string }[]).map((o) => o.id)
+    if (!ids.length) break
+    const [records, placed] = await Promise.all([fulfilmentsOf(scope, ids), placedOrdersOf(scope, ids)])
+    const missing = [...placed.values()].filter((o) => !records.has(o.order_id))
+    const unfilled = [...records.values()].filter((r) => !r.seller_id && placed.has(r.order_id))
+    if (missing.length) await service.createOrderFulfilments(missing.map(newFulfilmentRow))
+    if (unfilled.length) {
+      await service.updateOrderFulfilments(
+        unfilled.map((r) => {
+          const { customer_id, seller_id, order_group_id } = placed.get(r.order_id)!
+          return { id: r.id, customer_id, seller_id, order_group_id }
+        })
+      )
+    }
+    created += missing.length
+    filled += unfilled.length
+  }
+  return { created, filled }
 }
 
 /** The shop's orders Ready for pickup (#12), by when they became ready, longest waiting first. */
 export async function readyForPickup(scope: Scope, sellerId: string): Promise<string[]> {
-  const rows = (await fulfilmentService(scope).listOrderFulfilments({ state: "ready_for_pickup" })).map(asFulfilmentRecord)
-  const sellers = await sellersOfOrders(scope, rows.map((r) => r.order_id))
+  const rows = (
+    await fulfilmentService(scope).listOrderFulfilments({ seller_id: sellerId, state: "ready_for_pickup" }, { select: ["order_id", "reached"] })
+  ).map(asFulfilmentRecord)
   const readyAt = (r: FulfilmentRecord) => r.reached?.ready_for_pickup ?? ""
-  return rows
-    .filter((r) => sellers.get(r.order_id) === sellerId)
-    .sort((a, b) => readyAt(a).localeCompare(readyAt(b)))
-    .map((r) => r.order_id)
+  return rows.sort((a, b) => readyAt(a).localeCompare(readyAt(b))).map((r) => r.order_id)
 }
-
 /** The shop each order was placed with. */
 export async function sellersOfOrders(scope: Scope, orderIds: string[]): Promise<Map<string, string>> {
   if (!orderIds.length) return new Map()

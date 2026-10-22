@@ -5,6 +5,7 @@ import { SellerRole } from "@mercurjs/types"
 import seedDemoData from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 import memberInviteEmailHandler from "../../src/subscribers/member-invite-email"
+import { recordPlacedOrderWorkflow } from "../../src/workflows/order-fulfilment/workflows/record-placed-order"
 import { vendorHeaders } from "../helpers/auth"
 import { fakeResend } from "../helpers/resend"
 
@@ -135,7 +136,7 @@ medusaIntegrationTestRunner({
     })
 
     describe("a member of two shops", () => {
-      /** An order placed with the shop, as checkout records it: the order linked to its seller. */
+      /** An order placed with the shop, as checkout records it: the order linked to its seller, and recorded as placed. */
       const orderWith = async (shop: (typeof SEED_SELLERS)[number], title: string) => {
         const container = getContainer()
         const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -152,6 +153,7 @@ medusaIntegrationTestRunner({
           [Modules.ORDER]: { order_id: order.id },
           seller: { seller_id: await sellerId(shop) },
         })
+        await recordPlacedOrderWorkflow(container).run({ input: { order_id: order.id } })
         return order.id
       }
 

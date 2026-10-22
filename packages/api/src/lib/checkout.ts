@@ -37,6 +37,7 @@ import {
 import { addressCodeOf, quoteBasis, quoteRates, ratesFor, regionTimeZone, samePlace, withAddressCode } from "./delivery"
 import { promoCodeProblem, type CodedPromotion } from "./promotions"
 import { unshareCode } from "./shared-codes"
+import { fulfilmentsOf } from "./order-fulfilment"
 import { closedShopError } from "./shop-hours"
 import { NOT_PLACED_KEY, type StoredNotPlaced } from "./unplaced-checkout"
 
@@ -150,7 +151,7 @@ export type Checkout = {
    * the buyer's name and phone given), so payment can start.
    */
   ready_to_pay: boolean
-  /** Set once payment is confirmed and the cart has become orders. */
+  /** Set once payment is confirmed and the cart has become orders, each recorded for its shop. */
   order_group_id: string | null
   /**
    * Set when the buyer paid but the cart failed to become orders (#38): it was refunded in full
@@ -396,11 +397,15 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
   const grouped = await retrieveCartBySeller(scope, cartId)
   const deliveries = await deliveriesBySeller(scope, cart)
   // The split writes the group before its orders and links; the cart is marked completed
-  // once they are all in place.
+  // once they are all in place. Its orders are recorded a moment after (`order.placed`), and
+  // only then shown: the checkout says it was placed once they are.
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: groups } = cart.completed_at
-    ? await query.graph({ entity: "order_group", fields: ["id"], filters: { cart_id: cartId } })
+    ? await query.graph({ entity: "order_group", fields: ["id", "orders.id"], filters: { cart_id: cartId } })
     : { data: [] }
+  const group = groups[0] as unknown as { id: string; orders?: ({ id: string } | null)[] | null } | undefined
+  const groupOrderIds = (group?.orders ?? []).flatMap((o) => (o ? [o.id] : []))
+  const placed = groupOrderIds.length > 0 && (await fulfilmentsOf(scope, groupOrderIds)).size === groupOrderIds.length
 
   // A cart in a one-country region carries that country as a stub address: no place to deliver to.
   const address = cart.shipping_address?.address_1 ? cart.shipping_address : null
@@ -461,7 +466,7 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
       !!cart.email &&
       sellers.length > 0 &&
       sellers.every((g) => g.seller && (g.method === "pickup" || g.shipping) && g.shop_status?.orderable),
-    order_group_id: (groups[0] as { id: string } | undefined)?.id ?? null,
+    order_group_id: group && placed ? group.id : null,
     not_placed: cart.completed_at ? null : notPlacedOf(cart),
   }
 }
