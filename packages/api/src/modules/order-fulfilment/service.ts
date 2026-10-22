@@ -1,6 +1,6 @@
 import { orderPhase, type FulfilmentState, type OrderPhase, type RefundStatus } from "@oja/domain"
-import type { Context, InferTypeOf } from "@medusajs/framework/types"
-import { InjectTransactionManager, MedusaContext, MedusaService } from "@medusajs/framework/utils"
+import type { Context, DAL, InferTypeOf } from "@medusajs/framework/types"
+import { MedusaService } from "@medusajs/framework/utils"
 import type { SqlEntityManager } from "@medusajs/framework/mikro-orm/postgresql"
 import OrderFulfilment from "./models/order-fulfilment"
 import ShopPayout from "./models/shop-payout"
@@ -27,16 +27,35 @@ const phaseOf = (state: string, refunds: Pick<Refund, "status" | "handed_over_at
  * (`transitionFulfilmentStep`), so whichever writer refreshes last reads the other's write.
  */
 class OrderFulfilmentModuleService extends MedusaService({ OrderFulfilment, OrderRefund, ShopPayout, DiscountFunding, RefundSettlement }) {
+  // Transactions are begun by hand, not with Medusa's method decorators: the apps type-check
+  // this file through the typed client, without decorator support.
+  private readonly repository_: DAL.RepositoryService
+
+  // MedusaService's constructor takes the module's container (its dependencies) first.
+  constructor(...args: any[]) {
+    super(...args)
+    this.repository_ = (args[0] as { baseRepository: DAL.RepositoryService }).baseRepository
+  }
+
+  /** Runs the task in the caller's transaction, or in a new one. */
+  private inTransaction<T>(sharedContext: Context, task: (context: Context) => Promise<T>): Promise<T> {
+    if (sharedContext.transactionManager) return task(sharedContext)
+    return this.repository_.transaction((transactionManager) => task({ ...sharedContext, transactionManager }))
+  }
+
   /**
    * Rewrites each order's stored phase from its state and its refunds, where it changed. The
    * orders' fulfilment rows are locked first, so two refreshes of an order run one after the
    * other and the later one reads what the earlier one's writer committed. An order with no
    * fulfilment row (a refund of no order) is left be. Returns how many rows changed.
    */
-  @InjectTransactionManager()
-  async refreshOrderPhases(orderIds: readonly (string | null | undefined)[], @MedusaContext() sharedContext: Context = {}): Promise<number> {
+  async refreshOrderPhases(orderIds: readonly (string | null | undefined)[], context: Context = {}): Promise<number> {
     const ids = [...new Set(orderIds.filter((id): id is string => !!id))].sort()
     if (!ids.length) return 0
+    return this.inTransaction(context, (sharedContext) => this.refreshLocked(ids, sharedContext))
+  }
+
+  private async refreshLocked(ids: string[], sharedContext: Context): Promise<number> {
     const manager = sharedContext.transactionManager as SqlEntityManager
     await manager.execute(
       `SELECT id FROM order_fulfilment WHERE order_id IN (${ids.map(() => "?").join(", ")}) AND deleted_at IS NULL ORDER BY order_id FOR UPDATE`,
@@ -59,19 +78,21 @@ class OrderFulfilmentModuleService extends MedusaService({ OrderFulfilment, Orde
    * Records refunds and refreshes their orders' phases in the same transaction: a refund changes
    * its order's phase, so every refund is written through here, never `createOrderRefunds`.
    */
-  @InjectTransactionManager()
-  async recordRefunds(data: CreateRefund[], @MedusaContext() sharedContext: Context = {}): Promise<Refund[]> {
-    const created = await this.createOrderRefunds(data, sharedContext)
-    await this.refreshOrderPhases(created.map((r) => r.order_id), sharedContext)
-    return created
+  async recordRefunds(data: CreateRefund[], context: Context = {}): Promise<Refund[]> {
+    return this.inTransaction(context, async (sharedContext) => {
+      const created = await this.createOrderRefunds(data, sharedContext)
+      await this.refreshOrderPhases(created.map((r) => r.order_id), sharedContext)
+      return created
+    })
   }
 
   /** Changes refunds and refreshes their orders' phases in the same transaction; never `updateOrderRefunds`. */
-  @InjectTransactionManager()
-  async changeRefunds(data: UpdateRefund[], @MedusaContext() sharedContext: Context = {}): Promise<Refund[]> {
-    const updated = await this.updateOrderRefunds(data, sharedContext)
-    await this.refreshOrderPhases(updated.map((r) => r.order_id), sharedContext)
-    return updated
+  async changeRefunds(data: UpdateRefund[], context: Context = {}): Promise<Refund[]> {
+    return this.inTransaction(context, async (sharedContext) => {
+      const updated = await this.updateOrderRefunds(data, sharedContext)
+      await this.refreshOrderPhases(updated.map((r) => r.order_id), sharedContext)
+      return updated
+    })
   }
 }
 
