@@ -1,115 +1,286 @@
-import { collectByLabel, formatMoney } from '@oja/domain';
-import { Button, EmptyState, ErrorState, ListRow, LoadingState, useTheme } from '@oja/ui';
-import { Stack, useRouter } from 'expo-router';
+import { collectByLabel, formatMoney, ORDER_STAGES, type OrderStage, type ShopHours } from '@oja/domain';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  haptics,
+  Icon,
+  type IconName,
+  PressableSurface,
+  Skeleton,
+  StageTiles,
+  Text,
+  useTheme,
+  useToast,
+} from '@oja/ui';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { orderValue, useOrders, useReadyOrders, type OrderFulfilment } from '@/api/orders';
+import { orderValue, useAcceptOrder, useStageCounts, useStageOrders, type StageOrder } from '@/api/orders';
 import { useCurrentSeller } from '@/api/sellers';
-import { FulfilmentChip } from '@/orders/fulfilment-chip';
+import { useShopHours } from '@/api/shop-hours';
+import { acceptUrgent, FulfilmentChip } from '@/orders/fulfilment-chip';
 import { itemsSummary } from '@/orders/items';
+import { shopHoursOf, shopState } from '@/orders/shop-state';
 import { useNow } from '@/orders/use-now';
 import { useSession } from '@/session/session-store';
 
+const STAGE_LABELS: Record<OrderStage, string> = { new: 'New', picking: 'Picking', ready: 'Ready', out: 'Out' };
+
+/** What each stage's list says when it is empty. */
+const EMPTY: Record<OrderStage, { title: string; body: string; icon: IconName }> = {
+  new: { title: 'No orders yet', body: 'New orders show up here.', icon: 'bell' },
+  picking: { title: 'Nothing to pick', body: 'Orders you accept show up here while you pick and pack them.', icon: 'box' },
+  ready: { title: 'Nothing ready', body: 'Orders ready for their buyers to collect show up here.', icon: 'store' },
+  out: { title: 'Nothing out', body: 'Orders on their way with a courier show up here.', icon: 'truck' },
+};
+
+/**
+ * The shop's orders by stage (#69): the shop's open state in the header, the New, Picking, Ready
+ * and Out tiles with the server's counts, and every order in the stage picked, newest first.
+ */
 export function OrdersScreen() {
   const theme = useTheme();
-  const router = useRouter();
   const sellerId = useSession()?.sellerId;
-  const seller = useCurrentSeller(sellerId);
-  const [readyOnly, setReadyOnly] = useState(false);
-  const recent = useOrders(sellerId);
-  // Orders waiting at the counter for their buyers (#12), found by the server however old.
-  const ready = useReadyOrders(sellerId);
-  const orders = readyOnly ? ready : recent;
+  const [stage, setStage] = useState<OrderStage>('new');
+  const counts = useStageCounts(sellerId);
+  const orders = useStageOrders(sellerId, stage);
+  const hours = shopHoursOf(useShopHours(sellerId).data);
   const now = useNow();
   // Only a pull shows the spinner; background refetches stay silent.
   const [pulling, setPulling] = useState(false);
   const refresh = () => {
     setPulling(true);
-    void orders.refetch().finally(() => setPulling(false));
+    void Promise.all([orders.refetch(), counts.refetch()]).finally(() => setPulling(false));
   };
 
   const content = () => {
     // A failed refresh keeps the list already on screen.
     if (orders.error && !orders.data) {
-      return <ErrorState title="Couldn't load orders" body="Check your connection and try again." error={orders.error} onRetry={refresh} />;
+      return (
+        <ErrorState
+          title="Couldn't load orders"
+          body="Check your connection and try again. Nothing about your orders has changed."
+          error={orders.error}
+          onRetry={refresh}
+        />
+      );
     }
-    if (!orders.data) return <LoadingState />;
-    const readyCount = ready.data?.length ?? 0;
-    const shown = orders.data;
-
+    if (!orders.data) return <CardsLoading />;
     return (
       <FlatList
-        data={shown}
+        data={orders.data}
         keyExtractor={(o) => o.id}
-        contentContainerStyle={shown.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space[4] }}
-        ListHeaderComponent={
-          readyCount || readyOnly ? (
-            <View style={[styles.filters, { gap: theme.space[2], paddingVertical: theme.space[2] }]}>
-              <Button label="All orders" variant={readyOnly ? 'secondary' : 'primary'} onPress={() => setReadyOnly(false)} />
-              <Button
-                label={`Ready for pickup (${readyCount})`}
-                variant={readyOnly ? 'primary' : 'secondary'}
-                onPress={() => setReadyOnly(true)}
-              />
-            </View>
-          ) : undefined
-        }
-        ListEmptyComponent={
-          readyOnly ? (
-            <EmptyState title="Nothing waiting" body="Orders ready for their buyers to collect show up here." />
-          ) : (
-            <EmptyState title="No orders yet" body="New orders show up here." />
-          )
-        }
+        contentContainerStyle={orders.data.length === 0 ? styles.fill : { paddingBottom: theme.space[6] }}
+        ListEmptyComponent={<EmptyState {...EMPTY[stage]} />}
         refreshing={pulling}
         onRefresh={refresh}
-        renderItem={({ item }) => (
-          <ListRow
-            title={`#${item.display_id} · ${formatMoney(orderValue(item), item.currency_code)}`}
-            subtitle={[itemsSummary(item.items), holdLabel(item.fulfilment, now)].filter(Boolean).join(' · ')}
-            trailing={<FulfilmentChip fulfilment={item.fulfilment} now={now} />}
-            onPress={() => router.push({ pathname: '/orders/[id]', params: { id: item.id } })}
-          />
-        )}
+        onEndReached={() => {
+          if (orders.hasNextPage && !orders.isFetchingNextPage) void orders.fetchNextPage();
+        }}
+        renderItem={({ item }) => <OrderCard order={item} now={now} hours={hours} />}
       />
     );
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: seller.data?.name ?? 'Orders' }} />
-      {/* asChild renders our own buttons as elements; they use hooks, so they mustn't be called as
-          the header's render function. */}
-      <Stack.Toolbar placement="left" asChild>
-        <AddProductButton />
-      </Stack.Toolbar>
-      <Stack.Toolbar placement="right" asChild>
-        <SettingsButton />
-      </Stack.Toolbar>
+    <SafeAreaView edges={['top']} style={[styles.grow, { backgroundColor: theme.colors.bg }]}>
+      <ShopHeader sellerId={sellerId} hours={hours} now={now} />
+      <View style={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[3] }}>
+        <StageTiles
+          stages={ORDER_STAGES.map((key) => ({ key, label: STAGE_LABELS[key], count: counts.data?.[key] ?? null }))}
+          selected={stage}
+          onSelect={setStage}
+        />
+      </View>
       {content()}
-    </>
+    </SafeAreaView>
   );
 }
 
-/** When a pickup order waiting at the counter must be collected by (#32); null for any other. */
-function holdLabel(fulfilment: OrderFulfilment, now: Date) {
-  const collectBy = fulfilment.collect_by;
-  return collectBy ? collectByLabel(collectBy.at, now, collectBy.time_zone) : null;
+/**
+ * The shop's name, today's date and its open state, with Quick-add and Settings beside them.
+ * The name comes from the cached shop list, so it shows at once.
+ */
+function ShopHeader({ sellerId, hours, now }: Readonly<{ sellerId: string | undefined; hours: ShopHours | null; now: Date }>) {
+  const theme = useTheme();
+  const router = useRouter();
+  const seller = useCurrentSeller(sellerId);
+  const state = hours ? shopState(hours, now) : null;
+  const pill = state?.open ? theme.status.success : theme.status.neutral;
+
+  return (
+    <View style={[styles.row, { gap: theme.space[2], paddingBottom: theme.space[2], paddingHorizontal: theme.space[4] }]}>
+      <View style={styles.name}>
+        <Text variant="titleNamed" numberOfLines={2}>
+          {seller.data?.name ?? ''}
+        </Text>
+        {state ? (
+          <Text variant="meta" tone="muted">
+            {state.line}
+          </Text>
+        ) : null}
+      </View>
+      {state ? (
+        <View
+          accessible
+          accessibilityLabel={state.pill}
+          style={[
+            styles.pill,
+            {
+              gap: theme.space[2],
+              paddingVertical: theme.space[1],
+              paddingHorizontal: theme.space[3],
+              borderRadius: theme.radius.pill,
+              backgroundColor: pill.background,
+            },
+          ]}>
+          <View style={{ width: theme.space[2], height: theme.space[2], borderRadius: theme.radius.pill, backgroundColor: pill.foreground }} />
+          <Text variant="meta" weight="extrabold" style={{ color: pill.foreground }}>
+            {state.pill}
+          </Text>
+        </View>
+      ) : null}
+      {/* Quick-add (#38): scan a product the shop stocks but doesn't sell online yet. */}
+      <HeaderButton icon="scan" label="Add product" onPress={() => router.push('/quick-add')} />
+      <HeaderButton icon="user" label="Settings" onPress={() => router.push('/settings')} />
+    </View>
+  );
 }
 
-/** Quick-add (#38): scan a product the shop stocks but doesn't sell online yet. */
-function AddProductButton() {
-  const router = useRouter();
-  return <Button label="Add product" variant="link" onPress={() => router.push('/quick-add')} />;
+function HeaderButton({ icon, label, onPress }: Readonly<{ icon: IconName; label: string; onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={[styles.iconButton, { width: theme.hitArea, height: theme.hitArea, borderRadius: theme.radius.pill }]}>
+      <Icon name={icon} />
+    </PressableSurface>
+  );
 }
 
-function SettingsButton() {
+/**
+ * One order: its number and what the buyer paid, its accept clock or state, and delivery or
+ * pickup with its lines. A new order has Details and Accept; any other opens on a tap.
+ */
+function OrderCard({ order, now, hours }: Readonly<{ order: StageOrder; now: Date; hours: ShopHours | null }>) {
+  const theme = useTheme();
   const router = useRouter();
-  return <Button label="Settings" variant="link" onPress={() => router.push('/settings')} />;
+  const { fulfilment } = order;
+  const urgent = acceptUrgent(fulfilment, now, hours);
+  const dark = theme.scheme === 'dark';
+  const open = () => router.push({ pathname: '/orders/[id]', params: { id: order.id } });
+  const method = fulfilment.method === 'pickup' ? 'Pickup' : 'Delivery';
+  const hold = fulfilment.collect_by ? collectByLabel(fulfilment.collect_by.at, now, fulfilment.collect_by.time_zone) : null;
+  // Light draws an outline, ember in the last two hours; dark lifts the card, ember-tinted then.
+  const card = {
+    marginHorizontal: theme.space[4],
+    marginBottom: theme.space[2],
+    padding: theme.space[3],
+    gap: theme.space[2],
+    borderRadius: theme.radius.lg,
+    borderWidth: dark ? 0 : theme.line.input,
+    borderColor: urgent ? theme.colors.ember : theme.colors.line,
+    backgroundColor: dark && urgent ? theme.status.attention.background : theme.colors.raised,
+  };
+
+  const body = (
+    <>
+      <View style={[styles.cardTop, { gap: theme.space[2] }]}>
+        <Text variant="strong" tabular style={styles.shrink}>
+          {`#${order.display_id} · ${formatMoney(orderValue(order), order.currency_code)}`}
+        </Text>
+        <FulfilmentChip fulfilment={fulfilment} now={now} hours={hours} />
+      </View>
+      <Text variant="meta" tone="muted">
+        {[method, itemsSummary(order.items), hold].filter(Boolean).join(' · ')}
+      </Text>
+    </>
+  );
+
+  if (fulfilment.state !== 'new') {
+    return (
+      <PressableSurface accessibilityRole="button" onPress={open} style={card}>
+        {body}
+      </PressableSurface>
+    );
+  }
+  return (
+    <View style={card}>
+      {body}
+      <View style={[styles.row, { gap: theme.space[2] }]}>
+        <Button label="Details" variant="secondary" size="row" onPress={open} style={styles.grow} />
+        <AcceptButton orderId={order.id} displayId={order.display_id} />
+      </View>
+    </View>
+  );
+}
+
+/** Accepts the order from the list: accepting starts picking, so it moves to Picking. */
+function AcceptButton({ orderId, displayId }: Readonly<{ orderId: string; displayId: number }>) {
+  const accept = useAcceptOrder(orderId);
+  const toast = useToast();
+  return (
+    <Button
+      label="Accept"
+      size="row"
+      style={styles.grow}
+      loading={accept.isPending}
+      onPress={() =>
+        accept.mutate(undefined, {
+          onSuccess: () => {
+            haptics.success();
+            toast({ message: `Order #${displayId} accepted. It's in Picking.`, tone: 'done' });
+          },
+          // The list refreshes either way: someone, or the deadline, may have moved it on meanwhile.
+          onError: () => toast({ message: `Couldn't accept order #${displayId}. Open it to see where it is.`, tone: 'problem' }),
+        })
+      }
+    />
+  );
+}
+
+/** Two order cards in their shape while the stage's orders load. */
+function CardsLoading() {
+  const theme = useTheme();
+  return (
+    <View accessible accessibilityLabel="Loading orders" style={{ paddingHorizontal: theme.space[4] }}>
+      {[0, 1].map((key) => (
+        <View
+          key={key}
+          style={{
+            gap: theme.space[2],
+            paddingTop: theme.space[5],
+            paddingBottom: theme.space[6],
+            borderBottomWidth: theme.line.divider,
+            borderBottomColor: theme.colors.line,
+          }}>
+          <View style={styles.cardTop}>
+            <Skeleton width="45%" height={theme.type.strong.fontSize} />
+            <Skeleton width={theme.space[12] + theme.space[6]} height={theme.space[6]} radius="pill" />
+          </View>
+          <Skeleton width="80%" height={theme.type.meta.fontSize} />
+          <View style={[styles.row, { gap: theme.space[2], marginTop: theme.space[2] }]}>
+            <Skeleton height={theme.control.row} radius="md" style={styles.grow} />
+            <Skeleton height={theme.control.row} radius="md" style={styles.grow} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  emptyList: { flexGrow: 1 },
-  filters: { flexDirection: 'row', flexWrap: 'wrap' },
+  grow: { flex: 1 },
+  fill: { flexGrow: 1 },
+  row: { flexDirection: 'row' },
+  name: { flex: 1, minWidth: 0 },
+  pill: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, alignSelf: 'flex-start' },
+  iconButton: { alignItems: 'center', justifyContent: 'center' },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  shrink: { flexShrink: 1 },
 });
