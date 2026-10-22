@@ -2,7 +2,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MathBN, MedusaError } from "@medusajs/framework/utils"
 import type { OwedRefundState } from "@oja/domain"
 import type { RefundCovers } from "../modules/order-fulfilment/models/order-refund"
-import { cancelledOnceAccepted, fulfilmentService, fulfilmentsOf } from "./order-fulfilment"
+import { cancelledOnceAccepted, fulfilmentService, fulfilmentsOf, type Picks } from "./order-fulfilment"
 import { owedToBuyerOf, refundMade, shareLeft, totalOf, type OrderSummary } from "./order-refund"
 import { transactionsOf, type OrderTransaction } from "./shop-order"
 
@@ -93,6 +93,34 @@ export function failedSinceLastMade<R extends { status: string; created_at: Date
   return refunds.filter((r) => !refundMade(r) && recordedAt(r) > lastMade).sort((a, b) => recordedAt(a) - recordedAt(b))
 }
 
+/** When Oja's team last settled what the order owed by hand. A settlement is of all the order owed then, so it settled every refund handed over before it. */
+const lastSettledAt = (settlements: SettlementRow[]) => Math.max(-Infinity, ...settlements.map(recordedAt))
+
+/**
+ * The attempts at what the order owes, oldest first: its refunds of what it owes (of its items,
+ * or of all of a cancelled order's share; never of delivery alone, which Oja's staff refund)
+ * that failed since one last went through, or since Oja's team last settled what it owed.
+ */
+export function owedAttempts<R extends RefundAttemptRow>({ settlements, refunds }: { settlements: SettlementRow[]; refunds: R[] }): R[] {
+  return failedSinceLastMade(
+    refunds.filter((r) => r.covers !== "delivery"),
+    lastSettledAt(settlements)
+  )
+}
+
+/**
+ * The order lines a refund of what the order owes is for (#61): those of the latest attempt at
+ * it (each attempt names all it was for), and `added`, the lines an edit or cancellation just
+ * added to what it owes. Null when neither names any: a refund owed before refunds named their lines.
+ */
+export function owedLines(attempts: { lines?: unknown }[], added?: Picks | null): Picks | null {
+  const earlier = (attempts.at(-1)?.lines ?? null) as Picks | null
+  if (!earlier && !added) return null
+  const lines: Picks = { ...earlier }
+  for (const [id, count] of Object.entries(added ?? {})) lines[id] = (lines[id] ?? 0) + count
+  return lines
+}
+
 /** What of the owed refund Paystack is asked for: all of it but what Oja's team sends by hand. */
 export const paystackPart = (owed: Pick<OwedRefund, "amount" | "by_hand">) => MathBN.convert(MathBN.sub(owed.amount, owed.by_hand)).toNumber()
 
@@ -119,13 +147,9 @@ export function owedRefund({
   const handed = refunds.filter(handedOver)
   const amount = MathBN.convert(MathBN.sub(MathBN.add(owed, totalOf(handed.map((r) => r.amount ?? 0))), totalOf(settlements.map((s) => s.amount)))).toNumber()
   if (amount <= 0) return null
-  // A settlement is of all the order owed then, so it settled every refund handed over before it.
-  const lastSettled = Math.max(-Infinity, ...settlements.map(recordedAt))
+  const lastSettled = lastSettledAt(settlements)
   const byHand = Math.min(amount, totalOf(handed.filter((r) => new Date(r.handed_over_at!).getTime() > lastSettled).map((r) => r.amount ?? 0)))
-  const failed = failedSinceLastMade(
-    refunds.filter((r) => r.covers !== "delivery"),
-    lastSettled
-  )
+  const failed = owedAttempts({ settlements, refunds })
   const latest = failed.at(-1)
   const toPaystack = paystackPart({ amount, by_hand: byHand })
   const base = {

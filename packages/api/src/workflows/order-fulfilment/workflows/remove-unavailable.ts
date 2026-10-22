@@ -14,7 +14,8 @@ export type RemoveUnavailableInput = { order_id: string; /** The member who remo
  *
  * Refunding the buyer is separate (`refundOrderEdit`), as for a rejected order: money that has
  * moved can't be undone, and a refund Paystack turns down shouldn't undo the edit. The
- * response carries what the edit took off the order's total, which is the refund. Once it
+ * response carries what the edit took off the order's total, which is the refund, and the units
+ * it took off each line, which the refund is for. Once it
  * succeeds, `order_fulfilment.items_removed` tells the buyer (#5).
  */
 export const removeUnavailableWorkflow = createWorkflow("remove-unavailable-order-items", (input: RemoveUnavailableInput) => {
@@ -40,6 +41,10 @@ export const removeUnavailableWorkflow = createWorkflow("remove-unavailable-orde
   })
   releaseLockStep({ key: lock })
   return new WorkflowResponse(
-    transform({ fulfilment, removedAmount }, ({ fulfilment, removedAmount }) => ({ fulfilment, removed_amount: removedAmount }))
+    transform({ fulfilment, removedAmount, plan }, ({ fulfilment, removedAmount, plan }) => ({
+      fulfilment,
+      removed_amount: removedAmount,
+      removed: plan.units,
+    }))
   )
 })

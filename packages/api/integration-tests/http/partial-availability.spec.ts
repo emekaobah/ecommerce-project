@@ -227,6 +227,7 @@ medusaIntegrationTestRunner({
           [RICE.title, 1, 1, RICE.price],
         ])
         expect(order.refund).toEqual({ amount: RICE.price, status: "pending" })
+        expect(order.refunds).toEqual([{ amount: RICE.price, status: "pending", lines: [{ item_id: rice.id, quantity: 1 }] }])
         expect(order.paid_total).toBe(ORDER_TOTALS.get(GROCERY))
         expect(order.fulfilment.state).toBe("picking")
       })
