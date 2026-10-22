@@ -4,13 +4,13 @@ import { View } from 'react-native';
 
 /** Marks a perishable item (#69): a symbol and a label, never colour alone. */
 export function PerishableChip() {
-  return <StatusChip label="Perishable" tone="info" symbol="❄" />;
+  return <StatusChip label="Perishable" tone="info" icon="info" />;
 }
 
 /** How perishable items are delivered: only by couriers arriving by the end of the next day. */
 export function PerishableRule() {
   return (
-    <Text variant="caption" tone="secondary">
+    <Text variant="meta" tone="muted">
       {PERISHABLE_DELIVERY_RULE}
     </Text>
   );
@@ -20,7 +20,7 @@ export function PerishableRule() {
 export function PerishableNotice() {
   const theme = useTheme();
   return (
-    <View style={{ gap: theme.space.xs }}>
+    <View style={{ gap: theme.space[1] }}>
       <PerishableChip />
       <PerishableRule />
     </View>

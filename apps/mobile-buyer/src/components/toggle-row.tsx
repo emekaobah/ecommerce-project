@@ -9,7 +9,7 @@ export function ToggleRow({
 }: Readonly<{ label: string; value: boolean; onChange: (value: boolean) => void }>) {
   const theme = useTheme();
   return (
-    <View style={[styles.row, { minHeight: theme.touchTarget, gap: theme.space.md }]}>
+    <View style={[styles.row, { minHeight: theme.hitArea, gap: theme.space[4] }]}>
       <Text style={styles.shrink}>{label}</Text>
       <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>

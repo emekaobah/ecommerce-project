@@ -28,7 +28,7 @@ export function ScanProductScreen() {
   };
 
   const typeIt = (
-    <View style={{ gap: theme.space.sm }}>
+    <View style={{ gap: theme.space[2] }}>
       <Field
         testID="barcode"
         placeholder="Or type the barcode"
@@ -46,9 +46,9 @@ export function ScanProductScreen() {
   if (!permission) return <LoadingState />;
   if (!permission.granted) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', padding: theme.space.lg, gap: theme.space.md }}>
-        <Text variant="title">Add a product</Text>
-        <Text tone="secondary">
+      <View style={{ flex: 1, justifyContent: 'center', padding: theme.space[6], gap: theme.space[4] }}>
+        <Text variant="titlePushed">Add a product</Text>
+        <Text tone="muted">
           {permission.canAskAgain
             ? "Allow the camera to scan the product's barcode."
             : 'Camera access is off. Turn it on in Settings, or type the barcode.'}
@@ -68,8 +68,8 @@ export function ScanProductScreen() {
         barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
         onBarcodeScanned={({ data }: BarcodeScanningResult) => open(data)}
       />
-      <View style={{ padding: theme.space.md, gap: theme.space.sm, backgroundColor: theme.colors.background }}>
-        <Text tone="secondary">{"Point the camera at the product's barcode."}</Text>
+      <View style={{ padding: theme.space[4], gap: theme.space[2], backgroundColor: theme.colors.bg }}>
+        <Text tone="muted">{"Point the camera at the product's barcode."}</Text>
         {typeIt}
         {cancel}
       </View>

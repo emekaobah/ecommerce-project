@@ -1,5 +1,5 @@
 import { ratingSummary, type Rating, type ReviewKind } from '@oja/domain';
-import { Button, Text, useTheme } from '@oja/ui';
+import { Button, Icon, Text, useTheme } from '@oja/ui';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { REVIEW_PREVIEW_COUNT, useReviewPreview, type PublishedReview } from '@/api/reviews';
@@ -8,16 +8,19 @@ import { openReviews } from '@/navigation';
 const MAX_STARS = 5;
 
 /** A rating out of five as stars, read out as a number; half a star or more rounds up. */
-export function Stars({ rating, size = 16 }: Readonly<{ rating: number; size?: number }>) {
+export function Stars({ rating }: Readonly<{ rating: number }>) {
   const theme = useTheme();
   const filled = Math.round(rating);
   return (
-    <Text
+    <View
+      accessible
+      accessibilityRole="image"
       accessibilityLabel={`${rating.toFixed(1)} out of ${MAX_STARS} stars`}
-      style={{ fontSize: size, lineHeight: size * 1.25, color: theme.colors.ink }}>
-      {'★'.repeat(filled)}
-      <Text style={{ fontSize: size, color: theme.colors.divider }}>{'★'.repeat(MAX_STARS - filled)}</Text>
-    </Text>
+      style={styles.row}>
+      {Array.from({ length: MAX_STARS }, (_, i) => (
+        <Icon key={i} name="star" use="chip" color={i < filled ? theme.colors.accent : theme.colors.line} filled />
+      ))}
+    </View>
   );
 }
 
@@ -25,9 +28,9 @@ export function Stars({ rating, size = 16 }: Readonly<{ rating: number; size?: n
 export function RatingLine({ rating }: Readonly<{ rating: Rating }>) {
   const theme = useTheme();
   return (
-    <View style={[styles.row, { gap: theme.space.xs }]}>
+    <View style={[styles.row, { gap: theme.space[1] }]}>
       {rating.average != null ? <Stars rating={rating.average} /> : null}
-      <Text tone="secondary">{ratingSummary(rating)}</Text>
+      <Text tone="muted">{ratingSummary(rating)}</Text>
     </View>
   );
 }
@@ -55,8 +58,8 @@ export function StarInput({
           accessibilityLabel={`${star} ${star === 1 ? 'star' : 'stars'}`}
           accessibilityState={{ selected: value === star }}
           onPress={() => onChange(star)}
-          style={[styles.star, { minWidth: theme.touchTarget, minHeight: theme.touchTarget }]}>
-          <Text style={{ fontSize: 28, color: star <= value ? theme.colors.ink : theme.colors.divider }}>★</Text>
+          style={[styles.star, { minWidth: theme.hitArea, minHeight: theme.hitArea }]}>
+          <Icon name="star" color={star <= value ? theme.colors.accent : theme.colors.line} filled />
         </Pressable>
       ))}
     </View>
@@ -70,13 +73,13 @@ export function ReviewItem({ review }: Readonly<{ review: PublishedReview }>) {
   return (
     <View
       style={{
-        gap: theme.space.xs,
-        paddingVertical: theme.space.md,
+        gap: theme.space[1],
+        paddingVertical: theme.space[4],
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: theme.colors.divider,
+        borderTopColor: theme.colors.line,
       }}>
       <Stars rating={review.rating} />
-      <Text variant="caption" tone="secondary">{`${review.author} · ${date}`}</Text>
+      <Text variant="meta" tone="muted">{`${review.author} · ${date}`}</Text>
       {review.customer_note ? <Text>{review.customer_note}</Text> : null}
       {review.seller_note ? <ShopReply note={review.seller_note} /> : null}
     </View>
@@ -89,13 +92,13 @@ export function ShopReply({ note }: Readonly<{ note: string }>) {
   return (
     <View
       style={{
-        gap: theme.space.xs,
-        marginTop: theme.space.xs,
-        padding: theme.space.sm,
+        gap: theme.space[1],
+        marginTop: theme.space[1],
+        padding: theme.space[2],
         borderRadius: theme.radius.md,
-        backgroundColor: theme.colors.surface,
+        backgroundColor: theme.colors.tile,
       }}>
-      <Text variant="label">Reply from the shop</Text>
+      <Text variant="strong">Reply from the shop</Text>
       <Text>{note}</Text>
     </View>
   );
@@ -112,8 +115,8 @@ export function ReviewsPreview({ kind, id, title }: Readonly<{ kind: ReviewKind;
   const body = () => {
     if (preview.error) {
       return (
-        <View style={{ gap: theme.space.xs, alignItems: 'flex-start' }}>
-          <Text tone="secondary">{"Couldn't load the reviews."}</Text>
+        <View style={{ gap: theme.space[1], alignItems: 'flex-start' }}>
+          <Text tone="muted">{"Couldn't load the reviews."}</Text>
           <Button label="Try again" variant="link" onPress={() => void preview.refetch()} style={styles.inlineLink} />
         </View>
       );
@@ -139,7 +142,7 @@ export function ReviewsPreview({ kind, id, title }: Readonly<{ kind: ReviewKind;
   };
 
   return (
-    <View style={{ gap: theme.space.sm }}>
+    <View style={{ gap: theme.space[2] }}>
       <Text variant="heading">Reviews</Text>
       {body()}
     </View>

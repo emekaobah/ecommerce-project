@@ -49,16 +49,16 @@ export function ScanScreen() {
     return (
       <View style={styles.fill}>
         <ErrorState title="Couldn't load the pick list" message={pickList.error.message} onRetry={() => void pickList.refetch()} />
-        <View style={{ padding: theme.space.md }}>{done}</View>
+        <View style={{ padding: theme.space[4] }}>{done}</View>
       </View>
     );
   }
   if (!permission || !pickList.data) return <LoadingState />;
   if (!permission.granted) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', padding: theme.space.lg, gap: theme.space.md }}>
-        <Text variant="title">Scan barcodes</Text>
-        <Text tone="secondary">
+      <View style={{ flex: 1, justifyContent: 'center', padding: theme.space[6], gap: theme.space[4] }}>
+        <Text variant="titlePushed">Scan barcodes</Text>
+        <Text tone="muted">
           {permission.canAskAgain
             ? 'Allow the camera to tick items off by their barcode.'
             : 'Camera access is off. Turn it on in Settings, or tick items off by hand.'}
@@ -78,17 +78,17 @@ export function ScanScreen() {
         barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
         onBarcodeScanned={onScanned}
       />
-      <View style={{ padding: theme.space.md, gap: theme.space.sm, backgroundColor: theme.colors.background }}>
+      <View style={{ padding: theme.space[4], gap: theme.space[2], backgroundColor: theme.colors.bg }}>
         {feedback && colours ? (
           <View
             accessibilityLiveRegion="assertive"
-            style={{ backgroundColor: colours.background, borderRadius: theme.radius.md, padding: theme.space.md }}>
-            <Text variant="label" style={{ color: colours.foreground }}>
+            style={{ backgroundColor: colours.background, borderRadius: theme.radius.md, padding: theme.space[4] }}>
+            <Text variant="strong" style={{ color: colours.foreground }}>
               {feedback.symbol} {feedback.message}
             </Text>
           </View>
         ) : (
-          <Text tone="secondary">Point the camera at an item&apos;s barcode. Move each item away before scanning the next.</Text>
+          <Text tone="muted">Point the camera at an item&apos;s barcode. Move each item away before scanning the next.</Text>
         )}
         {recordPick.error ? <Text tone="danger">{recordPick.error.message}</Text> : null}
         {done}

@@ -41,22 +41,22 @@ export function OrderGroupScreen() {
     <>
       <Stack.Screen options={{ title }} />
       <ScrollView
-        style={{ backgroundColor: theme.colors.background }}
-        contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}
+        style={{ backgroundColor: theme.colors.bg }}
+        contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-        <View style={{ gap: theme.space.xs }}>
-          <Text tone="secondary">{`Ordered ${orderedAt(group.data.created_at)}`}</Text>
+        <View style={{ gap: theme.space[1] }}>
+          <Text tone="muted">{`Ordered ${orderedAt(group.data.created_at)}`}</Text>
           {entry?.kind === 'group' ? (
-            <Text tone="secondary">Each shop prepares and delivers its own order.</Text>
+            <Text tone="muted">Each shop prepares and delivers its own order.</Text>
           ) : null}
         </View>
         {group.data.orders.map((order) => (
           <ShopOrder key={order.id} groupId={group.data.id} order={order} />
         ))}
         {entry ? (
-          <View style={[styles.spread, { paddingTop: theme.space.sm }]}>
-            <Text variant="label">Paid</Text>
-            <Text variant="label">{formatMoney(entry.paid_total, currency)}</Text>
+          <View style={[styles.spread, { paddingTop: theme.space[2] }]}>
+            <Text variant="strong">Paid</Text>
+            <Text variant="strong">{formatMoney(entry.paid_total, currency)}</Text>
           </View>
         ) : null}
       </ScrollView>
@@ -69,31 +69,31 @@ function ShopOrder({ groupId, order }: Readonly<{ groupId: string; order: Seller
   return (
     <View
       style={{
-        gap: theme.space.sm,
-        paddingTop: theme.space.md,
+        gap: theme.space[2],
+        paddingTop: theme.space[4],
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: theme.colors.divider,
+        borderTopColor: theme.colors.line,
       }}>
       <View style={styles.spread}>
         <Text variant="heading">{order.seller.name}</Text>
-        <Text tone="secondary">#{order.display_id}</Text>
+        <Text tone="muted">#{order.display_id}</Text>
       </View>
       <OrderStatusDetails order={order} />
       <Arrival order={order} />
       {order.pickup ? <Collection order={order} pickup={order.pickup} /> : null}
       <Tracking order={order} />
       {order.items.map((item) => (
-        <View key={item.id} style={[styles.item, { gap: theme.space.md }]}>
+        <View key={item.id} style={[styles.item, { gap: theme.space[4] }]}>
           {item.thumbnail ? (
             <Image
               source={item.thumbnail}
               contentFit="contain"
-              style={[styles.thumb, { backgroundColor: theme.colors.surface, borderRadius: theme.radius.sm }]}
+              style={[styles.thumb, { backgroundColor: theme.colors.productTile, borderRadius: theme.radius.sm }]}
             />
           ) : null}
           <View style={styles.fill}>
             <Text numberOfLines={2}>{item.product_title ?? 'Item'}</Text>
-            <Text variant="caption" tone="secondary">
+            <Text variant="meta" tone="muted">
               {[item.variant_title, quantityLabel(item)].filter(Boolean).join(' · ')}
             </Text>
           </View>
@@ -101,8 +101,8 @@ function ShopOrder({ groupId, order }: Readonly<{ groupId: string; order: Seller
         </View>
       ))}
       <View style={styles.spread}>
-        <Text tone="secondary">{order.pickup ? 'Paid to this shop' : 'Paid to this shop, with delivery'}</Text>
-        <Text variant="label">{formatMoney(order.paid_total, order.currency_code)}</Text>
+        <Text tone="muted">{order.pickup ? 'Paid to this shop' : 'Paid to this shop, with delivery'}</Text>
+        <Text variant="strong">{formatMoney(order.paid_total, order.currency_code)}</Text>
       </View>
       <OrderReviews groupId={groupId} order={order} />
     </View>
@@ -121,7 +121,7 @@ function Tracking({ order }: Readonly<{ order: SellerOrder }>) {
         <ListRow
           title="Track your parcel"
           subtitle={[shipment.courier_name, `Waybill ${shipment.waybill}`].filter(Boolean).join(' · ')}
-          trailing={<Text tone="secondary">›</Text>}
+          trailing={<Text tone="muted">›</Text>}
           onPress={() => void Linking.openURL(shipment.tracking_url)}
         />
       ) : null}
@@ -144,14 +144,14 @@ function Arrival({ order }: Readonly<{ order: SellerOrder }>) {
   const changed = courierChangedNote(order.fulfilment.state, order.delivery);
   if (!arrives && !opens) return null;
   return (
-    <View style={{ gap: theme.space.xs }}>
+    <View style={{ gap: theme.space[1] }}>
       {opens ? (
-        <Text tone="secondary">
+        <Text tone="muted">
           {preparedWhenOpen({ name: order.seller.name, opens: openingLabel(opens.at, now, opens.time_zone) })}
         </Text>
       ) : null}
-      {arrives ? <Text variant="label">{arrives}</Text> : null}
-      {changed ? <Text tone="secondary">{changed}</Text> : null}
+      {arrives ? <Text variant="strong">{arrives}</Text> : null}
+      {changed ? <Text tone="muted">{changed}</Text> : null}
     </View>
   );
 }
@@ -168,21 +168,21 @@ function Collection({ order, pickup }: Readonly<{ order: SellerOrder; pickup: No
   if (state === 'rejected' || state === 'cancelled') return null;
   if (state === 'not_collected') {
     return (
-      <View style={{ gap: theme.space.md, padding: theme.space.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }}>
-        <Text variant="label">Not collected in time</Text>
-        <Text tone="secondary">{PICKUP_HOLD_NOTICE}</Text>
+      <View style={{ gap: theme.space[4], padding: theme.space[4], borderRadius: theme.radius.md, backgroundColor: theme.colors.tile }}>
+        <Text variant="strong">Not collected in time</Text>
+        <Text tone="muted">{PICKUP_HOLD_NOTICE}</Text>
       </View>
     );
   }
   const collected = state === 'collected';
   return (
-    <View style={{ gap: theme.space.md, padding: theme.space.md, borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }}>
-      <Text variant="label">{collected ? 'Collected in store' : 'Collect in store'}</Text>
+    <View style={{ gap: theme.space[4], padding: theme.space[4], borderRadius: theme.radius.md, backgroundColor: theme.colors.tile }}>
+      <Text variant="strong">{collected ? 'Collected in store' : 'Collect in store'}</Text>
       {pickup.code ? (
         <>
           <PickupCode code={pickup.code} />
-          {collect_by ? <Text variant="label">{collectByLabel(collect_by.at, new Date(), collect_by.time_zone)}</Text> : null}
-          <Text tone="secondary">Show this code at the counter. Whoever has it can collect the whole order.</Text>
+          {collect_by ? <Text variant="strong">{collectByLabel(collect_by.at, new Date(), collect_by.time_zone)}</Text> : null}
+          <Text tone="muted">Show this code at the counter. Whoever has it can collect the whole order.</Text>
         </>
       ) : null}
       {collected ? null : <PickupDetails place={pickup} note={pickup.code ? null : 'Your code appears here when the order is ready.'} />}

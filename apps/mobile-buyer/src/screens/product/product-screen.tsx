@@ -85,10 +85,10 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
 
   return (
     <ScrollView
-      style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={{ paddingBottom: theme.space.xxl, gap: theme.space.lg }}>
+      style={{ backgroundColor: theme.colors.bg }}
+      contentContainerStyle={{ paddingBottom: theme.space[12], gap: theme.space[6] }}>
       <Gallery images={listing.data.product.images} />
-      <View style={{ paddingHorizontal: theme.space.md, gap: theme.space.lg }}>
+      <View style={{ paddingHorizontal: theme.space[4], gap: theme.space[6] }}>
         <Summary listing={listing.data} currencyCode={region.region.currency_code} />
         <Details product={listing.data.product} />
         <ReviewsPreview kind="product" id={productId} title={listing.data.product.title} />
@@ -107,7 +107,7 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
 function Gallery({ images }: Readonly<{ images: ListingDetail['product']['images'] }>) {
   const theme = useTheme();
   const { width } = useWindowDimensions();
-  const size = width - theme.space.md * 2;
+  const size = width - theme.space[4] * 2;
   if (!images.length) return null;
   return (
     <FlatList
@@ -115,16 +115,16 @@ function Gallery({ images }: Readonly<{ images: ListingDetail['product']['images
       data={images}
       keyExtractor={(image) => image.id}
       showsHorizontalScrollIndicator={false}
-      snapToInterval={size + theme.space.sm}
+      snapToInterval={size + theme.space[2]}
       decelerationRate="fast"
-      contentContainerStyle={{ paddingHorizontal: theme.space.md, gap: theme.space.sm }}
+      contentContainerStyle={{ paddingHorizontal: theme.space[4], gap: theme.space[2] }}
       renderItem={({ item }) => (
         // Pack shots sit contained on a neutral tile (docs/design.md).
         <Image
           source={item.url}
           contentFit="contain"
           accessibilityIgnoresInvertColors
-          style={{ width: size, height: size, backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg }}
+          style={{ width: size, height: size, backgroundColor: theme.colors.productTile, borderRadius: theme.radius.lg }}
         />
       )}
     />
@@ -139,21 +139,21 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
   const selected = offers.find((o) => o.id === selectedId) ?? offers[0];
 
   return (
-    <View style={{ gap: theme.space.sm }}>
-      <Text variant="title">{product.title}</Text>
-      {product.subtitle ? <Text tone="secondary">{product.subtitle}</Text> : null}
+    <View style={{ gap: theme.space[2] }}>
+      <Text variant="titleNamed">{product.title}</Text>
+      {product.subtitle ? <Text tone="muted">{product.subtitle}</Text> : null}
       {selected ? <Price price={offerPrice(selected)} currencyCode={currencyCode} variant="heading" /> : null}
       <DealBadges deals={listing.deals} all />
-      <View style={[styles.shopRow, { gap: theme.space.xs }]}>
+      <View style={[styles.shopRow, { gap: theme.space[1] }]}>
         <Button label={seller.name} variant="link" onPress={() => openShop(seller)} style={styles.inlineLink} />
-        {seller.distance_km == null ? null : <Text tone="secondary">· {distanceLabel(seller.distance_km)}</Text>}
+        {seller.distance_km == null ? null : <Text tone="muted">· {distanceLabel(seller.distance_km)}</Text>}
         <DeliveryTime listing={listing} currencyCode={currencyCode} />
       </View>
       <ShopRating sellerId={seller.id} />
       <ShopStatusBadge status={seller.shop_status} withNote />
       {product.perishable ? <PerishableNotice /> : null}
       {offers.length > 1 ? (
-        <View style={[styles.chips, { gap: theme.space.sm, marginTop: theme.space.sm }]} accessibilityRole="radiogroup">
+        <View style={[styles.chips, { gap: theme.space[2], marginTop: theme.space[2] }]} accessibilityRole="radiogroup">
           {offers.map((offer) => {
             const isSelected = offer.id === selected?.id;
             return (
@@ -165,15 +165,15 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
                 style={[
                   styles.chip,
                   {
-                    minHeight: theme.touchTarget,
-                    minWidth: theme.touchTarget,
-                    paddingHorizontal: theme.space.md,
+                    minHeight: theme.hitArea,
+                    minWidth: theme.hitArea,
+                    paddingHorizontal: theme.space[4],
                     borderRadius: theme.radius.md,
-                    borderColor: isSelected ? theme.colors.ink : theme.colors.divider,
+                    borderColor: isSelected ? theme.colors.ink : theme.colors.line,
                     borderWidth: isSelected ? 2 : 1,
                   },
                 ]}>
-                <Text variant="label">{offer.variant_title ?? 'Default'}</Text>
+                <Text variant="strong">{offer.variant_title ?? 'Default'}</Text>
               </Pressable>
             );
           })}
@@ -181,7 +181,7 @@ function Summary({ listing, currencyCode }: Readonly<{ listing: ListingDetail; c
       ) : null}
       {selected ? <AddToCart offer={selected} currencyCode={currencyCode} orderable={seller.shop_status.orderable} /> : null}
       <SaveToWishlist sellerId={seller.id} productId={product.id} />
-      {product.description ? <Text style={{ marginTop: theme.space.sm }}>{product.description}</Text> : null}
+      {product.description ? <Text style={{ marginTop: theme.space[2] }}>{product.description}</Text> : null}
     </View>
   );
 }
@@ -197,13 +197,13 @@ function DeliveryTime({ listing, currencyCode }: Readonly<{ listing: ListingDeta
   const { data: estimate } = useDeliveryEstimate(region?.id, listing.seller.id, listing.product.id, userId);
   if (estimate) {
     return (
-      <Text tone="secondary">
+      <Text tone="muted">
         · {deliveryEstimate(estimate.delivery_eta_time, new Date(), estimate.time_zone)} ·{' '}
         {formatMoney(estimate.amount, currencyCode)} delivery
       </Text>
     );
   }
-  return listing.leadtime_to_ship == null ? null : <Text tone="secondary">· {shipsIn(listing.leadtime_to_ship)}</Text>;
+  return listing.leadtime_to_ship == null ? null : <Text tone="muted">· {shipsIn(listing.leadtime_to_ship)}</Text>;
 }
 
 /**
@@ -221,7 +221,7 @@ function AddToCart({
   // "Added" belongs to the variant just added, not the one selected since.
   const added = add.isSuccess && add.variables?.offerId === offer.id;
   return (
-    <View style={{ gap: theme.space.sm, marginTop: theme.space.sm }}>
+    <View style={{ gap: theme.space[2], marginTop: theme.space[2] }}>
       <Button
         label="Add to cart"
         detail={formatMoney(offerPrice(offer).amount, currencyCode)}
@@ -231,13 +231,13 @@ function AddToCart({
         onPress={() => add.mutate({ offerId: offer.id })}
       />
       {added ? (
-        <View style={[styles.addedRow, { gap: theme.space.sm }]} accessibilityLiveRegion="polite">
-          <Text tone="secondary">Added to your cart.</Text>
+        <View style={[styles.addedRow, { gap: theme.space[2] }]} accessibilityLiveRegion="polite">
+          <Text tone="muted">Added to your cart.</Text>
           <Button label="View cart" variant="link" onPress={() => router.navigate('/cart')} />
         </View>
       ) : null}
       {add.error ? (
-        <Text tone="secondary" accessibilityLiveRegion="polite">
+        <Text tone="muted" accessibilityLiveRegion="polite">
           Couldn&apos;t add this to your cart: {add.error.message}
         </Text>
       ) : null}
@@ -267,7 +267,7 @@ function SaveToWishlist({ sellerId, productId }: Readonly<{ sellerId: string; pr
         onPress={() => toggle.mutate({ sellerId, productId, save: !saved })}
       />
       {toggle.error ? (
-        <Text tone="secondary" accessibilityLiveRegion="polite">
+        <Text tone="muted" accessibilityLiveRegion="polite">
           {`Couldn't update your wishlist: ${toggle.error.message}`}
         </Text>
       ) : null}
@@ -283,13 +283,13 @@ function Details({ product }: Readonly<{ product: ListingDetail['product'] }>) {
   ];
   if (!rows.length) return null;
   return (
-    <View style={{ gap: theme.space.sm }}>
+    <View style={{ gap: theme.space[2] }}>
       <Text variant="heading">Details</Text>
       {rows.map((row) => (
         <View
           key={row.label}
-          style={[styles.detailRow, { borderBottomColor: theme.colors.divider, paddingVertical: theme.space.sm }]}>
-          <Text tone="secondary" style={styles.detailLabel}>
+          style={[styles.detailRow, { borderBottomColor: theme.colors.line, paddingVertical: theme.space[2] }]}>
+          <Text tone="muted" style={styles.detailLabel}>
             {row.label}
           </Text>
           <Text style={styles.detailValue}>{row.value}</Text>
@@ -304,16 +304,16 @@ function Attribution({ credits }: Readonly<{ credits: ListingDetail['product']['
   const theme = useTheme();
   if (!credits.length) return null;
   return (
-    <View style={{ gap: theme.space.xs }}>
+    <View style={{ gap: theme.space[1] }}>
       {credits.map((credit) => (
         <Pressable
           key={credit.name}
           accessibilityRole="link"
           accessibilityHint="Opens the source in your browser"
           onPress={() => void Linking.openURL(credit.url)}
-          style={{ minHeight: theme.touchTarget, justifyContent: 'center' }}>
-          <Text variant="caption" tone="secondary">
-            Product information from <Text variant="caption" tone="accent">{credit.name}</Text> ({credit.license})
+          style={{ minHeight: theme.hitArea, justifyContent: 'center' }}>
+          <Text variant="meta" tone="muted">
+            Product information from <Text variant="meta" tone="accent">{credit.name}</Text> ({credit.license})
           </Text>
         </Pressable>
       ))}
@@ -333,8 +333,8 @@ function MoreFromShop({
   const content = () => {
     if (suggestions.error) {
       return (
-        <View style={{ paddingHorizontal: theme.space.md, gap: theme.space.xs, alignItems: 'flex-start' }}>
-          <Text tone="secondary">Couldn&apos;t load more from this shop.</Text>
+        <View style={{ paddingHorizontal: theme.space[4], gap: theme.space[1], alignItems: 'flex-start' }}>
+          <Text tone="muted">Couldn&apos;t load more from this shop.</Text>
           <Button label="Try again" variant="link" onPress={() => void suggestions.refetch()} />
         </View>
       );
@@ -349,7 +349,7 @@ function MoreFromShop({
         data={suggestions.data}
         keyExtractor={(l) => l.product.id}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: theme.space.md, gap: theme.space.md }}
+        contentContainerStyle={{ paddingHorizontal: theme.space[4], gap: theme.space[4] }}
         renderItem={({ item }) => <ListingTile listing={item} currencyCode={currencyCode} />}
       />
     );
@@ -358,8 +358,8 @@ function MoreFromShop({
   // Nothing else from this shop: leave the section out rather than show an empty shelf.
   if (suggestions.data?.length === 0) return null;
   return (
-    <View style={{ gap: theme.space.sm }}>
-      <Text variant="heading" style={{ paddingHorizontal: theme.space.md }}>
+    <View style={{ gap: theme.space[2] }}>
+      <Text variant="heading" style={{ paddingHorizontal: theme.space[4] }}>
         More from {seller.name}
       </Text>
       {content()}

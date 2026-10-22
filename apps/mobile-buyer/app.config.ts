@@ -1,5 +1,6 @@
 // Relative import of a plain-JS module: Expo's config loader doesn't transpile workspace TypeScript.
 import { appIdentity } from '../../packages/domain/src/app-identity.js';
+import { fontFiles } from '../../packages/ui/src/fonts.js';
 import type { ExpoConfig } from 'expo/config';
 
 // Name, scheme and bundle id derive from the product-name constant in @oja/domain.
@@ -22,7 +23,8 @@ const config: ExpoConfig = {
   scheme,
   version: '1.0.0',
   orientation: 'portrait',
-  userInterfaceStyle: 'light',
+  // Follows the system's light or dark setting; there's no in-app toggle.
+  userInterfaceStyle: 'automatic',
   // Placeholder wordmarks until the design pass supplies the real brand mark.
   icon: './assets/icon.png',
   ios: { bundleIdentifier: bundleId },
@@ -37,7 +39,17 @@ const config: ExpoConfig = {
     'expo-secure-store',
     // Native sign-in UI (AuthView). Adds the Sign in with Apple entitlement and needs a dev build.
     ['@clerk/expo', { theme: './clerk-theme.json' }],
-    ['expo-splash-screen', { backgroundColor: '#FFFFFF', image: './assets/splash-icon.png', imageWidth: 120 }],
+    [
+      'expo-splash-screen',
+      {
+        backgroundColor: '#FFFFFF',
+        dark: { backgroundColor: '#111113' },
+        image: './assets/splash-icon.png',
+        imageWidth: 120,
+      },
+    ],
+    // Bricolage Grotesque and Manrope, bundled from @oja/ui: one file per weight.
+    ['expo-font', { fonts: fontFiles() }],
     ['expo-location', { locationWhenInUsePermission: `${name} uses your location to find your delivery address.` }],
     // Google's map on both platforms, so the pin map matches the address search's data.
     [

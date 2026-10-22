@@ -40,7 +40,7 @@ export function ShopResults({
       keyboardShouldPersistTaps="handled"
       ListHeaderComponent={header}
       ListEmptyComponent={empty}
-      contentContainerStyle={[{ gap: theme.space.lg, paddingBottom: theme.space.xl }, !groups.length && styles.grow]}
+      contentContainerStyle={[{ gap: theme.space[6], paddingBottom: theme.space[8] }, !groups.length && styles.grow]}
       refreshing={refreshing}
       onRefresh={onRefresh}
       renderItem={({ item }) => <ShopShelf group={item} currencyCode={currencyCode} />}
@@ -51,13 +51,13 @@ export function ShopResults({
 function ShopShelf({ group, currencyCode }: Readonly<{ group: ShopGroup<Listing>; currencyCode: string }>) {
   const theme = useTheme();
   return (
-    <View style={{ gap: theme.space.sm }}>
-      <View style={[styles.header, { paddingHorizontal: theme.space.md, gap: theme.space.sm }]}>
+    <View style={{ gap: theme.space[2] }}>
+      <View style={[styles.header, { paddingHorizontal: theme.space[4], gap: theme.space[2] }]}>
         <View style={styles.headerText}>
           <Text variant="heading" numberOfLines={1}>
             {group.seller.name}
           </Text>
-          <ShopFacts seller={group.seller} variant="caption" />
+          <ShopFacts seller={group.seller} variant="meta" />
           <ShopStatusBadge status={group.seller.shop_status} />
         </View>
         <Button label="See all" variant="link" onPress={() => openShop(group.seller)} />
@@ -67,7 +67,7 @@ function ShopShelf({ group, currencyCode }: Readonly<{ group: ShopGroup<Listing>
         data={group.listings}
         keyExtractor={(l) => l.product.id}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: theme.space.md, gap: theme.space.md }}
+        contentContainerStyle={{ paddingHorizontal: theme.space[4], gap: theme.space[4] }}
         renderItem={({ item }) => <ListingTile listing={item} currencyCode={currencyCode} />}
       />
     </View>

@@ -1,4 +1,4 @@
-import { Text, useTheme } from '@oja/ui';
+import { line, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 export type FieldProps = TextInputProps & {
@@ -12,20 +12,21 @@ export type FieldProps = TextInputProps & {
 export function Field({ label, error, style, ...input }: FieldProps) {
   const theme = useTheme();
   return (
-    <View style={{ gap: theme.space.xs }}>
-      {label ? <Text variant="label">{label}</Text> : null}
+    <View style={{ gap: theme.space[1] }}>
+      {label ? <Text variant="strong">{label}</Text> : null}
       <TextInput
+        maxFontSizeMultiplier={MAX_FONT_SCALE}
         accessibilityLabel={label ?? input.placeholder}
-        placeholderTextColor={theme.colors.textSecondary}
+        placeholderTextColor={theme.colors.muted}
         style={[
           styles.input,
           theme.type.body,
           {
             color: theme.colors.ink,
-            borderColor: error ? theme.colors.danger : theme.colors.divider,
+            borderColor: error ? theme.colors.danger : theme.colors.control,
             borderRadius: theme.radius.md,
-            minHeight: theme.touchTarget,
-            paddingHorizontal: theme.space.md,
+            minHeight: theme.hitArea,
+            paddingHorizontal: theme.space[4],
           },
           style,
         ]}
@@ -36,4 +37,4 @@ export function Field({ label, error, style, ...input }: FieldProps) {
   );
 }
 
-const styles = StyleSheet.create({ input: { borderWidth: 1.5 } });
+const styles = StyleSheet.create({ input: { borderWidth: line.input } });

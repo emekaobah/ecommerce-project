@@ -35,8 +35,8 @@ export function AccountScreen() {
   return (
     <SafeAreaView
       edges={['top']}
-      style={[styles.container, { backgroundColor: theme.colors.background, paddingHorizontal: theme.space.md }]}>
-      <Text variant="title" style={{ marginVertical: theme.space.md }}>
+      style={[styles.container, { backgroundColor: theme.colors.bg, paddingHorizontal: theme.space[4] }]}>
+      <Text variant="titleRoot" style={{ marginVertical: theme.space[4] }}>
         Account
       </Text>
       {content()}
@@ -63,10 +63,10 @@ function SignedIn({ customer }: Readonly<{ customer: Customer }>) {
   };
 
   return (
-    <View style={{ gap: theme.space.lg }}>
-      <View style={{ gap: theme.space.xs }}>
+    <View style={{ gap: theme.space[6] }}>
+      <View style={{ gap: theme.space[1] }}>
         {name ? <Text variant="heading">{name}</Text> : null}
-        <Text tone="secondary">{customer.email}</Text>
+        <Text tone="muted">{customer.email}</Text>
       </View>
       <ListRow title="Wishlist" subtitle="Products you saved" onPress={() => router.push('/wishlist')} />
       <ListRow title="Addresses" subtitle="Where your deliveries go" onPress={() => router.push('/addresses')} />

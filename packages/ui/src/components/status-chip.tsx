@@ -1,25 +1,27 @@
 import { StyleSheet, View } from "react-native"
 import { useTheme } from "../theme"
 import type { StatusTone } from "../tokens"
+import { Icon, type IconName } from "./icon"
 import { Text } from "./text"
 
-const SYMBOLS: Record<StatusTone, string> = {
-  neutral: "○",
-  info: "●",
-  success: "✓",
-  warning: "!",
-  danger: "✕",
+const ICONS: Record<StatusTone, IconName> = {
+  neutral: "clock",
+  info: "box",
+  success: "check",
+  warning: "info",
+  danger: "x",
+  new: "clock",
 }
 
 export type StatusChipProps = {
   label: string
   tone?: StatusTone
-  /** Overrides the tone's default symbol. */
-  symbol?: string
+  /** Overrides the tone's default icon. */
+  icon?: IconName
 }
 
-/** Always pairs a symbol and a label with colour, so status never relies on colour alone. */
-export function StatusChip({ label, tone = "neutral", symbol = SYMBOLS[tone] }: Readonly<StatusChipProps>) {
+/** Always pairs an icon and a label with colour, so status never relies on colour alone. */
+export function StatusChip({ label, tone = "neutral", icon = ICONS[tone] }: Readonly<StatusChipProps>) {
   const theme = useTheme()
   const { foreground, background } = theme.status[tone]
   return (
@@ -31,16 +33,14 @@ export function StatusChip({ label, tone = "neutral", symbol = SYMBOLS[tone] }: 
         {
           backgroundColor: background,
           borderRadius: theme.radius.pill,
-          paddingHorizontal: theme.space.sm + theme.space.xs,
-          paddingVertical: theme.space.xs,
-          gap: theme.space.xs,
+          paddingHorizontal: theme.space[2],
+          paddingVertical: theme.space[1],
+          gap: theme.space[1],
         },
       ]}
     >
-      <Text variant="caption" style={[styles.strong, { color: foreground }]} importantForAccessibility="no">
-        {symbol}
-      </Text>
-      <Text variant="caption" style={[styles.strong, { color: foreground }]}>
+      <Icon name={icon} use="chip" color={foreground} />
+      <Text variant="label" weight="extrabold" style={{ color: foreground }}>
         {label}
       </Text>
     </View>
@@ -49,5 +49,4 @@ export function StatusChip({ label, tone = "neutral", symbol = SYMBOLS[tone] }: 
 
 const styles = StyleSheet.create({
   chip: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start" },
-  strong: { fontWeight: "700" },
 })

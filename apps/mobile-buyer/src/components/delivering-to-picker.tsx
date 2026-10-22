@@ -36,25 +36,25 @@ export function DeliveringToPicker() {
       style={({ pressed }) => [
         styles.row,
         {
-          minHeight: theme.touchTarget,
-          gap: theme.space.sm,
-          paddingHorizontal: theme.space.md,
+          minHeight: theme.hitArea,
+          gap: theme.space[2],
+          paddingHorizontal: theme.space[4],
           borderRadius: theme.radius.md,
-          backgroundColor: theme.colors.surface,
+          backgroundColor: theme.colors.tile,
         },
         pressed && { opacity: 0.7 },
       ]}>
-      <View style={[styles.text, { paddingVertical: theme.space.xs }]}>
+      <View style={[styles.text, { paddingVertical: theme.space[1] }]}>
         {label ? (
-          <Text variant="caption" tone="secondary">
+          <Text variant="meta" tone="muted">
             {label}
           </Text>
         ) : null}
-        <Text variant="label" numberOfLines={1}>
+        <Text variant="strong" numberOfLines={1}>
           {value}
         </Text>
       </View>
-      {onPress ? <Text tone="secondary">›</Text> : null}
+      {onPress ? <Text tone="muted">›</Text> : null}
     </Pressable>
   );
 }

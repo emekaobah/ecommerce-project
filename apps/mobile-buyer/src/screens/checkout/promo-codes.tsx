@@ -1,5 +1,5 @@
 import { formatMoney } from '@oja/domain';
-import { Button, Text, useTheme } from '@oja/ui';
+import { Button, line, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
@@ -22,10 +22,10 @@ export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; chec
   return (
     <View
       style={{
-        gap: theme.space.sm,
-        paddingTop: theme.space.md,
+        gap: theme.space[2],
+        paddingTop: theme.space[4],
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: theme.colors.divider,
+        borderTopColor: theme.colors.line,
       }}>
       <Text variant="heading">Promo code</Text>
       {checkout.promotions.map((promotion) => (
@@ -37,8 +37,9 @@ export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; chec
           onRemove={() => remove.mutate(promotion.code)}
         />
       ))}
-      <View style={[styles.row, { gap: theme.space.sm }]}>
+      <View style={[styles.row, { gap: theme.space[2] }]}>
         <TextInput
+          maxFontSizeMultiplier={MAX_FONT_SCALE}
           value={code}
           onChangeText={(text) => {
             setCode(text);
@@ -46,7 +47,7 @@ export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; chec
           }}
           onSubmitEditing={submit}
           placeholder="Enter a code"
-          placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={theme.colors.muted}
           accessibilityLabel="Promo code"
           autoCapitalize="characters"
           autoCorrect={false}
@@ -55,12 +56,11 @@ export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; chec
             styles.input,
             theme.type.body,
             {
-              minHeight: theme.touchTarget,
+              minHeight: theme.hitArea,
               borderRadius: theme.radius.md,
-              borderColor: theme.colors.divider,
-              paddingHorizontal: theme.space.md,
+              borderColor: theme.colors.control,
+              paddingHorizontal: theme.space[4],
               color: theme.colors.ink,
-              fontFamily: theme.fontFamily,
             },
           ]}
         />
@@ -90,14 +90,14 @@ function Promotion({
   const theme = useTheme();
   const scope = promotion.seller ? `On ${promotion.seller.name}'s items only` : 'On your whole order';
   return (
-    <View style={[styles.row, { gap: theme.space.sm }]}>
-      <View style={[styles.fill, { gap: theme.space.xs }]}>
-        <Text variant="label">{promotion.automatic ? `${promotion.code} · Automatic deal` : promotion.code}</Text>
-        <Text variant="caption" tone="secondary">
+    <View style={[styles.row, { gap: theme.space[2] }]}>
+      <View style={[styles.fill, { gap: theme.space[1] }]}>
+        <Text variant="strong">{promotion.automatic ? `${promotion.code} · Automatic deal` : promotion.code}</Text>
+        <Text variant="meta" tone="muted">
           {scope}
         </Text>
       </View>
-      <Text variant="label">{`−${formatMoney(promotion.amount, currencyCode)}`}</Text>
+      <Text variant="strong">{`−${formatMoney(promotion.amount, currencyCode)}`}</Text>
       {promotion.automatic ? null : <Button label="Remove" variant="link" onPress={onRemove} loading={removing} />}
     </View>
   );
@@ -106,5 +106,5 @@ function Promotion({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   fill: { flex: 1 },
-  input: { flex: 1, borderWidth: 1 },
+  input: { flex: 1, borderWidth: line.input },
 });

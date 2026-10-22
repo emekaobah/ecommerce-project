@@ -29,7 +29,7 @@ export function BookCourier({
       onError: () => setOptions(null),
     });
   return (
-    <View style={{ gap: theme.space.sm }}>
+    <View style={{ gap: theme.space[2] }}>
       {mutation.error ? <Text tone="danger">{mutation.error.message}</Text> : null}
       {options ? (
         <CourierChoice options={options} currency={currency} booking={mutation.isPending} onChoose={book} />
@@ -64,12 +64,12 @@ function CourierChoice({
   const theme = useTheme();
   const [chosen, setChosen] = useState<CourierOption | null>(null);
   return (
-    <View style={{ gap: theme.space.sm }}>
-      <Text variant="label">Choose a courier</Text>
-      <Text tone="secondary">
+    <View style={{ gap: theme.space[2] }}>
+      <Text variant="strong">Choose a courier</Text>
+      <Text tone="muted">
         {"The buyer's courier can't take the parcel at the price they paid. Choose another; the buyer is told."}
       </Text>
-      <View accessibilityRole="radiogroup" style={{ gap: theme.space.sm }}>
+      <View accessibilityRole="radiogroup" style={{ gap: theme.space[2] }}>
         {options.map((option) => (
           <RadioOption
             key={`${option.service_code}:${option.courier_id}`}
@@ -77,9 +77,9 @@ function CourierChoice({
             disabled={booking}
             onPress={() => setChosen(option)}
           >
-            <Text variant="label">{`${option.courier_name} · ${formatMoney(option.amount, currency)}`}</Text>
-            <Text tone="secondary">{`Arrives ${arrives(option.delivery_eta_time)}`}</Text>
-            <Text tone={option.within_cap ? 'secondary' : 'danger'}>{priceNote(option, currency)}</Text>
+            <Text variant="strong">{`${option.courier_name} · ${formatMoney(option.amount, currency)}`}</Text>
+            <Text tone="muted">{`Arrives ${arrives(option.delivery_eta_time)}`}</Text>
+            <Text tone={option.within_cap ? 'muted' : 'danger'}>{priceNote(option, currency)}</Text>
           </RadioOption>
         ))}
       </View>
@@ -98,7 +98,7 @@ export function ApprovalNote({ fulfilment, currency }: Readonly<{ fulfilment: Pi
   if (!fulfilment.courier_approval) return null;
   const { courier_name, amount } = fulfilment.courier_approval;
   return (
-    <Text tone="secondary">
+    <Text tone="muted">
       {`Waiting for Oja to approve ${courier_name} at ${formatMoney(amount, currency)}. It is booked once approved; you can choose another meanwhile.`}
     </Text>
   );

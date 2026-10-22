@@ -13,6 +13,7 @@ export type ListRowProps = {
   onPress?: () => void
 }
 
+/** A row in a list, divided by a hairline; pressed, it fills with Mist edge to edge. */
 export function ListRow({ title, subtitle, leading, trailing, onPress }: Readonly<ListRowProps>) {
   const theme = useTheme()
   return (
@@ -20,24 +21,24 @@ export function ListRow({ title, subtitle, leading, trailing, onPress }: Readonl
       accessibilityRole={onPress ? "button" : undefined}
       disabled={!onPress}
       onPress={onPress}
+      android_ripple={onPress ? { color: theme.colors.pressed } : undefined}
       style={({ pressed }) => [
         styles.row,
         {
-          minHeight: theme.touchTarget,
-          gap: theme.space.md,
-          paddingVertical: theme.space.sm + theme.space.xs,
-          borderBottomColor: theme.colors.divider,
+          minHeight: theme.hitArea,
+          gap: theme.space[3],
+          paddingVertical: theme.space[3],
+          borderBottomColor: theme.colors.line,
+          borderBottomWidth: theme.line.divider,
         },
-        pressed && { backgroundColor: theme.colors.surface },
+        pressed && { backgroundColor: theme.colors.tile },
       ]}
     >
       {leading}
-      <View style={styles.text}>
-        <Text variant="label" numberOfLines={2}>
-          {title}
-        </Text>
+      <View style={[styles.text, { gap: theme.space[1] }]}>
+        <Text weight="bold">{title}</Text>
         {subtitle ? (
-          <Text variant="caption" tone="secondary" numberOfLines={2}>
+          <Text variant="meta" tone="muted">
             {subtitle}
           </Text>
         ) : null}
@@ -48,6 +49,6 @@ export function ListRow({ title, subtitle, leading, trailing, onPress }: Readonl
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", borderBottomWidth: StyleSheet.hairlineWidth },
-  text: { flex: 1, gap: 2 },
+  row: { flexDirection: "row", alignItems: "center" },
+  text: { flex: 1 },
 })

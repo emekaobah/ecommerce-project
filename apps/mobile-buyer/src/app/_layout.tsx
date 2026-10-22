@@ -1,7 +1,7 @@
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import { initSentry, useSentryNavigation, withSentry } from '@oja/expo-sentry';
-import { buyerTheme, ThemeProvider } from '@oja/ui';
+import { ThemeProvider, useTheme } from '@oja/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -30,11 +30,11 @@ function RootLayout() {
     // The token cache keeps the session in the keychain, so it survives app restarts.
     <ClerkProvider publishableKey={env.clerkPublishableKey} tokenCache={tokenCache}>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={buyerTheme}>
+        <ThemeProvider>
           <RegionProvider>
             <CartProvider>
               <DeliveringToProvider>
-                <StatusBar style="dark" />
+                <StatusBar style="auto" />
                 <RootStack />
               </DeliveringToProvider>
             </CartProvider>
@@ -46,6 +46,7 @@ function RootLayout() {
 }
 
 function RootStack() {
+  const theme = useTheme();
   const { isLoaded, isSignedIn } = useAuth();
   useClearCacheOnUserChange();
   usePushRegistration();
@@ -60,13 +61,14 @@ function RootStack() {
   return (
     <Stack
       screenOptions={{
-        headerTintColor: buyerTheme.colors.ink,
+        headerTintColor: theme.colors.ink,
+        headerTitleStyle: { fontFamily: theme.type.titlePushed.fontFamily, color: theme.colors.ink },
         // An opaque header: SDK 58's default Liquid Glass header is transparent and lays each
         // screen's content under it.
-        headerStyle: { backgroundColor: buyerTheme.colors.background },
+        headerStyle: { backgroundColor: theme.colors.bg },
         // A bare chevron: the tab group has no title, so a labelled back button read "(tabs)".
         headerBackButtonDisplayMode: 'minimal',
-        contentStyle: { backgroundColor: buyerTheme.colors.background },
+        contentStyle: { backgroundColor: theme.colors.bg },
       }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="product/[id]" options={{ title: '' }} />

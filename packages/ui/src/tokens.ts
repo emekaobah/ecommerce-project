@@ -1,127 +1,349 @@
 import type { TextStyle } from "react-native"
+import { FONT_FACES } from "./fonts"
 
-// Monochrome visual direction (docs/design.md). Code is the design system's source of
-// truth: the design pass changes these values, not the component APIs.
-// Every status chip pair meets WCAG AA (4.5:1) for its caption text.
-
-const palette = {
-  ink: "#000000",
-  white: "#FFFFFF",
-  /** Oja blue: brand mark, active tab, links, selection outlines, badges, progress. Never a primary button fill. */
-  ojaBlue: "#0B5CFF",
-  /** Deals only. */
-  saffron: "#FFC043",
-  tile: "#F3F3F3",
-  divider: "#E2E2E2",
-  grey: "#545454",
-  /** Vendor secondary text and dividers, darker for contrast. */
-  greyDark: "#2B2B2B",
-  dividerDark: "#BDBDBD",
-  green: "#047A40",
-  greenTint: "#E6F4EC",
-  amber: "#9A5B00",
-  amberTint: "#FFF3DC",
-  red: "#B3261E",
-  redTint: "#FDECEC",
-  blueTint: "#E7EFFF",
-} as const
-
-export type StatusTone = "neutral" | "info" | "success" | "warning" | "danger"
-
-type TypeStyle = Pick<TextStyle, "fontSize" | "lineHeight" | "fontWeight" | "letterSpacing">
-export type TextVariant = "title" | "heading" | "body" | "label" | "caption"
-
-export type Theme = {
-  name: "buyer" | "vendor"
-  colors: {
-    /** Primary buttons, headings, body text. */
-    ink: string
-    /** Text and icons on an ink fill. */
-    onInk: string
-    background: string
-    /** Neutral tiles that contain product photos and grouped content. */
-    surface: string
-    divider: string
-    textSecondary: string
-    accent: string
-    deal: string
-    danger: string
-  }
-  /** Chip colours per status tone: text/symbol colour and background. */
-  status: Record<StatusTone, { foreground: string; background: string }>
-  space: { xs: number; sm: number; md: number; lg: number; xl: number; xxl: number }
-  radius: { sm: number; md: number; lg: number; pill: number }
-  /** Minimum height of anything tappable. */
-  touchTarget: number
-  /** Undefined uses the platform font until Manrope is loaded by the design pass. */
-  fontFamily: string | undefined
-  type: Record<TextVariant, TypeStyle>
-}
-
-const space = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 }
-const radius = { sm: 6, md: 10, lg: 16, pill: 999 }
-
-/** Clean retail: monochrome, product-first. */
-export const buyerTheme: Theme = {
-  name: "buyer",
-  colors: {
-    ink: palette.ink,
-    onInk: palette.white,
-    background: palette.white,
-    surface: palette.tile,
-    divider: palette.divider,
-    textSecondary: palette.grey,
-    accent: palette.ojaBlue,
-    deal: palette.saffron,
-    danger: palette.red,
-  },
-  status: {
-    neutral: { foreground: palette.ink, background: palette.tile },
-    info: { foreground: palette.ojaBlue, background: palette.blueTint },
-    success: { foreground: palette.green, background: palette.greenTint },
-    warning: { foreground: palette.amber, background: palette.amberTint },
-    danger: { foreground: palette.red, background: palette.redTint },
-  },
-  space,
-  radius,
-  touchTarget: 48,
-  fontFamily: undefined,
-  type: {
-    title: { fontSize: 28, lineHeight: 34, fontWeight: "700" },
-    heading: { fontSize: 20, lineHeight: 26, fontWeight: "700" },
-    body: { fontSize: 16, lineHeight: 22, fontWeight: "400" },
-    label: { fontSize: 16, lineHeight: 20, fontWeight: "600" },
-    caption: { fontSize: 13, lineHeight: 18, fontWeight: "400" },
-  },
-}
+// Adire: the Foundations section of docs/redesign/oja-adire-screens.html, which is authoritative.
+// Code is the design system's source of truth: screens use these tokens only, never raw values.
 
 /**
- * High contrast for a busy shop floor: the same system at larger sizes, darker
- * secondary text, bigger touch targets and saturated state chips.
+ * Mockup px to device points: the catalogue draws a 393pt iPhone 282px wide. Every size below is
+ * a mockup value times this, so changing it resizes the whole app in proportion.
  */
-export const vendorTheme: Theme = {
-  name: "vendor",
+export const SCALE = 1.394
+
+const snapTo = (step: number) => (mockup: number) => Math.max(step, Math.round((mockup * SCALE) / step) * step)
+/** Spacing and control heights sit on the 4pt grid. */
+const grid = snapTo(4)
+/** Corners round to even points. */
+const even = snapTo(2)
+/** Type sizes and line widths round to whole points. */
+const points = snapTo(1)
+
+/** Spacing, keyed by the mockup value ÷ 4: space[4] is the 16px screen gutter. */
+export const space = {
+  /** Icon to label, chip padding. */
+  1: grid(4),
+  /** Between chips and tiles; inside a row. */
+  2: grid(8),
+  /** Card padding; between rows. */
+  3: grid(12),
+  /** Screen gutter; between grid rows. */
+  4: grid(16),
+  /** Under a band; between orders. */
+  5: grid(20),
+  /** Above a section heading; between groups. */
+  6: grid(24),
+  /** Around confirmations. */
+  8: grid(32),
+  /** Empty and error states, top. */
+  12: grid(48),
+}
+
+export const radius = {
+  /** Chips, small tiles. */
+  sm: even(8),
+  /** Rows, inputs, product tiles. */
+  md: even(12),
+  /** Cards, buttons. */
+  lg: even(16),
+  /** Cards inside sheets. */
+  xl: even(20),
+  sheet: even(24),
+  /** Pills and avatars. */
+  pill: 999,
+}
+
+/** Control heights. */
+export const control = {
+  /** The sticky main action. */
+  main: grid(52),
+  /** A standard button or input. */
+  md: grid(48),
+  /** A button inside a list row. */
+  row: grid(44),
+}
+
+/** The smallest touch target, in points and not scaled: use hitSlop where the drawn shape is smaller. */
+export const HIT_AREA = 44
+
+export const line = {
+  /** Dividers and card edges: a hairline isn't scaled. */
+  divider: 1,
+  /** Input and option outlines. */
+  input: points(1.5),
+  /** The selected tab's underline. */
+  tab: points(2.5),
+  /** The focus ring, outside the shape. */
+  ring: points(3),
+}
+
+/** How far text grows with the system's text-size setting. */
+export const MAX_FONT_SCALE = 1.3
+
+/** Bricolage Grotesque, 18 mockup px and up. */
+export type DisplayVariant = "displayXxl" | "displayXl" | "displayLg" | "titleRoot" | "titleNamed" | "titlePushed" | "heading"
+/** Manrope. */
+export type BodyVariant = "strong" | "body" | "meta" | "label"
+export type TextVariant = DisplayVariant | BodyVariant
+export type FontWeight = keyof typeof FONT_FACES.text
+export type DisplayWeight = keyof typeof FONT_FACES.display
+
+type TypeStyle = Required<Pick<TextStyle, "fontFamily" | "fontSize" | "lineHeight">>
+
+const display = (mockup: number, weight: DisplayWeight = "extrabold"): TypeStyle => {
+  const fontSize = points(mockup)
+  return { fontFamily: FONT_FACES.display[weight], fontSize, lineHeight: Math.round(fontSize * 1.1) }
+}
+const text = (mockup: number, weight: FontWeight): TypeStyle => {
+  const fontSize = points(mockup)
+  return { fontFamily: FONT_FACES.text[weight], fontSize, lineHeight: Math.round(fontSize * 1.4) }
+}
+
+/** One title per screen, sized by its role; then section headings, row titles and meta. */
+export const typeScale: Record<TextVariant, TypeStyle> = {
+  /** Pickup digits. */
+  displayXxl: display(44),
+  /** The takeover moment. */
+  displayXl: display(34),
+  /** Confirmation. */
+  displayLg: display(28),
+  /** A tab root's title. */
+  titleRoot: display(26),
+  /** A shop or product name, a band headline. */
+  titleNamed: display(22),
+  /** A pushed screen's title. */
+  titlePushed: display(20),
+  /** Section headings, totals. */
+  heading: display(18),
+  /** Names, prices, buttons. */
+  strong: text(14, "extrabold"),
+  /** Body, row titles: 400 to 700. */
+  body: text(13, "regular"),
+  /** Meta, secondary: 400 to 700. */
+  meta: text(11.5, "regular"),
+  /** Labels, chips, tab bar: 600 to 800. */
+  label: text(10.5, "bold"),
+}
+
+export const DISPLAY_VARIANTS: ReadonlySet<TextVariant> = new Set<DisplayVariant>([
+  "displayXxl",
+  "displayXl",
+  "displayLg",
+  "titleRoot",
+  "titleNamed",
+  "titlePushed",
+  "heading",
+])
+
+/** Lucide icons, in points as Foundations gives them, and the drawn stroke, which scales with the size. */
+export const icon = {
+  size: { default: 24, add: 22, step: 20, chip: 16 },
+  stroke: { default: 1.8, add: 2.4, step: 1.8, chip: 2.2 },
+} as const
+
+/** Durations in ms (Foundations, Motion). Under Reduce Motion nothing slides or pulses: everything cross-fades. */
+export const motion = {
+  /** Press feedback shows at once and fades over this. */
+  press: 100,
+  /** The tab and segment underline slides, ease-out. */
+  underline: 200,
+  crossFade: 150,
+  /** A row added to or removed from a list. */
+  listLayout: 200,
+  takeoverFade: 250,
+  toastSlide: 200,
+  toastHold: 4000,
+  /** The new-order alarm ring, ease-out, scaling from 0.92 to 1.3 as it fades. */
+  alarmPulse: 1600,
+  /** The skeleton shimmer sweep, ease-in-out. */
+  shimmer: 1400,
+  spinnerTurn: 900,
+} as const
+
+/**
+ * Light is flat and dark lifts surfaces with lighter greys (bg, then raised, then tile). Only
+ * these float: the map's locate button and pin, and the save heart on a photo.
+ */
+export const elevation = {
+  floating: { boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.15)" },
+  heart: { boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.15)" },
+} as const
+
+/** "new" is a new order waiting to be accepted; the rest follow @oja/domain's tones. */
+export type StatusTone = "neutral" | "info" | "success" | "warning" | "danger" | "new"
+
+export type Theme = {
+  scheme: "light" | "dark"
   colors: {
-    ...buyerTheme.colors,
-    textSecondary: palette.greyDark,
-    divider: palette.dividerDark,
-  },
-  status: {
-    neutral: { foreground: palette.white, background: palette.ink },
-    info: { foreground: palette.white, background: palette.ojaBlue },
-    success: { foreground: palette.white, background: palette.green },
-    warning: { foreground: palette.white, background: palette.amber },
-    danger: { foreground: palette.white, background: palette.red },
-  },
+    /** Page. */
+    bg: string
+    /** Page behind grouped cards. */
+    bgGrouped: string
+    /** Cards, inputs, sheets, tab bar. */
+    raised: string
+    /** Mist: secondary buttons, fact boxes, chips, skeletons. */
+    tile: string
+    /** Behind product photos: white in both themes, with no outline. */
+    productTile: string
+    /** Dividers, card edges. */
+    line: string
+    /** Input and checkbox outlines (3:1). */
+    control: string
+    /** Text. */
+    ink: string
+    /** Secondary text, placeholders. */
+    muted: string
+    /** The brand band and the new-order takeover: the same indigo in both themes. */
+    band: string
+    onBand: string
+    /** The main button. */
+    primary: string
+    onPrimary: string
+    /** Selection outlines, the active tab, ratings. */
+    accent: string
+    /** Links, pattern strokes. */
+    link: string
+    /** Fill of a selected option. */
+    selected: string
+    /** Focus ring. */
+    ring: string
+    /** Unselected tab labels. */
+    tabInactive: string
+    /** Deal badges and progress only, the same in both themes, always with dark text. */
+    sun: string
+    onSun: string
+    /** Open, done, picked: chips, badges and pills only. */
+    leaf: string
+    leafText: string
+    /** Waiting on the buyer, the last two hours to accept. */
+    ember: string
+    emberText: string
+    /** Destructive buttons, errors. */
+    danger: string
+    dangerText: string
+    dangerBg: string
+    /** Laid over a control while it's pressed. */
+    pressed: string
+    /** Behind sheets. */
+    scrim: string
+  }
+  /** Chip text and background per tone, each at 7:1 or more (catalogue Accessibility). */
+  status: Record<StatusTone, { foreground: string; background: string }>
+  space: typeof space
+  radius: typeof radius
+  control: typeof control
+  hitArea: number
+  line: typeof line
+  type: typeof typeScale
+  icon: typeof icon
+  motion: typeof motion
+  elevation: typeof elevation
+}
+
+const sizes = {
   space,
   radius,
-  touchTarget: 56,
-  fontFamily: undefined,
-  type: {
-    title: { fontSize: 32, lineHeight: 38, fontWeight: "800" },
-    heading: { fontSize: 24, lineHeight: 30, fontWeight: "700" },
-    body: { fontSize: 18, lineHeight: 26, fontWeight: "500" },
-    label: { fontSize: 18, lineHeight: 22, fontWeight: "700" },
-    caption: { fontSize: 15, lineHeight: 20, fontWeight: "500" },
+  control,
+  hitArea: HIT_AREA,
+  line,
+  type: typeScale,
+  icon,
+  motion,
+  elevation,
+}
+
+const white = "#FFFFFF"
+const indigo = "#1B2559"
+const sun = "#F2B33D"
+const leaf = "#186441"
+const ember = "#90411A"
+const red = "#AA2318"
+const scrim = "rgba(0, 0, 0, 0.6)"
+
+export const lightTheme: Theme = {
+  scheme: "light",
+  colors: {
+    bg: white,
+    bgGrouped: "#F7F8FC",
+    raised: white,
+    tile: "#EEF0F7",
+    productTile: white,
+    line: "#DDE1EE",
+    control: "#80869E",
+    ink: "#12162B",
+    muted: "#494F66",
+    band: indigo,
+    onBand: white,
+    primary: indigo,
+    onPrimary: white,
+    accent: indigo,
+    link: "#2E3D8F",
+    selected: "#F4F5FB",
+    ring: "#E3E6F3",
+    tabInactive: "#5B6178",
+    sun,
+    onSun: "#12162B",
+    leaf,
+    leafText: "#165A3C",
+    ember,
+    emberText: "#84391A",
+    danger: red,
+    dangerText: "#962218",
+    dangerBg: "#FBEAE8",
+    pressed: "rgba(18, 22, 43, 0.12)",
+    scrim,
   },
+  status: {
+    neutral: { foreground: "#494F66", background: "#F0F1F4" },
+    info: { foreground: indigo, background: "#EEF0F7" },
+    success: { foreground: "#165A3C", background: "#E3F2EA" },
+    warning: { foreground: "#84391A", background: "#FBEDE3" },
+    danger: { foreground: "#962218", background: "#FBEAE8" },
+    new: { foreground: "#714800", background: "#FDF1D8" },
+  },
+  ...sizes,
+}
+
+/** Neutral charcoal with no brand tint, so indigo keeps its light-mode jobs. */
+export const darkTheme: Theme = {
+  scheme: "dark",
+  colors: {
+    bg: "#111113",
+    bgGrouped: "#111113",
+    raised: "#1C1C1F",
+    tile: "#26262A",
+    productTile: white,
+    line: "#333338",
+    control: "#7A7A83",
+    ink: "#F2F2F4",
+    muted: "#B4B4BC",
+    band: indigo,
+    onBand: white,
+    primary: "#3D4DBB",
+    onPrimary: white,
+    accent: "#AEB8FF",
+    link: "#AEB8FF",
+    selected: "#2A2A30",
+    ring: "#3A3F66",
+    tabInactive: "#B4B4BC",
+    sun,
+    onSun: "#12162B",
+    leaf,
+    leafText: "#6FD6A0",
+    ember,
+    emberText: "#F0A474",
+    danger: red,
+    dangerText: "#F2938A",
+    dangerBg: "#3A1717",
+    pressed: "rgba(255, 255, 255, 0.12)",
+    scrim,
+  },
+  status: {
+    neutral: { foreground: "#B4B4BC", background: "#26262A" },
+    info: { foreground: "#AEB8FF", background: "#23263A" },
+    success: { foreground: "#6FD6A0", background: "#14281D" },
+    warning: { foreground: "#F0A474", background: "#30221A" },
+    danger: { foreground: "#F2938A", background: "#311B1B" },
+    new: { foreground: "#F2C76B", background: "#2E2614" },
+  },
+  ...sizes,
 }

@@ -1,5 +1,5 @@
 import { initSentry, useSentryNavigation, withSentry } from '@oja/expo-sentry';
-import { ThemeProvider, vendorTheme } from '@oja/ui';
+import { ThemeProvider } from '@oja/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -37,8 +37,8 @@ function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={vendorTheme}>
-        <StatusBar style="dark" />
+      <ThemeProvider>
+        <StatusBar style="auto" />
         <Stack screenOptions={{ headerShown: false }}>
           {/* Flipping a guard redirects to the group that is allowed: sign-out lands on sign-in, and a
               member who must pick a shop (several shops, none saved or the saved one lost) on the

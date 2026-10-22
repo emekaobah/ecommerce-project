@@ -42,11 +42,11 @@ export function HomeScreen() {
   return (
     <SafeAreaView
       edges={['top']}
-      style={[styles.container, { backgroundColor: theme.colors.background, paddingHorizontal: theme.space.md }]}>
-      <Text variant="title" style={{ marginVertical: theme.space.md }}>
+      style={[styles.container, { backgroundColor: theme.colors.bg, paddingHorizontal: theme.space[4] }]}>
+      <Text variant="titleRoot" style={{ marginVertical: theme.space[4] }}>
         {PRODUCT_NAME}
       </Text>
-      <View style={{ marginBottom: theme.space.md }}>
+      <View style={{ marginBottom: theme.space[4] }}>
         <DeliveringToPicker />
       </View>
       {content()}

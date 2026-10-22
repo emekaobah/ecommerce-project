@@ -1,6 +1,7 @@
 // Relative import of a plain-JS module: Expo's config loader doesn't transpile workspace TypeScript.
 import { appIdentity } from '../../packages/domain/src/app-identity.js';
 import { NEW_ORDER_ALARM } from '../../packages/domain/src/new-order-alarm.js';
+import { fontFiles } from '../../packages/ui/src/fonts.js';
 import type { ExpoConfig } from 'expo/config';
 
 // Name, scheme and bundle id derive from the product-name constant in @oja/domain.
@@ -12,7 +13,8 @@ const config: ExpoConfig = {
   scheme,
   version: '1.0.0',
   orientation: 'portrait',
-  userInterfaceStyle: 'light',
+  // Follows the system's light or dark setting; there's no in-app toggle.
+  userInterfaceStyle: 'automatic',
   // Placeholder wordmarks until the design pass supplies the real brand mark.
   icon: './assets/icon.png',
   ios: {
@@ -38,7 +40,17 @@ const config: ExpoConfig = {
         recordAudioAndroid: false,
       },
     ],
-    ['expo-splash-screen', { backgroundColor: '#FFFFFF', image: './assets/splash-icon.png', imageWidth: 120 }],
+    [
+      'expo-splash-screen',
+      {
+        backgroundColor: '#FFFFFF',
+        dark: { backgroundColor: '#111113' },
+        image: './assets/splash-icon.png',
+        imageWidth: 120,
+      },
+    ],
+    // Bricolage Grotesque and Manrope, bundled from @oja/ui: one file per weight.
+    ['expo-font', { fonts: fontFiles() }],
     // Pushes for new orders, the accept deadline and courier pickups (#27). A new order rings
     // Oja's alarm, bundled here (#71).
     ['expo-notifications', { sounds: [NEW_ORDER_ALARM.soundAsset] }],

@@ -21,11 +21,11 @@ export function ShopStatusBadge({
   const note = status.state === 'closed_until' ? status.note : null;
   const countsFrom = delivered ? ', and delivery counts from then' : '';
   return (
-    <View style={{ gap: theme.space.xs, alignItems: 'flex-start' }}>
-      <StatusChip label={status.label} tone={status.orderable ? 'warning' : 'danger'} symbol="◷" />
-      {withNote && note ? <Text tone="secondary">“{note}”</Text> : null}
+    <View style={{ gap: theme.space[1], alignItems: 'flex-start' }}>
+      <StatusChip label={status.label} tone={status.orderable ? 'warning' : 'danger'} icon="clock" />
+      {withNote && note ? <Text tone="muted">“{note}”</Text> : null}
       {withNote ? (
-        <Text tone="secondary">
+        <Text tone="muted">
           {status.orderable
             ? `You can still order: it is prepared when the shop opens${countsFrom}.`
             : "You can't order from this shop until it reopens."}

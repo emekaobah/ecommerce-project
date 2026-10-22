@@ -73,11 +73,11 @@ function Notice({
   const theme = useTheme();
   const router = useRouter();
   return (
-    <View style={{ flex: 1, padding: theme.space.lg, gap: theme.space.md }}>
+    <View style={{ flex: 1, padding: theme.space[6], gap: theme.space[4] }}>
       {chip}
-      <Text variant="title">{title}</Text>
+      <Text variant="titleNamed">{title}</Text>
       {lines.map((line) => (
-        <Text key={line} tone="secondary">
+        <Text key={line} tone="muted">
           {line}
         </Text>
       ))}
@@ -139,32 +139,32 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: theme.space.lg, gap: theme.space.md }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: theme.space[6], gap: theme.space[4] }} keyboardShouldPersistTaps="handled">
         {lookup.product ? (
-          <View style={{ flexDirection: 'row', gap: theme.space.md, alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', gap: theme.space[4], alignItems: 'center' }}>
             {lookup.product.thumbnail ? (
               <Image
                 source={{ uri: lookup.product.thumbnail }}
-                style={[styles.thumbnail, { borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }]}
+                style={[styles.thumbnail, { borderRadius: theme.radius.md, backgroundColor: theme.colors.productTile }]}
                 contentFit="contain"
                 accessibilityIgnoresInvertColors
               />
             ) : null}
             <View style={styles.fill}>
               <Text variant="heading">{lookup.product.title}</Text>
-              <Text tone="secondary">Barcode {lookup.barcode}</Text>
+              <Text tone="muted">Barcode {lookup.barcode}</Text>
             </View>
           </View>
         ) : (
-          <View style={{ gap: theme.space.sm }}>
+          <View style={{ gap: theme.space[2] }}>
             <StatusChip label="New to the catalogue" tone="info" />
-            <Text tone="secondary">
+            <Text tone="muted">
               {`The catalogue doesn't have barcode ${lookup.barcode}. Photograph it and name it: it is reviewed before buyers see it, and your price applies once it is approved.`}
             </Text>
             {photo ? (
               <Image
                 source={{ uri: photo.uri }}
-                style={[styles.photo, { borderRadius: theme.radius.md, backgroundColor: theme.colors.surface }]}
+                style={[styles.photo, { borderRadius: theme.radius.md, backgroundColor: theme.colors.productTile }]}
                 contentFit="contain"
                 accessibilityLabel="The product's photo"
               />

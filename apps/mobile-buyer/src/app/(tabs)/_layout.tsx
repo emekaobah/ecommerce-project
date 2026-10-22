@@ -10,7 +10,7 @@ export default function TabsLayout() {
   const itemCount = useCart(cartId).data?.item_count ?? 0;
   return (
     <NativeTabs
-      backgroundColor={theme.colors.background}
+      backgroundColor={theme.colors.raised}
       tintColor={theme.colors.accent}
       badgeBackgroundColor={theme.colors.accent}
       labelStyle={{ selected: { color: theme.colors.accent } }}>

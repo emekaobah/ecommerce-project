@@ -1,5 +1,5 @@
 import { PRODUCT_NAME } from '@oja/domain';
-import { Button, Text, useTheme } from '@oja/ui';
+import { Button, line, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
@@ -20,22 +20,23 @@ export function SignInScreen() {
     theme.type.body,
     {
       color: theme.colors.ink,
-      borderColor: theme.colors.divider,
+      borderColor: theme.colors.control,
       borderRadius: theme.radius.md,
-      minHeight: theme.touchTarget,
-      paddingHorizontal: theme.space.md,
+      minHeight: theme.hitArea,
+      paddingHorizontal: theme.space[4],
     },
   ];
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background, padding: theme.space.lg }]}>
-      <View style={{ gap: theme.space.md }}>
-        <Text variant="title">{PRODUCT_NAME} Vendor</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.bg, padding: theme.space[6] }]}>
+      <View style={{ gap: theme.space[4] }}>
+        <Text variant="titleRoot">{PRODUCT_NAME} Vendor</Text>
         <TextInput
+          maxFontSizeMultiplier={MAX_FONT_SCALE}
           testID="email"
           style={inputStyle}
           placeholder="Email"
-          placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={theme.colors.muted}
           autoCapitalize="none"
           autoComplete="email"
           keyboardType="email-address"
@@ -45,10 +46,11 @@ export function SignInScreen() {
           onChangeText={setEmail}
         />
         <TextInput
+          maxFontSizeMultiplier={MAX_FONT_SCALE}
           testID="password"
           style={inputStyle}
           placeholder="Password"
-          placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={theme.colors.muted}
           autoComplete="current-password"
           textContentType="password"
           secureTextEntry
@@ -66,5 +68,5 @@ export function SignInScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  input: { borderWidth: 1.5 },
+  input: { borderWidth: line.input },
 });

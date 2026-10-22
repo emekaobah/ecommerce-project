@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
 import { formatMoney } from '@oja/domain';
-import { Button, ErrorState, ListRow, LoadingState, RadioOption, Text, useTheme } from '@oja/ui';
+import { Button, ErrorState, line, ListRow, LoadingState, MAX_FONT_SCALE, RadioOption, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -56,7 +56,7 @@ function RefundState({ refund }: Readonly<{ refund: BuyerRefund }>) {
   const theme = useTheme();
   const groupId = refund.order.order_group_id;
   return (
-    <View style={{ flex: 1, padding: theme.space.md, gap: theme.space.lg, backgroundColor: theme.colors.background }}>
+    <View style={{ flex: 1, padding: theme.space[4], gap: theme.space[6], backgroundColor: theme.colors.bg }}>
       <Text variant="heading">{`Refund for order #${refund.order.display_id}`}</Text>
       <Text>{refundMessage(refund)}</Text>
       {groupId ? <Button label="View the order" variant="secondary" onPress={() => router.replace(`/order/${groupId}`)} /> : null}
@@ -88,28 +88,29 @@ function AccountForm({ refund }: Readonly<{ refund: BuyerRefund }>) {
 
   return (
     <ScrollView
-      style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg, paddingBottom: theme.space.xxl }}
+      style={{ backgroundColor: theme.colors.bg }}
+      contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6], paddingBottom: theme.space[12] }}
       keyboardShouldPersistTaps="handled">
-      <View style={{ gap: theme.space.xs }}>
+      <View style={{ gap: theme.space[1] }}>
         <Text variant="heading">{`Your ${amount} refund`}</Text>
-        <Text tone="secondary">
+        <Text tone="muted">
           {`Your bank couldn't take the refund for order #${refund.order.display_id} from ${refund.order.shop} back to your card. Add a bank account and we'll send it there. It can be anyone's account: you'll see the name on it before it's sent.`}
         </Text>
       </View>
 
-      <View style={{ gap: theme.space.sm }}>
-        <Text variant="label">Bank</Text>
+      <View style={{ gap: theme.space[2] }}>
+        <Text variant="strong">Bank</Text>
         <BankField banks={banks} bankCode={bankCode} onChoose={(code) => change(() => setBankCode(code))} />
       </View>
 
-      <View style={{ gap: theme.space.sm }}>
-        <Text variant="label">Account number</Text>
+      <View style={{ gap: theme.space[2] }}>
+        <Text variant="strong">Account number</Text>
         <TextInput
+          maxFontSizeMultiplier={MAX_FONT_SCALE}
           value={accountNumber}
           onChangeText={(text) => change(() => setAccountNumber(text.replace(/\D/g, '').slice(0, ACCOUNT_LENGTH)))}
           placeholder="10 digits"
-          placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={theme.colors.muted}
           accessibilityLabel="Account number"
           keyboardType="number-pad"
           textContentType="none"
@@ -129,9 +130,9 @@ function AccountForm({ refund }: Readonly<{ refund: BuyerRefund }>) {
           onChange={() => change(() => {})}
         />
       ) : (
-        <View style={{ gap: theme.space.md }}>
+        <View style={{ gap: theme.space[4] }}>
           {resolve.error ? (
-            <Text tone="secondary" accessibilityLiveRegion="polite">
+            <Text tone="muted" accessibilityLiveRegion="polite">
               {resolve.error.message}
             </Text>
           ) : null}
@@ -167,21 +168,21 @@ function ConfirmAccount({
 }>) {
   const theme = useTheme();
   return (
-    <View style={{ gap: theme.space.md }}>
+    <View style={{ gap: theme.space[4] }}>
       <View
         style={{
-          gap: theme.space.xs,
-          padding: theme.space.md,
+          gap: theme.space[1],
+          padding: theme.space[4],
           borderRadius: theme.radius.md,
           borderWidth: 1,
           borderColor: theme.colors.ink,
         }}>
-        <Text variant="label">{account.account_name}</Text>
-        <Text tone="secondary">{`${account.bank_name}, account ending ${last4}`}</Text>
+        <Text variant="strong">{account.account_name}</Text>
+        <Text tone="muted">{`${account.bank_name}, account ending ${last4}`}</Text>
       </View>
-      <Text tone="secondary">{`Is this the account to send your ${amount} refund to?`}</Text>
+      <Text tone="muted">{`Is this the account to send your ${amount} refund to?`}</Text>
       {retry.error ? (
-        <Text tone="secondary" accessibilityLiveRegion="polite">
+        <Text tone="muted" accessibilityLiveRegion="polite">
           {`Couldn't send your refund: ${retry.error.message}`}
         </Text>
       ) : null}
@@ -198,12 +199,11 @@ function useInputStyle() {
     styles.input,
     theme.type.body,
     {
-      minHeight: theme.touchTarget,
+      minHeight: theme.hitArea,
       borderRadius: theme.radius.md,
-      borderColor: theme.colors.divider,
-      paddingHorizontal: theme.space.md,
+      borderColor: theme.colors.control,
+      paddingHorizontal: theme.space[4],
       color: theme.colors.ink,
-      fontFamily: theme.fontFamily,
     },
   ];
 }
@@ -230,12 +230,13 @@ function BankField({
   }
   const matching = (banks.data ?? []).filter((b) => b.name.toLowerCase().includes(search.trim().toLowerCase()));
   return (
-    <View style={{ gap: theme.space.sm }}>
+    <View style={{ gap: theme.space[2] }}>
       <TextInput
+        maxFontSizeMultiplier={MAX_FONT_SCALE}
         value={search}
         onChangeText={setSearch}
         placeholder="Search banks"
-        placeholderTextColor={theme.colors.textSecondary}
+        placeholderTextColor={theme.colors.muted}
         accessibilityLabel="Search banks"
         autoFocus
         style={inputStyle}
@@ -258,5 +259,5 @@ function BankField({
 }
 
 const styles = StyleSheet.create({
-  input: { borderWidth: 1 },
+  input: { borderWidth: line.input },
 });

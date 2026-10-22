@@ -46,7 +46,7 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
       <FlatList
         data={shops}
         keyExtractor={(m) => m.seller_id}
-        contentContainerStyle={shops.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space.md }}
+        contentContainerStyle={shops.length === 0 ? styles.emptyList : { paddingHorizontal: theme.space[4] }}
         ListEmptyComponent={
           <EmptyState title="No shops" message="This account isn't a member of any shop. Ask the owner to invite you." />
         }
@@ -56,7 +56,7 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
             onPress={item.seller_id === currentSellerId ? undefined : () => select.mutate(item.seller_id)}
             trailing={
               item.seller_id === currentSellerId ? (
-                <Text variant="caption" tone="secondary">
+                <Text variant="meta" tone="muted">
                   Current
                 </Text>
               ) : null
@@ -71,18 +71,18 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
     <SafeAreaView edges={switching ? ['bottom'] : undefined} style={styles.container}>
       <Stack.Screen options={{ title: 'Switch shop' }} />
       {switching ? null : (
-        <View style={{ padding: theme.space.md }}>
-          <Text variant="title">Choose a shop</Text>
+        <View style={{ padding: theme.space[4] }}>
+          <Text variant="titlePushed">Choose a shop</Text>
         </View>
       )}
       {select.error ? (
-        <Text tone="danger" style={{ paddingHorizontal: theme.space.md }}>
+        <Text tone="danger" style={{ paddingHorizontal: theme.space[4] }}>
           {select.error.message}
         </Text>
       ) : null}
       <View style={styles.container}>{content()}</View>
       {switching ? null : (
-        <Button label="Sign out" variant="link" onPress={() => void signOut()} style={{ margin: theme.space.md }} />
+        <Button label="Sign out" variant="link" onPress={() => void signOut()} style={{ margin: theme.space[4] }} />
       )}
     </SafeAreaView>
   );

@@ -1,4 +1,4 @@
-import { vendorTheme } from '@oja/ui';
+import { useTheme } from '@oja/ui';
 import { Stack } from 'expo-router';
 
 import { usePushRegistration } from '@/push/push-registration';
@@ -7,6 +7,7 @@ import { useKeepCurrentShop } from '@/session/keep-current-shop';
 
 // The order stack (accept → pick → pack → label → handover) is pushed over the list.
 export default function AppLayout() {
+  const theme = useTheme();
   useKeepCurrentShop();
   usePushRegistration();
   useOpenTappedPush();
@@ -14,11 +15,12 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        headerTintColor: vendorTheme.colors.ink,
+        headerTintColor: theme.colors.ink,
+        headerTitleStyle: { fontFamily: theme.type.titlePushed.fontFamily, color: theme.colors.ink },
         // An opaque header: SDK 58's default Liquid Glass header is transparent and lays each
         // screen's content under it.
-        headerStyle: { backgroundColor: vendorTheme.colors.background },
-        contentStyle: { backgroundColor: vendorTheme.colors.background },
+        headerStyle: { backgroundColor: theme.colors.bg },
+        contentStyle: { backgroundColor: theme.colors.bg },
       }}>
       {/* Listed first: the first screen declared here is the one the stack opens on. */}
       <Stack.Screen name="index" />

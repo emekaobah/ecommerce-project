@@ -73,11 +73,11 @@ export function ConfirmationScreen() {
 function StillConfirming({ cartId, onCheckAgain }: Readonly<{ cartId: string; onCheckAgain: () => void }>) {
   const theme = useTheme();
   return (
-    <View style={[styles.fill, styles.centered, { padding: theme.space.lg, gap: theme.space.md }]}>
+    <View style={[styles.fill, styles.centered, { padding: theme.space[6], gap: theme.space[4] }]}>
       <Text variant="heading" style={styles.center}>
         Still confirming your payment
       </Text>
-      <Text tone="secondary" style={styles.center}>
+      <Text tone="muted" style={styles.center}>
         Paystack hasn&apos;t confirmed it yet. If you were charged, your order appears in Orders as soon as
         it&apos;s confirmed. If you didn&apos;t finish paying, go back to checkout and pay again.
       </Text>
@@ -112,37 +112,37 @@ function OrderPlaced({ orderGroupId }: Readonly<{ orderGroupId: string }>) {
       <View
         key={order.id}
         style={{
-          gap: theme.space.xs,
-          paddingTop: theme.space.md,
+          gap: theme.space[1],
+          paddingTop: theme.space[4],
           borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: theme.colors.divider,
+          borderTopColor: theme.colors.line,
         }}>
         <View style={styles.spread}>
           <Text variant="heading">{order.seller?.name ?? 'Shop'}</Text>
-          <Text tone="secondary">#{order.display_id}</Text>
+          <Text tone="muted">#{order.display_id}</Text>
         </View>
         {order.items.map((item) => (
-          <Text key={item.id} tone="secondary">
+          <Text key={item.id} tone="muted">
             {item.quantity} × {item.product_title}
           </Text>
         ))}
-        <Text variant="label">{formatMoney(order.total, order.currency_code)}</Text>
+        <Text variant="strong">{formatMoney(order.total, order.currency_code)}</Text>
       </View>
     ));
   };
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.colors.background }]}>
-      <ScrollView contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}>
-        <View style={{ gap: theme.space.sm }}>
-          <Text variant="title">Thanks, your order is placed</Text>
-          <Text tone="secondary">
+    <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
+        <View style={{ gap: theme.space[2] }}>
+          <Text variant="displayLg">Thanks, your order is placed</Text>
+          <Text tone="muted">
             Paystack confirmed your payment. Each shop prepares and delivers its own order.
           </Text>
         </View>
         {details()}
       </ScrollView>
-      <View style={{ padding: theme.space.md, gap: theme.space.sm }}>
+      <View style={{ padding: theme.space[4], gap: theme.space[2] }}>
         <Button label="View orders" onPress={() => finish('/orders')} />
         <Button label="Keep shopping" variant="secondary" onPress={() => finish('/')} />
       </View>

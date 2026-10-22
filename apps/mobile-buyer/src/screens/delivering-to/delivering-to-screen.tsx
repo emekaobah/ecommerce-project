@@ -30,8 +30,8 @@ export function DeliveringToScreen() {
   }
   return (
     <ScrollView
-      style={{ backgroundColor: theme.colors.background }}
-      contentContainerStyle={{ padding: theme.space.md, gap: theme.space.md }}
+      style={{ backgroundColor: theme.colors.bg }}
+      contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }}
       accessibilityRole="radiogroup">
       {saved.map((address) => {
         const { name, place } = addressLines(address);
@@ -45,9 +45,9 @@ export function DeliveringToScreen() {
               pick(address.id);
               router.back();
             }}>
-            <Text variant="label">{name}</Text>
-            <Text tone="secondary">{place}</Text>
-            {pinned ? null : <Text tone="secondary">Add a pin in Account → Addresses to deliver here.</Text>}
+            <Text variant="strong">{name}</Text>
+            <Text tone="muted">{place}</Text>
+            {pinned ? null : <Text tone="muted">Add a pin in Account → Addresses to deliver here.</Text>}
           </RadioOption>
         );
       })}

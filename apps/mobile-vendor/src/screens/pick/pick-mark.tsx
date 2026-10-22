@@ -9,9 +9,9 @@ type PickMarkProps = Readonly<{ picked: number; quantity: number; unavailable: n
 export function PickMark({ picked, quantity, unavailable }: PickMarkProps) {
   if (unavailable > 0) {
     const label = unavailable >= quantity ? 'Unavailable' : `${unavailable} unavailable`;
-    return <StatusChip label={label} tone="danger" symbol="⊘" />;
+    return <StatusChip label={label} tone="danger" icon="x" />;
   }
   if (picked >= quantity) return <StatusChip label="Picked" tone="success" />;
-  if (picked > 0) return <StatusChip label={`${picked} of ${quantity}`} tone="warning" symbol="◐" />;
+  if (picked > 0) return <StatusChip label={`${picked} of ${quantity}`} tone="warning" icon="clock" />;
   return <StatusChip label="To pick" />;
 }

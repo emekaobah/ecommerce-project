@@ -24,7 +24,7 @@ export function ListingRow({
       onPress={() => openListing(listing)}
       trailing={
         price || listing.deals.length ? (
-          <View style={[styles.trailing, { gap: theme.space.xs }]}>
+          <View style={[styles.trailing, { gap: theme.space[1] }]}>
             {price ? <Price price={price} currencyCode={currencyCode} /> : null}
             <DealBadges deals={listing.deals} />
           </View>
@@ -35,7 +35,7 @@ export function ListingRow({
           <Image
             source={listing.product.thumbnail}
             contentFit="contain"
-            style={[styles.thumb, { backgroundColor: theme.colors.surface, borderRadius: theme.radius.sm }]}
+            style={[styles.thumb, { backgroundColor: theme.colors.productTile, borderRadius: theme.radius.sm }]}
           />
         ) : null
       }

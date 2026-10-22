@@ -70,14 +70,14 @@ export function PauseOrders({ sellerId }: Readonly<{ sellerId: string }>) {
   const error = pause.error ?? resume.error;
 
   return (
-    <View style={{ gap: theme.space.md }}>
+    <View style={{ gap: theme.space[4] }}>
       {status ? (
         <StatusChip label={status.label} tone={tone(status)} />
       ) : (
         <Text tone="danger">{"Set your weekly hours in the web vendor panel: buyers can't see your shop until you do."}</Text>
       )}
       {current ? (
-        <Text tone="secondary">
+        <Text tone="muted">
           {current.ends_at
             ? `Orders are paused until ${new Date(current.ends_at).toLocaleString()}.`
             : 'Orders are paused until you resume them.'}
@@ -88,9 +88,9 @@ export function PauseOrders({ sellerId }: Readonly<{ sellerId: string }>) {
         <Button label="Resume orders" loading={resume.isPending} onPress={() => resume.mutate()} />
       ) : null}
       {mayChange.data && !current ? (
-        <View style={{ gap: theme.space.sm }}>
-          <Text variant="label">Pause for</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.space.sm }}>
+        <View style={{ gap: theme.space[2] }}>
+          <Text variant="strong">Pause for</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.space[2] }}>
             {DURATIONS.map((option) => (
               <Button
                 key={option.label}
@@ -105,7 +105,7 @@ export function PauseOrders({ sellerId }: Readonly<{ sellerId: string }>) {
         </View>
       ) : null}
       {mayChange.data === false ? (
-        <Text tone="secondary">{"Only the shop's owner or a manager can pause orders."}</Text>
+        <Text tone="muted">{"Only the shop's owner or a manager can pause orders."}</Text>
       ) : null}
       {error ? <Text tone="danger">{error.message}</Text> : null}
     </View>

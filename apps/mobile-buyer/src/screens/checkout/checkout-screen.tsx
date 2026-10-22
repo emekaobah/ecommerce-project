@@ -23,7 +23,7 @@ import {
   type PinnedDeliveryAddress,
   type PriceChange,
 } from '@oja/domain';
-import { Button, buyerTheme, EmptyState, ErrorState, LoadingState, RadioOption, StatusChip, Text, useTheme } from '@oja/ui';
+import { Button, EmptyState, ErrorState, LoadingState, RadioOption, space, StatusChip, Text, useTheme } from '@oja/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
@@ -266,8 +266,8 @@ function CheckoutForm({
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
-        style={{ backgroundColor: theme.colors.background }}
-        contentContainerStyle={{ padding: theme.space.md, gap: theme.space.lg }}
+        style={{ backgroundColor: theme.colors.bg }}
+        contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}
         keyboardShouldPersistTaps="handled">
         {everyCollected ? (
           <ContactDetails
@@ -359,7 +359,7 @@ function DeliveryAddress({
 }>) {
   const theme = useTheme();
   return (
-    <View style={{ gap: theme.space.md, display: hidden ? 'none' : 'flex' }}>
+    <View style={{ gap: theme.space[4], display: hidden ? 'none' : 'flex' }}>
       <View style={styles.spread}>
         <Text variant="heading">Delivery address</Text>
         <AddressStepLink
@@ -371,7 +371,7 @@ function DeliveryAddress({
         />
       </View>
       {step === 'starting' ? (
-        <Text tone="secondary">Getting your address…</Text>
+        <Text tone="muted">Getting your address…</Text>
       ) : null}
       {step === 'chosen' ? (
         <ChosenAddress address={checkout.shipping_address} saveError={saveError} />
@@ -446,12 +446,12 @@ function ContactDetails({
     onSave({ first_name: values.first_name!.trim(), last_name: values.last_name!.trim(), phone });
   };
   return (
-    <View style={{ gap: theme.space.md }}>
+    <View style={{ gap: theme.space[4] }}>
       <View style={styles.spread}>
         <Text variant="heading">Your details</Text>
         {editing || saving ? null : <Button label="Change" variant="link" onPress={onEdit} />}
       </View>
-      <Text tone="secondary">
+      <Text tone="muted">
         {"You collect every order in store, so there's no delivery address. Each shop hands your order to whoever shows its code."}
       </Text>
       {editing ? (
@@ -463,7 +463,7 @@ function ContactDetails({
             onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
           />
           {error ? (
-            <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+            <Text tone="danger" accessibilityLiveRegion="polite">
               {error.message}
             </Text>
           ) : null}
@@ -504,14 +504,14 @@ function CheckoutSummary({
         />
       ))}
       <PromoCodes cartId={cartId} checkout={checkout} />
-      <View style={{ gap: theme.space.sm }}>
+      <View style={{ gap: theme.space[2] }}>
         <Line label="Items" amount={checkout.item_subtotal} currencyCode={checkout.currency_code} />
         <Line label="Delivery" amount={checkout.shipping_total} currencyCode={checkout.currency_code} />
         {checkout.discount_total > 0 ? (
           <Line label="Discounts" amount={-checkout.discount_total} currencyCode={checkout.currency_code} />
         ) : null}
         <Line label="Total" amount={checkout.total} currencyCode={checkout.currency_code} strong />
-        <Text variant="caption" tone="secondary">
+        <Text variant="meta" tone="muted">
           Prices include VAT. Each shop delivers its own items, or hands them over in store.
         </Text>
       </View>
@@ -548,22 +548,22 @@ function PayBar({
   return (
     <View
       style={{
-        padding: theme.space.md,
-        gap: theme.space.sm,
+        padding: theme.space[4],
+        gap: theme.space[2],
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: theme.colors.divider,
-        backgroundColor: theme.colors.background,
+        borderTopColor: theme.colors.line,
+        backgroundColor: theme.colors.bg,
       }}>
       <NotPlaced checkout={checkout} />
       <PriceChanges changes={priceChanges} currencyCode={checkout.currency_code} />
       <StockChanges changes={stockChanges} />
       {discountChanged ? (
-        <Text tone="secondary" accessibilityLiveRegion="polite">
+        <Text tone="muted" accessibilityLiveRegion="polite">
           {"Your discounts changed: a code ended, was used up or no longer applies. The total below is what you'll pay."}
         </Text>
       ) : null}
       {notice ? (
-        <Text tone="secondary" accessibilityLiveRegion="polite">
+        <Text tone="muted" accessibilityLiveRegion="polite">
           {notice}
         </Text>
       ) : null}
@@ -647,7 +647,7 @@ function ChosenAddress({
     <>
       {address ? <AddressCard address={address} /> : null}
       {saveError ? (
-        <Text tone="secondary" accessibilityLiveRegion="polite">
+        <Text tone="muted" accessibilityLiveRegion="polite">
           {`Couldn't save it to your addresses: ${saveError.message}`}
         </Text>
       ) : null}
@@ -682,16 +682,16 @@ function NotPlaced({ checkout }: Readonly<{ checkout: Checkout }>) {
   const notPlaced = checkout.not_placed;
   if (!notPlaced) return null;
   return (
-    <View style={{ gap: theme.space.xs }} accessibilityLiveRegion="polite">
-      <Text variant="label">Your order wasn&apos;t placed</Text>
-      <Text tone="secondary">{notPlacedMessage(notPlaced, checkout.currency_code)}</Text>
-      <Text tone="secondary">A refund can take a few days to reach your card.</Text>
+    <View style={{ gap: theme.space[1] }} accessibilityLiveRegion="polite">
+      <Text variant="strong">Your order wasn&apos;t placed</Text>
+      <Text tone="muted">{notPlacedMessage(notPlaced, checkout.currency_code)}</Text>
+      <Text tone="muted">A refund can take a few days to reach your card.</Text>
       {notPlaced.changes.map((change) => (
-        <Text key={notPlacedChangeMessage(change)} tone="secondary">
+        <Text key={notPlacedChangeMessage(change)} tone="muted">
           {notPlacedChangeMessage(change)}
         </Text>
       ))}
-      <Text tone="secondary">{"The total below is what you'll pay if you order again."}</Text>
+      <Text tone="muted">{"The total below is what you'll pay if you order again."}</Text>
     </View>
   );
 }
@@ -701,14 +701,14 @@ function StockChanges({ changes }: Readonly<{ changes: NotPlacedChange[] }>) {
   const theme = useTheme();
   if (!changes.length) return null;
   return (
-    <View style={{ gap: theme.space.xs }} accessibilityLiveRegion="polite">
-      <Text variant="label">Some items sold out since you added them</Text>
+    <View style={{ gap: theme.space[1] }} accessibilityLiveRegion="polite">
+      <Text variant="strong">Some items sold out since you added them</Text>
       {changes.map((change) => (
-        <Text key={notPlacedChangeMessage(change)} tone="secondary">
+        <Text key={notPlacedChangeMessage(change)} tone="muted">
           {notPlacedChangeMessage(change)}
         </Text>
       ))}
-      <Text tone="secondary">{"The total below is what you'll pay."}</Text>
+      <Text tone="muted">{"The total below is what you'll pay."}</Text>
     </View>
   );
 }
@@ -718,14 +718,14 @@ function PriceChanges({ changes, currencyCode }: Readonly<{ changes: PriceChange
   const theme = useTheme();
   if (!changes.length) return null;
   return (
-    <View style={{ gap: theme.space.xs }} accessibilityLiveRegion="polite">
-      <Text variant="label">Some prices changed since you added these items</Text>
+    <View style={{ gap: theme.space[1] }} accessibilityLiveRegion="polite">
+      <Text variant="strong">Some prices changed since you added these items</Text>
       {changes.map((change) => (
-        <Text key={change.line_item_id} tone="secondary">
+        <Text key={change.line_item_id} tone="muted">
           {priceChangeMessage(change, currencyCode)}
         </Text>
       ))}
-      <Text tone="secondary">{"The total below is what you'll pay."}</Text>
+      <Text tone="muted">{"The total below is what you'll pay."}</Text>
     </View>
   );
 }
@@ -784,7 +784,7 @@ function SavedAddressPicker({
   const theme = useTheme();
   const busy = !!choosing;
   return (
-    <View style={{ gap: theme.space.sm }} accessibilityRole="radiogroup" accessibilityLabel="Delivery address">
+    <View style={{ gap: theme.space[2] }} accessibilityRole="radiogroup" accessibilityLabel="Delivery address">
       {addresses.map((saved) => {
         const address = checkoutAddressOf(saved, countryCode);
         const selected = choosing ? savedAddressFor([saved], choosing, countryCode) !== null : saved.id === chosenId;
@@ -794,7 +794,7 @@ function SavedAddressPicker({
             selected={selected}
             disabled={busy}
             onPress={() => (address ? onChoose(address) : onPin(saved))}>
-            <View style={{ gap: theme.space.sm }}>
+            <View style={{ gap: theme.space[2] }}>
               <AddressCard
                 address={saved}
                 badge={saved.is_default_shipping ? <StatusChip label="Default" tone="info" /> : null}
@@ -805,7 +805,7 @@ function SavedAddressPicker({
         );
       })}
       {error ? (
-        <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+        <Text tone="danger" accessibilityLiveRegion="polite">
           {error.message}
         </Text>
       ) : null}
@@ -832,10 +832,10 @@ function ShopSummary({
   return (
     <View
       style={{
-        gap: theme.space.sm,
-        paddingTop: theme.space.md,
+        gap: theme.space[2],
+        paddingTop: theme.space[4],
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: theme.colors.divider,
+        borderTopColor: theme.colors.line,
       }}>
       <Text variant="heading">{group.seller?.name ?? 'No longer available'}</Text>
       {/* Closed now: prepared when it opens, or (closed for a while) can't be paid for (ADR 0004). */}
@@ -843,17 +843,17 @@ function ShopSummary({
         <ShopStatusBadge status={group.shop_status} withNote delivered={group.method === 'delivery'} />
       ) : null}
       {group.shop_status && !group.shop_status.orderable ? (
-        <Text tone="secondary">{`Remove ${group.seller?.name}'s items from your cart to pay for the rest.`}</Text>
+        <Text tone="muted">{`Remove ${group.seller?.name}'s items from your cart to pay for the rest.`}</Text>
       ) : null}
       {group.items.map((item) => (
         <View key={item.id} style={styles.spread}>
-          <View style={[styles.shrink, { gap: theme.space.xs }]}>
+          <View style={[styles.shrink, { gap: theme.space[1] }]}>
             <Text numberOfLines={2}>
               {item.quantity} × {item.product_title ?? 'Item'}
             </Text>
             {item.perishable ? <PerishableChip /> : null}
             {item.discounts.map((discount) => (
-              <Text key={discount.code} variant="caption" tone="secondary">
+              <Text key={discount.code} variant="meta" tone="muted">
                 {`${discount.code} −${formatMoney(discount.amount, currencyCode)}`}
               </Text>
             ))}
@@ -863,24 +863,24 @@ function ShopSummary({
       ))}
       {group.perishable && !group.delivery_unavailable ? <PerishableRule /> : null}
       {group.pickup && sellerId ? (
-        <View style={{ gap: theme.space.sm }} accessibilityRole="radiogroup" accessibilityLabel={`How to get ${group.seller?.name}'s order`}>
+        <View style={{ gap: theme.space[2] }} accessibilityRole="radiogroup" accessibilityLabel={`How to get ${group.seller?.name}'s order`}>
           <RadioOption
             selected={group.method === 'delivery'}
             disabled={choosingMethod}
             onPress={() => group.method !== 'delivery' && onChooseMethod(sellerId, 'delivery')}>
-            <Text variant="label">Delivery</Text>
+            <Text variant="strong">Delivery</Text>
           </RadioOption>
           <RadioOption
             selected={group.method === 'pickup'}
             disabled={choosingMethod}
             onPress={() => group.method !== 'pickup' && onChooseMethod(sellerId, 'pickup')}>
-            <Text variant="label">Pickup · Free</Text>
+            <Text variant="strong">Pickup · Free</Text>
           </RadioOption>
         </View>
       ) : null}
       {group.method === 'pickup' && group.pickup ? (
-        <View style={{ gap: theme.space.xs }}>
-          <Text variant="label">Collect in store</Text>
+        <View style={{ gap: theme.space[1] }}>
+          <Text variant="strong">Collect in store</Text>
           {group.pickup_note ? <Text accessibilityLiveRegion="polite">{group.pickup_note}</Text> : null}
           <PickupDetails place={group.pickup} note={group.pickup.hold_notice} />
         </View>
@@ -907,17 +907,17 @@ function DeliveryChoices({
   const sellerId = group.seller?.id;
   if (group.delivery_unavailable) {
     return (
-      <View style={{ gap: theme.space.xs }} accessibilityLiveRegion="polite">
-        <Text variant="label">Delivery unavailable</Text>
-        <Text tone="secondary">{group.delivery_unavailable.reason}</Text>
+      <View style={{ gap: theme.space[1] }} accessibilityLiveRegion="polite">
+        <Text variant="strong">Delivery unavailable</Text>
+        <Text tone="muted">{group.delivery_unavailable.reason}</Text>
       </View>
     );
   }
   if (!sellerId || !group.delivery_choices.length) {
     return (
       <View style={styles.spread}>
-        <Text tone="secondary">Delivery</Text>
-        <Text tone="secondary">Confirm the address to see rates</Text>
+        <Text tone="muted">Delivery</Text>
+        <Text tone="muted">Confirm the address to see rates</Text>
       </View>
     );
   }
@@ -925,8 +925,8 @@ function DeliveryChoices({
   // While a choice is being saved, it shows as chosen.
   const chosenId = (choose.isPending && choose.variables?.choiceId) || group.shipping?.choice_id;
   return (
-    <View style={{ gap: theme.space.sm }} accessibilityRole="radiogroup" accessibilityLabel={`Delivery from ${group.seller?.name}`}>
-      <Text variant="label">Delivery</Text>
+    <View style={{ gap: theme.space[2] }} accessibilityRole="radiogroup" accessibilityLabel={`Delivery from ${group.seller?.name}`}>
+      <Text variant="strong">Delivery</Text>
       {group.delivery_choices.map((choice) => {
         const selected = choice.id === chosenId;
         const arrives = deliveryEstimate(choice.delivery_eta_time, now, choice.time_zone);
@@ -939,19 +939,19 @@ function DeliveryChoices({
               if (!selected) choose.mutate({ sellerId, choiceId: choice.id });
             }}>
             <View style={styles.spread}>
-              <Text variant="label" style={styles.shrink}>
+              <Text variant="strong" style={styles.shrink}>
                 {choice.tags.map((tag) => TAG_LABELS[tag]).join(' · ')}
               </Text>
-              <Text variant="label">{formatMoney(choice.amount, currencyCode)}</Text>
+              <Text variant="strong">{formatMoney(choice.amount, currencyCode)}</Text>
             </View>
-            <Text tone="secondary">
+            <Text tone="muted">
               {arrives} · {choice.courier_name}
             </Text>
           </RadioOption>
         );
       })}
       {choose.error ? (
-        <Text style={{ color: theme.colors.danger }} accessibilityLiveRegion="polite">
+        <Text tone="danger" accessibilityLiveRegion="polite">
           {`Couldn't change the delivery: ${choose.error.message}`}
         </Text>
       ) : null}
@@ -967,16 +967,18 @@ function Line({
 }: Readonly<{ label: string; amount: number; currencyCode: string; strong?: boolean }>) {
   return (
     <View style={styles.spread}>
-      <Text variant={strong ? 'label' : 'body'} tone={strong ? 'default' : 'secondary'}>
+      <Text variant={strong ? 'strong' : 'body'} tone={strong ? 'default' : 'muted'}>
         {label}
       </Text>
-      <Text variant={strong ? 'label' : 'body'}>{formatMoney(amount, currencyCode)}</Text>
+      <Text variant={strong ? 'strong' : 'body'} tabular>
+        {formatMoney(amount, currencyCode)}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: buyerTheme.space.md },
+  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space[4] },
   shrink: { flexShrink: 1 },
 });
