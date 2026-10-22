@@ -15,6 +15,7 @@ process.env.CLERK_JWT_KEY = clerk.jwtKey
 
 const LANTERN = SEED_PRODUCTS.find((p) => p.title === "Rechargeable LED Lantern")!
 const KAFTAN = SEED_PRODUCTS.find((p) => p.title === "Adire Kaftan")!
+const RICE = SEED_PRODUCTS.find((p) => p.title === "Ofada Rice 5kg")!
 
 medusaIntegrationTestRunner({
   inApp: true,
@@ -442,6 +443,70 @@ medusaIntegrationTestRunner({
         const { data } = await detail(gadgets, await productId(LANTERN.title))
 
         expect(data.listing.seller).toMatchObject({ logo: LOGO, banner: BANNER })
+      })
+    })
+
+    describe("stock", () => {
+      /** The shop's offer of the rice, its only variant. */
+      const riceOffer = async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({
+          entity: "offer",
+          fields: ["id", "inventory_item_link.inventory_item.location_levels.*"],
+          filters: { seller_id: await sellerId("Iya Bisi Foodstuff"), product_id: await productId(RICE.title) },
+        })
+        return data[0] as any
+      }
+      /** Stocks the rice at its location with `stocked`, `reserved` of them held for orders not yet shipped. */
+      const stockRice = async (stocked: number, reserved = 0) => {
+        const [level] = (await riceOffer()).inventory_item_link[0].inventory_item.location_levels
+        const inventory = getContainer().resolve(Modules.INVENTORY)
+        const at = { inventory_item_id: level.inventory_item_id, location_id: level.location_id }
+        await inventory.updateInventoryLevels([{ ...at, stocked_quantity: stocked }])
+        if (reserved) await inventory.createReservationItems([{ ...at, quantity: reserved }])
+      }
+      const updateRice = async (update: Record<string, unknown>) =>
+        (getContainer().resolve(MercurModules.OFFER) as any).updateOffers({ id: (await riceOffer()).id, ...update })
+      /** The rice's offer as the feed and the product page show it. */
+      const riceAsShown = async () => {
+        const grocery = await sellerId("Iya Bisi Foodstuff")
+        const rice = await productId(RICE.title)
+        const feed = (await list({ seller_id: grocery, limit: 100 })).data.listings.find((l: any) => l.product.id === rice)
+        const page = (await detail(grocery, rice)).data.listing
+        return [feed.offers[0].available_quantity, page.offers[0].available_quantity]
+      }
+
+      it("says how many are left: what is stocked less what is held for orders", async () => {
+        await stockRice(10, 3)
+
+        expect(await riceAsShown()).toEqual([7, 7])
+      })
+
+      it("still lists a sold-out offer, with none left", async () => {
+        await stockRice(0)
+
+        expect(await riceAsShown()).toEqual([0, 0])
+      })
+
+      it("leaves the count out when the shop doesn't track the offer's stock", async () => {
+        await stockRice(0)
+        await updateRice({ manage_inventory: false })
+
+        expect(await riceAsShown()).toEqual([null, null])
+      })
+
+      it("leaves the count out when the offer can be ordered beyond its stock", async () => {
+        await stockRice(0)
+        await updateRice({ allow_backorder: true })
+
+        expect(await riceAsShown()).toEqual([null, null])
+      })
+
+      it("counts every variant's offer on its own", async () => {
+        const { data } = await list({ limit: 100 })
+        const kaftan = data.listings.find((l: any) => l.product.title === KAFTAN.title)
+
+        expect(kaftan.offers.map((o: any) => o.available_quantity)).toEqual(kaftan.offers.map(() => 50))
       })
     })
 
