@@ -16,14 +16,14 @@ export function DeliveringToScreen() {
   const { address: current, saved, failed, retry, pick } = useDeliveringTo();
 
   if (failed) {
-    return <ErrorState title="Couldn't load your addresses" message="Check your connection and try again." onRetry={retry} />;
+    return <ErrorState title="Couldn't load your addresses" body="Check your connection and try again." onRetry={retry} />;
   }
   if (!saved) return <LoadingState />;
   if (!saved.length) {
     return (
       <EmptyState
         title="No saved addresses"
-        message="Add where you'd like deliveries to see the shops nearest you."
+        body="Add where you'd like deliveries to see the shops nearest you."
         action={{ label: 'Add a delivery address', onPress: addAddress }}
       />
     );

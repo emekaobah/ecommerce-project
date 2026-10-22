@@ -1,3 +1,4 @@
+import { shopStatusChip } from '@oja/domain';
 import { StatusChip, Text, useTheme } from '@oja/ui';
 import { View } from 'react-native';
 
@@ -22,7 +23,7 @@ export function ShopStatusBadge({
   const countsFrom = delivered ? ', and delivery counts from then' : '';
   return (
     <View style={{ gap: theme.space[1], alignItems: 'flex-start' }}>
-      <StatusChip label={status.label} tone={status.orderable ? 'warning' : 'danger'} icon="clock" />
+      <StatusChip {...shopStatusChip(status.state, status.label)} />
       {withNote && note ? <Text tone="muted">“{note}”</Text> : null}
       {withNote ? (
         <Text tone="muted">

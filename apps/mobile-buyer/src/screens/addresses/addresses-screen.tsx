@@ -24,7 +24,7 @@ export function AddressesScreen() {
     return (
       <ErrorState
         title="Couldn't load your addresses"
-        message={addresses.error.message}
+        body="Check your connection and try again." error={addresses.error}
         onRetry={() => void addresses.refetch()}
       />
     );
@@ -34,7 +34,7 @@ export function AddressesScreen() {
     return (
       <EmptyState
         title="No saved addresses"
-        message="Save where you'd like deliveries, and checkout fills it in for you."
+        body="Save where you'd like deliveries, and checkout fills it in for you."
         action={{ label: 'Add an address', onPress: addAddress }}
       />
     );
@@ -104,7 +104,7 @@ function SavedAddressRow({ address }: Readonly<{ address: SavedAddressRecord }>)
 /** "Default" for the default address, else "Needs a pin" for one saved before pins were required. */
 function AddressBadge({ isDefault, unpinned }: Readonly<{ isDefault: boolean; unpinned: boolean }>) {
   if (isDefault) return <StatusChip label="Default" tone="info" />;
-  if (unpinned) return <StatusChip label="Needs a pin" tone="warning" />;
+  if (unpinned) return <StatusChip label="Needs a pin" tone="attention" icon="pin" />;
   return null;
 }
 

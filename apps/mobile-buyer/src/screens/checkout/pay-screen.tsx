@@ -15,7 +15,7 @@ import { PAYMENT_RETURN_URL } from './checkout-screen';
 export function PayScreen() {
   const theme = useTheme();
   const { cartId, url } = useLocalSearchParams<{ cartId: string; url: string }>();
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const done = useRef(false);
 
   // Closing the page ourselves says nothing about whether the buyer paid; Paystack's cancel does.
@@ -44,7 +44,8 @@ export function PayScreen() {
         {header}
         <ErrorState
           title="Couldn't open Paystack"
-          message={`${loadError} You haven't been charged.`}
+          body="The payment page didn't load. You haven't been charged."
+          error={loadError}
           onRetry={() => setLoadError(null)}
         />
       </>
@@ -65,7 +66,7 @@ export function PayScreen() {
           leave(outcome.kind);
           return false;
         }}
-        onError={({ nativeEvent }) => setLoadError(nativeEvent.description || 'The page failed to load.')}
+        onError={({ nativeEvent }) => setLoadError(new Error(nativeEvent.description || 'The page failed to load.'))}
       />
     </>
   );

@@ -21,10 +21,10 @@ export function WishlistScreen() {
   const { refreshing, refresh } = usePullToRefresh(() => wishlist.refetch());
 
   if (region.error) {
-    return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
+    return <ErrorState title="Couldn't reach the store" body="Check your connection and try again. Anything in your cart is saved." error={region.error} onRetry={region.retry} />;
   }
   if (wishlist.error && !wishlist.data) {
-    return <ErrorState title="Couldn't load your wishlist" message={wishlist.error.message} onRetry={refresh} />;
+    return <ErrorState title="Couldn't load your wishlist" body="Check your connection and try again." error={wishlist.error} onRetry={refresh} />;
   }
   if (!region.region || !wishlist.data) return <LoadingState />;
 
@@ -40,7 +40,7 @@ export function WishlistScreen() {
       ListEmptyComponent={
         <EmptyState
           title="Nothing saved yet"
-          message="Save products from their page to find them here."
+          body="Save products from their page to find them here."
           action={{ label: 'Start shopping', onPress: () => router.navigate('/') }}
         />
       }

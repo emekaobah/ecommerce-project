@@ -23,7 +23,7 @@ export function AccountScreen() {
       return (
         <ErrorState
           title="Couldn't load your account"
-          message={customer.error.message}
+          body="Check your connection and try again." error={customer.error}
           onRetry={() => void customer.refetch()}
         />
       );

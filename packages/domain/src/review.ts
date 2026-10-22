@@ -1,5 +1,5 @@
 import type { FulfilmentState } from "./fulfilment"
-import type { StatusView } from "./order-history"
+import type { StatusView } from "./status"
 
 /**
  * Reviews and ratings (#7). Buyers rate the shops they bought from and the products they
@@ -109,11 +109,12 @@ export type ReviewStatus = "pending" | "published" | "rejected"
 const STATUSES: Record<ReviewStatus, StatusView> = {
   pending: {
     label: "Waiting for moderation",
-    tone: "warning",
+    tone: "new",
+    icon: "clock",
     note: "We check every review before it's published. Other buyers will see it once it is.",
   },
-  published: { label: "Published", tone: "success", note: null },
-  rejected: { label: "Not published", tone: "danger", note: "It didn't meet our review guidelines." },
+  published: { label: "Published", tone: "success", icon: "check", note: null },
+  rejected: { label: "Not published", tone: "neutral", icon: "x", note: "It didn't meet our review guidelines." },
 }
 
 /** Where the buyer's own review is in moderation, as its author reads it. */

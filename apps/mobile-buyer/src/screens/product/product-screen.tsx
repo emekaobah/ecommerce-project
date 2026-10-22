@@ -47,7 +47,7 @@ export function ProductScreen({ sellerId, productId }: Readonly<{ sellerId?: str
     return (
       <EmptyState
         title="Pick a shop"
-        message="Open this product from a shop's listing."
+        body="Open this product from a shop's listing."
         action={{ label: 'Back to shopping', onPress: () => router.back() }}
       />
     );
@@ -61,14 +61,14 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
   const listing = useListing(region.region?.id, sellerId, productId);
 
   if (region.error) {
-    return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
+    return <ErrorState title="Couldn't reach the store" body="Check your connection and try again. Anything in your cart is saved." error={region.error} onRetry={region.retry} />;
   }
   if (listing.error) {
     if (isNotFound(listing.error)) {
       return (
         <EmptyState
           title="No longer available"
-          message="This shop isn't selling this product right now."
+          body="This shop isn't selling this product right now."
           action={{ label: 'Back to shopping', onPress: () => router.back() }}
         />
       );
@@ -76,7 +76,7 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
     return (
       <ErrorState
         title="Couldn't load this product"
-        message={listing.error.message}
+        body="Check your connection and try again." error={listing.error}
         onRetry={() => void listing.refetch()}
       />
     );

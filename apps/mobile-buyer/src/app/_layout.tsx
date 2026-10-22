@@ -1,7 +1,7 @@
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import { initSentry, useSentryNavigation, withSentry } from '@oja/expo-sentry';
-import { ThemeProvider, useTheme } from '@oja/ui';
+import { ThemeProvider, ToastProvider, useTheme } from '@oja/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -31,14 +31,16 @@ function RootLayout() {
     <ClerkProvider publishableKey={env.clerkPublishableKey} tokenCache={tokenCache}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <RegionProvider>
-            <CartProvider>
-              <DeliveringToProvider>
-                <StatusBar style="auto" />
-                <RootStack />
-              </DeliveringToProvider>
-            </CartProvider>
-          </RegionProvider>
+          <ToastProvider>
+            <RegionProvider>
+              <CartProvider>
+                <DeliveringToProvider>
+                  <StatusBar style="auto" />
+                  <RootStack />
+                </DeliveringToProvider>
+              </CartProvider>
+            </RegionProvider>
+          </ToastProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </ClerkProvider>

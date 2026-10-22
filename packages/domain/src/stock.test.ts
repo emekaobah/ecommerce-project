@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { availableQuantity, stockShortfall } from "./stock"
+import { availableQuantity, stockLeftLabel, stockShortfall } from "./stock"
 
 const level = (stocked: number, reserved = 0) => ({ stocked_quantity: stocked, reserved_quantity: reserved })
 const tracked = (parts: { required_quantity: number | null; levels: ReturnType<typeof level>[] }[]) => ({
@@ -67,5 +67,27 @@ describe("stockShortfall", () => {
 
   test("says how many are left when fewer than wanted are", () => {
     expect(stockShortfall(5, 2)).toEqual({ type: "short", left: 2 })
+  })
+})
+
+describe("stockLeftLabel", () => {
+  test.each([
+    [1, "Only 1 left"],
+    [3, "Only 3 left"],
+    [4, "Only 4 left"],
+  ])("warns when %i are left", (available, label) => {
+    expect(stockLeftLabel(available)).toBe(label)
+  })
+
+  test.each([[5], [12]])("says nothing with %i left", (available) => {
+    expect(stockLeftLabel(available)).toBeNull()
+  })
+
+  test("says nothing of an offer that is always available", () => {
+    expect(stockLeftLabel(null)).toBeNull()
+  })
+
+  test("leaves a sold-out offer to say Sold out", () => {
+    expect(stockLeftLabel(0)).toBeNull()
   })
 })

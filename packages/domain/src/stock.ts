@@ -36,3 +36,11 @@ export function stockShortfall(quantity: number, available: number | null): Stoc
   if (available === null || available >= quantity) return null
   return available <= 0 ? { type: "sold_out" } : { type: "short", left: available }
 }
+
+/** Below this many left, the product and cart say how many (catalogue: "Below five left"). */
+const LOW_STOCK = 5
+
+/** "Only 3 left" when stock runs low; null while there's plenty, it isn't tracked, or none is left (that reads "Sold out"). */
+export function stockLeftLabel(available: number | null): string | null {
+  return available !== null && available > 0 && available < LOW_STOCK ? `Only ${available} left` : null
+}

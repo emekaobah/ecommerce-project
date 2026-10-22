@@ -21,19 +21,19 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
   const { refreshing, refresh } = usePullToRefresh(() => Promise.all([shop.refetch(), listings.refetch()]));
 
   if (region.error) {
-    return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
+    return <ErrorState title="Couldn't reach the store" body="Check your connection and try again. Anything in your cart is saved." error={region.error} onRetry={region.retry} />;
   }
   if (shop.error && isNotFound(shop.error)) {
     return (
       <EmptyState
         title="Shop closed"
-        message="This shop isn't selling in your area right now."
+        body="This shop isn't selling in your area right now."
         action={{ label: 'Back to shopping', onPress: () => router.back() }}
       />
     );
   }
   const error = (!shop.data && shop.error) || (!listings.data && listings.error);
-  if (error) return <ErrorState title="Couldn't load this shop" message={error.message} onRetry={refresh} />;
+  if (error) return <ErrorState title="Couldn't load this shop" body="Check your connection and try again." error={error} onRetry={refresh} />;
   if (!region.region || !shop.data || !listings.data) return <LoadingState />;
 
   const { currency_code } = region.region;
@@ -46,7 +46,7 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
       refreshing={refreshing}
       onRefresh={refresh}
       ListHeaderComponent={<ShopHeader shop={shop.data} />}
-      ListEmptyComponent={<EmptyState title="Nothing for sale yet" message="Check back soon." />}
+      ListEmptyComponent={<EmptyState title="Nothing for sale yet" body="Check back soon." />}
       renderItem={({ item }) => <ListingRow listing={item} currencyCode={currency_code} />}
     />
   );

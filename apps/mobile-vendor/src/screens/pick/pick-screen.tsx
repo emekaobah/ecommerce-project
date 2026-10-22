@@ -32,12 +32,12 @@ export function PickScreen() {
   const content = () => {
     if (pickList.error && !pickList.data) {
       return (
-        <ErrorState title="Couldn't load the pick list" message={pickList.error.message} onRetry={() => void pickList.refetch()} />
+        <ErrorState title="Couldn't load the pick list" body="Check your connection and try again. Nothing you've picked is lost." error={pickList.error} onRetry={() => void pickList.refetch()} />
       );
     }
     if (!pickList.data) return <LoadingState />;
     const { lines, progress, unavailable_amount, currency_code } = pickList.data;
-    if (!lines.length) return <EmptyState title="Nothing to pick" message="This order has no items." />;
+    if (!lines.length) return <EmptyState title="Nothing to pick" body="This order has no items." />;
 
     return (
       <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>

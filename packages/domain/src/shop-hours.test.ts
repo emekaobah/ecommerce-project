@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   afterOpenTime,
+  shopStatusChip,
   hoursExceptionErrors,
   isOpenAt,
   weeklyHoursErrors,
@@ -501,5 +502,15 @@ describe("openingLabel", () => {
     ["more than a week away", "2026-10-13T08:00:00", "8am Tue 13 Oct"],
   ])("a shop opening %s", (_, local, text) => {
     expect(openingLabel(lagos(local).toISOString(), now, "Africa/Lagos")).toBe(text)
+  })
+})
+
+describe("shopStatusChip", () => {
+  test("an open shop's chip is leaf, with a check", () => {
+    expect(shopStatusChip("open", "Open · closes 7pm")).toEqual({ label: "Open · closes 7pm", tone: "success", icon: "check" })
+  })
+
+  test.each(["closed", "closed_until"] as const)("a %s shop's chip is grey, with a clock", (state) => {
+    expect(shopStatusChip(state, "Closed · opens 10am Mon")).toEqual({ label: "Closed · opens 10am Mon", tone: "neutral", icon: "clock" })
   })
 })

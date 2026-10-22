@@ -102,7 +102,7 @@ function OrderPlaced({ orderGroupId }: Readonly<{ orderGroupId: string }>) {
       return (
         <ErrorState
           title="Couldn't load the order details"
-          message={group.error.message}
+          body="Check your connection and try again. If you paid, your order appears in Orders once Paystack confirms it." error={group.error}
           onRetry={() => void group.refetch()}
         />
       );

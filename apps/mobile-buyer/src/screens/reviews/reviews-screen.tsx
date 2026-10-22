@@ -14,7 +14,7 @@ export function ReviewsScreen({ kind, id, title }: Readonly<{ kind: ReviewKind; 
   const { refreshing, refresh } = usePullToRefresh(() => pages.refetch());
 
   if (pages.error && !pages.data) {
-    return <ErrorState title="Couldn't load the reviews" message={pages.error.message} onRetry={refresh} />;
+    return <ErrorState title="Couldn't load the reviews" body="Check your connection and try again." error={pages.error} onRetry={refresh} />;
   }
   if (!pages.data) return <LoadingState />;
 
@@ -41,7 +41,7 @@ export function ReviewsScreen({ kind, id, title }: Readonly<{ kind: ReviewKind; 
             </View>
           ) : undefined
         }
-        ListEmptyComponent={<EmptyState title="No reviews yet" message="Reviews show here once they're published." />}
+        ListEmptyComponent={<EmptyState title="No reviews yet" body="Reviews show here once they're published." />}
         ListFooterComponent={
           pages.isFetchingNextPage ? <ActivityIndicator color={theme.colors.ink} accessibilityLabel="Loading" /> : undefined
         }

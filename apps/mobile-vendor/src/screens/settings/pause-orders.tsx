@@ -1,9 +1,10 @@
-import { Button, ErrorState, LoadingState, StatusChip, Text, useTheme, type StatusTone } from '@oja/ui';
+import { shopStatusChip } from '@oja/domain';
+import { Button, ErrorState, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
 import { useMayManageShop } from '@/api/sellers';
-import { usePauseShop, useResumeShop, useShopHours, type ShopHours } from '@/api/shop-hours';
+import { usePauseShop, useResumeShop, useShopHours } from '@/api/shop-hours';
 import { Field } from '@/components/field';
 
 const HOUR = 60 * 60 * 1000;
@@ -14,11 +15,6 @@ const DURATIONS = [
   { label: '1 hour', hours: 1 },
   { label: '3 hours', hours: 3 },
 ] as const;
-
-const tone = (status: NonNullable<ShopHours['status']>): StatusTone => {
-  if (status.state === 'open') return 'success';
-  return status.orderable ? 'warning' : 'danger';
-};
 
 /**
  * Before pausing, staff are told about orders still waiting to be accepted: a pause stops new
@@ -52,7 +48,7 @@ export function PauseOrders({ sellerId }: Readonly<{ sellerId: string }>) {
   const [note, setNote] = useState('');
 
   if (hours.error && !hours.data) {
-    return <ErrorState title="Couldn't load your opening hours" message={hours.error.message} onRetry={() => void hours.refetch()} />;
+    return <ErrorState title="Couldn't load your opening hours" body="Check your connection and try again." error={hours.error} onRetry={() => void hours.refetch()} />;
   }
   if (!hours.data) return <LoadingState />;
   const { status, pause: current, new_orders: newOrders } = hours.data;
@@ -72,7 +68,7 @@ export function PauseOrders({ sellerId }: Readonly<{ sellerId: string }>) {
   return (
     <View style={{ gap: theme.space[4] }}>
       {status ? (
-        <StatusChip label={status.label} tone={tone(status)} />
+        <StatusChip {...shopStatusChip(status.state, status.label)} />
       ) : (
         <Text tone="danger">{"Set your weekly hours in the web vendor panel: buyers can't see your shop until you do."}</Text>
       )}

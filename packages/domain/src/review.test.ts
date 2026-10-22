@@ -109,13 +109,14 @@ describe("reviewStatus", () => {
   test("tells the author a pending review waits for moderation", () => {
     expect(reviewStatus("pending")).toEqual({
       label: "Waiting for moderation",
-      tone: "warning",
+      tone: "new",
+      icon: "clock",
       note: "We check every review before it's published. Other buyers will see it once it is.",
     })
   })
 
   test("tells the author a review is published, or that it wasn't", () => {
-    expect(reviewStatus("published")).toMatchObject({ label: "Published", tone: "success" })
-    expect(reviewStatus("rejected")).toMatchObject({ label: "Not published", tone: "danger" })
+    expect(reviewStatus("published")).toMatchObject({ label: "Published", tone: "success", icon: "check" })
+    expect(reviewStatus("rejected")).toMatchObject({ label: "Not published", tone: "neutral", icon: "x" })
   })
 })

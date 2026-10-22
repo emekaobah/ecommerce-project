@@ -108,9 +108,10 @@ export type {
   OwedRefundState,
   OwedRefundView,
   RefundStatus,
-  StatusTone,
-  StatusView,
 } from "./order-history"
+export type { StatusChipView, StatusSymbol, StatusTone, StatusView } from "./status"
+export { acceptClockStatus, staffStatus } from "./staff-status"
+export { shopInitials } from "./shop-mark"
 export type { AcceptTimeLeft } from "./accept-deadline"
 export {
   afterOpenDays,
@@ -122,6 +123,7 @@ export {
   openingLabel,
   openTimeBetween,
   shopStatus,
+  shopStatusChip,
   shopStatusLabel,
   todaysHours,
   WEEKDAY_NAMES,
@@ -150,7 +152,7 @@ export {
 } from "./buyer-push"
 export { notPlacedChangeMessage, notPlacedMessage, notPlacedPush } from "./not-placed"
 export type { NotPlaced, NotPlacedChange, NotPlacedReason } from "./not-placed"
-export { availableQuantity, stockShortfall } from "./stock"
+export { availableQuantity, stockLeftLabel, stockShortfall } from "./stock"
 export type { OfferStock, StockLevel, StockShortfall } from "./stock"
 export type { BuyerPush, BuyerPushOrder, BuyerPushPickup, ConfirmedShop, RefundAccountReminder, RefundNotice, RemovedItem } from "./buyer-push"
 export { pickProgress, scanBarcode } from "./picking"

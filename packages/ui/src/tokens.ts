@@ -1,3 +1,4 @@
+import type { StatusTone } from "@oja/domain"
 import type { TextStyle } from "react-native"
 import { FONT_FACES } from "./fonts"
 
@@ -76,8 +77,34 @@ export const line = {
   ring: points(3),
 }
 
-/** How far text grows with the system's text-size setting. */
+/** How far text grows with the system's text-size setting. Once text reaches it, grids drop to one column. */
 export const MAX_FONT_SCALE = 1.3
+
+/** Sizes of the shop and product building blocks. */
+export const block = {
+  /** A product tile in a rail. */
+  railTile: points(118),
+  /** The add and save buttons on a product photo: drawn small, with a 44pt hit area. */
+  photoButton: points(26),
+  /** The quantity stepper's minus and plus, each a 44pt target. */
+  stepperHalf: points(32),
+  /** A shop's banner, under the status bar. */
+  banner: points(150),
+  /** The empty state's pattern emblem, and the error state's quieter one. */
+  emblem: points(112),
+  quietEmblem: points(88),
+  /** A code box, one per digit. */
+  codeBox: grid(48),
+  /** A multi-line input's least height. */
+  textArea: grid(84),
+}
+
+/** A shop mark (logo or monogram) by where it sits: a row, a shop group's header, the shop page. */
+export const shopMark = {
+  sm: { size: points(32), radius: even(12), fontSize: points(11.5) },
+  md: { size: points(48), radius: even(12), fontSize: points(14) },
+  lg: { size: points(52), radius: even(16), fontSize: points(18), border: points(3) },
+}
 
 /** Bricolage Grotesque, 18 mockup px and up. */
 export type DisplayVariant = "displayXxl" | "displayXl" | "displayLg" | "titleRoot" | "titleNamed" | "titlePushed" | "heading"
@@ -136,8 +163,8 @@ export const DISPLAY_VARIANTS: ReadonlySet<TextVariant> = new Set<DisplayVariant
 
 /** Lucide icons, in points as Foundations gives them, and the drawn stroke, which scales with the size. */
 export const icon = {
-  size: { default: 24, add: 22, step: 20, chip: 16 },
-  stroke: { default: 1.8, add: 2.4, step: 1.8, chip: 2.2 },
+  size: { default: 24, add: 22, step: 20, chip: 16, emblem: points(40) },
+  stroke: { default: 1.8, add: 2.4, step: 1.8, chip: 2.2, emblem: 1.6 },
 } as const
 
 /** Durations in ms (Foundations, Motion). Under Reduce Motion nothing slides or pulses: everything cross-fades. */
@@ -167,9 +194,6 @@ export const elevation = {
   floating: { boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.15)" },
   heart: { boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.15)" },
 } as const
-
-/** "new" is a new order waiting to be accepted; the rest follow @oja/domain's tones. */
-export type StatusTone = "neutral" | "info" | "success" | "warning" | "danger" | "new"
 
 export type Theme = {
   scheme: "light" | "dark"
@@ -225,11 +249,22 @@ export type Theme = {
     pressed: string
     /** Behind sheets. */
     scrim: string
+    /** The adire pattern's strokes, on the band in both themes. */
+    pattern: string
+    /** The skeleton shimmer's sweep. */
+    shimmer: string
+    /** Toasts: the opposite of the page. */
+    inverse: string
+    onInverse: string
+    inverseSuccess: string
+    inverseDanger: string
   }
   /** Chip text and background per tone, each at 7:1 or more (catalogue Accessibility). */
   status: Record<StatusTone, { foreground: string; background: string }>
   space: typeof space
   radius: typeof radius
+  block: typeof block
+  shopMark: typeof shopMark
   control: typeof control
   hitArea: number
   line: typeof line
@@ -242,6 +277,8 @@ export type Theme = {
 const sizes = {
   space,
   radius,
+  block,
+  shopMark,
   control,
   hitArea: HIT_AREA,
   line,
@@ -258,6 +295,7 @@ const leaf = "#186441"
 const ember = "#90411A"
 const red = "#AA2318"
 const scrim = "rgba(0, 0, 0, 0.6)"
+const pattern = "#5767C2"
 
 export const lightTheme: Theme = {
   scheme: "light",
@@ -291,14 +329,20 @@ export const lightTheme: Theme = {
     dangerBg: "#FBEAE8",
     pressed: "rgba(18, 22, 43, 0.12)",
     scrim,
+    pattern,
+    shimmer: "rgba(255, 255, 255, 0.55)",
+    inverse: "#12162B",
+    onInverse: white,
+    inverseSuccess: "#8FD3AE",
+    inverseDanger: "#F2938A",
   },
   status: {
     neutral: { foreground: "#494F66", background: "#F0F1F4" },
     info: { foreground: indigo, background: "#EEF0F7" },
     success: { foreground: "#165A3C", background: "#E3F2EA" },
-    warning: { foreground: "#84391A", background: "#FBEDE3" },
-    danger: { foreground: "#962218", background: "#FBEAE8" },
     new: { foreground: "#714800", background: "#FDF1D8" },
+    attention: { foreground: "#84391A", background: "#FBEDE3" },
+    danger: { foreground: "#962218", background: "#FBEAE8" },
   },
   ...sizes,
 }
@@ -336,14 +380,20 @@ export const darkTheme: Theme = {
     dangerBg: "#3A1717",
     pressed: "rgba(255, 255, 255, 0.12)",
     scrim,
+    pattern,
+    shimmer: "rgba(255, 255, 255, 0.06)",
+    inverse: "#E9EBF5",
+    onInverse: "#12152A",
+    inverseSuccess: "#165A3C",
+    inverseDanger: "#962218",
   },
   status: {
     neutral: { foreground: "#B4B4BC", background: "#26262A" },
     info: { foreground: "#AEB8FF", background: "#23263A" },
     success: { foreground: "#6FD6A0", background: "#14281D" },
-    warning: { foreground: "#F0A474", background: "#30221A" },
-    danger: { foreground: "#F2938A", background: "#311B1B" },
     new: { foreground: "#F2C76B", background: "#2E2614" },
+    attention: { foreground: "#F0A474", background: "#30221A" },
+    danger: { foreground: "#F2938A", background: "#311B1B" },
   },
   ...sizes,
 }

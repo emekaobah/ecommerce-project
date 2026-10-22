@@ -12,6 +12,6 @@ export function PickMark({ picked, quantity, unavailable }: PickMarkProps) {
     return <StatusChip label={label} tone="danger" icon="x" />;
   }
   if (picked >= quantity) return <StatusChip label="Picked" tone="success" />;
-  if (picked > 0) return <StatusChip label={`${picked} of ${quantity}`} tone="warning" icon="clock" />;
+  if (picked > 0) return <StatusChip label={`${picked} of ${quantity}`} tone="info" icon="clock" />;
   return <StatusChip label="To pick" />;
 }

@@ -12,7 +12,7 @@ export function QuickAddDoneScreen() {
   return (
     <View style={{ flex: 1, justifyContent: 'center', padding: theme.space[6], gap: theme.space[4] }}>
       <Stack.Screen options={{ title: proposed ? 'Sent for review' : 'Added' }} />
-      <StatusChip label={proposed ? 'In review' : 'On sale'} tone={proposed ? 'warning' : 'success'} />
+      <StatusChip label={proposed ? 'In review' : 'On sale'} tone={proposed ? 'new' : 'success'} icon={proposed ? 'clock' : 'check'} />
       <Text variant="titlePushed">{proposed ? `${title} is sent for review` : `${title} is in your shop`}</Text>
       <Text tone="muted">
         {proposed

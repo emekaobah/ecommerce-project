@@ -32,7 +32,7 @@ export function OrdersScreen() {
   const content = () => {
     // A failed refresh keeps the list already on screen.
     if (orders.error && !orders.data) {
-      return <ErrorState title="Couldn't load orders" message={orders.error.message} onRetry={refresh} />;
+      return <ErrorState title="Couldn't load orders" body="Check your connection and try again." error={orders.error} onRetry={refresh} />;
     }
     if (!orders.data) return <LoadingState />;
     const readyCount = ready.data?.length ?? 0;
@@ -57,9 +57,9 @@ export function OrdersScreen() {
         }
         ListEmptyComponent={
           readyOnly ? (
-            <EmptyState title="Nothing waiting" message="Orders ready for their buyers to collect show up here." />
+            <EmptyState title="Nothing waiting" body="Orders ready for their buyers to collect show up here." />
           ) : (
-            <EmptyState title="No orders yet" message="New orders show up here." />
+            <EmptyState title="No orders yet" body="New orders show up here." />
           )
         }
         refreshing={pulling}

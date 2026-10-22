@@ -16,10 +16,10 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
 
   const content = () => {
     if (region.error) {
-      return <ErrorState title="Couldn't reach the store" message={region.error.message} onRetry={region.retry} />;
+      return <ErrorState title="Couldn't reach the store" body="Check your connection and try again. Anything in your cart is saved." error={region.error} onRetry={region.retry} />;
     }
     if (listings.error && !listings.data) {
-      return <ErrorState title="Couldn't load products" message={listings.error.message} onRetry={refresh} />;
+      return <ErrorState title="Couldn't load products" body="Check your connection and try again." error={listings.error} onRetry={refresh} />;
     }
     if (!region.region || !listings.data) return <LoadingState />;
     return (
@@ -32,7 +32,7 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
         empty={
           <EmptyState
             title="Nothing here yet"
-            message="No shop near you sells anything in this category right now."
+            body="No shop near you sells anything in this category right now."
             action={{ label: 'Back to categories', onPress: () => router.back() }}
           />
         }

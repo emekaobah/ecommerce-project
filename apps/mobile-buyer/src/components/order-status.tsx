@@ -18,9 +18,9 @@ export function OrderStatusChips({ order }: Readonly<{ order: SellerOrder }>) {
   const owed = owedRefundStatus(order.owed_refund, order.currency_code);
   return (
     <View style={[styles.row, { gap: theme.space[1] }]}>
-      <StatusChip label={status.label} tone={status.tone} />
-      {refund ? <StatusChip label={refund.label} tone={refund.tone} /> : null}
-      {owed ? <StatusChip label={owed.label} tone={owed.tone} /> : null}
+      <StatusChip label={status.label} tone={status.tone} icon={status.icon} />
+      {refund ? <StatusChip label={refund.label} tone={refund.tone} icon={refund.icon} /> : null}
+      {owed ? <StatusChip label={owed.label} tone={owed.tone} icon={owed.icon} /> : null}
     </View>
   );
 }
