@@ -87,6 +87,7 @@ export { collectBy, collectByLabel, HOLD_REMINDERS, holdReminderDue, PERISHABLE_
 export type { HoldReminder } from "./pickup-hold"
 export { dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
 export type { DisplayPrice, ListingPrice, PricedOffer, ShopDeal, ShopGroup } from "./listing"
+export { greeting } from "./greeting"
 export { currentShop, shopChoice } from "./shop-choice"
 export type { ShopChoice } from "./shop-choice"
 export { cartOnSignIn } from "./cart"
