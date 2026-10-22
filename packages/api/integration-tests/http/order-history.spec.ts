@@ -98,6 +98,118 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("in progress and past, and search (#54)", () => {
+      /** A buyer of their own, so only the checkouts a test makes are theirs. */
+      const newBuyer = async (name: string) => {
+        const other = buyerCheckout({ api, getContainer, clerk, paystack, email: `${name}-${Date.now()}@oja.test` })
+        await other.load()
+        return other
+      }
+      /** The buyer pays for a checkout of the gadget hub's lantern and the grocery's rice, or the lantern alone. */
+      const checkout = async (who: typeof buyer, { lanternOnly = false } = {}) => {
+        let cartId: string
+        let reference: string
+        if (lanternOnly) {
+          cartId = (await api.post("/store/carts", { region_id: who.regionId() }, who.ada())).data.cart.id
+          await api.post(`/store/carts/${cartId}/line-items`, { offer_id: await who.offerId(GADGETS, LANTERN.title), quantity: 1 }, who.ada())
+          await who.prepare(cartId)
+          reference = (await who.startPayment(cartId)).reference
+          paystack.pay(reference)
+          await who.postWebhook(paystack.chargeSuccess(reference))
+          await who.capturedWithin(cartId)
+        } else {
+          ;({ cartId, reference } = await who.paidCheckout())
+        }
+        const shopOrder = (shop: Shop) => who.shopOrderId(shop, cartId)
+        return {
+          reference,
+          groupId: await who.orderGroupOf(cartId),
+          gadgets: await shopOrder(GADGETS),
+          grocery: lanternOnly ? null : await shopOrder(GROCERY),
+        }
+      }
+      const listed = async (who: typeof buyer, params: Record<string, string | number>) =>
+        (await api.get(`/store/order-history?${new URLSearchParams(params as Record<string, string>)}`, who.ada())).data
+      const ids = (page: { order_groups: { id: string }[] }) => page.order_groups.map((g) => g.id)
+
+      it("keeps a checkout in progress until every shop's order in it is final, then it is past", async () => {
+        const cy = await newBuyer("cy")
+        const { groupId, gadgets, grocery } = await checkout(cy)
+
+        expect(ids(await listed(cy, { phase: "in_progress" }))).toEqual([groupId])
+        expect(ids(await listed(cy, { phase: "past" }))).toEqual([])
+
+        // One shop's order is final, with its refund on its way: the other shop is still preparing hers.
+        await reject(GADGETS, gadgets, "Out of stock")
+        expect(ids(await listed(cy, { phase: "in_progress" }))).toEqual([groupId])
+        expect(ids(await listed(cy, { phase: "past" }))).toEqual([])
+
+        // Both final; the refunds still moving don't hold the checkout.
+        await reject(GROCERY, grocery!, "Out of stock")
+        expect(ids(await listed(cy, { phase: "in_progress" }))).toEqual([])
+        const past = await listed(cy, { phase: "past" })
+        expect(ids(past)).toEqual([groupId])
+        expect(past.order_groups[0].orders.map((o: any) => o.refund?.status)).toEqual(["pending", "pending"])
+      })
+
+      it("keeps a final checkout in progress while a refund of it waits on the buyer's bank account", async () => {
+        const dee = await newBuyer("dee")
+        const { reference, groupId, gadgets, grocery } = await checkout(dee)
+        await reject(GADGETS, gadgets, "Out of stock")
+        await reject(GROCERY, grocery!, "Out of stock")
+        // The grocery's refund, made second.
+        const [, refund] = paystack.refundsOf(reference)
+
+        paystack.settleRefund(refund!.id, "needs-attention")
+        await dee.postWebhook(paystack.refundEvent(refund!.id))
+        await eventually(
+          () => fulfilmentService(getContainer()).listOrderRefunds({ order_id: grocery!, status: "needs-attention" }),
+          (rows) => rows.length > 0
+        )
+
+        expect(ids(await listed(dee, { phase: "in_progress" }))).toEqual([groupId])
+        expect(ids(await listed(dee, { phase: "past" }))).toEqual([])
+      })
+
+      it("lists every checkout in progress at once, and pages past checkouts newest first", async () => {
+        const eve = await newBuyer("eve")
+        const finished: string[] = []
+        for (let i = 0; i < 3; i++) {
+          const placed = await checkout(eve)
+          await reject(GADGETS, placed.gadgets, "Closed")
+          await reject(GROCERY, placed.grocery!, "Closed")
+          finished.push(placed.groupId)
+        }
+        const open = [(await checkout(eve)).groupId, (await checkout(eve)).groupId]
+
+        const inProgress = await listed(eve, { phase: "in_progress", limit: 1 })
+        expect(ids(inProgress)).toEqual([...open].reverse())
+        expect(inProgress.count).toBe(2)
+
+        const first = await listed(eve, { phase: "past", limit: 2, offset: 0 })
+        const second = await listed(eve, { phase: "past", limit: 2, offset: 2 })
+        expect(ids(first)).toEqual([finished[2], finished[1]])
+        expect(ids(second)).toEqual([finished[0]])
+        expect([first.count, second.count]).toEqual([3, 3])
+      })
+
+      it("finds checkouts by an item's name, in either phase, newest first, whatever its case", async () => {
+        const fay = await newBuyer("fay")
+        const finished = await checkout(fay)
+        await reject(GADGETS, finished.gadgets, "Closed")
+        await reject(GROCERY, finished.grocery!, "Closed")
+        const lanternOnly = await checkout(fay, { lanternOnly: true })
+        const both = await checkout(fay)
+
+        const rice = await listed(fay, { q: "ofada RICE" })
+        expect(ids(rice)).toEqual([both.groupId, finished.groupId])
+        expect(rice.count).toBe(2)
+        expect(ids(await listed(fay, { q: "lantern" }))).toEqual([both.groupId, lanternOnly.groupId, finished.groupId])
+        expect(ids(await listed(fay, { q: "lantern", limit: 1, offset: 1 }))).toEqual([lanternOnly.groupId])
+        expect(ids(await listed(fay, { q: "palm oil" }))).toEqual([])
+      })
+    })
+
     describe("an order group", () => {
       it("shows each shop's order with its items", async () => {
         const { groupId, gadgets, grocery } = await paidGroup()
