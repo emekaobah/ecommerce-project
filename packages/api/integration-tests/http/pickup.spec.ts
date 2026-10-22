@@ -220,6 +220,28 @@ medusaIntegrationTestRunner({
         expect((await shopIn(data.checkout, GROCERY)).pickup).toMatchObject({ follows_pickup_address: false, distance_km: 10 })
       })
 
+      it("measures pickup from the buyer's Delivering-to address when every shop is collected", async () => {
+        await setCollectionPoint(GADGETS)
+        const cartId = await adasCart()
+        const pickup = [await sellerId(GROCERY), await sellerId(GADGETS)]
+        // Ada's saved address, pinned where her delivery address is, as the saved-address routes keep it.
+        const { data: me } = await api.get("/store/customers/me", ada())
+        const customers = getContainer().resolve(Modules.CUSTOMER)
+        const [saved] = await customers.createCustomerAddresses([{ ...ADDRESS, customer_id: me.customer.id }])
+        const [stranger] = await customers.createCustomers([{ email: `stranger-${Date.now()}@oja.test` }])
+        const [theirs] = await customers.createCustomerAddresses([{ ...ADDRESS, customer_id: stranger.id }])
+
+        const { data } = await prepare(cartId, { contact: CONTACT, pickup, address_id: saved.id })
+
+        // From Ada's pin to the grocery's, 10.5 km, as from her delivery address.
+        expect((await shopIn(data.checkout, GROCERY)).pickup.distance_km).toBe(11)
+        const shown = await api.get(`/store/carts/${cartId}/checkout?address_id=${saved.id}`, ada())
+        expect((await shopIn(shown.data.checkout, GROCERY)).pickup.distance_km).toBe(11)
+        // Another buyer's address is never measured from.
+        const notHers = await api.get(`/store/carts/${cartId}/checkout?address_id=${theirs.id}`, ada())
+        expect((await shopIn(notHers.data.checkout, GROCERY)).pickup.distance_km).toBeNull()
+      })
+
       it("places one order of each method from a checkout with a delivery shop and a pickup shop", async () => {
         const cartId = await adasCart()
 

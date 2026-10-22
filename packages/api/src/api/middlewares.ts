@@ -17,6 +17,7 @@ import { AdminListEnrichments } from "./admin/catalogue-enrichment/validators";
 import {
     StoreApplyPromoCode,
     StoreChooseDelivery,
+    StoreGetCheckoutParams,
     StorePrepareCheckout,
     StoreStartCheckoutPayment,
 } from "./store/carts/[id]/checkout/validators";
@@ -153,7 +154,7 @@ export default defineMiddlewares({
         {
             method: ["GET"],
             matcher: "/store/carts/:id/checkout",
-            middlewares: [authenticate("customer", ["session", "bearer"])],
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformQuery(StoreGetCheckoutParams, {})],
         },
         {
             method: ["POST"],

@@ -27,6 +27,7 @@ import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-pr
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
 import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./cart"
 import { cutCartToStock } from "./cart-stock"
+import { deliveringToPin } from "./listings"
 import { escapeLike } from "./sql"
 import { offerLinePrice } from "./cart-lines"
 import { discountsByCode } from "./discount-funding"
@@ -104,8 +105,9 @@ export type DeliveryUnavailable = { code: "perishable_too_slow"; reason: string 
 export type PickupOffer = CollectionPlace & {
   hold_notice: string
   /**
-   * How far the collection point is from the delivery address's pin, in whole kilometres (ADR
-   * 0011), never its pin; null without an address to measure from.
+   * How far the collection point is, in whole kilometres (ADR 0011), never its pin: from the
+   * delivery address's pin, else from the saved address the buyer is "Delivering to" (a checkout
+   * where every shop is collected has no delivery address); null without either.
    */
   distance_km: number | null
 }
@@ -409,8 +411,19 @@ function shopDelivery(
   }
 }
 
+/** Where checkout measures collection points from when the cart has no delivery address. */
+export type CheckoutDeliveringTo = {
+  /** The buyer's "Delivering to" saved address; ignored when it isn't theirs or has no pin. */
+  addressId?: string
+}
+
 /** The cart as checkout shows it: shop by shop, with each shop's delivery and the totals. */
-export async function retrieveCheckout(scope: MedusaContainer, cartId: string, customerId: string): Promise<Checkout> {
+export async function retrieveCheckout(
+  scope: MedusaContainer,
+  cartId: string,
+  customerId: string,
+  { addressId }: CheckoutDeliveringTo = {}
+): Promise<Checkout> {
   const cart = await buyersCart(scope, cartId, customerId)
   const grouped = await retrieveCartBySeller(scope, cartId)
   const deliveries = await deliveriesBySeller(scope, cart)
@@ -430,11 +443,12 @@ export async function retrieveCheckout(scope: MedusaContainer, cartId: string, c
   const receiverCode = addressCodeOf(address)
   const unavailable = unavailableDeliveries(cart)
   const sellerIds = grouped.sellers.flatMap((g) => (g.seller ? [g.seller.id] : []))
+  const from = pinOf(address) ?? (await deliveringToPin(scope, { customerId, addressId }))
   const [timeZone, collecting, places, distances] = await Promise.all([
     regionTimeZone(scope, grouped.region_id),
     collectedShops(scope, cart),
     collectionPlacesOf(scope, sellerIds),
-    collectionPointDistancesKm(scope, sellerIds, pinOf(address)),
+    collectionPointDistancesKm(scope, sellerIds, from),
   ])
   const sellers = grouped.sellers.map((group): CheckoutSellerGroup => {
     const sellerId = group.seller?.id
@@ -732,7 +746,7 @@ export type CheckoutPreparation = {
   contact?: CheckoutContact | null
   /** The shops whose orders the buyer collects in store (#12); the rest are delivered. */
   pickup?: string[]
-}
+} & CheckoutDeliveringTo
 
 /**
  * Readies the buyer's cart to pay: every line at its shop's current price, the buyer's email,
@@ -744,7 +758,7 @@ export type CheckoutPreparation = {
  */
 export async function prepareCheckout(
   scope: MedusaContainer,
-  { cartId, customerId, shippingAddress, contact, pickup = [] }: { cartId: string; customerId: string } & CheckoutPreparation
+  { cartId, customerId, shippingAddress, contact, pickup = [], addressId }: { cartId: string; customerId: string } & CheckoutPreparation
 ): Promise<CheckoutPrepared> {
   const cart = await buyersCart(scope, cartId, customerId)
   notCompleted(cart)
@@ -775,7 +789,7 @@ export async function prepareCheckout(
     })
     await setShopMethods(scope, await buyersCart(scope, cartId, customerId), { receiverCode: null, pickup: collecting })
     await applyShopPromotions(scope, cartId)
-    return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
+    return { checkout: await retrieveCheckout(scope, cartId, customerId, { addressId }), price_changes: priceChanges }
   }
 
   if (!shippingAddress) throw new MedusaError(MedusaError.Types.INVALID_DATA, "Set the delivery address")
@@ -801,7 +815,7 @@ export async function prepareCheckout(
     pickup: collecting,
   })
   await applyShopPromotions(scope, cartId)
-  return { checkout: await retrieveCheckout(scope, cartId, customerId), price_changes: priceChanges }
+  return { checkout: await retrieveCheckout(scope, cartId, customerId, { addressId }), price_changes: priceChanges }
 }
 
 /**
