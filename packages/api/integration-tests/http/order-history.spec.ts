@@ -9,6 +9,7 @@ import { fakePaystack } from "../helpers/paystack"
 import { COURIERS, fakeShipbubble, LATER_PICKUP_TIME } from "../helpers/shipbubble"
 import { setWeeklyHours } from "../../src/lib/shop-hours"
 import { WEEKDAYS } from "@oja/domain"
+import { MercurModules } from "@mercurjs/types"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -107,6 +108,23 @@ medusaIntegrationTestRunner({
         const byShop = Object.fromEntries(group.orders.map((o: any) => [o.seller.name, o]))
         expect(byShop[GADGETS.name]).toMatchObject({ id: gadgets, items: [{ product_title: LANTERN.title, quantity: 1, unit_price: LANTERN.price }] })
         expect(byShop[GROCERY.name]).toMatchObject({ id: grocery, items: [{ product_title: RICE.title, quantity: 2, unit_price: RICE.price }] })
+      })
+
+      it("shows each shop's logo and banner, or nulls when it has none", async () => {
+        const sellers = getContainer().resolve(MercurModules.SELLER) as any
+        const [gadgets] = await sellers.listSellers({ name: GADGETS.name })
+        const [grocery] = await sellers.listSellers({ name: GROCERY.name })
+        await sellers.updateSellers({ id: gadgets.id, logo: "https://cdn.oja.test/logo.png", banner: "https://cdn.oja.test/banner.jpg" })
+        await sellers.updateSellers({ id: grocery.id, logo: null, banner: null })
+        const { groupId } = await paidGroup()
+
+        const images = (orders: any[]) => Object.fromEntries(orders.map((o: any) => [o.seller.name, [o.seller.logo, o.seller.banner]]))
+        const expected = {
+          [GADGETS.name]: ["https://cdn.oja.test/logo.png", "https://cdn.oja.test/banner.jpg"],
+          [GROCERY.name]: [null, null],
+        }
+        expect(images((await orderGroup(groupId)).orders)).toEqual(expected)
+        expect(images((await history()).find((g: any) => g.id === groupId).orders)).toEqual(expected)
       })
 
       it("is not found for any other buyer, or a guest", async () => {
