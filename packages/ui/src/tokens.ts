@@ -5,10 +5,11 @@ import { FONT_FACES } from "./fonts"
 // Code is the design system's source of truth: screens use these tokens only, never raw values.
 
 /**
- * Mockup px to device points: the catalogue draws a 393pt iPhone 282px wide. Every size below is
- * a mockup value times this, so changing it resizes the whole app in proportion.
+ * Mockup px to device points. Every size below is a mockup value times this, so changing it
+ * resizes the whole app in proportion. The catalogue draws a 393pt iPhone 282px wide (1.394), but
+ * that read large on a phone, so the apps use 1.2: body text 16pt, the main button 64pt (#75).
  */
-export const SCALE = 1.394
+export const SCALE = 1.2
 
 const snapTo = (step: number) => (mockup: number) => Math.max(step, Math.round((mockup * SCALE) / step) * step)
 /** Spacing and control heights sit on the 4pt grid. */
