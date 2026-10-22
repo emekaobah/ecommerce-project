@@ -1,10 +1,10 @@
-import { canReview, reviewAction, reviewerName, type ReviewKind, type ReviewStatus, type ReviewSubject } from "@oja/domain"
+import { canReview, reviewAction, reviewerName, type FulfilmentState, type ReviewKind, type ReviewStatus, type ReviewSubject } from "@oja/domain"
 import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import CustomerReviewLink from "@mercurjs/core/links/customer-review"
 import type { ReviewDTO } from "@mercurjs/types"
-import { fulfilmentsOf } from "./order-fulfilment"
+import { fulfilmentService, fulfilmentsOf } from "./order-fulfilment"
 
 // Reviews and ratings (#7) on Mercur's review module: one `review` per target (a shop, or a
 // catalogue product), linked to the order that earned it and the buyer who wrote it, and
@@ -169,12 +169,11 @@ export async function buyerReviewCounts(
   customerId: string
 ): Promise<{ reviews_written: number; orders_to_review: number }> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
-  const [{ data: orders }, reviews] = await Promise.all([
-    query.graph({ entity: "order", fields: ["id"], filters: { customer_id: customerId } }),
+  const [fulfilments, reviews] = await Promise.all([
+    fulfilmentService(scope).listOrderFulfilments({ customer_id: customerId }, { select: ["order_id", "state"] }),
     buyerReviews(scope, customerId),
   ])
-  const fulfilments = await fulfilmentsOf(scope, (orders as { id: string }[]).map((o) => o.id))
-  const receivedIds = [...fulfilments.values()].filter((f) => canReview(f.state)).map((f) => f.order_id)
+  const receivedIds = fulfilments.filter((f) => canReview(f.state as FulfilmentState)).map((f) => f.order_id)
   if (!receivedIds.length) return { reviews_written: reviews.size, orders_to_review: 0 }
 
   const { data: received } = await query.graph({
