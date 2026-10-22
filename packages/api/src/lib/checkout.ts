@@ -441,35 +441,8 @@ export async function retrieveCheckout(
     collectionPlacesOf(scope, sellerIds),
     collectionPointDistancesKm(scope, sellerIds, from),
   ])
-  const sellers = grouped.sellers.map((group): CheckoutSellerGroup => {
-    const sellerId = group.seller?.id
-    const place = sellerId ? places.get(sellerId) : undefined
-    const km = sellerId ? distances.get(sellerId) : undefined
-    const pickup = place
-      ? { ...place, hold_notice: PICKUP_HOLD_NOTICE, distance_km: km == null ? null : roundedDistanceKm(km) }
-      : null
-    const method: FulfilmentMethod = sellerId && collecting.has(sellerId) ? "pickup" : "delivery"
-    const delivery = sellerId && method === "delivery" ? deliveries.get(sellerId) : undefined
-    // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
-    // So does a shop's word that it can't deliver. An order with perishable items (perhaps only
-    // since the quote) takes only a delivery still arriving by the end of tomorrow, and a shop
-    // refused one only while it has perishable items.
-    const basis = quoteBasis(receiverCode, parcelLines(group))
-    const inTime = !!delivery && ratesFor([delivery.data.quote], { perishable: group.perishable, timeZone }).length > 0
-    const current = delivery?.data.basis === basis && inTime ? delivery : undefined
-    const refused = sellerId ? unavailable[sellerId] : undefined
-    const delivery_unavailable =
-      group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null
-    return {
-      ...group,
-      method,
-      ...shopDelivery(current),
-      delivery_unavailable,
-      pickup,
-      // Checkout switched it to pickup: no courier brings its fresh items in time (#69).
-      pickup_note: method === "pickup" && delivery_unavailable ? PERISHABLE_PICKUP_NOTE : null,
-    }
-  })
+  const facts = { deliveries, receiverCode, unavailable, timeZone, collecting, places, distances }
+  const sellers = grouped.sellers.map((group) => checkoutSellerGroup(group, facts))
   const contact = contactOf(cart.billing_address)
   const allCollected = sellers.length > 0 && sellers.every((g) => g.method === "pickup")
   const promotions = await cartPromotions(scope, cart, sellers)
@@ -495,6 +468,49 @@ export async function retrieveCheckout(
       sellers.every((g) => g.seller && (g.method === "pickup" || g.shipping) && g.shop_status?.orderable),
     order_group_id: orderGroupId,
     not_placed: cart.completed_at ? null : notPlacedOf(cart),
+  }
+}
+
+/** What checkout knows of every shop at once, to show each shop's part from. */
+type CheckoutFacts = {
+  deliveries: Awaited<ReturnType<typeof deliveriesBySeller>>
+  receiverCode: ReturnType<typeof addressCodeOf>
+  unavailable: ReturnType<typeof unavailableDeliveries>
+  timeZone: Awaited<ReturnType<typeof regionTimeZone>>
+  collecting: Set<string>
+  places: Awaited<ReturnType<typeof collectionPlacesOf>>
+  distances: Awaited<ReturnType<typeof collectionPointDistancesKm>>
+}
+
+/** One shop's part of checkout: pickup or delivery, the delivery still standing, and its pickup place. */
+function checkoutSellerGroup(group: CartSellerGroup, facts: CheckoutFacts): CheckoutSellerGroup {
+  const sellerId = group.seller?.id
+  const place = sellerId ? facts.places.get(sellerId) : undefined
+  const km = sellerId ? facts.distances.get(sellerId) : undefined
+  const pickup = place
+    ? { ...place, hold_notice: PICKUP_HOLD_NOTICE, distance_km: km == null ? null : roundedDistanceKm(km) }
+    : null
+  const method: FulfilmentMethod = sellerId && facts.collecting.has(sellerId) ? "pickup" : "delivery"
+  const delivery = sellerId && method === "delivery" ? facts.deliveries.get(sellerId) : undefined
+  // A delivery quoted for another parcel or address no longer stands; checkout quotes it again.
+  // So does a shop's word that it can't deliver. An order with perishable items (perhaps only
+  // since the quote) takes only a delivery still arriving by the end of tomorrow, and a shop
+  // refused one only while it has perishable items.
+  const basis = quoteBasis(facts.receiverCode, parcelLines(group))
+  const inTime =
+    !!delivery && ratesFor([delivery.data.quote], { perishable: group.perishable, timeZone: facts.timeZone }).length > 0
+  const current = delivery?.data.basis === basis && inTime ? delivery : undefined
+  const refused = sellerId ? facts.unavailable[sellerId] : undefined
+  const delivery_unavailable =
+    group.perishable && refused?.basis === basis ? { code: refused.code, reason: refused.reason } : null
+  return {
+    ...group,
+    method,
+    ...shopDelivery(current),
+    delivery_unavailable,
+    pickup,
+    // Checkout switched it to pickup: no courier brings its fresh items in time (#69).
+    pickup_note: method === "pickup" && delivery_unavailable ? PERISHABLE_PICKUP_NOTE : null,
   }
 }
 
