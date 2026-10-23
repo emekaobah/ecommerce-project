@@ -1,6 +1,15 @@
 import { describe, expect, test } from "bun:test"
 import { formatMoney } from "./money"
-import { historyEntries, missingItemsNote, orderGroupSummary, orderStatus, owedRefundStatus, refundStatus } from "./order-history"
+import {
+  historyEntries,
+  missingItemsNote,
+  orderCardStatus,
+  orderGroupSummary,
+  orderStatus,
+  owedRefundStatus,
+  reachedOnLabel,
+  refundStatus,
+} from "./order-history"
 
 const placed = { state: "new", rejected_by: null, reject_reason: null, cancellation: null } as const
 
@@ -214,5 +223,47 @@ describe("missingItemsNote", () => {
 
   test("nothing missing, no note", () => {
     expect(missingItemsNote({ items: [beans], refunds: [], currency_code: "ngn" })).toBeNull()
+  })
+})
+
+describe("orderCardStatus", () => {
+  test("a new order's chip on its shop card reads just Waiting, beside the shop's name", () => {
+    expect(orderCardStatus({ fulfilment: placed })).toEqual({ label: "Waiting", tone: "new", icon: "clock", note: null })
+  })
+
+  test("other states read as orderStatus gives them", () => {
+    const packed = { fulfilment: { ...placed, state: "packed" as const } }
+    expect(orderCardStatus(packed)).toEqual(orderStatus(packed))
+  })
+})
+
+describe("reachedOnLabel", () => {
+  const LAGOS = "Africa/Lagos"
+  const timeline = [
+    { label: "Placed", status: "done" as const, at: "2026-09-30T09:00:00Z" },
+    { label: "Delivered", status: "current" as const, at: "2026-10-02T14:00:00Z" },
+  ]
+
+  test("a delivered order reads when it got there", () => {
+    expect(reachedOnLabel({ state: "delivered", timeline }, LAGOS)).toBe("Delivered Fri 2 Oct")
+  })
+
+  test("a collected order reads when it was collected", () => {
+    expect(reachedOnLabel({ state: "collected", timeline }, LAGOS)).toBe("Collected Fri 2 Oct")
+  })
+
+  test("the day is the time zone's, not UTC's", () => {
+    const late = [{ label: "Delivered", status: "current" as const, at: "2026-10-01T23:30:00Z" }]
+    expect(reachedOnLabel({ state: "delivered", timeline: late }, LAGOS)).toBe("Delivered Fri 2 Oct")
+  })
+
+  test("skips steps still to come and steps without a time", () => {
+    const steps = [...timeline, { label: "Reviewed", status: "upcoming" as const, at: "2026-10-09T10:00:00Z" }, { label: "x", status: "done" as const, at: null }]
+    expect(reachedOnLabel({ state: "delivered", timeline: steps }, LAGOS)).toBe("Delivered Fri 2 Oct")
+  })
+
+  test("nothing until it has got there, or without a time", () => {
+    expect(reachedOnLabel({ state: "in_transit", timeline }, LAGOS)).toBeNull()
+    expect(reachedOnLabel({ state: "delivered", timeline: [] }, LAGOS)).toBeNull()
   })
 })

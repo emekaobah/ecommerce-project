@@ -1,7 +1,9 @@
 import { cancelledBy, cancelReasonText } from "./cancellation"
+import { dateLabel } from "./date-label"
 import type { Cancellation, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
 import type { StatusView } from "./status"
+import type { TimelineStep } from "./timeline"
 
 /**
  * How the buyer app shows its order history (#17): each checkout is an order group, split into
@@ -90,6 +92,25 @@ export function orderStatus({ fulfilment }: { fulfilment: OrderFulfilmentView })
   if (fulfilment.state !== "rejected") return { ...STATES[fulfilment.state], note: null }
   if (fulfilment.rejected_by === "accept_deadline") return { label: "Not accepted in time", tone: "neutral", icon: "x", note: null }
   return { label: "Rejected by the shop", tone: "neutral", icon: "x", note: fulfilment.reject_reason }
+}
+
+/**
+ * A shop's state on its card in the order: as `orderStatus` gives it, but a new order's chip
+ * reads just "Waiting", beside the shop's name.
+ */
+export function orderCardStatus(order: { fulfilment: OrderFulfilmentView }): StatusView {
+  const status = orderStatus(order)
+  return order.fulfilment.state === "new" ? { ...status, label: "Waiting" } : status
+}
+
+/** "Delivered Fri 2 Oct": when a delivered or collected order got there, from its timeline; null before that. */
+export function reachedOnLabel(
+  { state, timeline }: { state: FulfilmentState; timeline: readonly TimelineStep[] },
+  timeZone: string
+): string | null {
+  if (state !== "delivered" && state !== "collected") return null
+  const at = [...timeline].reverse().find((step) => step.status !== "upcoming" && step.at)?.at
+  return at ? `${STATES[state].label} ${dateLabel(at, timeZone)}` : null
 }
 
 type GroupLike<O> = { orders: readonly O[] }

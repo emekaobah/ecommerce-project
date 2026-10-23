@@ -6,10 +6,11 @@ import {
   missingItemsNote,
   openingLabel,
   orderArrival,
+  orderCardStatus,
   orderGroupSummary,
   orderNumber,
-  orderStatus,
   PICKUP_HOLD_NOTICE,
+  reachedOnLabel,
 } from '@oja/domain';
 import { Band, Button, ErrorState, InlineNote, ListRow, PressableSurface, ShopMark, Skeleton, StatusChip, Text, Timeline, useTheme, useToast } from '@oja/ui';
 import { Image } from 'expo-image';
@@ -148,7 +149,7 @@ type ShopOrderProps = {
 /** One shop's part of the checkout. */
 function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>) {
   const theme = useTheme();
-  const status = orderStatus(order);
+  const status = orderCardStatus(order);
   const missing = missingItemsNote(order);
   const cardY = useRef(0);
   const changed = courierChangedNote(order.fulfilment.state, order.delivery);
@@ -210,6 +211,9 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
   );
 }
 
+/** The buyer's time zone, for a delivered or collected order that doesn't carry its region's. */
+const DEVICE_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 /** Under the shop's name: when it opens, arrives, is to be collected by, or got there. */
 function ShopLine({ order }: Readonly<{ order: SellerOrder }>) {
   const now = new Date();
@@ -218,22 +222,12 @@ function ShopLine({ order }: Readonly<{ order: SellerOrder }>) {
     (order.shop_opens && `Prepared when it opens ${openingLabel(order.shop_opens.at, now, order.shop_opens.time_zone)}`) ||
     orderArrival(state, order.delivery, now) ||
     (state === 'ready_for_pickup' && collect_by ? collectByLabel(collect_by.at, now, collect_by.time_zone) : null) ||
-    reachedOn(order);
+    reachedOnLabel(order.fulfilment, order.delivery?.time_zone ?? collect_by?.time_zone ?? DEVICE_TIME_ZONE);
   return line ? (
     <Text variant="meta" tone="muted">
       {line}
     </Text>
   ) : null;
-}
-
-/** "Delivered Thu 2 Oct": when a delivered or collected order got there, from its timeline. */
-function reachedOn(order: SellerOrder) {
-  const { state, timeline } = order.fulfilment;
-  if (state !== 'delivered' && state !== 'collected') return null;
-  const at = timeline.findLast((step) => step.status !== 'upcoming' && step.at)?.at;
-  if (!at) return null;
-  const day = new Date(at).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-  return `${orderStatus(order).label} ${day}`;
 }
 
 /**
