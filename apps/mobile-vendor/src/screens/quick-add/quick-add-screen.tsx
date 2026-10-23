@@ -7,7 +7,7 @@ import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { refusedWith } from '@/api/errors';
+import { useFailureMessage } from '@/api/errors';
 import { useBarcodeLookup, useQuickAdd, type BarcodeLookup } from '@/api/quick-add';
 import { useSession } from '@/session/session-store';
 
@@ -142,6 +142,7 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
   const theme = useTheme();
   const router = useRouter();
   const quickAdd = useQuickAdd();
+  const failure = useFailureMessage(quickAdd.error, [400, 409], "Couldn't add it to your shop. Check your connection and try again.");
   // The view measures itself below the header: without its height the keyboard covers the foot button.
   const headerHeight = useHeaderHeight();
   const newProduct = !lookup.product;
@@ -254,11 +255,7 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
         />
       </ScrollView>
       <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2], gap: theme.space[2], backgroundColor: theme.colors.bg }}>
-        {quickAdd.error ? (
-          <InlineNote>
-            {refusedWith(quickAdd.error, [400, 409]) ?? "Couldn't add it to your shop. Check your connection and try again."}
-          </InlineNote>
-        ) : null}
+        {failure ? <InlineNote>{failure}</InlineNote> : null}
         <Button label={newProduct ? 'Send for review' : 'Add to my shop'} size="main" onPress={submit} loading={quickAdd.isPending} />
       </SafeAreaView>
     </KeyboardAvoidingView>

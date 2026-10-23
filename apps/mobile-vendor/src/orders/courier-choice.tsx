@@ -3,7 +3,7 @@ import { Button, InlineNote, RadioOption, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { refusedWith } from '@/api/errors';
+import { useFailureMessage } from '@/api/errors';
 import { useBookLabel, type CourierOption, type CourierPick, type OrderFulfilment } from '@/api/orders';
 
 /**
@@ -20,6 +20,7 @@ export function BookCourier({
   const theme = useTheme();
   const mutation = useBookLabel(orderId);
   const [options, setOptions] = useState<CourierOption[] | null>(null);
+  const failure = useFailureMessage(mutation.error, [400, 409], "Couldn't book the courier. Check your connection and try again.");
   const book = (courier?: CourierPick) =>
     mutation.mutate(courier, {
       onSuccess: ({ courier_options, fulfilment }) => {
@@ -32,11 +33,7 @@ export function BookCourier({
   return (
     <View style={{ gap: theme.space[2] }}>
       {options ? <CourierChoice options={options} currency={currency} booking={mutation.isPending} onChoose={book} /> : null}
-      {mutation.error ? (
-        <InlineNote>
-          {refusedWith(mutation.error, [400, 409]) ?? "Couldn't book the courier. Check your connection and try again."}
-        </InlineNote>
-      ) : null}
+      {failure ? <InlineNote>{failure}</InlineNote> : null}
       {options ? null : (
         <Button
           label={rebook ? 'Rebook courier label' : 'Book courier label'}

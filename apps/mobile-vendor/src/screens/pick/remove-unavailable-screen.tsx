@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { refusedWith } from '@/api/errors';
+import { useFailureMessage } from '@/api/errors';
 import { isCancelInstead, usePickList, useRemoveUnavailable } from '@/api/orders';
 
 import { CancelInstead } from './cancel-instead';
@@ -23,6 +23,7 @@ export function RemoveUnavailableScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const pickList = usePickList(id);
   const remove = useRemoveUnavailable(id);
+  const failure = useFailureMessage(remove.error, [400, 409], "Couldn't remove the items. Check your connection and try again.");
   // Back to the pick list it came from, or to a fresh one when the summary was opened on its own.
   const toPicking = () => router.dismissTo({ pathname: '/orders/[id]/pick', params: { id } });
 
@@ -85,11 +86,7 @@ export function RemoveUnavailableScreen() {
     <CancelInstead orderId={id} />
   ) : (
     <>
-      {remove.error ? (
-        <InlineNote>
-          {refusedWith(remove.error, [400, 409]) ?? "Couldn't remove the items. Check your connection and try again."}
-        </InlineNote>
-      ) : null}
+      {failure ? <InlineNote>{failure}</InlineNote> : null}
       <Button
         label="Remove and refund"
         variant="danger"

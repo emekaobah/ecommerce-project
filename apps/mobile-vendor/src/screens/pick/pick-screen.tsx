@@ -16,7 +16,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { refusedWith } from '@/api/errors';
+import { useFailureMessage } from '@/api/errors';
 import { useOrder, usePackOrder, usePickList, useRecordPick, type Order, type PickList, type PickListLine } from '@/api/orders';
 
 import { CancelInstead } from './cancel-instead';
@@ -38,6 +38,9 @@ export function PickScreen() {
   const pickList = usePickList(id);
   const recordPick = useRecordPick(id);
   const pack = usePackOrder(id);
+  // A failed pack or tick in plain words; a pack the API refused (the order moved on) in its own.
+  const packFailure = useFailureMessage(pack.error, [400, 409], "Couldn't mark the order packed. Check your connection and try again.");
+  const tickFailure = useFailureMessage(recordPick.error, [], "Couldn't save that tick. Check your connection; the list shows what's saved.");
 
   const markShort = (line: PickListLine) =>
     router.push({ pathname: '/orders/[id]/unavailable', params: { id, item: line.id } });
@@ -83,7 +86,7 @@ export function PickScreen() {
         </ScrollView>
         <PickFoot
           pickList={pickList.data}
-          problem={pickProblem(recordPick.error, pack.error)}
+          problem={packFailure ?? tickFailure}
           packing={pack.isPending}
           onScan={() => router.push({ pathname: '/orders/[id]/scan', params: { id } })}
           onPacked={() => {
@@ -223,15 +226,6 @@ function PickFoot({
       </View>
     </SafeAreaView>
   );
-}
-
-/** A failed tick or pack in plain words; a pack the API refused (the order moved on) in its own. */
-function pickProblem(pickError: Error | null, packError: Error | null): string | null {
-  if (packError) {
-    return refusedWith(packError, [400, 409]) ?? "Couldn't mark the order packed. Check your connection and try again.";
-  }
-  if (pickError) return "Couldn't save that tick. Check your connection; the list shows what's saved.";
-  return null;
 }
 
 /** The pick list's shape while it loads: the band, then rows of photo, name and pill. */

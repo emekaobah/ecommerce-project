@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { refusedWith } from '@/api/errors';
+import { useFailureMessage } from '@/api/errors';
 import { useCancelOrder, useCancelPreview, useOrder } from '@/api/orders';
 
 import { ConfirmationHero } from '../collect/confirmation-hero';
@@ -36,6 +36,11 @@ export function CancelScreen() {
   const order = useOrder(id);
   const preview = useCancelPreview(id);
   const cancel = useCancelOrder(id);
+  const failure = useFailureMessage(
+    cancel.error,
+    [400, 403, 409],
+    "Couldn't cancel the order. Check your connection and try again; nothing has changed."
+  );
   // The view measures itself below the header: without its height the keyboard covers the foot button.
   const headerHeight = useHeaderHeight();
   const [reason, setReason] = useState<CancelReason | null>(isReason(params.reason) ? params.reason : null);
@@ -117,11 +122,7 @@ export function CancelScreen() {
         <SafeAreaView
           edges={['bottom']}
           style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2], gap: theme.space[2], backgroundColor: theme.colors.bg }}>
-          {cancel.error ? (
-            <InlineNote>
-              {refusedWith(cancel.error, [400, 403, 409]) ?? "Couldn't cancel the order. Check your connection and try again; nothing has changed."}
-            </InlineNote>
-          ) : null}
+          {failure ? <InlineNote>{failure}</InlineNote> : null}
           <Button
             label={refunds ? `Cancel and refund ${refund}` : 'Cancel order'}
             variant="danger"

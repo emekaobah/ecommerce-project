@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
-import { refusedWith } from '@/api/errors';
+import { useFailureMessage } from '@/api/errors';
 import { usePauseShop, useShopHours } from '@/api/shop-hours';
 import { shopHoursOf } from '@/orders/shop-state';
 import { useSession } from '@/session/session-store';
@@ -45,11 +45,12 @@ export function PauseOrdersSheet() {
     if (!selected) return;
     pause.mutate({ until: selected.until, note: note.trim() || null }, { onSuccess: () => router.back() });
   };
-  const failure = pause.error ? (
-    <InlineNote>
-      {refusedWith(pause.error, [400, 403]) ?? "Couldn't pause orders. Check your connection and try again; the shop is still taking orders."}
-    </InlineNote>
-  ) : null;
+  const failed = useFailureMessage(
+    pause.error,
+    [400, 403],
+    "Couldn't pause orders. Check your connection and try again; the shop is still taking orders."
+  );
+  const failure = failed ? <InlineNote>{failed}</InlineNote> : null;
 
   const waiting = shop.data?.new_orders ?? 0;
   if (confirming) {
