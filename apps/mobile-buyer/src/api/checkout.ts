@@ -9,7 +9,6 @@ export const checkoutKeys = {
   all: ['checkout'] as const,
   detail: (cartId: string) => [...checkoutKeys.all, cartId] as const,
   /** What changed when the latest payment didn't start, for the changes sheet. */
-  orderGroup: (orderGroupId: string) => [...checkoutKeys.all, 'order-group', orderGroupId] as const,
   changes: (cartId: string) => [...checkoutKeys.all, cartId, 'changes'] as const,
 };
 
@@ -156,52 +155,5 @@ export function useStartPayment(cartId: string) {
       queryClient.setQueryData(checkoutKeys.detail(cartId), checkout);
       if (price_changes.length || stock_changes.length) void queryClient.invalidateQueries({ queryKey: cartKeys.all });
     },
-  });
-}
-
-// Mercur's default order-group fields nest deeper than the store allows (3 relations).
-const ORDER_GROUP_FIELDS = [
-  'id',
-  'display_id',
-  'total',
-  'orders.id',
-  'orders.display_id',
-  'orders.currency_code',
-  'orders.total',
-  'orders.seller.name',
-  'orders.items.id',
-  'orders.items.product_title',
-  'orders.items.quantity',
-].join(',');
-
-/** The order group a paid checkout became, in the `ORDER_GROUP_FIELDS` it is fetched with. */
-export type OrderGroup = {
-  id: string;
-  display_id: number;
-  total: number;
-  orders: {
-    id: string;
-    display_id: number;
-    currency_code: string;
-    total: number;
-    seller: { name: string } | null;
-    items: { id: string; product_title: string | null; quantity: number }[];
-  }[];
-};
-
-/** The order group a paid checkout became: one order per shop. */
-export function useOrderGroup(orderGroupId: string | null | undefined) {
-  return useQuery({
-    queryKey: checkoutKeys.orderGroup(orderGroupId ?? ''),
-    queryFn: orderGroupId
-      ? async () => {
-          const { order_group } = await storeClient.store.orderGroups.$id.query({
-            $id: orderGroupId,
-            fields: ORDER_GROUP_FIELDS,
-          });
-          // The route's type is the bare order group; the fields asked for add its orders.
-          return order_group as unknown as OrderGroup;
-        }
-      : skipToken,
   });
 }
