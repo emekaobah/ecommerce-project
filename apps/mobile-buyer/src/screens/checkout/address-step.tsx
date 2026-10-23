@@ -64,8 +64,11 @@ export function DeliveryAddress({
   const theme = useTheme();
   return (
     <View style={{ gap: theme.space[3] }}>
+      {/* The header names the step. */}
       <View style={styles.spread}>
-        <Text variant="heading">Delivery address</Text>
+        <Text weight="bold" tone="muted">
+          {step === 'chosen' ? 'Deliver to' : 'Where should we deliver?'}
+        </Text>
         <AddressStepLink
           step={step}
           busy={prepare.isPending}

@@ -131,9 +131,10 @@ function ShopDelivery({
                       {money(choice.amount)}
                     </Text>
                   }>
-                  <Text weight="bold">{[...tags, arrives].join(' · ')}</Text>
+                  {/* "Best value · Thu 23 Oct"; a rate that is also the cheapest or fastest says so beside its courier. */}
+                  <Text weight="bold">{[tags[0], arrives].filter(Boolean).join(' · ')}</Text>
                   <Text variant="meta" tone="muted">
-                    {choice.courier_name}
+                    {[choice.courier_name, ...tags.slice(1)].join(' · ')}
                   </Text>
                 </RadioOption>
               );

@@ -130,7 +130,7 @@ function NotPlaced({ checkout, money }: Readonly<{ checkout: Checkout; money: (a
   return (
     <View style={{ gap: theme.space[2] }}>
       <InlineNote>
-        <Text variant="meta" weight="bold">
+        <Text variant="meta" weight="bold" tone="ember">
           {"Your order wasn't placed. "}
         </Text>
         {`${notPlacedMessage(notPlaced, checkout.currency_code)} A refund can take a few days to reach your card.`}
@@ -162,7 +162,7 @@ function paymentNotice(error: Error | null, returned: PaymentLeft | undefined): 
   if (returned === 'cancelled') {
     return (
       <>
-        <Text variant="meta" weight="bold">
+        <Text variant="meta" weight="bold" tone="ember">
           {'Payment not completed. '}
         </Text>
         {"You haven't been charged. You can try again."}
@@ -246,7 +246,7 @@ export function PayBar({
         <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2], gap: theme.space[2] }}>
           {repriced.length ? (
             <InlineNote>
-              <Text variant="meta" weight="bold">
+              <Text variant="meta" weight="bold" tone="ember">
                 {'Some prices changed since you added these items. '}
               </Text>
               {repriced.map((change) => priceChangeMessage(change, checkout.currency_code)).join(' ')}

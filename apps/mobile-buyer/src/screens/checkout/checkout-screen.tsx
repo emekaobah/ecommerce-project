@@ -369,11 +369,6 @@ function CheckoutForm({
               <Icon name="back" />
             </PressableSurface>
           ),
-          headerRight: () => (
-            <Text variant="meta" weight="bold" tone="muted">
-              {`Step ${screenStep} of 3`}
-            </Text>
-          ),
         }}
       />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -390,7 +385,7 @@ function CheckoutForm({
   );
 }
 
-/** Three bars under the header, filled as far as the buyer has got. */
+/** "Step 2 of 3" over three bars, filled as far as the buyer has got. */
 function StepProgress({ step }: Readonly<{ step: CheckoutStep }>) {
   const theme = useTheme();
   return (
@@ -399,13 +394,21 @@ function StepProgress({ step }: Readonly<{ step: CheckoutStep }>) {
       accessibilityRole="progressbar"
       accessibilityLabel={`Step ${step} of 3`}
       accessibilityValue={{ min: 1, max: 3, now: step }}
-      style={[styles.progress, { gap: theme.space[1], paddingHorizontal: theme.space[4], paddingVertical: theme.space[2], backgroundColor: theme.colors.bgGrouped }]}>
-      {([1, 2, 3] as const).map((bar) => (
-        <View
-          key={bar}
-          style={[styles.fill, { height: theme.space[1], borderRadius: theme.radius.pill, backgroundColor: bar <= step ? theme.colors.primary : theme.colors.line }]}
-        />
-      ))}
+      style={{ gap: theme.space[1], paddingHorizontal: theme.space[4], paddingVertical: theme.space[2], backgroundColor: theme.colors.bgGrouped }}>
+      <Text variant="meta" weight="bold" tone="muted" style={styles.right}>
+        {`Step ${step} of 3`}
+      </Text>
+      <View style={[styles.progress, { gap: theme.space[1] }]}>
+        {([1, 2, 3] as const).map((bar) => (
+          <View
+            key={bar}
+            style={[
+              styles.fill,
+              { height: theme.space[1], borderRadius: theme.radius.pill, backgroundColor: bar <= step ? theme.colors.primary : theme.colors.line },
+            ]}
+          />
+        ))}
+      </View>
     </View>
   );
 }
@@ -473,4 +476,5 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   centred: { alignItems: 'center', justifyContent: 'center' },
   progress: { flexDirection: 'row' },
+  right: { textAlign: 'right' },
 });
