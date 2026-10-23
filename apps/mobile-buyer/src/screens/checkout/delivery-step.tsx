@@ -92,17 +92,11 @@ function ShopDelivery({
   const { seller } = group;
   const sellerId = seller?.id;
   const busy = choose.isPending || choosingMethod;
-  const stacked = usePriceUnder();
   const now = new Date();
   // While a choice is being saved, it shows as chosen.
   const chosenId = (choose.isPending && choose.variables?.choiceId) || group.shipping?.choice_id;
   const collecting = group.method === 'pickup';
-  // A closed shop that takes orders prepares them when it opens: the first option says when.
-  const status = group.shop_status;
-  const preparedLater =
-    status?.state === 'closed' && status.orderable && group.delivery_choices[0]
-      ? preparedWhenOpens(status.opens_at, now, group.delivery_choices[0].time_zone)
-      : null;
+  const preparedLater = preparedLaterNote(group, now);
 
   return (
     <Group gap={2}>
@@ -137,19 +131,12 @@ function ShopDelivery({
           </RadioOption>
         ) : null}
         {sellerId && group.pickup ? (
-          <RadioOption
+          <PickupOption
+            group={{ ...group, pickup: group.pickup }}
             selected={collecting}
             disabled={busy}
-            onPress={() => {
-              if (!collecting) onChooseMethod(sellerId, 'pickup');
-            }}
-            trailing={stacked ? undefined : <Text weight="extrabold">Free</Text>}>
-            <Text weight="bold">Pick up at the shop</Text>
-            <Text variant="meta" tone="muted">
-              {pickupLine({ ...group, pickup: group.pickup })}
-            </Text>
-            {stacked ? <Text weight="extrabold">Free</Text> : null}
-          </RadioOption>
+            onChoose={() => onChooseMethod(sellerId, 'pickup')}
+          />
         ) : null}
       </View>
       {collecting && group.pickup ? (
@@ -162,6 +149,44 @@ function ShopDelivery({
         <InlineNote>{refusalMessage(choose.error) ?? "Couldn't change the delivery. Check your connection and try again."}</InlineNote>
       ) : null}
     </Group>
+  );
+}
+
+/** A closed shop that takes orders prepares them when it opens: the first option says when. */
+function preparedLaterNote(group: CheckoutSellerGroup, now: Date): string | null {
+  const status = group.shop_status;
+  const first = group.delivery_choices[0];
+  if (status?.state !== 'closed' || !status.orderable || !first) return null;
+  return preparedWhenOpens(status.opens_at, now, first.time_zone);
+}
+
+/** Collecting from the shop: where and how long it's held, free. */
+function PickupOption({
+  group,
+  selected,
+  disabled,
+  onChoose,
+}: Readonly<{
+  group: CheckoutSellerGroup & { pickup: NonNullable<CheckoutSellerGroup['pickup']> };
+  selected: boolean;
+  disabled: boolean;
+  onChoose: () => void;
+}>) {
+  const stacked = usePriceUnder();
+  return (
+    <RadioOption
+      selected={selected}
+      disabled={disabled}
+      onPress={() => {
+        if (!selected) onChoose();
+      }}
+      trailing={stacked ? undefined : <Text weight="extrabold">Free</Text>}>
+      <Text weight="bold">Pick up at the shop</Text>
+      <Text variant="meta" tone="muted">
+        {pickupLine(group)}
+      </Text>
+      {stacked ? <Text weight="extrabold">Free</Text> : null}
+    </RadioOption>
   );
 }
 
