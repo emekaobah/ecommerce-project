@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { formatMoney } from "./money"
-import { orderAgainClosedNote, orderAgainLines, orderAgainSummary, orderAgainTicked, type OrderAgainItemInput } from "./order-again"
+import { orderAgainBasket, orderAgainClosedNote, orderAgainLines, orderAgainSummary, orderAgainTicked, type OrderAgainItemInput } from "./order-again"
 
 const naira = (amount: number) => formatMoney(amount, "ngn")
 
@@ -155,5 +155,28 @@ describe("orderAgainTicked", () => {
 
   test("a shop taking no orders now ticks nothing, so no line looks chosen", () => {
     expect(orderAgainTicked(lines, new Set(), false).size).toBe(0)
+  })
+})
+
+describe("orderAgainBasket", () => {
+  const grocery = orderAgainLines([item()], "ngn")
+  const fashion = orderAgainLines([item({ id: "item_cap", quantity: 1, offer: { id: "offer_cap", unit_price: 9000, compare_at_unit_price: null, available_quantity: null } })], "ngn")
+
+  test("a checkout across shops adds every shop's ticked lines with one button", () => {
+    const basket = orderAgainBasket([{ lines: grocery, takingOrders: true }, { lines: fashion, takingOrders: true }], new Set())
+    expect([...basket.ticked]).toEqual(["item_tomatoes", "item_cap"])
+    expect(basket.summary).toEqual({ count: 3, total: 16000, label: "Add 3 items to cart" })
+    expect(basket.takingOrders).toBe(true)
+  })
+
+  test("a shop taking no orders adds nothing; the others still do", () => {
+    const basket = orderAgainBasket([{ lines: grocery, takingOrders: false }, { lines: fashion, takingOrders: true }], new Set())
+    expect(basket.summary.label).toBe("Add 1 item to cart")
+  })
+
+  test("no shop taking orders: nothing to add, and no button", () => {
+    const basket = orderAgainBasket([{ lines: grocery, takingOrders: false }], new Set())
+    expect(basket.takingOrders).toBe(false)
+    expect(basket.summary.count).toBe(0)
   })
 })

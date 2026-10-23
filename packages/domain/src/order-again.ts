@@ -117,3 +117,20 @@ export function orderAgainTicked(lines: readonly OrderAgainLine[], unticked: Rea
   if (!takingOrders) return new Set()
   return new Set(lines.filter((line) => line.addable && !unticked.has(line.id)).map((line) => line.id))
 }
+
+/** One shop's part of an Order again sheet: its lines, and whether it takes orders now. */
+export type OrderAgainShopLines = { lines: readonly OrderAgainLine[]; takingOrders: boolean }
+
+/**
+ * Order again across a checkout's shops (one or several): the ticked lines of every shop taking
+ * orders, the one button's summary over them all, and whether any shop takes orders (none: no
+ * button).
+ */
+export function orderAgainBasket(
+  shops: readonly OrderAgainShopLines[],
+  unticked: ReadonlySet<string>
+): { ticked: ReadonlySet<string>; summary: ReturnType<typeof orderAgainSummary>; takingOrders: boolean } {
+  const ticked = new Set(shops.flatMap((shop) => [...orderAgainTicked(shop.lines, unticked, shop.takingOrders)]))
+  const summary = orderAgainSummary(shops.flatMap((shop) => shop.lines), ticked)
+  return { ticked, summary, takingOrders: shops.some((shop) => shop.takingOrders) }
+}

@@ -4,10 +4,9 @@ import {
   distanceLabel,
   formatMoney,
   itemsLabel,
+  orderAgainBasket,
   orderAgainClosedNote,
   orderAgainLines,
-  orderAgainSummary,
-  orderAgainTicked,
   orderLineName,
   shopStatusChip,
   type OrderAgainLine,
@@ -15,7 +14,7 @@ import {
 import { Button, haptics, Icon, MAX_FONT_SCALE, InlineNote, PressableSurface, Skeleton, StatusChip, Text, useTheme, useToast } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,23 +31,25 @@ import { SheetModal } from './sheet-modal';
 type OrderAgainSheetProps = {
   visible: boolean;
   onClose: () => void;
-  /** The checkout (order group) the shop's order is part of. */
+  /** The checkout (order group) the shops' orders are part of. */
   groupId: string;
-  seller: { id: string; name: string };
-  /** The order's currency, which today's prices are in too: the order's region. */
+  /** The shops to order from again: one shop's order, or every shop of a checkout across shops. */
+  shops: readonly { id: string; name: string }[];
+  /** The orders' currency, which today's prices are in too: the order's region. */
   currency: string;
 };
 
 /**
- * Order again (#86, catalogue b-after #4): one shop's part of a received order at today's prices,
- * every line ticked except what can't be had now, with a changed price or short stock called out.
- * Adds the ticked lines to the cart in one go; delivery is still chosen at checkout. A shop that
- * takes no orders now says why and offers no button.
+ * Order again (#86, catalogue b-after #4): a received order at today's prices, every line ticked
+ * except what can't be had now, with a changed price or short stock called out. A checkout
+ * across shops lists each shop's lines under its name. Adds the ticked lines to the cart in one
+ * go; delivery is still chosen at checkout. A shop that takes no orders now says why, and its
+ * lines can't be ticked; with none taking orders there is no button.
  */
-export function OrderAgainSheet({ visible, onClose, groupId, seller, currency }: Readonly<OrderAgainSheetProps>) {
+export function OrderAgainSheet({ visible, onClose, groupId, shops, currency }: Readonly<OrderAgainSheetProps>) {
   return (
     <SheetModal visible={visible} onClose={onClose}>
-      {visible ? <OrderAgainContent onClose={onClose} groupId={groupId} seller={seller} currency={currency} /> : null}
+      {visible ? <OrderAgainContent onClose={onClose} groupId={groupId} shops={shops} currency={currency} /> : null}
     </SheetModal>
   );
 }
@@ -59,23 +60,28 @@ const LARGE_TEXT = 1.3;
 /** The sheet's lines take at most this share of the screen's height, then scroll. */
 const LINES_MAX_SHARE = 0.5;
 
-function OrderAgainContent({ onClose, groupId, seller, currency }: Readonly<Omit<OrderAgainSheetProps, 'visible'>>) {
+function OrderAgainContent({ onClose, groupId, shops, currency }: Readonly<Omit<OrderAgainSheetProps, 'visible'>>) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const { userId } = useAuth();
-  const preview = useOrderAgain(userId, groupId, seller.id, true);
-  const data = preview.data;
+  const previews = useOrderAgain(
+    userId,
+    groupId,
+    shops.map((shop) => shop.id),
+  );
+  const data = previews.data;
 
   let body;
-  if (preview.error && !data) {
-    body = <LoadError onRetry={() => void preview.refetch()} />;
+  if (previews.error && !data) {
+    body = <LoadError onRetry={previews.refetch} />;
   } else if (!data) {
     body = <LinesSkeleton />;
   } else {
-    body = <Preview preview={data} currency={currency} onAdded={onClose} onRefused={() => void preview.refetch()} linesMaxHeight={height * LINES_MAX_SHARE} />;
+    body = <Preview previews={data} currency={currency} onAdded={onClose} onRefused={previews.refetch} linesMaxHeight={height * LINES_MAX_SHARE} />;
   }
 
+  const title = shops.length === 1 ? `Order again from ${data?.[0]?.seller.name ?? shops[0]?.name}` : `Order again from ${shops.length} shops`;
   return (
     <View
       style={{
@@ -86,7 +92,7 @@ function OrderAgainContent({ onClose, groupId, seller, currency }: Readonly<Omit
         gap: theme.space[2],
       }}>
       <Text variant="titlePushed" accessibilityRole="header">
-        {`Order again from ${data?.seller.name ?? seller.name}`}
+        {title}
       </Text>
       {body}
     </View>
@@ -94,31 +100,28 @@ function OrderAgainContent({ onClose, groupId, seller, currency }: Readonly<Omit
 }
 
 type PreviewProps = {
-  preview: OrderAgain;
+  /** One preview per shop, in the checkout's order. */
+  previews: readonly OrderAgain[];
   currency: string;
   onAdded: () => void;
-  /** The cart refused (the shop stopped taking orders, stock moved): the preview is fetched again. */
+  /** The cart refused (a shop stopped taking orders, stock moved): the previews are fetched again. */
   onRefused: () => void;
   linesMaxHeight: number;
 };
 
-function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Readonly<PreviewProps>) {
+function Preview({ previews, currency, onAdded, onRefused, linesMaxHeight }: Readonly<PreviewProps>) {
   const theme = useTheme();
   const toast = useToast();
   const { cartIdForAdding } = useCartSession();
   const add = useAddOfferLines(cartIdForAdding);
-  const lines = orderAgainLines(preview.items, currency);
-  const items = new Map(preview.items.map((item) => [item.id, item]));
-  const note = orderAgainClosedNote(preview);
-  const takesOrders = !preview.not_taking_orders;
+  const shops = previews.map((preview) => ({ preview, lines: orderAgainLines(preview.items, currency), takingOrders: !preview.not_taking_orders }));
   // Every line that can be added starts ticked; the buyer unticks what they don't want.
   const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
-  const ticked = orderAgainTicked(lines, unticked, takesOrders);
-  const summary = orderAgainSummary(lines, ticked);
-  // The cart refused the lines (400): the shop stopped taking orders, or stock moved. The
-  // preview is fetched again, so the sheet shows what can be had now.
+  const { ticked, summary, takingOrders } = orderAgainBasket(shops, unticked);
+  // The cart refused the lines (400): a shop stopped taking orders, or stock moved. The previews
+  // are fetched again, so the sheet shows what can be had now.
   const failure = useFailureMessage(add.error, "Couldn't add these to your cart. Check your connection and try again.", {
-    400: "Something changed at the shop since. Check the lines and try again.",
+    400: 'Something changed at the shop since. Check the lines and try again.',
   });
 
   const toggle = (id: string) => {
@@ -132,8 +135,8 @@ function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Read
   };
 
   const addToCart = () => {
-    const items = lines.flatMap((line) =>
-      line.addable && line.offerId && ticked.has(line.id) ? [{ offer_id: line.offerId, quantity: line.quantity }] : []
+    const items = shops.flatMap(({ lines }) =>
+      lines.flatMap((line) => (line.addable && line.offerId && ticked.has(line.id) ? [{ offer_id: line.offerId, quantity: line.quantity }] : []))
     );
     add.mutate(items, {
       onSuccess: () => {
@@ -150,35 +153,56 @@ function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Read
     });
   };
 
+  const linesOf = ({ preview, lines, takingOrders: shopTakes }: (typeof shops)[number]) => {
+    const items = new Map(preview.items.map((item) => [item.id, item]));
+    return lines.map((line) => {
+      const item = items.get(line.id);
+      return item ? (
+        <Line
+          key={line.id}
+          name={orderLineName(item)}
+          thumbnail={item.thumbnail}
+          line={line}
+          currency={currency}
+          ticked={ticked.has(line.id)}
+          onToggle={() => toggle(line.id)}
+          disabled={!shopTakes}
+        />
+      ) : null;
+    });
+  };
+  const scroll = (children: ReactNode) => (
+    <ScrollView style={{ maxHeight: linesMaxHeight }} contentContainerStyle={{ gap: theme.space[2], paddingVertical: theme.space[1] }}>
+      {children}
+    </ScrollView>
+  );
+  const only = shops.length === 1 ? shops[0] : undefined;
+
   return (
     <>
-      <ShopLine preview={preview} />
-      {note && takesOrders ? (
-        <Text variant="meta" tone="muted">
-          {note}
-        </Text>
-      ) : null}
-      {lines.length ? (
-        <ScrollView style={{ maxHeight: linesMaxHeight }} contentContainerStyle={{ gap: theme.space[2], paddingVertical: theme.space[1] }}>
-          {lines.map((line) => {
-            const item = items.get(line.id);
-            return item ? (
-              <Line
-                key={line.id}
-                name={orderLineName(item)}
-                thumbnail={item.thumbnail}
-                line={line}
-                currency={currency}
-                ticked={ticked.has(line.id)}
-                onToggle={() => toggle(line.id)}
-                disabled={!takesOrders}
-              />
-            ) : null;
-          })}
-        </ScrollView>
-      ) : null}
-      {note && !takesOrders ? <InlineNote>{note}</InlineNote> : null}
-      {takesOrders ? (
+      {only ? (
+        <>
+          <ShopLine preview={only.preview} />
+          <ShopNote preview={only.preview} where="above" />
+          {only.lines.length ? scroll(linesOf(only)) : null}
+          <ShopNote preview={only.preview} where="below" />
+        </>
+      ) : (
+        scroll(
+          shops.map((shop) => (
+            <View key={shop.preview.seller.id} style={{ gap: theme.space[2], paddingBottom: theme.space[2] }}>
+              <Text variant="heading" accessibilityRole="header">
+                {shop.preview.seller.name}
+              </Text>
+              <ShopLine preview={shop.preview} />
+              <ShopNote preview={shop.preview} where="above" />
+              {linesOf(shop)}
+              <ShopNote preview={shop.preview} where="below" />
+            </View>
+          ))
+        )
+      )}
+      {takingOrders ? (
         <View style={{ gap: theme.space[2], marginTop: theme.space[1] }}>
           {failure ? <InlineNote>{failure}</InlineNote> : null}
           <Button
@@ -192,6 +216,23 @@ function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Read
         </View>
       ) : null}
     </>
+  );
+}
+
+/**
+ * What the sheet says of a shop that isn't open: above its lines while it still takes orders
+ * ("Prepared when it opens 10am Mon"), below them as a note when it takes none.
+ */
+function ShopNote({ preview, where }: Readonly<{ preview: OrderAgain; where: 'above' | 'below' }>) {
+  const note = orderAgainClosedNote(preview);
+  const takesOrders = !preview.not_taking_orders;
+  if (!note || (where === 'above') !== takesOrders) return null;
+  return where === 'above' ? (
+    <Text variant="meta" tone="muted">
+      {note}
+    </Text>
+  ) : (
+    <InlineNote>{note}</InlineNote>
   );
 }
 

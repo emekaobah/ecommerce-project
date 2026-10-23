@@ -242,7 +242,7 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
         visible={orderingAgain}
         onClose={() => setOrderingAgain(false)}
         groupId={groupId}
-        seller={order.seller}
+        shops={[order.seller]}
         currency={order.currency_code}
       />
     </View>

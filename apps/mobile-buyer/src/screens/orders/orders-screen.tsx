@@ -182,16 +182,15 @@ const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /**
  * A checkout: one shop's order on its own, or the shops' orders it was split into, each with its
- * chips. A single shop's order the buyer received swaps its price (into the meta) for Order again
- * (#86), which opens the sheet; a checkout across shops opens the order for that, where each shop
- * has its own.
+ * chips. Once the buyer has received every shop's order, the row swaps its price (into the meta)
+ * for Order again (#86), which opens the sheet with every shop's lines.
  */
 function HistoryRow({ entry }: Readonly<{ entry: Entry }>) {
   const { group } = entry;
   const [orderingAgain, setOrderingAgain] = useState(false);
   const orders = entry.kind === 'order' ? [entry.order] : group.orders;
   const items = orders.flatMap((order) => order.items);
-  const reorder = entry.kind === 'order' && isReceived(entry.order.fulfilment.state) ? entry.order : null;
+  const reorder = orders.length > 0 && orders.every((order) => isReceived(order.fulfilment.state));
   const price = formatMoney(entry.paid_total, orders[0]?.currency_code ?? '');
   const meta = orderRowMeta(
     { createdAt: group.created_at, itemCount: items.reduce((sum, item) => sum + item.quantity, 0), displayId: group.display_id },
@@ -220,8 +219,8 @@ function HistoryRow({ entry }: Readonly<{ entry: Entry }>) {
           visible={orderingAgain}
           onClose={() => setOrderingAgain(false)}
           groupId={group.id}
-          seller={reorder.seller}
-          currency={reorder.currency_code}
+          shops={orders.map((order) => order.seller)}
+          currency={orders[0]?.currency_code ?? ''}
         />
       ) : null}
     </>

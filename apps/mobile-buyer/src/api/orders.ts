@@ -1,5 +1,5 @@
 import type { OrderPhase } from '@oja/domain';
-import { skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { skipToken, useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 
 import { storeClient } from './client';
 
@@ -98,13 +98,24 @@ async function fetchOrderAgain(groupId: string, sellerId: string) {
 export type OrderAgain = Awaited<ReturnType<typeof fetchOrderAgain>>;
 
 /**
- * Order again (#86): what reordering the shop's part of a checkout the buyer received would add,
- * fetched while the sheet is open (`enabled`) and fresh each time it opens.
+ * Order again (#86): what reordering each shop's part of a checkout the buyer received would add,
+ * one preview per shop, fetched while the sheet is open and fresh each time it opens. `data`
+ * holds every shop's preview once all have come; `error` is the first failure.
  */
-export function useOrderAgain(userId: string | null | undefined, groupId: string, sellerId: string, enabled: boolean) {
-  return useQuery({
-    queryKey: orderKeys.orderAgain(userId ?? '', groupId, sellerId),
-    queryFn: userId && enabled ? () => fetchOrderAgain(groupId, sellerId) : skipToken,
-    staleTime: 0,
+export function useOrderAgain(userId: string | null | undefined, groupId: string, sellerIds: readonly string[]) {
+  return useQueries({
+    queries: sellerIds.map((sellerId) => ({
+      queryKey: orderKeys.orderAgain(userId ?? '', groupId, sellerId),
+      queryFn: userId ? () => fetchOrderAgain(groupId, sellerId) : skipToken,
+      staleTime: 0,
+    })),
+    combine: (results) => {
+      const data = results.flatMap((result) => (result.data ? [result.data] : []));
+      return {
+        data: data.length === results.length ? data : undefined,
+        error: results.find((result) => result.error)?.error ?? null,
+        refetch: () => results.forEach((result) => void result.refetch()),
+      };
+    },
   });
 }
