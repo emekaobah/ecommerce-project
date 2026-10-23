@@ -46,7 +46,7 @@ const inks = (theme: Theme): Record<ButtonVariant, string> => ({
 
 /**
  * Primary is the one indigo action on a screen; secondary is Mist; danger is for destructive
- * actions only; link is text. Disabled turns the fill to Mist with a muted label (never faded).
+ * actions only; link is bold link-coloured text, with no underline. Disabled turns the fill to Mist with a muted label (never faded).
  * Loading lays a spinner over the label, so the width stays the same, and keeps a price beside it.
  * At large text sizes the label wraps and the price stays whole beside it, never cut off.
  */
@@ -91,7 +91,7 @@ export function Button({
         <View style={[styles.label, styles.shrink, { gap: theme.space[2] }]}>
           <View style={[styles.label, styles.shrink, { gap: theme.space[2] }, loading && styles.hidden]}>
             {icon ? <Icon name={icon} use="chip" color={ink} /> : null}
-            <Text variant="strong" tone={tone} style={[styles.shrink, isLink && styles.underline]}>
+            <Text variant="strong" tone={tone} style={styles.shrink}>
               {label}
             </Text>
           </View>
@@ -115,6 +115,5 @@ const styles = StyleSheet.create({
   // The label wraps rather than pushing the price out of the button.
   shrink: { flexShrink: 1 },
   whole: { flexShrink: 0 },
-  underline: { textDecorationLine: "underline" },
   hidden: { opacity: 0 },
 })
