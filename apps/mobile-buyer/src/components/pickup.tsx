@@ -1,8 +1,8 @@
-import { openingHoursLines, type WeeklyHours } from '@oja/domain';
-import { Text, useTheme } from '@oja/ui';
+import { openingHoursLines, pickupCodeGroups, type WeeklyHours } from '@oja/domain';
+import { SCALE, Text, useTheme } from '@oja/ui';
 import qrcode from 'qrcode-generator';
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 /** A collection point's address, as checkout and the order show it. */
 type PickupAddress = {
@@ -49,9 +49,23 @@ export function PickupDetails({ place, note }: Readonly<{ place: PickupPlace; no
   );
 }
 
+/** The catalogue's QR (`.bigqr`): 180 mockup px square, never wider than the screen allows. */
+const QR_MOCKUP = 180;
+
+/** The QR's side on this screen, so its loading shape matches it. */
+export function usePickupQrSide() {
+  const theme = useTheme();
+  const { width } = useWindowDimensions();
+  return Math.min(QR_MOCKUP * SCALE, width - theme.space[4] * 2);
+}
+
+/** "4 8 2 9 1 3": a code spoken digit by digit, never as one number. */
+const spokenDigits = (code: string) => code.split('').join(' ');
+
 /**
- * The code to collect a pickup order with: its digits, and a QR code of them for the counter to
- * scan. Drawn from plain views, so no native module is needed.
+ * The code to collect a pickup order with, as it's shown at the counter: a big QR code of it on
+ * white in both themes (so scanners read it) and its digits in groups of three. Drawn from plain
+ * views, so no native module is needed. Both speak the code digit by digit.
  */
 export function PickupCode({ code }: Readonly<{ code: string }>) {
   const theme = useTheme();
@@ -66,23 +80,35 @@ export function PickupCode({ code }: Readonly<{ code: string }>) {
       cells: Array.from({ length: count }, (_, col) => ({ key: `${row}:${col}`, dark: qr.isDark(row, col) })),
     }));
   }, [code]);
-  const size = 6;
+  const side = usePickupQrSide();
+  const padding = theme.space[4];
+  const moduleSize = (side - padding * 2) / modules.length;
   return (
-    <View style={{ alignItems: 'center', gap: theme.space[4] }}>
+    <View style={{ alignItems: 'center', gap: theme.space[3] }}>
       <View
         accessible
-        accessibilityLabel={`QR code of your pickup code ${code.split('').join(' ')}`}
-        style={{ padding: size * 4, backgroundColor: '#FFFFFF' }}>
+        accessibilityRole="image"
+        accessibilityLabel={`QR code of your pickup code, ${spokenDigits(code)}`}
+        style={{ width: side, height: side, padding, borderRadius: theme.radius.xl, backgroundColor: theme.colors.productTile }}>
         {modules.map((row) => (
           <View key={row.key} style={styles.row}>
             {row.cells.map((cell) => (
-              <View key={cell.key} style={{ width: size, height: size, backgroundColor: cell.dark ? '#000000' : '#FFFFFF' }} />
+              <View key={cell.key} style={{ width: moduleSize, height: moduleSize, backgroundColor: cell.dark ? theme.colors.band : undefined }} />
             ))}
           </View>
         ))}
       </View>
-      <Text variant="heading" accessibilityLabel={`Pickup code ${code.split('').join(' ')}`} style={{ letterSpacing: 6 }}>
-        {code}
+      <Text
+        variant="displayXxl"
+        tone="onBand"
+        tabular
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        accessibilityRole="text"
+        accessibilityLabel={`Pickup code ${spokenDigits(code)}`}
+        // The catalogue's .14em tracking, so the groups read apart at a counter.
+        style={[styles.digits, { letterSpacing: theme.type.displayXxl.fontSize * 0.14 }]}>
+        {pickupCodeGroups(code)}
       </Text>
     </View>
   );
@@ -90,4 +116,5 @@ export function PickupCode({ code }: Readonly<{ code: string }>) {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
+  digits: { textAlign: 'center' },
 });
