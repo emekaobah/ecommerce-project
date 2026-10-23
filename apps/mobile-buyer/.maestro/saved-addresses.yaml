@@ -41,9 +41,10 @@ env:
     timeout: 15000
 - tapOn: "Akin Adesola Street.*"
 - extendedWaitUntil:
-    visible: "Confirm the delivery spot"
+    visible: "Drag the map to your gate"
     timeout: 15000
-- tapOn: "Confirm pin"
+# Back to the form first, to fill in the buyer's name.
+- tapOn: "Back"
 - assertVisible: "Eti Osa"
 - assertVisible: "Lagos"
 # The field, not its label above it.
@@ -57,23 +58,24 @@ env:
     index: 1
 - eraseText
 - inputText: "Obi"
+# Return puts the keyboard away, which would otherwise hide the button.
+- pressKey: Enter
 - scrollUntilVisible:
-    element: "Save address"
+    element: "Continue to the map"
+- tapOn: "Continue to the map"
+# The landmark and the phone are on the map's sheet, with the pin.
+- extendedWaitUntil:
+    visible: "Drag the map to your gate"
+    timeout: 15000
+- tapOn: "Landmark for the rider, optional"
+- eraseText
+- inputText: "Blue gate by the pharmacy"
+# The field, not its label above it.
 - tapOn:
-    text: "Phone number"
+    text: "Phone · for the courier"
     index: 1
 - eraseText
 - inputText: "08031234567"
-# The landmark last: its keyboard has a return key, which puts the keyboard away.
-- tapOn:
-    text: "Landmark / directions for the rider (optional)"
-    index: 1
-- eraseText
-- inputText: "Blue gate by the pharmacy"
-- pressKey: Enter
-- scrollUntilVisible:
-    element: "Save address"
-- assertVisible: "Delivery pin placed on the map."
 - tapOn: "Save address"
 
 # The list shows it with its landmark; the first address is the default.
@@ -82,19 +84,18 @@ env:
     timeout: 15000
 - assertVisible: "Default"
 
-# Edit: the pin is kept, so only the landmark changes. The pen is labelled with the street.
+# Edit: the pin is kept, so only the landmark changes, on the map's sheet. The card's header
+# is the edit button, labelled with the street.
 - tapOn: "Edit .*"
 - scrollUntilVisible:
-    element: "Save address"
-- assertVisible: "Delivery pin placed on the map."
-- tapOn:
-    text: "Landmark / directions for the rider (optional)"
-    index: 1
+    element: "Continue to the map"
+- tapOn: "Continue to the map"
+- extendedWaitUntil:
+    visible: "Drag the map to your gate"
+    timeout: 15000
+- tapOn: "Landmark for the rider, optional"
 - eraseText
 - inputText: "Green gate opposite the church"
-- pressKey: Enter
-- scrollUntilVisible:
-    element: "Save address"
 - tapOn: "Save address"
 - extendedWaitUntil:
     visible: "Green gate opposite the church"
@@ -105,13 +106,20 @@ env:
 - back
 - tapOn: "Home"
 - tapOn: "Ofada Rice 5kg.*"
-- tapOn: "Add"
-- tapOn: "View cart"
+- tapOn: "Add, .*"
+- tapOn: "In cart · View cart"
 - tapOn: "Checkout.*"
 - extendedWaitUntil:
-    visible: "Pay with Paystack.*"
+    visible: "Green gate opposite the church"
     timeout: 30000
-- assertVisible: "Green gate opposite the church"
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Step 2 of 3"
+    timeout: 30000
+- tapOn: "Continue.*"
+- extendedWaitUntil:
+    visible: "Pay with Paystack.*"
+    timeout: 15000
 
 # Delete it again, leaving the buyer as the flow found them.
 - back

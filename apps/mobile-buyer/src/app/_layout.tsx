@@ -80,9 +80,14 @@ function RootStack() {
       {/* Guests browse freely; checkout, orders, reviewing and the wishlist need a signed-in buyer (ADR 0001). */}
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="checkout/index" options={{ title: 'Checkout' }} />
+        {/* What changed when a payment didn't start slides up over Review and pay. */}
+        <Stack.Screen
+          name="checkout/changes"
+          options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: 'fitToContents' }}
+        />
         {/* Paying ends in the confirmation screen, or back at checkout to try again. */}
-        <Stack.Screen name="checkout/pay" options={{ title: 'Pay with Paystack', gestureEnabled: false }} />
-        <Stack.Screen name="checkout/confirmation" options={{ title: 'Confirming payment', gestureEnabled: false }} />
+        <Stack.Screen name="checkout/pay" options={{ title: 'Pay', gestureEnabled: false }} />
+        <Stack.Screen name="checkout/confirmation" options={{ title: 'Order', gestureEnabled: false }} />
         <Stack.Screen name="wishlist" options={{ title: 'Wishlist' }} />
         <Stack.Screen name="addresses/index" options={{ title: 'Addresses' }} />
         <Stack.Screen name="addresses/edit" options={{ title: 'Address' }} />

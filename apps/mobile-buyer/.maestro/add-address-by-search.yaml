@@ -21,8 +21,8 @@ env:
           timeout: 15000
 - tapOn: "Home"
 - tapOn: "Ofada Rice 5kg.*"
-- tapOn: "Add to cart.*"
-- tapOn: "View cart"
+- tapOn: "Add, .*"
+- tapOn: "In cart · View cart"
 - tapOn: "Checkout.*"
 - runFlow:
     file: sign-in.yaml
@@ -60,11 +60,11 @@ env:
     timeout: 15000
 - tapOn: "Akin Adesola Street.*"
 
-# The pin map opens on the place found; the buyer confirms where the rider comes.
+# The map opens on the place found. Back to the form first, to fill in the buyer's name.
 - extendedWaitUntil:
-    visible: "Confirm the delivery spot"
+    visible: "Drag the map to your gate"
     timeout: 15000
-- tapOn: "Confirm pin"
+- tapOn: "Back"
 
 # The search filled the street and state; the buyer reviews the form and adds the rest.
 - assertVisible: "Akin Adesola Street.*"
@@ -82,28 +82,34 @@ env:
     index: 1
 - eraseText
 - inputText: "Obi"
+# Return puts the keyboard away, which would otherwise hide the button.
+- pressKey: Enter
 - scrollUntilVisible:
-    element: "Use this address"
+    element: "Continue to the map"
+- tapOn: "Continue to the map"
+
+# On the map's sheet: the landmark for the rider and the phone for the courier, then confirm.
+- extendedWaitUntil:
+    visible: "Drag the map to your gate"
+    timeout: 15000
+- assertVisible: "Step 1 of 3"
+- tapOn: "Landmark for the rider, optional"
+- eraseText
+- inputText: "Opposite the Mobil station"
 # The field, not its label above it.
 - tapOn:
-    text: "Phone number"
+    text: "Phone · for the courier"
     index: 1
 - eraseText
 - inputText: "08031234567"
-# The landmark last: its keyboard has a return key, which puts the keyboard away.
-- tapOn:
-    text: "Landmark / directions for the rider (optional)"
-    index: 1
-- eraseText
-- inputText: "Opposite the Mobil station"
-- pressKey: Enter
-- scrollUntilVisible:
-    element: "Use this address"
-- assertVisible: "Delivery pin placed on the map."
-- tapOn: "Use this address"
+- tapOn: "Confirm address"
 
-# Saved with its pin: checkout quotes delivery to it.
+# Saved with its pin: checkout moves on to each shop's delivery, quoted to it.
+- extendedWaitUntil:
+    visible: "Step 2 of 3"
+    timeout: 30000
+- tapOn: "Continue.*"
 - extendedWaitUntil:
     visible: "Pay with Paystack.*"
-    timeout: 30000
+    timeout: 15000
 - assertVisible: "Opposite the Mobil station"
