@@ -125,7 +125,7 @@ function OrderPlaced({ orderGroupId, email }: Readonly<{ orderGroupId: string; e
           <WhatHappensNext group={group.data} failed={!!group.error} />
         </View>
       </ScrollView>
-      <StickyAction label="Track order" icon="fwd" onPress={track} />
+      <StickyAction label="Track order" trailingIcon="fwd" onPress={track} />
     </>
   );
 }
