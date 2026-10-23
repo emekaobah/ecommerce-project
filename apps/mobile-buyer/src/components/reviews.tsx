@@ -70,7 +70,7 @@ export function StarInput({
           accessibilityState={{ selected: value === star }}
           onPress={() => onChange(star)}
           style={[styles.star, { minWidth: theme.hitArea, minHeight: theme.hitArea, borderRadius: theme.radius.md }]}>
-          <Icon name="star" use="quietEmblem" color={star <= value ? theme.colors.accent : theme.colors.line} filled />
+          <Icon name="star" use="quietEmblem" color={star <= value ? theme.colors.accent : theme.colors.line} solid />
         </PressableSurface>
       ))}
     </View>
@@ -123,15 +123,18 @@ export function ReviewSubjectLine({
   thumbnail,
   shop,
   trailing,
+  large,
 }: Readonly<{
   title: string;
   detail?: string | null;
   thumbnail?: string | null;
   shop?: { name: string; logo?: string | null };
   trailing?: ReactNode;
+  /** Heading the review being written: a bigger photo and name (the catalogue's `.ln`). */
+  large?: boolean;
 }>) {
   const theme = useTheme();
-  const size = theme.shopMark.sm.size * (36 / 32);
+  const size = theme.shopMark.sm.size * ((large ? 48 : 36) / 32);
   const box = { width: size, height: size, borderRadius: theme.radius.md, overflow: 'hidden' as const };
   return (
     <View style={[styles.row, { gap: theme.space[2] }]}>
@@ -143,7 +146,7 @@ export function ReviewSubjectLine({
         </View>
       )}
       <View style={styles.fill}>
-        <Text variant="meta" weight="bold" numberOfLines={2}>
+        <Text variant={large ? 'body' : 'meta'} weight="bold" numberOfLines={2}>
           {title}
         </Text>
         {detail ? (

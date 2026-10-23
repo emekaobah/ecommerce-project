@@ -147,6 +147,7 @@ function EntryReview({
         detail={isShop ? 'Shop' : shop.name}
         thumbnail={thumbnail}
         shop={isShop ? shop : undefined}
+        large
       />
       {entry.review ? (
         <Text variant="meta" tone="muted">
