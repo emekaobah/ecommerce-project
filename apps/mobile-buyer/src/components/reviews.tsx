@@ -1,4 +1,4 @@
-import { ratingSummary, type Rating, type ReviewKind } from '@oja/domain';
+import { dateLabel, ratingSummary, type Rating, type ReviewKind } from '@oja/domain';
 import { Button, Icon, PressableSurface, ShopMark, Skeleton, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import type { ReactNode } from 'react';
@@ -9,11 +9,11 @@ import { openReviews } from '@/navigation';
 
 const MAX_STARS = 5;
 
-const dayMonth = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+const DEVICE_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-/** When a review was written, as its card shows it: "12 Oct". */
+/** When a review was written, as its card shows it: "12 Oct", on the buyer's calendar. */
 export function reviewDate(at: string | Date): string {
-  return dayMonth.format(new Date(at));
+  return dateLabel(at, DEVICE_TIME_ZONE, { weekday: false });
 }
 
 /** A rating out of five as stars, read out as a number; half a star or more rounds up. */
