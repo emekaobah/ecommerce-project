@@ -90,7 +90,7 @@ export function OrdersScreen() {
   return (
     <SafeAreaView edges={['top']} style={[styles.grow, { backgroundColor: theme.colors.bg }]}>
       <ShopHeader sellerId={sellerId} hours={hours} now={now} />
-      <View style={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[3] }}>
+      <View style={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[4] }}>
         <StageTiles
           stages={ORDER_STAGES.map((key) => ({ key, label: STAGE_LABELS[key], count: counts.data?.[key] ?? null }))}
           selected={stage}
@@ -183,8 +183,9 @@ function OrderCard({ order, now, hours }: Readonly<{ order: StageOrder; now: Dat
   const body = (
     <>
       <View style={[styles.cardTop, { gap: theme.space[2] }]}>
-        <Text variant="strong" tabular style={styles.shrink}>
-          {`#${order.display_id} · ${formatMoney(orderValue(order), order.currency_code)}`}
+        {/* Kept whole (no-break spaces): at the largest text the chip wraps under it instead. */}
+        <Text variant="heading" tabular style={styles.shrink}>
+          {`#${order.display_id} · ${formatMoney(orderValue(order), order.currency_code)}`.replaceAll(' ', '\u00a0')}
         </Text>
         <FulfilmentChip fulfilment={fulfilment} now={now} hours={hours} />
       </View>
@@ -204,7 +205,7 @@ function OrderCard({ order, now, hours }: Readonly<{ order: StageOrder; now: Dat
   return (
     <View style={card}>
       {body}
-      <View style={[styles.row, { gap: theme.space[2] }]}>
+      <View style={[styles.row, { gap: theme.space[2], marginTop: theme.space[2] }]}>
         <Button label="Details" variant="secondary" size="row" onPress={open} style={styles.grow} />
         <AcceptButton orderId={order.id} displayId={order.display_id} />
       </View>
@@ -252,7 +253,7 @@ function CardsLoading() {
             borderBottomColor: theme.colors.divider,
           }}>
           <View style={styles.cardTop}>
-            <Skeleton width="45%" height={theme.type.strong.fontSize} />
+            <Skeleton width="45%" height={theme.type.heading.fontSize} />
             <Skeleton width={theme.space[12] + theme.space[6]} height={theme.space[6]} radius="pill" />
           </View>
           <Skeleton width="80%" height={theme.type.meta.fontSize} />
@@ -274,6 +275,6 @@ const styles = StyleSheet.create({
   centred: { alignItems: 'center' },
   pill: { flexDirection: 'row', alignItems: 'center', flexShrink: 0, alignSelf: 'flex-start' },
   iconButton: { alignItems: 'center', justifyContent: 'center' },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTop: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' },
   shrink: { flexShrink: 1 },
 });
