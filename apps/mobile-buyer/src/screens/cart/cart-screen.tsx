@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { formatMoney, shortLineLabel, soldOutButtonLabel, stockShortfall } from '@oja/domain';
+import { formatMoney, itemsLabel, shortLineLabel, soldOutButtonLabel, stockShortfall } from '@oja/domain';
 import {
   Button,
   EmptyState,
@@ -220,7 +220,6 @@ function shopLine(group: CartSellerGroup): string | null {
 }
 
 const itemCount = (group: CartSellerGroup) => group.items.reduce((sum, item) => sum + item.quantity, 0);
-const itemsWord = (count: number) => `${count} ${count === 1 ? 'item' : 'items'}`;
 
 /** One shop's part of the cart: its mark and status, its lines, then its subtotal. */
 function ShopCard({
@@ -276,7 +275,7 @@ function ShopCard({
           <View style={[styles.row, { gap: theme.space[3] }]}>
             {/* Wrapped in a view so the line wraps at large text instead of being cut. */}
             <View style={styles.fill}>
-              <Text variant="meta" tone="muted">{`${itemsWord(itemCount(group))} + delivery`}</Text>
+              <Text variant="meta" tone="muted">{`${itemsLabel(itemCount(group))} + delivery`}</Text>
             </View>
             {checkoutShop ? (
               <Button

@@ -1,5 +1,5 @@
 import { dateLabel } from "./date-label"
-import { closingTime, dateIn, nextOpening, timeLabel, type ShopHours } from "./shop-hours"
+import { closingTime, dateIn, nextOpening, openingLabel, timeLabel, type ShopHours, type ShopPause } from "./shop-hours"
 
 /** How long staff pause the shop's orders for (ADR 0004): `until` is when it ends (ISO 8601), null until resumed. */
 export type PauseDuration = { key: "hour" | "next_opening" | "resume"; label: string; until: string | null }
@@ -46,4 +46,25 @@ export function pauseDurations(now: Date, hours: ShopHours | null, timeZone: str
   }
   durations.push({ key: "resume", label: "I turn it back on", until: null })
   return durations
+}
+
+/**
+ * Under "Taking orders": how to pause, or until when the shop is paused (in its time zone) and
+ * what buyers read. Before the shop's hours load (null), how to pause.
+ */
+export function takingOrdersLine(
+  shop: { time_zone: string; pause: Pick<ShopPause, "ends_at" | "note"> | null } | null,
+  now: Date
+): string {
+  const pause = shop?.pause
+  if (!shop || !pause) return "Turn off to pause the shop now"
+  const until = pause.ends_at ? `Paused until ${openingLabel(pause.ends_at, now, shop.time_zone)}.` : "Paused until you turn it back on."
+  return pause.note ? `${until} Buyers see: “${pause.note}”` : until
+}
+
+/** The pause confirm's line of consequence when new orders wait to be accepted: pausing doesn't stop their clocks (#18). */
+export function pauseWaitingMessage(count: number): string {
+  return count === 1
+    ? "1 new order is still waiting to be accepted. Pausing stops new orders, not this one: accept or reject it, or it'll be rejected at its deadline."
+    : `${count} new orders are still waiting to be accepted. Pausing stops new orders, not these: accept or reject them, or they'll be rejected at their deadline.`
 }

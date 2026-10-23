@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { pauseDurations } from "./pause-duration"
+import { pauseDurations, pauseWaitingMessage, takingOrdersLine } from "./pause-duration"
 import type { ShopHours } from "./shop-hours"
 
 // Lagos is UTC+1 all year. Fri 23 Oct 2026.
@@ -48,5 +48,38 @@ describe("pauseDurations", () => {
 
   test("the hour reads in the shop's time zone", () => {
     expect(pauseDurations(new Date("2026-10-23T13:47:00Z"), null, "Africa/Lagos")[0]?.label).toBe("1 hour · until 3:47pm")
+  })
+})
+
+describe("takingOrdersLine", () => {
+  const now = lagos("2026-10-23T14:00:00")
+
+  test("taking orders: how to pause", () => {
+    expect(takingOrdersLine({ time_zone: "Africa/Lagos", pause: null }, now)).toBe("Turn off to pause the shop now")
+  })
+
+  test("paused until a time, with what buyers read", () => {
+    const pause = { ends_at: iso("2026-10-24T08:00:00"), note: "Back after the market run" }
+    expect(takingOrdersLine({ time_zone: "Africa/Lagos", pause }, now)).toBe(
+      "Paused until 8am Sat. Buyers see: “Back after the market run”"
+    )
+  })
+
+  test("paused until turned back on, without a note", () => {
+    expect(takingOrdersLine({ time_zone: "Africa/Lagos", pause: { ends_at: null, note: null } }, now)).toBe("Paused until you turn it back on.")
+  })
+})
+
+describe("pauseWaitingMessage", () => {
+  test("one order waiting", () => {
+    expect(pauseWaitingMessage(1)).toBe(
+      "1 new order is still waiting to be accepted. Pausing stops new orders, not this one: accept or reject it, or it'll be rejected at its deadline."
+    )
+  })
+
+  test("several waiting, as the catalogue says it", () => {
+    expect(pauseWaitingMessage(2)).toBe(
+      "2 new orders are still waiting to be accepted. Pausing stops new orders, not these: accept or reject them, or they'll be rejected at their deadline."
+    )
   })
 })

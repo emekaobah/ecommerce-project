@@ -1,6 +1,7 @@
 // Order again (#86): the buyer reorders one shop's part of an order they received, from the
 // preview `GET /store/order-history/:id/order-again` gives (packages/api/src/lib/order-again.ts).
 
+import { itemsLabel } from "./items-label"
 import { formatMoney } from "./money"
 
 /** One line of the preview: what was ordered and paid, and its offer today. */
@@ -80,7 +81,7 @@ export function orderAgainSummary(lines: readonly OrderAgainLine[], ticked: Read
   const adding = lines.filter((line) => line.addable && ticked.has(line.id))
   const count = adding.reduce((sum, line) => sum + line.quantity, 0)
   const total = adding.reduce((sum, line) => sum + (line.total ?? 0), 0)
-  const label = count ? `Add ${count} ${count === 1 ? "item" : "items"} to cart` : "Add to cart"
+  const label = count ? `Add ${itemsLabel(count)} to cart` : "Add to cart"
   return { count, total, label }
 }
 

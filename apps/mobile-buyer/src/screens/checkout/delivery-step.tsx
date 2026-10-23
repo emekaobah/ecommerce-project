@@ -1,6 +1,7 @@
 import {
   deliveryDay,
   distanceLabel,
+  itemsLabel,
   PERISHABLE_HOLD_OPEN_DAYS,
   PICKUP_HOLD_OPEN_DAYS,
   preparedWhenOpens,
@@ -56,10 +57,7 @@ function deliveryLabel(shops: number): string {
   return `Delivery, ${shops} ${shops === 1 ? 'shop' : 'shops'}`;
 }
 
-const itemsWord = (group: CheckoutSellerGroup) => {
-  const count = group.items.reduce((sum, item) => sum + item.quantity, 0);
-  return `${count} ${count === 1 ? 'item' : 'items'}`;
-};
+const itemsWord = (group: CheckoutSellerGroup) => itemsLabel(group.items.reduce((sum, item) => sum + item.quantity, 0));
 
 /** "Surulere · 1 km · collect within 5 open days"; fresh items are held one open day. */
 function pickupLine(group: CheckoutSellerGroup & { pickup: NonNullable<CheckoutSellerGroup['pickup']> }): string {

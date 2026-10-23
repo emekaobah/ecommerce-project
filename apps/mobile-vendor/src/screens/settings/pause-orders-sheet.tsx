@@ -1,4 +1,4 @@
-import { pauseDurations, type PauseDuration } from '@oja/domain';
+import { pauseDurations, pauseWaitingMessage, type PauseDuration } from '@oja/domain';
 import { Button, ConfirmSheet, InlineNote, RadioOption, Sheet, Skeleton, Text, TextField, useTheme } from '@oja/ui';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -11,13 +11,6 @@ import { useSession } from '@/session/session-store';
 
 /** What buyers read on a paused shop is at most this long (the API's limit). */
 const NOTE_LENGTH = 200;
-
-/** "2 new orders are still waiting…": why a pause asks first when orders wait to be accepted (#18). */
-function waitingMessage(count: number) {
-  return count === 1
-    ? "1 new order is still waiting to be accepted. Pausing stops new orders, not this one: accept or reject it, or it'll be rejected at its deadline."
-    : `${count} new orders are still waiting to be accepted. Pausing stops new orders, not these: accept or reject them, or they'll be rejected at their deadline.`;
-}
 
 /**
  * Pause orders (ADR 0004, catalogue v-shop #5 and #6): how long, in plain words, and an optional
@@ -58,7 +51,7 @@ export function PauseOrdersSheet() {
       <View>
         <ConfirmSheet
           title="Orders are waiting"
-          message={waitingMessage(waiting)}
+          message={pauseWaitingMessage(waiting)}
           confirmLabel="Pause anyway"
           destructive
           loading={pause.isPending}

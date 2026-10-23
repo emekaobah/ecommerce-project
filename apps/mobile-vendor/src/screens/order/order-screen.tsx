@@ -1,13 +1,12 @@
 import {
-  asSentence,
   canCancel,
-  cancelledBy,
-  cancelReasonText,
+  cancelledNote,
   collectByLabel,
   formatMoney,
   handoverSteps,
   openingLabel,
   orderBuyerLine,
+  rejectedNote,
   staffStatus,
 } from '@oja/domain';
 import {
@@ -337,14 +336,8 @@ const DETAILED_NOTES: Partial<Record<OrderFulfilment['state'], (fulfilment: Orde
     collection
       ? `Handed over by ${collection.staff.name ?? 'a staff member'} to ${collection.collected_by} at ${timeOf(collection.staff.at)}.`
       : null,
-  rejected: ({ rejected_by, reject_reason }) => {
-    const why = rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${asSentence(reject_reason ?? '')}`;
-    return `${why} The buyer's payment for this order is being refunded.`;
-  },
-  cancelled: ({ cancellation }) =>
-    cancellation
-      ? `Cancelled by ${cancelledBy(cancellation.by)}: ${asSentence(cancelReasonText(cancellation))} The buyer is refunded all they paid for it.`
-      : null,
+  rejected: rejectedNote,
+  cancelled: ({ cancellation }) => (cancellation ? cancelledNote(cancellation) : null),
 };
 
 function stateNote(fulfilment: OrderFulfilment): string | null {

@@ -122,7 +122,7 @@ export type { HandoverDisagreement } from "./handover"
 export { asSentence } from "./sentence"
 export { handoverSteps } from "./handover-steps"
 export type { HandoverStep } from "./handover-steps"
-export { pauseDurations } from "./pause-duration"
+export { pauseDurations, pauseWaitingMessage, takingOrdersLine } from "./pause-duration"
 export type { PauseDuration } from "./pause-duration"
 export {
   historyEntries,
@@ -219,3 +219,7 @@ export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAd
 export { DISTANCE_BANDS_KM, deliveringTo, distanceBand, distanceKm, distanceLabel, roundedDistanceKm } from "./distance"
 export { orderAgainClosedNote, orderAgainLines, orderAgainSummary } from "./order-again"
 export type { OrderAgainItemInput, OrderAgainLine } from "./order-again"
+export { itemsLabel } from "./items-label"
+export { acceptWithinLabel, takeoverAnnouncement } from "./new-order-takeover"
+export type { TakeoverOrder } from "./new-order-takeover"
+export { cancelledNote, rejectedNote } from "./staff-order-notes"
