@@ -28,7 +28,7 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
     <Stack.Screen
       options={{
         title: name ?? '',
-        headerRight: () => <SearchButton />,
+        headerRight: renderSearchButton,
       }}
     />
   );
@@ -93,6 +93,9 @@ const shopDetail = (seller: Listing['seller']) =>
   seller.distance_km == null ? seller.name : `${seller.name} · ${distanceLabel(seller.distance_km)}`;
 
 /** The header's search button: Search, from any category. */
+/** The header's search button, as a render function so the screen doesn't define a component per render. */
+const renderSearchButton = () => <SearchButton />;
+
 function SearchButton() {
   const theme = useTheme();
   return (

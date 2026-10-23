@@ -112,8 +112,8 @@ export function reachedOnLabel(
   timeZone: string
 ): string | null {
   if (state !== "delivered" && state !== "collected") return null
-  const reached = timeline.filter((step) => step.status !== "upcoming")
-  const at = reached[reached.length - 1]?.at
+  let at: string | null = null
+  for (const step of timeline) if (step.status !== "upcoming") at = step.at
   return at ? `${STATES[state].label} ${dateLabel(at, timeZone)}` : null
 }
 
