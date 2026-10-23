@@ -38,7 +38,7 @@ env:
 # Booking from the packed screen goes back to the order, its label booked.
 - tapOn: "Book courier label"
 - extendedWaitUntil:
-    visible: "Label booked. Waiting for the courier to confirm the pickup."
+    visible: "Courier booked.*"
     timeout: 20000
 - assertVisible: ".*Waybill .*"
 # The courier confirms the pickup a few seconds after booking; the order refreshes every minute,
