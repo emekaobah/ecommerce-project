@@ -117,11 +117,15 @@ function CartContents({
       onSuccess: (shopCart) => router.push({ pathname: '/checkout', params: { cartId: shopCart.id } }),
     });
   };
-  // Checkout can't start while a line has none left: the main button clears them all.
+  // Checkout can't start while a line has none left: the main button clears them all, one at a
+  // time, since each removal rewrites the same cart, and stops at the first that fails.
   const removeSoldOut = async () => {
     setRemovingSoldOut(true);
     try {
-      for (const item of soldOut) await setQuantity.mutateAsync({ itemId: item.id, quantity: 0 });
+      await soldOut.reduce<Promise<void>>(
+        (removed, item) => removed.then(() => setQuantity.mutateAsync({ itemId: item.id, quantity: 0 })),
+        Promise.resolve(),
+      );
     } catch {
       // The note above the button says so; what was removed stays removed.
     } finally {
@@ -285,6 +289,19 @@ function ShopCard({
   );
 }
 
+/** "Rice · 5kg": the product, with its size unless it has only the default one. */
+function lineName(item: CartItem): string {
+  const title = item.product_title ?? 'Item';
+  const size = item.variant_title;
+  return size && size !== 'Default' && size !== title ? `${title} · ${size}` : title;
+}
+
+/** "₦4,500 · was ₦5,000" on sale, else "₦4,500": one of the line's price. */
+function unitPriceLabel(item: CartItem, money: (amount: number) => string): string {
+  const price = money(item.unit_price);
+  return item.compare_at_unit_price ? `${price} · was ${money(item.compare_at_unit_price)}` : price;
+}
+
 /**
  * A cart line: its photo, name and price, and its quantity. A sold-out line stays, greyed, with
  * Remove and Save for later; one wanting more than is left offers to change to what is.
@@ -306,9 +323,7 @@ function CartLine({
   onSave: () => void;
 }>) {
   const theme = useTheme();
-  const title = item.product_title ?? 'Item';
-  const name =
-    item.variant_title && item.variant_title !== 'Default' && item.variant_title !== title ? `${title} · ${item.variant_title}` : title;
+  const name = lineName(item);
   const shortfall = available ? stockShortfall(item.quantity, item.available_quantity) : null;
   const soldOut = shortfall?.type === 'sold_out';
   const greyed = soldOut || !available;
@@ -328,9 +343,7 @@ function CartLine({
           <StatusChip label="Sold out" tone="neutral" />
         ) : (
           <Text variant="meta" tone="muted" tabular>
-            {item.compare_at_unit_price
-              ? `${money(item.unit_price)} · was ${money(item.compare_at_unit_price)}`
-              : money(item.unit_price)}
+            {unitPriceLabel(item, money)}
           </Text>
         )}
         {item.perishable && !greyed ? <PerishableChip /> : null}
