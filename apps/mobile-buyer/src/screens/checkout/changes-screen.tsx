@@ -40,6 +40,8 @@ export function ChangesScreen() {
       },
       onError: (error) => {
         if (isAlreadyPaid(error)) router.replace({ pathname: '/checkout/confirmation', params: { cartId } });
+        // Refused: the checkout as it stands now says which shop holds it up (paymentRefusal).
+        else void queryClient.refetchQueries({ queryKey: checkoutKeys.detail(cartId), exact: true });
       },
     });
 

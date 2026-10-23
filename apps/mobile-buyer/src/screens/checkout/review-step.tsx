@@ -237,6 +237,8 @@ export function PayBar({
       // The last payment went through: wait for Paystack's confirmation rather than pay twice.
       onError: (error) => {
         if (isAlreadyPaid(error)) router.push({ pathname: '/checkout/confirmation', params: { cartId } });
+        // Refused: the checkout as it stands now says which shop holds it up (paymentRefusal).
+        else void queryClient.refetchQueries({ queryKey: checkoutKeys.detail(cartId), exact: true });
       },
     });
   const failure = useFailureMessage(
