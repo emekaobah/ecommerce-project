@@ -158,8 +158,6 @@ function ShopTabs({ tab, onChange }: Readonly<{ tab: Tab; onChange: (tab: Tab) =
         {
           gap: theme.space[4],
           paddingHorizontal: theme.space[4],
-          borderBottomWidth: theme.line.divider,
-          borderBottomColor: theme.colors.line,
           marginTop: theme.space[2],
         },
       ]}>
