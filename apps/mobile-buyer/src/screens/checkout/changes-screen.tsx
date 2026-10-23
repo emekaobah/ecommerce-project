@@ -1,4 +1,4 @@
-import { formatMoney } from '@oja/domain';
+import { formatMoney, paymentRefusal } from '@oja/domain';
 import { ChangesSheet, InlineNote, useTheme, type ChangesSheetChange } from '@oja/ui';
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -46,7 +46,8 @@ export function ChangesScreen() {
   const failure = useFailureMessage(
     startPayment.error && !isAlreadyPaid(startPayment.error) ? startPayment.error : null,
     "Couldn't start the payment. You haven't been charged. Try again.",
-    { 400: "Something in your order needs a change before paying: check each shop's delivery. You haven't been charged." }
+    // The API's 400s here carry no code: the checkout shows which shop holds it up.
+    { 400: (checkout.data && paymentRefusal(checkout.data)) ?? "Something in your order needs a change before paying. You haven't been charged." }
   );
 
   return (

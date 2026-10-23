@@ -3,6 +3,7 @@ import {
   deliveryDay,
   notPlacedChangeMessage,
   notPlacedMessage,
+  paymentRefusal,
   priceChangeMessage,
   type NotPlacedChange,
   type PaymentReturn,
@@ -241,7 +242,8 @@ export function PayBar({
   const failure = useFailureMessage(
     startPayment.error && !isAlreadyPaid(startPayment.error) ? startPayment.error : null,
     "Couldn't start the payment. You haven't been charged. Try again.",
-    { 400: "Something in your order needs a change before paying: check each shop's delivery. You haven't been charged." }
+    // The API's 400s here carry no code: the checkout shows which shop holds it up.
+    { 400: paymentRefusal(checkout) ?? "Something in your order needs a change before paying. You haven't been charged." }
   );
   const notice = paymentNotice(failure, returned);
 
