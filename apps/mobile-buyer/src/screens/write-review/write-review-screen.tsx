@@ -1,16 +1,20 @@
 import { useAuth } from '@clerk/expo';
-import { reviewAction, reviewForm, type ReviewFormEntry, type ReviewSubject } from '@oja/domain';
-import { Button, EmptyState, ErrorState, line, LoadingState, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
+import { reviewAction, reviewerName, reviewForm, type ReviewFormEntry, type ReviewSubject } from '@oja/domain';
+import { EmptyState, ErrorState, InlineNote, Skeleton, StickyAction, Text, TextField, useTheme } from '@oja/ui';
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
+import { useCustomer } from '@/api/customer';
 import { useOrderGroup, type SellerOrder } from '@/api/orders';
 import { useSubmitReviews, type ReviewDraft } from '@/api/reviews';
-import { StarInput } from '@/components/reviews';
+import { ReviewSubjectLine, StarInput } from '@/components/reviews';
 
 /** Mercur keeps a review's note to 300 characters. */
 const NOTE_LIMIT = 300;
+
+/** What each star means, said under the stars as the buyer picks. */
+const RATING_WORDS = ['', 'Poor', 'Fair', 'Okay', 'Good', 'Great'] as const;
 
 type Draft = { rating: number; note: string };
 const key = (s: ReviewSubject) => `${s.reference}:${s.reference_id}`;
@@ -30,13 +34,21 @@ export function WriteReviewScreen({ groupId, orderId }: Readonly<{ groupId: stri
   const group = useOrderGroup(userId, groupId);
 
   if (group.error && !group.data) {
-    return <ErrorState title="Couldn't load this order" body="Check your connection and try again." error={group.error} onRetry={() => void group.refetch()} />;
+    return (
+      <ErrorState
+        title="Couldn't load this order"
+        body="Check your connection and try again."
+        error={group.error}
+        onRetry={() => void group.refetch()}
+      />
+    );
   }
-  if (!group.data) return <LoadingState />;
+  if (!group.data) return <ReviewFormSkeleton />;
   const order = group.data.orders.find((o) => o.id === orderId);
   if (!order || !reviewAction(order)) {
     return (
       <EmptyState
+        icon="star"
         title="Not ready for review"
         body="You can review an order once you have received it."
         action={{ label: 'Back to the order', onPress: () => router.back() }}
@@ -48,6 +60,8 @@ export function WriteReviewScreen({ groupId, orderId }: Readonly<{ groupId: stri
 
 function ReviewForm({ order, entries }: Readonly<{ order: SellerOrder; entries: ReviewFormEntry[] }>) {
   const theme = useTheme();
+  const { userId } = useAuth();
+  const customer = useCustomer(userId);
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     Object.fromEntries(entries.map((entry) => [key(entry), draftFrom(entry)])),
   );
@@ -71,86 +85,107 @@ function ReviewForm({ order, entries }: Readonly<{ order: SellerOrder; entries: 
     ];
   });
   const editing = entries.every((entry) => entry.review);
+  const shownAs = customer.data
+    ? `Shown as ${reviewerName(customer.data)}, once Oja's team has checked it.`
+    : "Shown once Oja's team has checked it.";
+  const thumbnails = new Map(order.items.map((item) => [item.product_id, item.thumbnail]));
 
   return (
-    <>
-      <Stack.Screen options={{ title: editing ? 'Edit your review' : `Review ${order.seller.name}` }} />
+    <KeyboardAvoidingView style={[styles.fill, { backgroundColor: theme.colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Stack.Screen options={{ title: editing ? 'Edit your review' : 'Review' }} />
       <ScrollView
-        style={{ backgroundColor: theme.colors.bg }}
-        contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6], paddingBottom: theme.space[12] }}
+        contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6], paddingBottom: theme.space[8] }}
         keyboardShouldPersistTaps="handled">
-        <Text tone="muted">
-          {
-            "You review each shop and product once, and can edit it after a later order. We check every review, and every edit, before other buyers see it."
-          }
-        </Text>
         {entries.map((entry) => (
           <EntryReview
             key={key(entry)}
             entry={entry}
+            shop={order.seller}
+            thumbnail={thumbnails.get(entry.reference_id) ?? null}
             draft={drafts[key(entry)]!}
+            hint={shownAs}
             onChange={(change) => update(entry, change)}
           />
         ))}
-        {submit.error ? (
-          <Text tone="muted" accessibilityLiveRegion="polite">
-            {`Couldn't send your review: ${submit.error.message}`}
-          </Text>
-        ) : null}
-        <Button
-          label={editing ? 'Save changes' : 'Send review'}
-          disabled={!toSend.length}
-          loading={submit.isPending}
-          onPress={() => submit.mutate({ orderId: order.id, drafts: toSend }, { onSuccess: () => router.back() })}
-        />
       </ScrollView>
-    </>
+      {submit.error ? (
+        <View style={{ paddingHorizontal: theme.space[4] }}>
+          <InlineNote>{"Your review didn't all send. What you wrote is still here, so try again."}</InlineNote>
+        </View>
+      ) : null}
+      <StickyAction
+        label={editing ? 'Save changes' : 'Post review'}
+        disabled={!toSend.length}
+        loading={submit.isPending}
+        onPress={() => submit.mutate({ orderId: order.id, drafts: toSend }, { onSuccess: () => router.back() })}
+      />
+    </KeyboardAvoidingView>
   );
 }
 
 function EntryReview({
   entry,
+  shop,
+  thumbnail,
   draft,
+  hint,
   onChange,
-}: Readonly<{ entry: ReviewFormEntry; draft: Draft; onChange: (change: Partial<Draft>) => void }>) {
+}: Readonly<{
+  entry: ReviewFormEntry;
+  shop: { name: string; logo?: string | null };
+  thumbnail: string | null;
+  draft: Draft;
+  hint: string;
+  onChange: (change: Partial<Draft>) => void;
+}>) {
   const theme = useTheme();
-  const heading = entry.reference === 'seller' ? `The shop: ${entry.title}` : entry.title;
+  const isShop = entry.reference === 'seller';
   return (
     <View style={{ gap: theme.space[2] }}>
-      <Text variant="heading">{heading}</Text>
+      <ReviewSubjectLine
+        title={entry.title}
+        detail={isShop ? 'Shop' : shop.name}
+        thumbnail={thumbnail}
+        shop={isShop ? shop : undefined}
+      />
       {entry.review ? (
         <Text variant="meta" tone="muted">
-          Your review: change it here.
+          Your review: change it here. It goes back to Oja's team to check.
         </Text>
       ) : null}
       <StarInput value={draft.rating} onChange={(rating) => onChange({ rating })} label={`Rate ${entry.title}`} />
+      <Text variant="meta" weight="bold" tone="muted" style={styles.centred} accessibilityLiveRegion="polite">
+        {RATING_WORDS[draft.rating] || ' '}
+      </Text>
       {draft.rating ? (
-        <TextInput
-          maxFontSizeMultiplier={MAX_FONT_SCALE}
+        <TextField
+          label={`Your review of ${entry.title}`}
+          optional
+          hint={hint}
           value={draft.note}
           onChangeText={(note) => onChange({ note })}
-          placeholder="What stood out? (optional)"
-          placeholderTextColor={theme.colors.muted}
-          accessibilityLabel={`Your review of ${entry.title} (optional)`}
+          placeholder="What stood out?"
           maxLength={NOTE_LIMIT}
           multiline
-          style={[
-            styles.note,
-            theme.type.body,
-            {
-              minHeight: theme.hitArea * 2,
-              borderRadius: theme.radius.md,
-              borderColor: theme.colors.control,
-              padding: theme.space[4],
-              color: theme.colors.ink,
-            },
-          ]}
         />
       ) : null}
     </View>
   );
 }
 
+function ReviewFormSkeleton() {
+  const theme = useTheme();
+  return (
+    <View style={[styles.fill, { backgroundColor: theme.colors.bg, padding: theme.space[4], gap: theme.space[3] }]}>
+      <Skeleton width="60%" height={theme.type.meta.lineHeight * 2} />
+      <Skeleton width="70%" height={theme.hitArea} style={styles.centredBlock} />
+      <Skeleton height={theme.block.textArea} radius="md" />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  note: { borderWidth: line.input, textAlignVertical: 'top' },
+  fill: { flex: 1 },
+  centred: { textAlign: 'center' },
+  centredBlock: { alignSelf: 'center' },
 });

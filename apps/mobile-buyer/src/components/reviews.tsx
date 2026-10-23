@@ -1,5 +1,7 @@
 import { ratingSummary, type Rating, type ReviewKind } from '@oja/domain';
-import { Button, Icon, PressableSurface, Skeleton, Text, useTheme } from '@oja/ui';
+import { Button, Icon, PressableSurface, ShopMark, Skeleton, Text, useTheme } from '@oja/ui';
+import { Image } from 'expo-image';
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { REVIEW_PREVIEW_COUNT, useReviewPreview, type PublishedReview } from '@/api/reviews';
@@ -125,6 +127,56 @@ export function ShopReply({ note, shop }: Readonly<{ note: string; shop?: string
   );
 }
 
+/**
+ * What a review is of, as its card heads it: the product's photo or the shop's mark, its name
+ * and a line under it ("Iya Bisi Foodstuff", or "Shop"). `trailing` sits at the end, e.g. a menu.
+ */
+export function ReviewSubjectLine({
+  title,
+  detail,
+  thumbnail,
+  shop,
+  trailing,
+}: Readonly<{
+  title: string;
+  detail?: string | null;
+  thumbnail?: string | null;
+  shop?: { name: string; logo?: string | null };
+  trailing?: ReactNode;
+}>) {
+  const theme = useTheme();
+  const size = theme.shopMark.sm.size * (36 / 32);
+  return (
+    <View style={[styles.row, { gap: theme.space[2] }]}>
+      {shop ? (
+        <ShopMark name={shop.name} logoUrl={shop.logo} size="sm" />
+      ) : (
+        <View
+          style={{
+            width: size,
+            height: size,
+            borderRadius: theme.radius.md,
+            overflow: 'hidden',
+            backgroundColor: theme.colors.productTile,
+          }}>
+          {thumbnail ? <Image source={thumbnail} contentFit="contain" style={styles.fill} accessibilityIgnoresInvertColors /> : null}
+        </View>
+      )}
+      <View style={styles.fill}>
+        <Text variant="meta" weight="bold" numberOfLines={2}>
+          {title}
+        </Text>
+        {detail ? (
+          <Text variant="meta" tone="muted" numberOfLines={1}>
+            {detail}
+          </Text>
+        ) : null}
+      </View>
+      {trailing}
+    </View>
+  );
+}
+
 /** The shape of a few reviews while they load. */
 export function ReviewsSkeleton({ count = 3 }: Readonly<{ count?: number }>) {
   const theme = useTheme();
@@ -195,6 +247,7 @@ export function ReviewsPreview({ kind, id, title }: Readonly<{ kind: ReviewKind;
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
+  fill: { flex: 1 },
   between: { justifyContent: 'space-between' },
   centre: { justifyContent: 'center' },
   shrink: { flexShrink: 1 },
