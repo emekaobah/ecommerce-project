@@ -1,3 +1,4 @@
+import { ClientError } from '@oja/api-client';
 import type { PinnedDeliveryAddress } from '@oja/domain';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -7,12 +8,30 @@ import { storeClient } from './client';
 export const checkoutKeys = {
   all: ['checkout'] as const,
   detail: (cartId: string) => [...checkoutKeys.all, cartId] as const,
+  /** What changed when the latest payment didn't start, for the changes sheet. */
   orderGroup: (orderGroupId: string) => [...checkoutKeys.all, 'order-group', orderGroupId] as const,
+  changes: (cartId: string) => [...checkoutKeys.all, cartId, 'changes'] as const,
 };
 
-async function fetchCheckout(cartId: string) {
-  const { checkout } = await storeClient.store.carts.$id.checkout.query({ $id: cartId });
+/**
+ * The checkout; `addressId` is the buyer's "Delivering to" address, which collection points are
+ * measured from while there is no delivery address (an all-pickup cart).
+ */
+async function fetchCheckout(cartId: string, addressId: string | null | undefined) {
+  const { checkout } = await storeClient.store.carts.$id.checkout.query({
+    $id: cartId,
+    ...(addressId ? { address_id: addressId } : {}),
+  });
   return checkout;
+}
+
+/**
+ * Why the store refused a checkout step, in its own words, which are written for the buyer (a
+ * code that expired, a shop that doesn't offer pickup, an address no courier reaches). Null for
+ * any other failure, which the screen words itself (the error goes to Sentry, never on screen).
+ */
+export function refusalMessage(error: unknown): string | null {
+  return error instanceof ClientError && (error.status === 400 || error.status === 422) ? error.message : null;
 }
 
 export type Checkout = Awaited<ReturnType<typeof fetchCheckout>>;
@@ -24,10 +43,13 @@ export type CheckoutPromotion = Checkout['promotions'][number];
  * the payment and the cart has become an order group, or the cart failed to become orders and
  * was refunded (`not_placed`, #38).
  */
-export function useCheckout(cartId: string | null | undefined, { waitForOrder = false } = {}) {
+export function useCheckout(
+  cartId: string | null | undefined,
+  { waitForOrder = false, addressId }: { waitForOrder?: boolean; addressId?: string | null } = {},
+) {
   return useQuery({
     queryKey: checkoutKeys.detail(cartId ?? ''),
-    queryFn: cartId ? () => fetchCheckout(cartId) : skipToken,
+    queryFn: cartId ? () => fetchCheckout(cartId, addressId) : skipToken,
     staleTime: 0,
     refetchInterval: (query) =>
       waitForOrder && !query.state.data?.order_group_id && !query.state.data?.not_placed ? 2_000 : false,
@@ -45,6 +67,8 @@ export type CheckoutPreparation = {
   shippingAddress?: PinnedDeliveryAddress | null;
   contact?: CheckoutContact | null;
   pickup: string[];
+  /** The buyer's "Delivering to" address, which collection points are measured from without a delivery address. */
+  addressId?: string | null;
 };
 
 /**
@@ -55,11 +79,12 @@ export type CheckoutPreparation = {
 export function usePrepareCheckout(cartId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ shippingAddress, contact, pickup }: CheckoutPreparation) =>
+    mutationFn: ({ shippingAddress, contact, pickup, addressId }: CheckoutPreparation) =>
       storeClient.store.carts.$id.checkout.mutate({
         $id: cartId,
         ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
         ...(contact ? { contact } : {}),
+        ...(addressId ? { address_id: addressId } : {}),
         pickup,
       }),
     onSuccess: ({ checkout }) => queryClient.setQueryData(checkoutKeys.detail(cartId), checkout),
