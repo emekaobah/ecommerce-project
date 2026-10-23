@@ -1,4 +1,4 @@
-import { canCancel, cancelledBy, cancelReasonText, collectByLabel, formatMoney, staffStatus } from '@oja/domain';
+import { canCancel, cancelledBy, cancelReasonText, collectByLabel, formatMoney, orderBuyerLine, staffStatus } from '@oja/domain';
 import { Band, Button, haptics, ErrorState, ListRow, LoadingState, PressableSurface, Text, Timeline, useTheme, useToast } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,7 +15,6 @@ import {
 } from '@/api/orders';
 import { useMayManageShop } from '@/api/sellers';
 import { useShopHours } from '@/api/shop-hours';
-import { buyerLine } from '@/orders/buyer-line';
 import { ApprovalNote, BookCourier } from '@/orders/courier-choice';
 import { AcceptClock } from '@/orders/fulfilment-chip';
 import { shopHoursOf } from '@/orders/shop-state';
@@ -63,7 +62,7 @@ export function OrderScreen() {
               {`${staffStatus(fulfilment.state).label} · ${fulfilment.method}`}
             </Text>
             <Text variant="meta" tone="onBand">
-              {buyerLine(order.data, timeZone)}
+              {orderBuyerLine(order.data, timeZone)}
             </Text>
           </Band>
 

@@ -1,4 +1,4 @@
-import { collectByLabel, formatMoney, ORDER_STAGES, type OrderStage, type ShopHours } from '@oja/domain';
+import { collectByLabel, formatMoney, ORDER_STAGES, vendorShopState, type OrderStage, type ShopHours } from '@oja/domain';
 import {
   Button,
   EmptyState,
@@ -23,7 +23,7 @@ import { useCurrentSeller } from '@/api/sellers';
 import { useShopHours } from '@/api/shop-hours';
 import { acceptUrgent, FulfilmentChip } from '@/orders/fulfilment-chip';
 import { itemsSummary } from '@/orders/items';
-import { shopHoursOf, shopState } from '@/orders/shop-state';
+import { shopHoursOf } from '@/orders/shop-state';
 import { useNow } from '@/orders/use-now';
 import { useSession } from '@/session/session-store';
 
@@ -109,8 +109,8 @@ function ShopHeader({ sellerId, hours, now }: Readonly<{ sellerId: string | unde
   const theme = useTheme();
   const router = useRouter();
   const seller = useCurrentSeller(sellerId);
-  const state = hours ? shopState(hours, now) : null;
-  const pill = state?.open ? theme.status.success : theme.status.neutral;
+  const state = hours ? vendorShopState(hours, now) : null;
+  const pill = theme.status[state?.chip.tone ?? 'neutral'];
 
   return (
     <View style={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[2] }}>
@@ -121,7 +121,7 @@ function ShopHeader({ sellerId, hours, now }: Readonly<{ sellerId: string | unde
         {state ? (
           <View
             accessible
-            accessibilityLabel={state.pill}
+            accessibilityLabel={state.chip.label}
             style={[
               styles.pill,
               {
@@ -134,7 +134,7 @@ function ShopHeader({ sellerId, hours, now }: Readonly<{ sellerId: string | unde
             ]}>
             <View style={{ width: theme.space[2], height: theme.space[2], borderRadius: theme.radius.pill, backgroundColor: pill.foreground }} />
             <Text variant="meta" weight="extrabold" style={{ color: pill.foreground }}>
-              {state.pill}
+              {state.chip.label}
             </Text>
           </View>
         ) : null}

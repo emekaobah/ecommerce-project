@@ -151,6 +151,10 @@ export {
   weeklyHoursErrors,
 } from "./shop-hours"
 export type { DayHours, HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
+export { vendorShopState } from "./vendor-shop-state"
+export type { VendorShopState } from "./vendor-shop-state"
+export { orderBuyerLine } from "./order-buyer-line"
+export type { BuyerLineOrder } from "./order-buyer-line"
 export { courierChangedNote, deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
 export type { DeliveryChoice, DeliveryRate, DeliveryTag, OrderDelivery } from "./delivery"
 export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from "./perishable"
