@@ -163,7 +163,7 @@ function Segments({
                 minHeight: theme.hitArea,
                 paddingHorizontal: theme.space[3],
                 borderRadius: theme.radius.pill,
-                backgroundColor: on ? theme.colors.selected : theme.colors.tile,
+                backgroundColor: on ? theme.colors.primary : theme.colors.tile,
               },
             ]}>
             <Text variant="meta" weight="bold" style={{ color: on ? theme.colors.onPrimary : theme.colors.ink }}>

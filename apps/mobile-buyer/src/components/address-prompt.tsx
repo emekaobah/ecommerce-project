@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { Button, SearchField, Sheet } from '@oja/ui';
+import { Button, Icon, PressableSurface, Sheet, Text, useTheme } from '@oja/ui';
 import * as SecureStore from 'expo-secure-store';
 import { router, useIsFocused } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -76,8 +76,33 @@ export function AddressPrompt() {
             <Button label="Enter it later" variant="secondary" onPress={close} />
           </>
         }>
-        <SearchField value="" onChangeText={() => undefined} placeholder="Street, estate or area" editable={false} onPress={enterAddress} />
+        <AddressSearchButton onPress={enterAddress} />
       </Sheet>
     </SheetModal>
+  );
+}
+
+/** Looks like the address search it opens: outlined, a search icon and "Street, estate or area". */
+function AddressSearchButton({ onPress }: Readonly<{ onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="search"
+      accessibilityLabel="Search for your address"
+      onPress={onPress}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.space[2],
+        minHeight: theme.control.row,
+        paddingHorizontal: theme.space[4],
+        borderRadius: theme.radius.md,
+        borderWidth: theme.line.input,
+        borderColor: theme.colors.control,
+        backgroundColor: theme.colors.raised,
+      }}>
+      <Icon name="search" use="step" color={theme.colors.muted} />
+      <Text tone="muted">Street, estate or area</Text>
+    </PressableSurface>
   );
 }
