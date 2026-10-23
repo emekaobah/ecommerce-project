@@ -190,7 +190,7 @@ function ReviewCard({ review, onMenu }: Readonly<{ review: MyReview; onMenu: () 
             accessibilityLabel={`Edit or delete your review of ${subject.title}`}
             onPress={onMenu}
             style={[styles.centre, { minWidth: theme.hitArea, minHeight: theme.hitArea, borderRadius: theme.radius.md }]}>
-            <Text weight="extrabold" tone="muted" style={{ letterSpacing: 2 }}>
+            <Text weight="extrabold" tone="muted" style={{ letterSpacing: theme.space[1] / 2 }}>
               ···
             </Text>
           </PressableSurface>

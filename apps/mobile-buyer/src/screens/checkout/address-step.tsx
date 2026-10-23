@@ -65,7 +65,7 @@ export function DeliveryAddress({
   return (
     <View style={{ gap: theme.space[3] }}>
       {/* The header names the step. */}
-      <View style={styles.spread}>
+      <View style={[styles.spread, { gap: theme.space[3] }]}>
         <Text weight="bold" tone="muted">
           {step === 'chosen' ? 'Deliver to' : 'Where should we deliver?'}
         </Text>
@@ -240,7 +240,7 @@ export function ContactDetails({
   };
   return (
     <View style={{ gap: theme.space[3] }}>
-      <View style={styles.spread}>
+      <View style={[styles.spread, { gap: theme.space[3] }]}>
         <Text variant="heading">Your details</Text>
         {editing || saving ? null : <Button label="Change" variant="link" onPress={onEdit} />}
       </View>
@@ -271,5 +271,5 @@ export function ContactDetails({
 }
 
 const styles = StyleSheet.create({
-  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

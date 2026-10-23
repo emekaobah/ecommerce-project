@@ -71,7 +71,7 @@ function Results({ search, onClear }: Readonly<{ search: string; onClear: () => 
           variant="label"
           weight="extrabold"
           tone="muted"
-          style={[styles.caps, { paddingHorizontal: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[1] }]}>
+          style={[styles.caps, { letterSpacing: theme.type.label.fontSize * CAPS_TRACKING_EM, paddingHorizontal: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[1] }]}>
           {resultsLabel(first?.shop_count ?? 0, first?.count ?? 0)}
         </Text>
       }
@@ -140,8 +140,11 @@ function Browse() {
   );
 }
 
+/** Caps labels track out by .06em, as the catalogue's section labels (`.lbl2`) do. */
+const CAPS_TRACKING_EM = 0.06;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   grow: { flexGrow: 1 },
-  caps: { textTransform: 'uppercase', letterSpacing: 0.6 },
+  caps: { textTransform: 'uppercase' },
 });

@@ -72,7 +72,7 @@ export function ShopStatusLine({ status, distanceKm }: Readonly<{ status: ShopSt
   const rest = status.label.replace(/^Open/, '');
   return (
     <View accessible accessibilityLabel={`${status.label}${distance}`} style={[styles.line, { gap: theme.space[1] }]}>
-      <View style={[styles.dot, { width: theme.space[2], height: theme.space[2], backgroundColor: theme.colors.leafText }]} />
+      <View style={{ width: theme.space[2], height: theme.space[2], borderRadius: theme.radius.pill, backgroundColor: theme.colors.leafText }} />
       <Text variant="meta" tone="muted" style={styles.shrink}>
         <Text variant="label" weight="extrabold" tone="leaf">
           Open
@@ -85,6 +85,5 @@ export function ShopStatusLine({ status, distanceKm }: Readonly<{ status: ShopSt
 
 const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  dot: { borderRadius: 999 },
   shrink: { flexShrink: 1 },
 });
