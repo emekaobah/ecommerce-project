@@ -162,7 +162,6 @@ function AcceptOrReject({ orderId, displayId }: Readonly<{ orderId: string; disp
   const router = useRouter();
   const toast = useToast();
   const accept = useAcceptOrder(orderId);
-  const dark = theme.scheme === 'dark';
   return (
     <SafeAreaView
       edges={['bottom']}
@@ -178,10 +177,10 @@ function AcceptOrReject({ orderId, displayId }: Readonly<{ orderId: string; disp
             minHeight: theme.control.main,
             paddingHorizontal: theme.space[6],
             borderRadius: theme.radius.lg,
-            backgroundColor: dark ? theme.colors.tile : theme.colors.dangerBg,
+            backgroundColor: theme.colors.dangerBg,
           },
         ]}>
-        <Text variant="strong" style={{ color: dark ? theme.colors.ink : theme.colors.dangerText }}>
+        <Text variant="strong" tone="danger">
           Reject
         </Text>
       </PressableSurface>
