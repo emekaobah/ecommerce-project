@@ -14,6 +14,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Says whether the API could have changed, so app-only changes skip the integration shards.
+  # A skipped job counts as passed, so Railway's "Wait for CI" still deploys.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          # The API and the workspace packages it builds against.
+          filters: |
+            api:
+              - "packages/api/**"
+              - "packages/domain/**"
+              - "apps/admin/**"
+              - "apps/vendor/**"
+              - "bun.lock"
+              - "package.json"
+              - ".github/workflows/**"
+
   # Fails fast on type errors and unit tests, without waiting on the integration shards.
   check:
     runs-on: ubuntu-latest
@@ -52,6 +78,8 @@ jobs:
 
   # The integration suite, split three ways, each shard on its own database.
   integration:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
