@@ -22,7 +22,7 @@ function spoken({ label, count }: StageTile): string {
 
 /**
  * The vendor app's stage tiles: four equal tiles, each a stage's count over its name, the
- * selected one filled indigo in both themes. Counts above 99 show as 99+ and never wrap; a
+ * selected one filled like the main button (indigo, the brighter indigo in dark). Counts above 99 show as 99+ and never wrap; a
  * count still loading shows as a dot.
  */
 export function StageTiles<K extends string>({ stages, selected, onSelect }: Readonly<StageTilesProps<K>>) {
@@ -31,7 +31,7 @@ export function StageTiles<K extends string>({ stages, selected, onSelect }: Rea
     <View accessibilityRole="tablist" style={[styles.row, { gap: theme.space[2] }]}>
       {stages.map((stage) => {
         const on = stage.key === selected
-        const ink = on ? theme.colors.onBand : theme.colors.muted
+        const ink = on ? theme.colors.onPrimary : theme.colors.muted
         return (
           <PressableSurface
             key={stage.key}
@@ -45,7 +45,7 @@ export function StageTiles<K extends string>({ stages, selected, onSelect }: Rea
                 minHeight: theme.hitArea,
                 padding: theme.space[2],
                 borderRadius: theme.radius.md,
-                backgroundColor: on ? theme.colors.band : theme.colors.tile,
+                backgroundColor: on ? theme.colors.primary : theme.colors.tile,
               },
             ]}
           >
@@ -53,7 +53,7 @@ export function StageTiles<K extends string>({ stages, selected, onSelect }: Rea
               numberOfLines={1}
               tabular
               // The display face at the catalogue's 20px, as plain text: a display variant reads as a header.
-              style={[theme.type.titlePushed, { fontFamily: FONT_FACES.display.extrabold, color: on ? theme.colors.onBand : theme.colors.ink }]}
+              style={[theme.type.titlePushed, { fontFamily: FONT_FACES.display.extrabold, color: on ? theme.colors.onPrimary : theme.colors.ink }]}
             >
               {stage.count === null ? "·" : stageCountLabel(stage.count)}
             </Text>
