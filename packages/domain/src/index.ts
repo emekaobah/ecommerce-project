@@ -6,7 +6,7 @@ export type {
   AddressFormErrors,
   AddressFormResult,
   AddressFormValues,
-  BuyerName,
+  BuyerDetails,
   DeliveryAddress,
   Pin,
   PinnedDeliveryAddress,

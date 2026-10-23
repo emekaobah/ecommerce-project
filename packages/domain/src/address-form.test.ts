@@ -91,6 +91,13 @@ describe("addressFormValues", () => {
       province: "",
     })
   })
+
+  test("starts with the buyer's account phone, in the format people type", () => {
+    expect(addressFormValues(null, "NG", { first_name: "Ada", phone: "+2348031234567" })).toMatchObject({
+      first_name: "Ada",
+      phone: "08031234567",
+    })
+  })
 })
 
 describe("pinOf", () => {
