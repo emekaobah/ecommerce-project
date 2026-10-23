@@ -6,7 +6,7 @@ import { payOutDeliveredOrders } from "../../src/lib/pay-out-orders"
 import { expirePickupHolds } from "../../src/lib/pickup-hold-expiry"
 import { expirePickupHoldWorkflow } from "../../src/workflows/order-fulfilment/workflows/expire-pickup-hold"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_PERISHABLE_CATEGORIES, SEED_PRODUCTS } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "../helpers/auth"
 import {
@@ -91,7 +91,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start(), expo.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop()]))
     beforeEach(async () => {

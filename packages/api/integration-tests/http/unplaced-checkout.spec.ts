@@ -1,7 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules } from "@medusajs/framework/utils"
 import { refundUnclaimedPayments } from "../../src/lib/order-acceptance"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
 import { buyerCheckout, eventually, GADGETS, GROCERY, RICE, TOTAL } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -50,7 +50,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start(), expo.start(), resend.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
       await keepShopsOpen(getContainer(), [GADGETS, GROCERY])
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop(), resend.stop()]))

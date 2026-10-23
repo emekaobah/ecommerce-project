@@ -1,5 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { buyerCheckout } from "./checkout"
 import { fakeClerk } from "./clerk"
 import { fakePaystack } from "./paystack"
@@ -41,7 +41,7 @@ export function checkoutSuite({
   const buyer = buyerCheckout({ api, getContainer, clerk, paystack })
   beforeAll(async () => {
     await Promise.all([paystack.start(), shipbubble.start()])
-    await seedDemoData({ container: getContainer(), args: [] } as any)
+    await seedDemoWorld({ container: getContainer(), args: [] } as any)
   })
   afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
   beforeEach(() => buyer.load())

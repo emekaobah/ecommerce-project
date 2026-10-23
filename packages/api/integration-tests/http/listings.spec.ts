@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { updateSellerAddressWorkflow } from "@mercurjs/core/workflows"
 import { MercurModules } from "@mercurjs/types"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { ADDRESS } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -26,7 +26,7 @@ medusaIntegrationTestRunner({
 
     // Seeded once; the runner restores this snapshot before every test.
     beforeAll(async () => {
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
 
     beforeEach(async () => {

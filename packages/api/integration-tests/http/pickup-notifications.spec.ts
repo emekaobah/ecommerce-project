@@ -5,7 +5,7 @@ import { tellReadyForPickup } from "../../src/lib/buyer-notifications"
 import { expirePickupHolds } from "../../src/lib/pickup-hold-expiry"
 import { remindPickupHolds } from "../../src/lib/pickup-reminders"
 import { setWeeklyHours } from "../../src/lib/shop-hours"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_PERISHABLE_CATEGORIES, SEED_PRODUCTS } from "../../src/scripts/seed-data"
 import { refundOrderShareWorkflow } from "../../src/workflows/order-fulfilment/workflows/refund-order-share"
 import { vendorHeaders } from "../helpers/auth"
@@ -62,7 +62,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start(), expo.start(), resend.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop(), resend.stop()]))
     beforeEach(async () => {

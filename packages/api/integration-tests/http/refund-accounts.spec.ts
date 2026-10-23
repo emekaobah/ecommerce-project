@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { formatMoney } from "@oja/domain"
 import { NO_ACCOUNT_REASON } from "../../src/lib/owed-refunds"
 import { followUpRefundAccounts } from "../../src/lib/refund-accounts"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
 import { statusOf } from "../helpers/checkout-suite"
 import { buyerCheckout, eventually, GROCERY, ORDER_TOTALS } from "../helpers/checkout"
@@ -48,7 +48,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start(), expo.start(), resend.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop(), resend.stop()]))
     beforeEach(async () => {

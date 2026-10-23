@@ -1,7 +1,7 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules, NotificationStatus } from "@medusajs/framework/utils"
 import { formatMoney } from "@oja/domain"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { remindAcceptDeadlines } from "../../src/lib/order-acceptance"
 import { ORDER_PICKUP_SCHEDULED } from "../../src/lib/order-fulfilment"
@@ -47,7 +47,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start(), expo.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
       // The accept deadline counts the shops' open hours (ADR 0004); open round the clock, it is 24 hours.
       await keepShopsOpen(getContainer(), [GADGETS, GROCERY])
     })

@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { catalogueSource } from "../../src/lib/enrichment/catalogue"
 import { enrichmentService, queueEnrichment } from "../../src/lib/enrichment"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
 import { offerOn } from "../helpers/offers"
 import { claudeDraftSource } from "../../src/lib/enrichment/ai-draft"
@@ -19,7 +19,7 @@ medusaIntegrationTestRunner({
     let admin: { headers: Record<string, string> }
 
     beforeAll(async () => {
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
 
     beforeEach(async () => {

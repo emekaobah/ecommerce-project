@@ -1,6 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { adminHeaders, vendorHeaders } from "../helpers/auth"
 import { groceryVendor as groceryVendorOf, offerOn as offerOnProduct } from "../helpers/offers"
@@ -21,7 +21,7 @@ medusaIntegrationTestRunner({
 
     // Seeded once; the runner restores this snapshot before every test.
     beforeAll(async () => {
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
 
     beforeEach(async () => {

@@ -6,7 +6,7 @@ import { fakePaystack } from "../helpers/paystack"
 import { COURIERS, fakeShipbubble, type FakeCourier } from "../helpers/shipbubble"
 import { keepShopsOpen } from "../helpers/shop-hours"
 import { SEED_PERISHABLE_CATEGORIES, SEED_PRODUCTS } from "../../src/scripts/seed-data"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -79,7 +79,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
       // Delivery counts from the shops' next opening (ADR 0004); open round the clock, it counts from now.
       await keepShopsOpen(getContainer(), [GADGETS, GROCERY])
     })

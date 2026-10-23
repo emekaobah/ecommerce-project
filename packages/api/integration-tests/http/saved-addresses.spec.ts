@@ -1,6 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { ADDRESS, PIN } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakeShipbubble } from "../helpers/shipbubble"
@@ -41,7 +41,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await shipbubble.start()
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
 
     afterAll(() => shipbubble.stop())

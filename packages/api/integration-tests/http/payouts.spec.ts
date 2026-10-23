@@ -4,7 +4,7 @@ import { adminHeaders } from "../helpers/auth"
 import { flagUnmatchedRefunds } from "../../src/lib/refund-check"
 import { payOutDeliveredOrders } from "../../src/lib/pay-out-orders"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../../src/modules/shop-bank-account"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { refundOrderShareWorkflow } from "../../src/workflows/order-fulfilment/workflows/refund-order-share"
 import { buyerCheckout, eventually, GADGETS, GROCERY, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -43,7 +43,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start(), expo.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop()]))
     beforeEach(async () => {

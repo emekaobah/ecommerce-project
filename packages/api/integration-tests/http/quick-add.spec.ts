@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IFileModuleService } from "@medusajs/framework/types"
 import { MercurModules, SellerRole } from "@mercurjs/types"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { claudeDraftSource } from "../../src/lib/enrichment/ai-draft"
 import { adminHeaders, vendorHeaders } from "../helpers/auth"
@@ -30,7 +30,7 @@ medusaIntegrationTestRunner({
     const [grocery] = SEED_SELLERS
 
     beforeAll(async () => {
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
 
     const sellerId = async (shop = grocery) => {
