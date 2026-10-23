@@ -48,6 +48,7 @@ const inks = (theme: Theme): Record<ButtonVariant, string> => ({
  * Primary is the one indigo action on a screen; secondary is Mist; danger is for destructive
  * actions only; link is text. Disabled turns the fill to Mist with a muted label (never faded).
  * Loading lays a spinner over the label, so the width stays the same, and keeps a price beside it.
+ * At large text sizes the label wraps and the price stays whole beside it, never cut off.
  */
 export function Button({
   label,
@@ -80,23 +81,24 @@ export function Button({
           minHeight: isLink ? theme.hitArea : theme.control[size],
           borderRadius: theme.radius.lg,
           paddingHorizontal: isLink ? 0 : theme.space[4],
+          paddingVertical: isLink ? 0 : theme.space[2],
           backgroundColor: fill,
         },
         style,
       ]}
     >
       <View style={[styles.content, { gap: theme.space[2] }, detail ? styles.spread : null]}>
-        <View style={[styles.label, { gap: theme.space[2] }]}>
-          <View style={[styles.label, { gap: theme.space[2] }, loading && styles.hidden]}>
+        <View style={[styles.label, styles.shrink, { gap: theme.space[2] }]}>
+          <View style={[styles.label, styles.shrink, { gap: theme.space[2] }, loading && styles.hidden]}>
             {icon ? <Icon name={icon} use="chip" color={ink} /> : null}
-            <Text variant="strong" tone={tone} style={isLink && styles.underline}>
+            <Text variant="strong" tone={tone} style={[styles.shrink, isLink && styles.underline]}>
               {label}
             </Text>
           </View>
           {loading ? <ActivityIndicator color={ink} style={StyleSheet.absoluteFill} /> : null}
         </View>
         {detail ? (
-          <Text variant="strong" tone={tone} tabular>
+          <Text variant="strong" tone={tone} tabular style={styles.whole}>
             {detail}
           </Text>
         ) : null}
@@ -110,6 +112,9 @@ const styles = StyleSheet.create({
   content: { flexDirection: "row", alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
   label: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
   spread: { justifyContent: "space-between" },
+  // The label wraps rather than pushing the price out of the button.
+  shrink: { flexShrink: 1 },
+  whole: { flexShrink: 0 },
   underline: { textDecorationLine: "underline" },
   hidden: { opacity: 0 },
 })
