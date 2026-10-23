@@ -66,7 +66,7 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
           if (results.hasNextPage && !results.isFetchingNextPage) void results.fetchNextPage();
         }}
         header={
-          <View style={{ gap: theme.space[2] }}>
+          <View>
             <SubCategoryChips categoryId={categoryId} selected={selected} onSelect={setSelected} />
             {shopCount ? (
               <Text variant="meta" weight="bold" tone="muted" style={{ paddingHorizontal: theme.space[4] }}>
