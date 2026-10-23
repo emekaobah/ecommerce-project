@@ -39,12 +39,18 @@ export function DeliveryStep({
       ))}
       <View style={{ paddingTop: theme.space[2] }}>
         <SumRow
-          label={delivered ? `Delivery, ${delivered} ${delivered === 1 ? 'shop' : 'shops'}` : 'Delivery'}
+          label={deliveryLabel(delivered)}
           value={money(checkout.shipping_total)}
         />
       </View>
     </View>
   );
+}
+
+/** "Delivery, 2 shops": how many shops deliver; "Delivery" when none do. */
+function deliveryLabel(shops: number): string {
+  if (!shops) return 'Delivery';
+  return `Delivery, ${shops} ${shops === 1 ? 'shop' : 'shops'}`;
 }
 
 const itemsWord = (group: CheckoutSellerGroup) => {
@@ -80,65 +86,32 @@ function ShopDelivery({
 }>) {
   const theme = useTheme();
   const choose = useChooseDelivery(cartId);
-  const { seller, shop_status: status } = group;
+  const { seller } = group;
   const sellerId = seller?.id;
   const busy = choose.isPending || choosingMethod;
   const now = new Date();
   // While a choice is being saved, it shows as chosen.
   const chosenId = (choose.isPending && choose.variables?.choiceId) || group.shipping?.choice_id;
   const collecting = group.method === 'pickup';
-  const preparedLater = status?.state === 'closed' && status.orderable ? `${status.label} · prepared then` : null;
 
   return (
     <Card gap={2}>
-      <View style={[styles.row, { gap: theme.space[2] }]}>
-        {seller ? <ShopMark name={seller.name} logoUrl={seller.logo} size="sm" /> : null}
-        <View style={styles.fill}>
-          <Text weight="bold">{seller?.name ?? 'No longer available'}</Text>
-          {preparedLater ? (
-            <Text variant="meta" tone="muted">
-              {preparedLater}
-            </Text>
-          ) : null}
-        </View>
-        <Text variant="meta" tone="muted">
-          {itemsWord(group)}
-        </Text>
-      </View>
-      {status && !status.orderable ? (
-        <InlineNote>{`${status.label}. Remove ${seller?.name ?? 'its'} items from your cart to pay for the rest.`}</InlineNote>
-      ) : null}
-      {group.perishable && !group.delivery_unavailable ? <PerishableRule /> : null}
-      {group.delivery_unavailable ? <InlineNote>{group.delivery_unavailable.reason}</InlineNote> : null}
-      {group.pickup_note ? <InlineNote>{group.pickup_note}</InlineNote> : null}
+      <ShopHeading group={group} />
+      <ShopNotes group={group} />
 
       <View style={{ gap: theme.space[2] }} accessibilityRole="radiogroup" accessibilityLabel={`How to get ${seller?.name ?? 'these'} items`}>
         {sellerId && !collecting
-          ? group.delivery_choices.map((choice) => {
-              const tags = choice.tags.map((tag) => TAG_LABELS[tag]);
-              const arrives = deliveryEstimate(choice.delivery_eta_time, now, choice.time_zone);
-              const selected = choice.id === chosenId;
-              return (
-                <RadioOption
-                  key={choice.id}
-                  selected={selected}
-                  disabled={busy}
-                  onPress={() => {
-                    if (!selected) choose.mutate({ sellerId, choiceId: choice.id });
-                  }}
-                  trailing={
-                    <Text weight="extrabold" tabular>
-                      {money(choice.amount)}
-                    </Text>
-                  }>
-                  {/* "Best value · Thu 23 Oct"; a rate that is also the cheapest or fastest says so beside its courier. */}
-                  <Text weight="bold">{[tags[0], arrives].filter(Boolean).join(' · ')}</Text>
-                  <Text variant="meta" tone="muted">
-                    {[choice.courier_name, ...tags.slice(1)].join(' · ')}
-                  </Text>
-                </RadioOption>
-              );
-            })
+          ? group.delivery_choices.map((choice) => (
+              <CourierOption
+                key={choice.id}
+                choice={choice}
+                now={now}
+                selected={choice.id === chosenId}
+                disabled={busy}
+                money={money}
+                onChoose={() => choose.mutate({ sellerId, choiceId: choice.id })}
+              />
+            ))
           : null}
         {sellerId && !collecting && !group.delivery_choices.length && !group.delivery_unavailable ? (
           <Text tone="muted">Confirm your address to see delivery options.</Text>
@@ -177,6 +150,83 @@ function ShopDelivery({
         <InlineNote>{refusalMessage(choose.error) ?? "Couldn't change the delivery. Check your connection and try again."}</InlineNote>
       ) : null}
     </Card>
+  );
+}
+
+/** The shop's mark and name, when a closed shop will prepare the order, and how many items. */
+function ShopHeading({ group }: Readonly<{ group: CheckoutSellerGroup }>) {
+  const theme = useTheme();
+  const { seller, shop_status: status } = group;
+  const preparedLater = status?.state === 'closed' && status.orderable ? `${status.label} · prepared then` : null;
+  return (
+    <View style={[styles.row, { gap: theme.space[2] }]}>
+      {seller ? <ShopMark name={seller.name} logoUrl={seller.logo} size="sm" /> : null}
+      <View style={styles.fill}>
+        <Text weight="bold">{seller?.name ?? 'No longer available'}</Text>
+        {preparedLater ? (
+          <Text variant="meta" tone="muted">
+            {preparedLater}
+          </Text>
+        ) : null}
+      </View>
+      <Text variant="meta" tone="muted">
+        {itemsWord(group)}
+      </Text>
+    </View>
+  );
+}
+
+/** What stands in the way of the shop's options: not taking orders, fresh items, no delivery, no pickup. */
+function ShopNotes({ group }: Readonly<{ group: CheckoutSellerGroup }>) {
+  const { seller, shop_status: status } = group;
+  return (
+    <>
+      {status && !status.orderable ? (
+        <InlineNote>{`${status.label}. Remove ${seller?.name ?? 'its'} items from your cart to pay for the rest.`}</InlineNote>
+      ) : null}
+      {group.perishable && !group.delivery_unavailable ? <PerishableRule /> : null}
+      {group.delivery_unavailable ? <InlineNote>{group.delivery_unavailable.reason}</InlineNote> : null}
+      {group.pickup_note ? <InlineNote>{group.pickup_note}</InlineNote> : null}
+    </>
+  );
+}
+
+/** A courier's rate: its tag and date, the courier, and its price; choosing it again does nothing. */
+function CourierOption({
+  choice,
+  now,
+  selected,
+  disabled,
+  money,
+  onChoose,
+}: Readonly<{
+  choice: CheckoutSellerGroup['delivery_choices'][number];
+  now: Date;
+  selected: boolean;
+  disabled: boolean;
+  money: (amount: number) => string;
+  onChoose: () => void;
+}>) {
+  const tags = choice.tags.map((tag) => TAG_LABELS[tag]);
+  const arrives = deliveryEstimate(choice.delivery_eta_time, now, choice.time_zone);
+  return (
+    <RadioOption
+      selected={selected}
+      disabled={disabled}
+      onPress={() => {
+        if (!selected) onChoose();
+      }}
+      trailing={
+        <Text weight="extrabold" tabular>
+          {money(choice.amount)}
+        </Text>
+      }>
+      {/* "Best value · Thu 23 Oct"; a rate that is also the cheapest or fastest says so beside its courier. */}
+      <Text weight="bold">{[tags[0], arrives].filter(Boolean).join(' · ')}</Text>
+      <Text variant="meta" tone="muted">
+        {[choice.courier_name, ...tags.slice(1)].join(' · ')}
+      </Text>
+    </RadioOption>
   );
 }
 
