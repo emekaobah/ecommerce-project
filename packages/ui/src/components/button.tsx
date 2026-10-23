@@ -99,7 +99,7 @@ export function Button({
       <View style={[styles.content, { gap: theme.space[2] }, detail ? styles.spread : null]}>
         <View style={[styles.label, styles.shrink, { gap: theme.space[2] }]}>
           <View style={[styles.label, styles.shrink, { gap: theme.space[2] }, loading && styles.hidden]}>
-            {icon ? <Icon name={icon} use="chip" color={ink} /> : null}
+            {icon ? <Icon name={icon} use="step" color={ink} /> : null}
             <Text variant="strong" tone={tone} style={styles.shrink}>
               {label}
             </Text>
