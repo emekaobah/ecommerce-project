@@ -3,7 +3,7 @@
  * counter checks it, and what the buyer is told at checkout.
  */
 
-import { WEEKDAYS, type DayHours, type OpenPeriod, type Weekday, type WeeklyHours } from "./shop-hours"
+import { openingLabel, WEEKDAYS, type DayHours, type OpenPeriod, type Weekday, type WeeklyHours } from "./shop-hours"
 
 /** A pickup code is this many digits, shown in the buyer's order and as a QR code of them. */
 export const PICKUP_CODE_LENGTH = 6
@@ -101,4 +101,16 @@ export function todayHoursLabel(today: DayHours | null): string | null {
   if (periods.length === 1 && periods[0]!.opens === "00:00" && periods[0]!.closes === "24:00") return "Open 24 hours today"
   const ranges = periods.map((p) => `${clockLabel(p.opens)}–${clockLabel(p.closes)}`).join(", ")
   return `Open today ${ranges}`
+}
+
+/** What the counter is told when the code entered isn't the order's: nothing was handed over. */
+export const PICKUP_WRONG_CODE_MESSAGE = "That code doesn't match this order. Check it with the buyer."
+
+/**
+ * "Too many wrong codes. Try again at 3:15pm.": the counter locked out after too many wrong
+ * codes, with when it may try again (`retryAt`, ISO 8601, the API's `retry_at`) in the shop's
+ * time, and the day when that isn't today ("at 12:10am Sat").
+ */
+export function pickupLockoutMessage(retryAt: string, now: Date, timeZone: string): string {
+  return `Too many wrong codes. Try again at ${openingLabel(retryAt, now, timeZone)}.`
 }

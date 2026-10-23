@@ -23,17 +23,17 @@ env:
 - tapOn: "Accept order"
 - tapOn: "Cancel order"
 # The refund it makes is shown before anything is cancelled.
-- assertVisible: "Refund to the buyer"
+- assertVisible: ".* is refunded the .* left on the order.*"
 # Other needs a note saying why.
-- tapOn: "Other"
+- tapOn: "Other.*"
 - assertVisible: "Why are you cancelling?"
 - tapOn:
     id: "cancel-note"
 - inputText: "Our freezer broke down"
 - hideKeyboard
-- tapOn: "Cancel and refund, .*"
+- tapOn: "Cancel and refund .*"
 - extendedWaitUntil:
-    visible: "Order cancelled"
+    visible: "Order cancelled.*"
     timeout: 20000
 - assertVisible: "Refund on its way|Refund pending"
 - tapOn: "Back to orders"

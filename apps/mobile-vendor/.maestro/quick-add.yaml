@@ -28,10 +28,10 @@ env:
     timeout: 10000
 - runFlow:
     when:
-      visible: "Add to shop"
+      visible: "Add to my shop"
     commands:
       # Nothing typed: the form says what it needs.
-      - tapOn: "Add to shop"
+      - tapOn: "Add to my shop"
       - assertVisible: "Enter a price."
       - tapOn:
           id: "price"
@@ -39,8 +39,8 @@ env:
       - tapOn:
           id: "stock"
       - inputText: "6"
-      - tapOn: "Add to shop"
-      - assertVisible: "20,000mAh Power Bank is in your shop"
+      - tapOn: "Add to my shop"
+      - assertVisible: "20,000mAh Power Bank is in your shop.*"
       - tapOn: "Scan another"
       - tapOn:
           id: "barcode"

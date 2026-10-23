@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { CANCEL_REASON_LABELS, cancelledBy, cancelReasonText, cancelRequest } from "./cancellation"
+import { CANCEL_REASON_CHOICES, CANCEL_REASON_LABELS, cancelledBy, cancelReasonText, cancelRefundNote, cancelRequest } from "./cancellation"
 import { CANCEL_REASONS } from "./fulfilment"
 
 describe("cancel reasons", () => {
@@ -63,5 +63,26 @@ describe("cancelRequest", () => {
       reason: "buyer_asked",
       note: "They called the shop",
     })
+  })
+})
+
+describe("CANCEL_REASON_CHOICES", () => {
+  test("are the reasons as staff choose them, Other asking for the words", () => {
+    expect(CANCEL_REASONS.map((reason) => CANCEL_REASON_CHOICES[reason])).toEqual([
+      "Items unavailable",
+      "Shop can't fulfil this order",
+      "Buyer asked to cancel",
+      "Other (write why)",
+    ])
+  })
+})
+
+describe("cancelRefundNote", () => {
+  test("names the buyer and what is left of the order to refund", () => {
+    expect(cancelRefundNote("Chidi O.", "₦19,700")).toBe("Chidi O. is refunded the ₦19,700 left on the order.")
+  })
+
+  test("without the buyer's name, says the buyer", () => {
+    expect(cancelRefundNote(null, "₦19,700")).toBe("The buyer is refunded the ₦19,700 left on the order.")
   })
 })

@@ -34,3 +34,14 @@ export function cancelRequest({ reason, note }: CancelForm): CancelRequest | nul
   if (!reason || (reason === "other" && !trimmed)) return null
   return trimmed ? { reason, note: trimmed } : { reason }
 }
+
+/** The reasons as staff choose one on the cancel form: Other asks them to write why. */
+export const CANCEL_REASON_CHOICES: Record<CancelReason, string> = {
+  ...CANCEL_REASON_LABELS,
+  other: "Other (write why)",
+}
+
+/** "Chidi O. is refunded the ₦19,700 left on the order.": what cancelling refunds, said before the button. */
+export function cancelRefundNote(buyer: string | null, amount: string): string {
+  return `${buyer ?? "The buyer"} is refunded the ${amount} left on the order.`
+}

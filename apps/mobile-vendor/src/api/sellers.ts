@@ -9,6 +9,9 @@ export const sellerKeys = {
   member: (sellerId: string) => [...sellerKeys.all, 'member', sellerId] as const,
 };
 
+/** The signed-in member of the current shop: their role, and who they are. */
+const fetchMember = () => vendorClient.vendor.members.me.query();
+
 /** The role that manages the shop alongside its owner: managers (ADR 0004). */
 const SELLER_ADMINISTRATION = 'role_seller_administration';
 
@@ -20,11 +23,20 @@ const SELLER_ADMINISTRATION = 'role_seller_administration';
 export function useMayManageShop(sellerId: string | undefined) {
   return useQuery({
     queryKey: sellerKeys.member(sellerId ?? ''),
-    queryFn: sellerId ? () => vendorClient.vendor.members.me.query() : skipToken,
+    queryFn: sellerId ? fetchMember : skipToken,
     select: ({ seller_member }) => {
       const member = seller_member as { is_owner?: boolean; rbac_role?: { id?: string } | null };
       return !!member.is_owner || member.rbac_role?.id === SELLER_ADMINISTRATION;
     },
+  });
+}
+
+/** The signed-in member's email, which Settings shows under Sign out. */
+export function useMemberEmail(sellerId: string | undefined) {
+  return useQuery({
+    queryKey: sellerKeys.member(sellerId ?? ''),
+    queryFn: sellerId ? fetchMember : skipToken,
+    select: ({ seller_member }) => (seller_member as { member?: { email?: string } | null }).member?.email ?? null,
   });
 }
 
