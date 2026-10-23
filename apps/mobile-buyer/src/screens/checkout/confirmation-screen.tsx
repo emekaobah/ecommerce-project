@@ -1,5 +1,5 @@
 import { useAuth, useUser } from '@clerk/expo';
-import { deliveryEstimate, formatMoney, openingLabel, orderNumber } from '@oja/domain';
+import { formatMoney, orderNumber, orderPlacedSteps, type PlacedStep } from '@oja/domain';
 import { AdirePattern, ErrorState, Icon, Skeleton, StickyAction, Text, useTheme } from '@oja/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
@@ -8,7 +8,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { cartKeys } from '@/api/cart';
 import { useCheckout } from '@/api/checkout';
-import { orderKeys, useOrderGroup, type OrderGroup, type SellerOrder } from '@/api/orders';
+import { orderKeys, useOrderGroup, type OrderGroup } from '@/api/orders';
 import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
 import { useDeliveringToId } from '@/delivering-to/delivering-to-provider';
 
@@ -82,51 +82,6 @@ function Confirming() {
   );
 }
 
-/** One step of what happens next: what, when in words, and the day. */
-type NextStep = { key: string; title: string; detail: string; day: string | null; now: boolean };
-
-const weekday = (at: string, timeZone: string) => new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone }).format(new Date(at));
-
-/**
- * Each shop's part, in order: it accepts (now), prepares when it opens (a closed shop), then its
- * delivery arrives, as checkout quoted it, or the buyer collects it once it's ready.
- */
-function nextSteps(orders: SellerOrder[], now: Date): NextStep[] {
-  return orders.flatMap((order) => {
-    const shop = order.seller.name;
-    const steps: NextStep[] = [{ key: `${order.id}-accepts`, title: `${shop} accepts`, detail: 'Waiting for the shop', day: 'Today', now: true }];
-    if (order.shop_opens) {
-      const { at, time_zone } = order.shop_opens;
-      steps.push({
-        key: `${order.id}-opens`,
-        title: `${shop} prepares your order`,
-        detail: `When it opens, ${openingLabel(at, now, time_zone)}`,
-        day: weekday(at, time_zone),
-        now: false,
-      });
-    }
-    if (order.delivery) {
-      const { delivery_eta_time, time_zone } = order.delivery;
-      steps.push({
-        key: `${order.id}-arrives`,
-        title: `${shop}'s order arrives`,
-        detail: `${deliveryEstimate(delivery_eta_time, now, time_zone)}, by the courier you chose`,
-        day: weekday(order.delivery.delivery_eta_time, order.delivery.time_zone),
-        now: false,
-      });
-    } else if (order.pickup) {
-      steps.push({
-        key: `${order.id}-collect`,
-        title: `Collect from ${shop}`,
-        detail: "Once it's ready, your pickup code is in Orders",
-        day: null,
-        now: false,
-      });
-    }
-    return steps;
-  });
-}
-
 function OrderPlaced({ orderGroupId, email }: Readonly<{ orderGroupId: string; email: string | null }>) {
   const theme = useTheme();
   const { userId } = useAuth();
@@ -168,7 +123,7 @@ function OrderPlaced({ orderGroupId, email }: Readonly<{ orderGroupId: string; e
         </Text>
         <View style={{ paddingHorizontal: theme.space[4] }}>
           {group.data ? (
-            <NextSteps steps={nextSteps(group.data.orders, new Date())} />
+            <NextSteps steps={orderPlacedSteps(group.data.orders, new Date())} />
           ) : group.error ? (
             // The order is placed either way: what happens next is in Orders too.
             <Text tone="muted">Each shop&apos;s progress shows in Orders.</Text>
@@ -197,7 +152,7 @@ function placedLine(group: OrderGroup | undefined, sentTo: string | null): strin
 }
 
 /** What happens next, down a line: a leaf dot for what's happening now, grey for what's to come. */
-function NextSteps({ steps }: Readonly<{ steps: NextStep[] }>) {
+function NextSteps({ steps }: Readonly<{ steps: PlacedStep[] }>) {
   const theme = useTheme();
   const dot = theme.icon.size.chip;
   return (
