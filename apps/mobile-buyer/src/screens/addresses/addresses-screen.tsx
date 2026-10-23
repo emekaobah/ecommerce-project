@@ -115,7 +115,7 @@ function AddressRow({ address, onPress }: Readonly<{ address: SavedAddressRecord
           </Text>
         </View>
         {address.is_default_shipping ? (
-          <StatusChip label="Default" tone="info" />
+          <DefaultChip />
         ) : (
           <Icon name="edit" use="step" color={theme.colors.ink} />
         )}
@@ -127,6 +127,19 @@ function AddressRow({ address, onPress }: Readonly<{ address: SavedAddressRecord
       ) : null}
       {unpinned ? <StatusChip label="Needs a pin" tone="attention" icon="pin" /> : null}
     </Group>
+  );
+}
+
+/** "Default": a plain label in the indigo chip, not a status, so it carries no symbol. */
+function DefaultChip() {
+  const theme = useTheme();
+  const { foreground, background } = theme.status.info;
+  return (
+    <View style={{ backgroundColor: background, borderRadius: theme.radius.pill, paddingHorizontal: theme.space[3], paddingVertical: theme.space[1] }}>
+      <Text variant="label" weight="extrabold" style={{ color: foreground }}>
+        Default
+      </Text>
+    </View>
   );
 }
 
