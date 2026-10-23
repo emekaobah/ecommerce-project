@@ -216,6 +216,8 @@ export type Theme = {
     /** Input and checkbox outlines (3:1). */
     control: string
     /** Text. */
+    /** The lighter rule between groups in a list: orders, shops in the cart, checkout and an order, reviews. */
+    divider: string
     ink: string
     /** Secondary text, placeholders. */
     muted: string
@@ -316,6 +318,7 @@ export const lightTheme: Theme = {
     control: "#80869E",
     ink: "#12162B",
     muted: "#494F66",
+    divider: "#E4E6EE",
     band: indigo,
     onBand: white,
     primary: indigo,
@@ -370,6 +373,7 @@ export const darkTheme: Theme = {
     control: "#7A7A83",
     ink: "#F2F2F4",
     muted: "#B4B4BC",
+    divider: "#2A2A2F",
     band: indigo,
     onBand: white,
     primary: "#3D4DBB",
