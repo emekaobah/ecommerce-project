@@ -32,3 +32,8 @@ export function openWriteReview(group: { id: string }, order: { id: string }) {
 export function openCategory(category: { id: string; name: string }) {
   router.push({ pathname: '/category/[id]', params: { id: category.id, name: category.name } });
 }
+
+/** Opens every review the buyer has written (#81). */
+export function openMyReviews() {
+  router.push('/my-reviews');
+}
