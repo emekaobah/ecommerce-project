@@ -6,7 +6,9 @@ import { SCALE } from "../tokens"
 import { Icon } from "./icon"
 import { Text } from "./text"
 
-// react-native-svg's class types come from an older @types/react than Animated's.
+// In this workspace react-native-svg's types resolve @types/react 18 (the root package's, for the
+// Mercur panels), Animated's 19: their Context types differ, so Path only passes as a component
+// through `unknown`. Drop the cast once react-native-svg resolves @types/react 19.
 const AnimatedPath = Animated.createAnimatedComponent(Path as unknown as ComponentType<PathProps>)
 
 /** The chip's height and the ring's stroke, in mockup px. */
