@@ -26,20 +26,16 @@ env:
 - tapOn: "Accept order"
 - tapOn: "Continue picking"
 - extendedWaitUntil:
-    visible: "0 of .* picked"
+    visible: "Picking · 0 of .*"
     timeout: 10000
 - repeat:
     while:
-      visible: ".*, To pick"
+      visible: ".*, 0 of .* picked"
     commands:
-      - tapOn: ".*, To pick"
-- tapOn: "Mark packed"
-- assertVisible: "Order #.* is packed"
-- tapOn: "Back to orders"
-# Packed orders are in the Ready tile.
-- tapOn: ".* Ready orders?"
-- tapOn: ".*Packed.*"
-- assertVisible: "Packed, ready for a courier label."
+      - tapOn: ".*, 0 of .* picked"
+- tapOn: "Packed"
+- assertVisible: "Packed. Book the courier."
+# Booking from the packed screen goes back to the order, its label booked.
 - tapOn: "Book courier label"
 - extendedWaitUntil:
     visible: "Label booked. Waiting for the courier to confirm the pickup."

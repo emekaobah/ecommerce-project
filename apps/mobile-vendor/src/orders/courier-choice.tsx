@@ -1,8 +1,9 @@
 import { formatMoney } from '@oja/domain';
-import { Button, RadioOption, Text, useTheme } from '@oja/ui';
+import { Button, InlineNote, RadioOption, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { refusedWith } from '@/api/errors';
 import { useBookLabel, type CourierOption, type CourierPick, type OrderFulfilment } from '@/api/orders';
 
 /**
@@ -30,11 +31,20 @@ export function BookCourier({
     });
   return (
     <View style={{ gap: theme.space[2] }}>
-      {mutation.error ? <Text tone="danger">{mutation.error.message}</Text> : null}
-      {options ? (
-        <CourierChoice options={options} currency={currency} booking={mutation.isPending} onChoose={book} />
-      ) : (
-        <Button label={rebook ? 'Rebook courier label' : 'Book courier label'} loading={mutation.isPending} onPress={() => book()} />
+      {options ? <CourierChoice options={options} currency={currency} booking={mutation.isPending} onChoose={book} /> : null}
+      {mutation.error ? (
+        <InlineNote>
+          {refusedWith(mutation.error, [400, 409]) ?? "Couldn't book the courier. Check your connection and try again."}
+        </InlineNote>
+      ) : null}
+      {options ? null : (
+        <Button
+          label={rebook ? 'Rebook courier label' : 'Book courier label'}
+          size="main"
+          trailingIcon="fwd"
+          loading={mutation.isPending}
+          onPress={() => book()}
+        />
       )}
     </View>
   );
@@ -65,7 +75,7 @@ function CourierChoice({
   const [chosen, setChosen] = useState<CourierOption | null>(null);
   return (
     <View style={{ gap: theme.space[2] }}>
-      <Text variant="strong">Choose a courier</Text>
+      <Text variant="heading">Choose a courier</Text>
       <Text tone="muted">
         {"The buyer's courier can't take the parcel at the price they paid. Choose another; the buyer is told."}
       </Text>
@@ -76,14 +86,21 @@ function CourierChoice({
             selected={chosen === option}
             disabled={booking}
             onPress={() => setChosen(option)}
-          >
-            <Text variant="strong">{`${option.courier_name} · ${formatMoney(option.amount, currency)}`}</Text>
-            <Text tone="muted">{`Arrives ${arrives(option.delivery_eta_time)}`}</Text>
-            <Text tone={option.within_cap ? 'muted' : 'danger'}>{priceNote(option, currency)}</Text>
+            trailing={
+              <Text variant="strong" tabular>
+                {formatMoney(option.amount, currency)}
+              </Text>
+            }>
+            <Text weight="bold">{option.courier_name}</Text>
+            <Text variant="meta" tone="muted">{`Arrives ${arrives(option.delivery_eta_time)}`}</Text>
+            <Text variant="meta" tone={option.within_cap ? 'muted' : 'ember'}>
+              {priceNote(option, currency)}
+            </Text>
           </RadioOption>
         ))}
       </View>
       <Button
+        size="main"
         label={chosen && !chosen.within_cap ? `Ask Oja to approve ${chosen.courier_name}` : `Book ${chosen?.courier_name ?? 'courier'}`}
         disabled={!chosen}
         loading={booking}
