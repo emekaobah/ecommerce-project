@@ -65,9 +65,8 @@ function SignedIn() {
   const name = user?.fullName?.trim() || null;
   const email = user?.primaryEmailAddress?.emailAddress ?? null;
   const provider = user?.externalAccounts.map((account) => PROVIDERS[account.provider]).find(Boolean);
-  // Without a name the email takes the name's place. A long email breaks before its "@", never mid-word.
+  // Without a name the email takes the name's place, in bold. A long email breaks before its "@", never mid-word.
   const breakable = email?.replace('@', '\u200B@') ?? null;
-  const heading = name ?? breakable;
   const identity = [name ? breakable : null, provider ? `signed in with ${provider}` : null].filter(Boolean).join(' · ');
 
   const onSignOut = async () => {
@@ -101,7 +100,8 @@ function SignedIn() {
           </Text>
         </View>
         <View style={styles.fill}>
-          {heading ? <Text variant="titlePushed">{heading}</Text> : null}
+          {name ? <Text variant="titlePushed">{name}</Text> : null}
+          {!name && breakable ? <Text weight="extrabold">{breakable}</Text> : null}
           {identity ? (
             <Text variant="meta" tone="muted">
               {identity}
