@@ -17,16 +17,18 @@ export function CancelInstead({ orderId }: Readonly<{ orderId: string }>) {
 
   return (
     <View style={{ gap: theme.space[2] }}>
-      <Text>Every item is unavailable, so there is nothing to pack. Cancel the order to refund the buyer in full.</Text>
+      <Text tone="muted">Every item is unavailable, so there is nothing to pack. Cancel the order to refund the buyer in full.</Text>
       {mayManage.data ? (
         <Button
-          label="Cancel order"
+          label="Cancel the order"
+          variant="danger"
+          size="main"
           onPress={() =>
             router.push({ pathname: '/orders/[id]/cancel', params: { id: orderId, reason: 'items_unavailable' } })
           }
         />
       ) : (
-        <Text tone="muted">{"Ask the shop's owner or a manager to cancel it."}</Text>
+        <Text tone="muted" weight="bold">{"Ask the shop's owner or a manager to cancel it."}</Text>
       )}
     </View>
   );

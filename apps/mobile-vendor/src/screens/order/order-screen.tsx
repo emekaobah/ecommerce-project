@@ -1,18 +1,36 @@
-import { canCancel, cancelledBy, cancelReasonText, collectByLabel, formatMoney, orderBuyerLine, staffStatus } from '@oja/domain';
-import { Band, Button, haptics, ErrorState, ListRow, LoadingState, PressableSurface, Text, Timeline, useTheme, useToast } from '@oja/ui';
+import {
+  asSentence,
+  canCancel,
+  cancelledBy,
+  cancelReasonText,
+  collectByLabel,
+  formatMoney,
+  handoverSteps,
+  openingLabel,
+  orderBuyerLine,
+  staffStatus,
+} from '@oja/domain';
+import {
+  Band,
+  Button,
+  haptics,
+  Icon,
+  ErrorState,
+  ListRow,
+  PressableSurface,
+  QuantityPill,
+  Skeleton,
+  Text,
+  Timeline,
+  useTheme,
+  useToast,
+} from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  orderValue,
-  useAcceptOrder,
-  useConfirmHandover,
-  useOrder,
-  type Order,
-  type OrderFulfilment,
-} from '@/api/orders';
+import { orderValue, useAcceptOrder, useOrder, type Order, type OrderFulfilment } from '@/api/orders';
 import { useMayManageShop } from '@/api/sellers';
 import { useShopHours } from '@/api/shop-hours';
 import { ApprovalNote, BookCourier } from '@/orders/courier-choice';
@@ -25,9 +43,10 @@ import { useSession } from '@/session/session-store';
  * One order: an indigo band with its state, who it is for and, while it is new, the accept
  * clock; its lines with their unit prices and Perishable tags, and its total. While it is new,
  * Reject and Accept order sit at the foot: accepting starts picking. Then pick and pack, book (or
- * rebook) the courier label, and confirm the handover to the courier. Owners and managers can
- * cancel it once accepted, until its courier label is booked (#17). Its timeline shows how far
- * it has got.
+ * rebook) the courier label, and confirm the handover to the courier: from the label on, the
+ * handover's timeline shows which half (the staff tap, the courier's pickup) is still missing,
+ * with Handed to courier the one primary button. Owners and managers can cancel it once
+ * accepted, until its courier label is booked (#17). Its timeline shows how far it has got.
  */
 export function OrderScreen() {
   const theme = useTheme();
@@ -48,10 +67,15 @@ export function OrderScreen() {
         />
       );
     }
-    if (!order.data) return <LoadingState />;
+    if (!order.data) return <OrderSkeleton />;
     const { fulfilment, currency_code } = order.data;
     const isNew = fulfilment.state === 'new';
     const timeZone = shop.data?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const formatTime = (at: string) => openingLabel(at, now, timeZone);
+
+    if (isWithCourier(fulfilment)) {
+      return <Handover orderId={id} order={order.data} formatTime={formatTime} />;
+    }
 
     return (
       <>
@@ -66,12 +90,13 @@ export function OrderScreen() {
           </Band>
 
           <View style={{ padding: theme.space[4], gap: theme.space[6] }}>
-            {isNew ? null : (
+            {/* Only when there is a note: an empty block would still take the gap below the band. */}
+            {!isNew && (stateNote(fulfilment) || fulfilment.courier_approval) ? (
               <View style={{ gap: theme.space[2] }}>
                 <StateNote fulfilment={fulfilment} />
                 <ApprovalNote fulfilment={fulfilment} currency={currency_code} />
               </View>
-            )}
+            ) : null}
 
             <CourierLabel fulfilment={fulfilment} />
 
@@ -81,7 +106,7 @@ export function OrderScreen() {
             <CancelOrder orderId={id} fulfilment={fulfilment} />
 
             {/* A new order has only been placed: its timeline starts once it's accepted. */}
-            {!isNew && fulfilment.timeline.length ? <Timeline steps={fulfilment.timeline} /> : null}
+            {!isNew && fulfilment.timeline.length ? <Timeline steps={fulfilment.timeline} formatTime={formatTime} /> : null}
           </View>
         </ScrollView>
         {isNew ? <AcceptOrReject orderId={id} displayId={order.data.display_id} /> : null}
@@ -109,6 +134,35 @@ export function OrderScreen() {
   );
 }
 
+/** The order's shape while it loads: the band, then rows of photo, name and quantity, and the total. */
+function OrderSkeleton() {
+  const theme = useTheme();
+  return (
+    <View accessible accessibilityLabel="Loading the order">
+      <Band style={{ gap: theme.space[2] }}>
+        <View style={{ height: theme.type.titleNamed.lineHeight }} />
+        <View style={{ height: theme.type.meta.lineHeight }} />
+      </Band>
+      <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
+        {[0, 1].map((row) => (
+          <View key={row} style={[styles.row, { gap: theme.space[2] }]}>
+            <Skeleton width={theme.control.md} height={theme.control.md} radius="md" />
+            <View style={[styles.grow, { gap: theme.space[2] }]}>
+              <Skeleton width="60%" height={theme.space[3]} radius="pill" />
+              <Skeleton width="35%" height={theme.space[3]} radius="pill" />
+            </View>
+            <Skeleton width={theme.control.md} height={theme.space[8]} radius="pill" />
+          </View>
+        ))}
+        <View style={[styles.row, styles.between, { paddingTop: theme.space[4] }]}>
+          <Skeleton width="30%" height={theme.space[4]} radius="pill" />
+          <Skeleton width="35%" height={theme.space[5]} radius="pill" />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 /** The order's lines, each with its photo, unit price, Perishable tag and quantity, then the total. */
 function Lines({ order }: Readonly<{ order: Order }>) {
   const theme = useTheme();
@@ -132,30 +186,12 @@ function Lines({ order }: Readonly<{ order: Order }>) {
           </View>
           <View style={styles.grow}>
             <Text weight="bold">{item.product_title ?? 'Item'}</Text>
+            {/* A plain muted tag, as on the takeover (catalogue v-triage #3). */}
             <Text variant="meta" tone="muted" tabular>
-              {item.perishable ? (
-                <Text variant="meta" weight="bold" tone="ember">
-                  {'Perishable · '}
-                </Text>
-              ) : null}
-              {`${formatMoney(Number(item.unit_price), order.currency_code)} each`}
+              {`${item.perishable ? 'Perishable · ' : ''}${formatMoney(Number(item.unit_price), order.currency_code)} each`}
             </Text>
           </View>
-          <View
-            style={[
-              styles.quantity,
-              {
-                minWidth: photo,
-                minHeight: theme.space[8],
-                paddingHorizontal: theme.space[2],
-                borderRadius: theme.radius.pill,
-                backgroundColor: theme.colors.tile,
-              },
-            ]}>
-            <Text variant="heading" tabular style={{ fontSize: theme.type.strong.fontSize }}>
-              {`×${Number(item.quantity)}`}
-            </Text>
-          </View>
+          <QuantityPill label={`×${Number(item.quantity)}`} />
         </View>
       ))}
       <View style={[styles.row, styles.between, { paddingTop: theme.space[4] }]}>
@@ -214,9 +250,65 @@ function AcceptOrReject({ orderId, displayId }: Readonly<{ orderId: string; disp
   );
 }
 
+/** A delivery order from its label being booked until it is handed over: waiting on the courier, then on the handover's halves. */
+const isWithCourier = (fulfilment: OrderFulfilment) =>
+  fulfilment.method === 'delivery' && (fulfilment.state === 'label_booked' || fulfilment.state === 'courier_confirmed');
+
+/**
+ * The handover to the courier (catalogue v-hand #1): the band with the waybill, a timeline that
+ * shows which half of the handover is still missing, the parcel's tracking and lines, and while
+ * staff haven't tapped it yet, Handed to courier, which asks first (`hand-over`).
+ */
+function Handover({ orderId, order, formatTime }: Readonly<{ orderId: string; order: Order; formatTime: (at: string) => string }>) {
+  const theme = useTheme();
+  const router = useRouter();
+  const { fulfilment, currency_code } = order;
+  const confirmed = fulfilment.state === 'courier_confirmed';
+  const awaitingTap = confirmed && !fulfilment.handover?.staff;
+  return (
+    <>
+      <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+        <Band style={{ gap: theme.space[2] }}>
+          {fulfilment.shipment ? (
+            <Text variant="meta" tone="onBand" tabular>
+              {`Waybill ${fulfilment.shipment.waybill}`}
+            </Text>
+          ) : null}
+          <Text variant="titleNamed" tone="onBand">
+            {confirmed ? 'Courier on the way' : 'Courier booked'}
+          </Text>
+        </Band>
+        <View style={{ padding: theme.space[4], gap: theme.space[6] }}>
+          <Timeline steps={handoverSteps(fulfilment)} formatTime={formatTime} />
+          <ApprovalNote fulfilment={fulfilment} currency={currency_code} />
+          {/* The band names the waybill and the timeline the courier: only the tracking link is left. */}
+          {fulfilment.shipment ? (
+            <ListRow
+              title="Track shipment"
+              subtitle={fulfilment.shipment.switched_from ? `Instead of ${fulfilment.shipment.switched_from}` : undefined}
+              trailing={<Icon name="fwd" color={theme.colors.muted} />}
+              onPress={() => void Linking.openURL(fulfilment.shipment!.tracking_url)}
+            />
+          ) : null}
+          <Lines order={order} />
+        </View>
+      </ScrollView>
+      {awaitingTap ? (
+        <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2], backgroundColor: theme.colors.bg }}>
+          <Button
+            label="Handed to courier"
+            size="main"
+            trailingIcon="check"
+            onPress={() => router.push({ pathname: '/orders/[id]/hand-over', params: { id: orderId } })}
+          />
+        </SafeAreaView>
+      ) : null}
+    </>
+  );
+}
+
 /** What the order's state means for staff: the accept deadline, packed, or why it was rejected. */
 function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
-  if (fulfilment.state === 'courier_confirmed') return <HandoverNote fulfilment={fulfilment} />;
   const note = stateNote(fulfilment);
   return note ? <Text tone="muted">{note}</Text> : null;
 }
@@ -224,7 +316,6 @@ function StateNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
 /** The note for a state that always reads the same. */
 const STATE_NOTES: { [S in OrderFulfilment['state']]?: string } = {
   packed: 'Packed, ready for a courier label.',
-  label_booked: 'Label booked. Waiting for the courier to confirm the pickup.',
   handed_to_courier: 'With the courier, on its way to the buyer.',
   in_transit: 'In transit to the buyer.',
   delivered: 'Delivered to the buyer.',
@@ -247,12 +338,12 @@ const DETAILED_NOTES: Partial<Record<OrderFulfilment['state'], (fulfilment: Orde
       ? `Handed over by ${collection.staff.name ?? 'a staff member'} to ${collection.collected_by} at ${timeOf(collection.staff.at)}.`
       : null,
   rejected: ({ rejected_by, reject_reason }) => {
-    const why = rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${reject_reason}.`;
+    const why = rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${asSentence(reject_reason ?? '')}`;
     return `${why} The buyer's payment for this order is being refunded.`;
   },
   cancelled: ({ cancellation }) =>
     cancellation
-      ? `Cancelled by ${cancelledBy(cancellation.by)}: ${cancelReasonText(cancellation)}. The buyer is refunded all they paid for it.`
+      ? `Cancelled by ${cancelledBy(cancellation.by)}: ${asSentence(cancelReasonText(cancellation))} The buyer is refunded all they paid for it.`
       : null,
 };
 
@@ -265,27 +356,6 @@ function stateNote(fulfilment: OrderFulfilment): string | null {
 }
 
 const timeOf = (at: string) => new Date(at).toLocaleTimeString(undefined, { timeStyle: 'short' });
-
-/** Where the handover stands while the courier is booked: it needs both staff's tap and the courier's pickup. */
-function HandoverNote({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>) {
-  const staff = fulfilment.handover?.staff;
-  const pickedUpAt = fulfilment.handover?.picked_up_at;
-  if (staff) {
-    return (
-      <Text tone="muted">
-        {`Handed over by ${staff.name ?? 'a staff member'} at ${timeOf(staff.at)}. Waiting for the courier to confirm the pickup.`}
-      </Text>
-    );
-  }
-  if (pickedUpAt) {
-    return (
-      <Text tone="muted">
-        {`The courier says they collected it at ${timeOf(pickedUpAt)}. Confirm you handed it over.`}
-      </Text>
-    );
-  }
-  return <Text tone="muted">The courier confirmed the pickup. Keep the parcel ready at the counter.</Text>;
-}
 
 /**
  * The courier label booked for the order: the courier, its waybill and a link to track it, and
@@ -313,7 +383,6 @@ function CourierLabel({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>)
  */
 function NextStep({ orderId, fulfilment, currency }: Readonly<{ orderId: string; fulfilment: OrderFulfilment; currency: string }>) {
   const router = useRouter();
-  const handOver = useConfirmHandover(orderId);
   const { state } = fulfilment;
   const openPickList = () => router.push({ pathname: '/orders/[id]/pick', params: { id: orderId } });
 
@@ -326,9 +395,6 @@ function NextStep({ orderId, fulfilment, currency }: Readonly<{ orderId: string;
   }
   if (state === 'ready_for_pickup') {
     return <Button label="Hand over to buyer" onPress={() => router.push({ pathname: '/orders/[id]/collect', params: { id: orderId } })} />;
-  }
-  if (state === 'courier_confirmed' && !fulfilment.handover?.staff) {
-    return <Action label="Handed to courier" mutation={handOver} onPress={() => handOver.mutate()} />;
   }
   return null;
 }
@@ -350,21 +416,6 @@ function CancelOrder({ orderId, fulfilment }: Readonly<{ orderId: string; fulfil
   );
 }
 
-/** A step's one action, with why it last failed above it. */
-function Action({
-  label,
-  mutation,
-  onPress,
-}: Readonly<{ label: string; mutation: { error: Error | null; isPending: boolean }; onPress: () => void }>) {
-  const theme = useTheme();
-  return (
-    <View style={{ gap: theme.space[2] }}>
-      {mutation.error ? <Text tone="danger">{mutation.error.message}</Text> : null}
-      <Button label={label} loading={mutation.isPending} onPress={onPress} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   // Reject takes a little less of the row than Accept order (the catalogue's 44 to 56).
   reject: { flex: 0.8 },
@@ -372,5 +423,4 @@ const styles = StyleSheet.create({
   between: { justifyContent: 'space-between' },
   grow: { flex: 1 },
   centre: { alignItems: 'center', justifyContent: 'center' },
-  quantity: { alignItems: 'center', justifyContent: 'center' },
 });

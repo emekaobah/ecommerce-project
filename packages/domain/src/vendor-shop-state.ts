@@ -28,3 +28,14 @@ export function vendorShopState(hours: ShopHours, now: Date): VendorShopState {
     line: `${dateLabel(now, hours.time_zone)} · ${stateLine(status, now, hours.time_zone)}`,
   }
 }
+
+/**
+ * "Open until 7pm · 2 orders waiting": the line under the shop's name on Settings, its state now
+ * and how many new orders wait to be accepted (left out when none).
+ */
+export function settingsShopLine(hours: ShopHours, now: Date, newOrders: number): string {
+  const state = stateLine(shopStatus(hours, now), now, hours.time_zone)
+  const line = state.charAt(0).toUpperCase() + state.slice(1)
+  if (!newOrders) return line
+  return `${line} · ${newOrders} ${newOrders === 1 ? "order" : "orders"} waiting`
+}

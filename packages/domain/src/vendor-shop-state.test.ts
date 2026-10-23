@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { ShopHours } from "./shop-hours"
-import { vendorShopState } from "./vendor-shop-state"
+import { settingsShopLine, vendorShopState } from "./vendor-shop-state"
 
 // Weeks in October 2026: Monday 5, Monday 12. Lagos is UTC+1 all year.
 const lagos = (local: string) => new Date(`${local}+01:00`)
@@ -47,5 +47,24 @@ describe("vendorShopState", () => {
       chip: { label: "Closed", tone: "neutral", icon: "clock" },
       line: "Mon 5 Oct · closed until 8am Wed",
     })
+  })
+})
+
+describe("settingsShopLine", () => {
+  test("the shop's state and how many orders wait to be accepted", () => {
+    expect(settingsShopLine(SHOP, lagos("2026-10-05T10:00:00"), 2)).toBe("Open until 6pm · 2 orders waiting")
+  })
+
+  test("one order waiting", () => {
+    expect(settingsShopLine(SHOP, lagos("2026-10-05T10:00:00"), 1)).toBe("Open until 6pm · 1 order waiting")
+  })
+
+  test("no orders waiting: the state alone", () => {
+    expect(settingsShopLine(SHOP, lagos("2026-10-10T12:00:00"), 0)).toBe("Opens 8am Mon")
+  })
+
+  test("paused: until when", () => {
+    const paused = { ...SHOP, pauses: [{ starts_at: lagos("2026-10-05T09:00:00").toISOString(), ends_at: lagos("2026-10-05T15:00:00").toISOString() }] }
+    expect(settingsShopLine(paused, lagos("2026-10-05T10:00:00"), 0)).toBe("Paused until 3pm")
   })
 })

@@ -44,7 +44,7 @@ export { dateLabel } from "./date-label"
 export type { DateLabelParts } from "./date-label"
 export { orderRowMeta } from "./order-row"
 export type { OrderRowFacts } from "./order-row"
-export { CANCEL_REASON_LABELS, cancelledBy, cancelReasonText, cancelRequest } from "./cancellation"
+export { CANCEL_REASON_CHOICES, CANCEL_REASON_LABELS, cancelledBy, cancelReasonText, cancelRefundNote, cancelRequest } from "./cancellation"
 export type { CancelForm } from "./cancellation"
 export type {
   CancelAction,
@@ -87,6 +87,8 @@ export {
   PICKUP_CODE_LENGTH,
   PICKUP_CODE_WINDOW_MS,
   PICKUP_HOLD_NOTICE,
+  PICKUP_WRONG_CODE_MESSAGE,
+  pickupLockoutMessage,
   todayHoursLabel,
 } from "./pickup"
 export type { PickupCodeCheck, PickupCodeState } from "./pickup"
@@ -117,6 +119,11 @@ export { fulfilmentTimeline, recordReached } from "./timeline"
 export type { Reached, TimelineStep } from "./timeline"
 export { HANDOVER_DISAGREEMENT_MS, HANDOVER_REALERT_MS, handoverAlertDue, handoverDisagreement } from "./handover"
 export type { HandoverDisagreement } from "./handover"
+export { asSentence } from "./sentence"
+export { handoverSteps } from "./handover-steps"
+export type { HandoverStep } from "./handover-steps"
+export { pauseDurations } from "./pause-duration"
+export type { PauseDuration } from "./pause-duration"
 export {
   historyEntries,
   missingItemsNote,
@@ -164,7 +171,7 @@ export {
   weeklyHoursErrors,
 } from "./shop-hours"
 export type { DayHours, HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
-export { vendorShopState } from "./vendor-shop-state"
+export { settingsShopLine, vendorShopState } from "./vendor-shop-state"
 export type { VendorShopState } from "./vendor-shop-state"
 export { buyerCourierQuote, buyerShortName, orderBuyerLine } from "./order-buyer-line"
 export type { BuyerLineOrder } from "./order-buyer-line"
@@ -203,8 +210,8 @@ export type { NotPlaced, NotPlacedChange, NotPlacedReason } from "./not-placed"
 export { availableQuantity, stockLeftLabel, stockShortfall } from "./stock"
 export type { OfferStock, StockLevel, StockShortfall } from "./stock"
 export type { BuyerPush, BuyerPushOrder, BuyerPushPickup, ConfirmedShop, RefundAccountReminder, RefundNotice, RemovedItem } from "./buyer-push"
-export { pickProgress, scanBarcode } from "./picking"
-export type { PickLine, PickProgress, ScanResult } from "./picking"
+export { parcelWeightLabel, pickBand, pickLineView, pickProgress, scanBarcode } from "./picking"
+export type { PickLine, PickLineView, PickProgress, ScanResult } from "./picking"
 export { photoUploadSize, quickAddForm } from "./quick-add"
 export { canReview, isReceived, ratingSummary, reviewAction, reviewCounts, reviewerName, reviewForm, reviewStatus, reviewTitle } from "./review"
 export type { OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
