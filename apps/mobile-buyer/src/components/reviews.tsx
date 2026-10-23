@@ -89,7 +89,7 @@ export function ReviewItem({ review, shop }: Readonly<{ review: PublishedReview;
         gap: theme.space[2],
         paddingVertical: theme.space[3],
         borderTopWidth: theme.line.divider,
-        borderTopColor: theme.colors.line,
+        borderTopColor: theme.colors.divider,
       }}>
       <View style={[styles.row, styles.between, { gap: theme.space[2] }]}>
         <Text variant="meta" weight="bold" style={styles.shrink}>
@@ -189,7 +189,7 @@ export function ReviewsSkeleton({ count = 3 }: Readonly<{ count?: number }>) {
             gap: theme.space[2],
             paddingVertical: theme.space[3],
             borderTopWidth: theme.line.divider,
-            borderTopColor: theme.colors.line,
+            borderTopColor: theme.colors.divider,
           }}>
           <Skeleton width="40%" height={theme.type.meta.lineHeight} />
           <Skeleton width="25%" height={theme.type.meta.lineHeight} />

@@ -123,17 +123,7 @@ function InfoRow({
 }>) {
   const theme = useTheme();
   return (
-    <View
-      style={[
-        styles.row,
-        {
-          gap: theme.space[3],
-          paddingVertical: theme.space[3],
-          paddingHorizontal: theme.space[4],
-          borderBottomWidth: theme.line.divider,
-          borderBottomColor: theme.colors.line,
-        },
-      ]}>
+    <View style={[styles.row, { gap: theme.space[3], paddingVertical: theme.space[3], paddingHorizontal: theme.space[4] }]}>
       <Icon name={icon} color={theme.colors.accent} />
       <View style={[styles.fill, { gap: theme.space[1] }]}>
         <Text weight="bold">{title}</Text>

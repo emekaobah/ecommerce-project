@@ -371,8 +371,6 @@ function BankPicker({
                 gap: theme.space[2],
                 paddingHorizontal: theme.space[4],
                 paddingVertical: theme.space[3],
-                borderBottomWidth: theme.line.divider,
-                borderBottomColor: theme.colors.line,
               },
             ]}>
             <Text style={styles.fill}>{item.name}</Text>

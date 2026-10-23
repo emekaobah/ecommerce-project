@@ -100,11 +100,7 @@ function ReviewRow({
 }: Readonly<{ icon: IconName; title: string; detail?: string | null; details?: string[]; onChange: () => void }>) {
   const theme = useTheme();
   return (
-    <View
-      style={[
-        styles.row,
-        { gap: theme.space[3], paddingVertical: theme.space[3], borderBottomWidth: theme.line.divider, borderBottomColor: theme.colors.line },
-      ]}>
+    <View style={[styles.row, { gap: theme.space[3], paddingVertical: theme.space[3] }]}>
       <Icon name={icon} color={theme.colors.accent} />
       <View style={styles.fill}>
         <Text weight="bold">{title}</Text>

@@ -119,8 +119,6 @@ function ShopRow({ membership, selected, onPress }: Readonly<{ membership: Membe
           minHeight: theme.control.row,
           paddingVertical: theme.space[3],
           paddingHorizontal: theme.space[4],
-          borderBottomWidth: theme.line.divider,
-          borderBottomColor: theme.colors.line,
         },
       ]}>
       <ShopMark name={name} logoUrl={membership.seller?.logo} />
