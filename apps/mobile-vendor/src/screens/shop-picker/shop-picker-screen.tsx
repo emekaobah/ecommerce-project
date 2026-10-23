@@ -1,7 +1,7 @@
 import { shopChoice } from '@oja/domain';
 import { Button, EmptyState, ErrorState, InlineNote, PressableSurface, ShopMark, Skeleton, Text, useTheme } from '@oja/ui';
 import { useMutation } from '@tanstack/react-query';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -73,8 +73,9 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
 
   return (
     <SafeAreaView edges={switching ? ['bottom'] : ['top', 'bottom']} style={[styles.grow, { backgroundColor: theme.colors.bg }]}>
-      <Stack.Screen options={{ title: 'Switch shop' }} />
-      <Text variant="titleRoot" style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[4], paddingBottom: theme.space[2] }}>
+      <Text
+        variant="titleRoot"
+        style={{ paddingHorizontal: theme.space[4], paddingTop: switching ? theme.space[4] : theme.space[12], paddingBottom: theme.space[2] }}>
         Which shop today?
       </Text>
       <View style={styles.grow}>{content()}</View>
@@ -85,7 +86,7 @@ export function ShopPickerScreen({ mode }: Readonly<{ mode: 'signIn' | 'switch' 
           </InlineNote>
         ) : null}
         {chosen ? (
-          <Button label={`Open ${chosen.seller?.name ?? 'shop'}`} size="main" onPress={open} loading={select.isPending} />
+          <Button label={`Open ${chosen.seller?.name ?? 'shop'}`} size="main" trailingIcon="fwd" onPress={open} loading={select.isPending} />
         ) : null}
         {switching ? null : <Button label="Sign out" variant="link" onPress={() => void signOut()} />}
       </View>
@@ -117,7 +118,7 @@ function ShopRow({ membership, selected, onPress }: Readonly<{ membership: Membe
         {
           gap: theme.space[3],
           minHeight: theme.control.row,
-          paddingVertical: theme.space[3],
+          paddingVertical: theme.space[4],
           paddingHorizontal: theme.space[4],
         },
       ]}>
@@ -135,7 +136,8 @@ function ShopRow({ membership, selected, onPress }: Readonly<{ membership: Membe
           width: radio,
           height: radio,
           borderRadius: theme.radius.pill,
-          borderWidth: selected ? theme.line.ring * 2 : theme.line.input,
+          // Chosen, a thick ring around a wide centre (the catalogue's 5 of 18).
+          borderWidth: selected ? radio * 0.28 : theme.line.input,
           borderColor: selected ? theme.colors.accent : theme.colors.control,
         }}
       />

@@ -21,6 +21,7 @@ import { FlatList, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isNotFound, refusedWith } from '@/api/errors';
+import { useOrderGroup } from '@/api/orders';
 import {
   useRefund,
   useRefundBanks,
@@ -47,7 +48,14 @@ export function RefundAccountScreen({ refundId }: Readonly<{ refundId: string }>
 
   if (refund.error && !refund.data) {
     if (isNotFound(refund.error)) {
-      return <EmptyState title="Refund not found" body="This refund isn't one of yours." icon="info" />;
+      return (
+        <EmptyState
+          title="Refund not found"
+          body="This refund isn't one of yours."
+          icon="info"
+          action={{ label: 'See your orders', onPress: () => router.replace('/(tabs)/orders') }}
+        />
+      );
     }
     return (
       <ErrorState
@@ -62,8 +70,20 @@ export function RefundAccountScreen({ refundId }: Readonly<{ refundId: string }>
   return refund.data.needs_account ? <AccountForm refund={refund.data} /> : <RefundState refund={refund.data} />;
 }
 
-/** "For your order OJ-2301 from Mama Put.": the refund's order. Which items it covers isn't known here. */
-const forOrder = (refund: BuyerRefund) => `For your order ${orderNumber(refund.order.display_id)} from ${refund.order.shop}.`;
+/**
+ * "For your order OJ-2301 from Mama Put.": the refund's order, by its checkout's number, the one
+ * the buyer sees everywhere (the shop's own order number isn't it). Which items it covers isn't known here.
+ */
+function useForOrder(refund: BuyerRefund) {
+  const { userId } = useAuth();
+  const groupId = refund.order.order_group_id;
+  // Idle for a refund of an order with no checkout behind it.
+  const group = useOrderGroup(groupId ? userId : null, groupId ?? '');
+  const displayId = groupId ? group.data?.display_id : undefined;
+  return displayId === undefined
+    ? `For your order from ${refund.order.shop}.`
+    : `For your order ${orderNumber(displayId)} from ${refund.order.shop}.`;
+}
 
 /** Where a refund that needs no account (any more) is: a chip and a line in plain words. */
 function refundState(refund: BuyerRefund): { chip: StatusChipView; message: string } {
@@ -90,12 +110,13 @@ function RefundState({ refund }: Readonly<{ refund: BuyerRefund }>) {
   const theme = useTheme();
   const groupId = refund.order.order_group_id;
   const { chip, message } = refundState(refund);
+  const forOrder = useForOrder(refund);
   return (
     <ScrollView style={{ backgroundColor: theme.colors.bg }} contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }}>
       <StatusChip {...chip} />
       <Amount refund={refund} />
       <Text>{message}</Text>
-      <Text tone="muted">{forOrder(refund)}</Text>
+      <Text tone="muted">{forOrder}</Text>
       {groupId ? (
         <Button label="View the order" variant="secondary" onPress={() => router.replace({ pathname: '/order/[id]', params: { id: groupId } })} />
       ) : null}
@@ -130,6 +151,7 @@ function AccountForm({ refund }: Readonly<{ refund: BuyerRefund }>) {
   const [bankCode, setBankCode] = useState<string | null>(null);
   const [accountNumber, setAccountNumber] = useState('');
   const [confirming, setConfirming] = useState(false);
+  const forOrder = useForOrder(refund);
 
   const input: RefundAccountInput | null =
     bankCode && accountNumber.length === ACCOUNT_LENGTH ? { bank_code: bankCode, account_number: accountNumber } : null;
@@ -173,7 +195,7 @@ function AccountForm({ refund }: Readonly<{ refund: BuyerRefund }>) {
         <StatusChip label="Needs your bank details" tone="attention" icon="info" />
         <Amount refund={refund} />
         <Text tone="muted">
-          {`${forOrder(refund)} Your card's bank couldn't take the money back, so we'll send it to a bank account instead.`}
+          {`${forOrder} Your card's bank couldn't take the money back, so we'll send it to a bank account instead.`}
         </Text>
         <BankField banks={banks} bankName={bank?.name ?? null} bankCode={bankCode} onChoose={(code) => change(() => setBankCode(code))} />
         <View style={{ gap: theme.space[1] }}>

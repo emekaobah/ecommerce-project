@@ -30,7 +30,7 @@ export function PickupCodeScreen({ groupId, orderId }: Readonly<{ groupId: strin
 
   let content: ReactNode;
   if (group.error && !group.data && isNotFound(group.error)) {
-    content = <NoCode order={null} groupId={groupId} />;
+    content = <NoCode order={null} groupId={groupId} displayId={null} />;
   } else if (group.error && !group.data) {
     content = (
       <ErrorState
@@ -44,9 +44,9 @@ export function PickupCodeScreen({ groupId, orderId }: Readonly<{ groupId: strin
   } else if (!group.data) {
     content = <PickupSkeleton />;
   } else if (!order?.pickup?.code) {
-    content = <NoCode order={order} groupId={groupId} />;
+    content = <NoCode order={order} groupId={groupId} displayId={group.data.display_id} />;
   } else {
-    content = <PickupCodeView order={order} code={order.pickup.code} groupId={groupId} />;
+    content = <PickupCodeView order={order} code={order.pickup.code} groupId={groupId} displayId={group.data.display_id} />;
   }
   return (
     <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
@@ -71,12 +71,19 @@ function TopRow({ label, groupId, chip }: Readonly<{ label: string; groupId: str
           {label}
         </Text>
       </PressableSurface>
-      {chip}
+      {/* A chip keeps to its own height; wrapped, it centres on the back button's line. */}
+      {chip ? <View>{chip}</View> : null}
     </View>
   );
 }
 
-function PickupCodeView({ order, code, groupId }: Readonly<{ order: SellerOrder; code: string; groupId: string }>) {
+/** `displayId` is the checkout's: the one order number the buyer sees everywhere. */
+function PickupCodeView({
+  order,
+  code,
+  groupId,
+  displayId,
+}: Readonly<{ order: SellerOrder; code: string; groupId: string; displayId: number }>) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const pickup = order.pickup!;
@@ -94,7 +101,7 @@ function PickupCodeView({ order, code, groupId }: Readonly<{ order: SellerOrder;
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + theme.space[6] }}>
       <Band style={{ paddingTop: insets.top + theme.space[2], paddingBottom: theme.space[6] }}>
-        <TopRow label={orderNumber(order.display_id)} groupId={groupId} chip={<StatusChip label="Ready" tone="success" icon="store" />} />
+        <TopRow label={orderNumber(displayId)} groupId={groupId} chip={<StatusChip label="Ready" tone="success" icon="store" onBand />} />
         <Text variant="titleNamed" tone="onBand">{`Show this at ${order.seller.name}`}</Text>
         <PickupCode code={code} />
       </Band>
@@ -139,7 +146,7 @@ function InfoRow({
           accessibilityHint={action.hint}
           onPress={action.onPress}
           style={[styles.centre, { minHeight: theme.hitArea, minWidth: theme.hitArea }]}>
-          <Text variant="meta" weight="bold" tone="link">
+          <Text variant="meta" weight="bold" tone="muted">
             {action.label}
           </Text>
         </PressableSurface>
@@ -149,7 +156,7 @@ function InfoRow({
 }
 
 /** The order has no code to show: not ready yet, collected, or no longer one of the group's. */
-function NoCode({ order, groupId }: Readonly<{ order: SellerOrder | null; groupId: string }>) {
+function NoCode({ order, groupId, displayId }: Readonly<{ order: SellerOrder | null; groupId: string; displayId: number | null }>) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const state = order?.fulfilment.state;
@@ -168,12 +175,12 @@ function NoCode({ order, groupId }: Readonly<{ order: SellerOrder | null; groupI
   return (
     <View style={styles.fill}>
       <Band style={{ paddingTop: insets.top + theme.space[2] }}>
-        <TopRow label={order ? orderNumber(order.display_id) : 'Order'} groupId={groupId} />
+        <TopRow label={order && displayId !== null ? orderNumber(displayId) : 'Order'} groupId={groupId} />
       </Band>
       <EmptyState
         title={title}
         body={body}
-        icon="store"
+        icon={order ? 'store' : 'box'}
         action={
           order
             ? { label: 'Back to the order', onPress: () => close(groupId) }

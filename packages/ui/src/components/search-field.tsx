@@ -16,6 +16,8 @@ export type SearchFieldProps = {
   /** With `onPress`, false makes it a button that opens search elsewhere (Home's band). */
   editable?: boolean
   onPress?: () => void
+  /** "outline" (the default): white, outlined like any input. "tile": filled, unoutlined until focused (Orders; raised in dark). */
+  look?: "outline" | "tile"
 }
 
 /**
@@ -23,9 +25,13 @@ export type SearchFieldProps = {
  * clear, outlined like any input, an accent outline and ring when focused. As a button on the
  * band it has no outline.
  */
-export function SearchField({ value, onChangeText, placeholder, onSubmitEditing, autoFocus, editable = true, onPress }: Readonly<SearchFieldProps>) {
+export function SearchField({ value, onChangeText, placeholder, onSubmitEditing, autoFocus, editable = true, onPress, look = "outline" }: Readonly<SearchFieldProps>) {
   const theme = useTheme()
   const [focused, setFocused] = useState(false)
+  const tile = look === "tile"
+  const fill = tile && theme.scheme === "light" ? theme.colors.tile : theme.colors.raised
+  // A tile's outline matches its fill until focused, so focusing doesn't shift what's inside.
+  const outline = tile ? fill : theme.colors.control
   const field = [
     styles.field,
     {
@@ -34,7 +40,7 @@ export function SearchField({ value, onChangeText, placeholder, onSubmitEditing,
       paddingLeft: theme.space[4],
       paddingRight: value && editable ? 0 : theme.space[4],
       borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.raised,
+      backgroundColor: fill,
     },
   ]
 
@@ -53,7 +59,7 @@ export function SearchField({ value, onChangeText, placeholder, onSubmitEditing,
     <View
       style={[
         field,
-        { borderWidth: theme.line.input, borderColor: focused ? theme.colors.accent : theme.colors.control },
+        { borderWidth: theme.line.input, borderColor: focused ? theme.colors.accent : outline },
         focused ? { boxShadow: focusRing(theme) } : null,
       ]}
     >

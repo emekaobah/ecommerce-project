@@ -1,7 +1,7 @@
 import { formatMoney } from '@oja/domain';
-import { Button, Icon, InlineNote, StatusChip, Text, TextField, useTheme } from '@oja/ui';
+import { Button, focusRing, Icon, InlineNote, MAX_FONT_SCALE, StatusChip, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { refusalMessage, useApplyPromoCode, useRemovePromoCode, type Checkout, type CheckoutPromotion } from '@/api/checkout';
 
@@ -12,6 +12,7 @@ import { refusalMessage, useApplyPromoCode, useRemovePromoCode, type Checkout, t
 export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; checkout: Checkout }>) {
   const theme = useTheme();
   const [code, setCode] = useState('');
+  const [focused, setFocused] = useState(false);
   const apply = useApplyPromoCode(cartId);
   const remove = useRemovePromoCode(cartId);
   const submit = () => {
@@ -32,23 +33,42 @@ export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; chec
         />
       ))}
       {remove.error ? <InlineNote>{"Couldn't remove the code. Check your connection and try again."}</InlineNote> : null}
-      <View style={[styles.row, styles.bottom, { gap: theme.space[2] }]}>
-        <View style={styles.fill}>
-          <TextField
-            label="Promo code"
-            value={code}
-            onChangeText={(text) => {
-              setCode(text);
-              apply.reset();
-            }}
-            onSubmitEditing={submit}
-            placeholder="Enter a code"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            returnKeyType="done"
-          />
-        </View>
-        <Button label="Apply" variant="secondary" onPress={submit} loading={apply.isPending} disabled={!code.trim()} />
+      {/* One row, as an applied code is: the tag, the code being typed, and Apply. */}
+      <View
+        style={[
+          styles.row,
+          {
+            gap: theme.space[2],
+            minHeight: theme.control.md,
+            paddingLeft: theme.space[3],
+            paddingRight: theme.space[3],
+            borderRadius: theme.radius.md,
+            borderWidth: theme.line.input,
+            borderColor: focused ? theme.colors.accent : theme.colors.control,
+            backgroundColor: theme.colors.raised,
+          },
+          focused ? { boxShadow: focusRing(theme) } : null,
+        ]}>
+        <Icon name="tag" use="step" color={theme.colors.muted} />
+        <TextInput
+          value={code}
+          onChangeText={(text) => {
+            setCode(text);
+            apply.reset();
+          }}
+          onSubmitEditing={submit}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          accessibilityLabel="Promo code"
+          placeholder="Promo code"
+          placeholderTextColor={theme.colors.muted}
+          maxFontSizeMultiplier={MAX_FONT_SCALE}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          returnKeyType="done"
+          style={[theme.type.body, styles.fill, { color: theme.colors.ink, minHeight: theme.control.md }]}
+        />
+        {code.trim() ? <Button label="Apply" variant="link" onPress={submit} loading={apply.isPending} /> : null}
       </View>
       {applyProblem ? <InlineNote>{applyProblem}</InlineNote> : null}
     </View>
@@ -95,6 +115,5 @@ function Promotion({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
-  bottom: { alignItems: 'flex-end' },
   fill: { flex: 1 },
 });

@@ -7,8 +7,8 @@ export type AddressFormValues = Partial<Record<AddressFieldKey, string>>
 /** What each wrong field of the form needs, e.g. "Enter the LGA". */
 export type AddressFormErrors = Partial<Record<AddressFieldKey, string>>
 
-/** The buyer's name, which an empty form starts with. */
-export type BuyerName = { first_name?: string | null; last_name?: string | null }
+/** The buyer's name and account phone, which an empty form starts with. */
+export type BuyerDetails = { first_name?: string | null; last_name?: string | null; phone?: string | null }
 
 /** A delivery address as the store takes it: Medusa's columns, extra fields in `metadata` (ADR 0002). */
 export type DeliveryAddress = {
@@ -123,15 +123,15 @@ export function addressFromForm(values: AddressFormValues, countryCode: string, 
 
 /**
  * The form's values for a saved address (e.g. the one checkout last used), phone in the
- * national format people type; empty fields, with the buyer's name, when there is none.
+ * national format people type; empty fields, with the buyer's name and phone, when there is none.
  */
 export function addressFormValues(
   address: StoredAddress | null | undefined,
   countryCode: string,
-  name?: BuyerName
+  buyer?: BuyerDetails
 ): AddressFormValues {
   const config = getAddressConfig(countryCode)
-  const source: Record<string, unknown> = address ?? { first_name: name?.first_name, last_name: name?.last_name }
+  const source: Record<string, unknown> = address ?? { first_name: buyer?.first_name, last_name: buyer?.last_name, phone: buyer?.phone }
   const values: AddressFormValues = {}
   for (const { key } of config.fields) {
     const raw = key.startsWith(METADATA_PREFIX)

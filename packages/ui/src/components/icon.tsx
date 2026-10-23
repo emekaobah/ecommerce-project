@@ -1,5 +1,6 @@
 import ArrowLeftRight from "lucide-react-native/icons/arrow-left-right"
 import Bell from "lucide-react-native/icons/bell"
+import Box from "lucide-react-native/icons/box"
 import Camera from "lucide-react-native/icons/camera"
 import Check from "lucide-react-native/icons/check"
 import ChevronDown from "lucide-react-native/icons/chevron-down"
@@ -7,6 +8,7 @@ import ChevronLeft from "lucide-react-native/icons/chevron-left"
 import ChevronRight from "lucide-react-native/icons/chevron-right"
 import Clock from "lucide-react-native/icons/clock"
 import CloudOff from "lucide-react-native/icons/cloud-off"
+import Handbag from "lucide-react-native/icons/handbag"
 import Heart from "lucide-react-native/icons/heart"
 import House from "lucide-react-native/icons/house"
 import Info from "lucide-react-native/icons/info"
@@ -17,7 +19,6 @@ import LogOut from "lucide-react-native/icons/log-out"
 import Mail from "lucide-react-native/icons/mail"
 import MapPin from "lucide-react-native/icons/map-pin"
 import Minus from "lucide-react-native/icons/minus"
-import Package from "lucide-react-native/icons/package"
 import Pencil from "lucide-react-native/icons/pencil"
 import Plus from "lucide-react-native/icons/plus"
 import RefreshCw from "lucide-react-native/icons/refresh-cw"
@@ -25,7 +26,6 @@ import ScanBarcode from "lucide-react-native/icons/scan-barcode"
 import Search from "lucide-react-native/icons/search"
 import Share from "lucide-react-native/icons/share"
 import ShieldCheck from "lucide-react-native/icons/shield-check"
-import ShoppingBag from "lucide-react-native/icons/shopping-bag"
 import Star from "lucide-react-native/icons/star"
 import Store from "lucide-react-native/icons/store"
 import Tag from "lucide-react-native/icons/tag"
@@ -43,8 +43,8 @@ import type { icon } from "../tokens"
 const ICONS = {
   home: House,
   search: Search,
-  bag: ShoppingBag,
-  box: Package,
+  bag: Handbag,
+  box: Box,
   user: User,
   pin: MapPin,
   down: ChevronDown,

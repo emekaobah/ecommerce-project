@@ -17,6 +17,8 @@ export type ButtonProps = {
   detail?: string
   /** Drawn before the label, e.g. refresh on "Try again". */
   icon?: IconName
+  /** Drawn at the button's end with the label at its start, e.g. the forward chevron on "Open Iya Bisi Foodstuff". */
+  trailingIcon?: IconName
   disabled?: boolean
   loading?: boolean
   /** "accent" colours a secondary button's label like a link: "In cart · View cart". */
@@ -66,6 +68,7 @@ export function Button({
   size = "md",
   detail,
   icon,
+  trailingIcon,
   disabled,
   loading,
   tone: labelTone,
@@ -96,7 +99,7 @@ export function Button({
         style,
       ]}
     >
-      <View style={[styles.content, { gap: theme.space[2] }, detail ? styles.spread : null]}>
+      <View style={[styles.content, { gap: theme.space[2] }, detail || trailingIcon ? styles.spread : null]}>
         <View style={[styles.label, styles.shrink, { gap: theme.space[2] }]}>
           <View style={[styles.label, styles.shrink, { gap: theme.space[2] }, loading && styles.hidden]}>
             {icon ? <Icon name={icon} use="step" color={ink} /> : null}
@@ -111,6 +114,7 @@ export function Button({
             {detail}
           </Text>
         ) : null}
+        {trailingIcon ? <Icon name={trailingIcon} use="step" color={ink} /> : null}
       </View>
     </PressableSurface>
   )

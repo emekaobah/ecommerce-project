@@ -4,11 +4,15 @@ import {
   historyEntries,
   missingItemsNote,
   orderCardStatus,
+  orderGroupSettled,
   orderGroupSummary,
+  orderLineName,
+  orderProgress,
   orderStatus,
   owedRefundStatus,
   reachedOnLabel,
   refundStatus,
+  type ProgressStep,
 } from "./order-history"
 
 const placed = { state: "new", rejected_by: null, reject_reason: null, cancellation: null } as const
@@ -257,13 +261,83 @@ describe("reachedOnLabel", () => {
     expect(reachedOnLabel({ state: "delivered", timeline: late }, LAGOS)).toBe("Delivered Fri 2 Oct")
   })
 
-  test("skips steps still to come and steps without a time", () => {
-    const steps = [...timeline, { label: "Reviewed", status: "upcoming" as const, at: "2026-10-09T10:00:00Z" }, { label: "x", status: "done" as const, at: null }]
+  test("a delivered order with no time for its delivery doesn't borrow an earlier step's", () => {
+    const unknown = [timeline[0]!, { label: "Delivered", status: "done" as const, at: null }]
+    expect(reachedOnLabel({ state: "delivered", timeline: unknown }, LAGOS)).toBeNull()
+  })
+
+  test("skips steps still to come", () => {
+    const steps = [...timeline, { label: "Reviewed", status: "upcoming" as const, at: "2026-10-09T10:00:00Z" }]
     expect(reachedOnLabel({ state: "delivered", timeline: steps }, LAGOS)).toBe("Delivered Fri 2 Oct")
   })
 
   test("nothing until it has got there, or without a time", () => {
     expect(reachedOnLabel({ state: "in_transit", timeline }, LAGOS)).toBeNull()
     expect(reachedOnLabel({ state: "delivered", timeline: [] }, LAGOS)).toBeNull()
+  })
+})
+
+describe("orderLineName", () => {
+  test("a line names its product and the variant bought", () => {
+    expect(orderLineName({ product_title: "Adire Kaftan", variant_title: "M" })).toBe("Adire Kaftan · M")
+  })
+
+  test("a product's only variant, named like the product, isn't repeated", () => {
+    expect(orderLineName({ product_title: "Ankara Tote Bag", variant_title: "Ankara Tote Bag" })).toBe("Ankara Tote Bag")
+  })
+
+  test("a line with no names still reads as an item", () => {
+    expect(orderLineName({ product_title: null, variant_title: null })).toBe("Item")
+  })
+})
+
+describe("orderProgress", () => {
+  // Written out: done before the current step, upcoming after it.
+  const steps = (labels: string[], current: number): ProgressStep[] =>
+    labels.map((label, i) => {
+      if (i === current) return { label, status: "current" }
+      return { label, status: i < current ? "done" : "upcoming" }
+    })
+  const DELIVERY = ["Accepted", "Being prepared", "Packed", "On its way"]
+  const PICKUP = ["Accepted", "Being prepared", "Ready for pickup", "Collected"]
+
+  test("a packed delivery is at the third of four steps", () => {
+    expect(orderProgress("packed", "delivery")).toEqual(steps(DELIVERY, 2))
+  })
+
+  test.each([
+    ["accepted", 0],
+    ["picking", 1],
+    ["partially_available", 1],
+    ["label_booked", 2],
+    ["courier_confirmed", 2],
+    ["handed_to_courier", 3],
+    ["in_transit", 3],
+  ] as const)("a delivery %s is at step %i", (state, current) => {
+    expect(orderProgress(state, "delivery")).toEqual(steps(DELIVERY, current))
+  })
+
+  test("a pickup order ready to collect is at its third step, collecting it the last", () => {
+    expect(orderProgress("ready_for_pickup", "pickup")).toEqual(steps(PICKUP, 2))
+  })
+
+  test.each(["new", "delivered", "collected", "not_collected", "rejected", "cancelled"] as const)(
+    "a %s order shows no progress",
+    (state) => {
+      expect(orderProgress(state, "delivery")).toBeNull()
+    }
+  )
+})
+
+describe("orderGroupSettled", () => {
+  const order = (state: "delivered" | "collected" | "rejected" | "cancelled" | "not_collected" | "packed" | "new") => ({ fulfilment: { state } })
+
+  test("a checkout whose shops are all done is settled", () => {
+    expect(orderGroupSettled([order("delivered"), order("collected"), order("rejected"), order("cancelled"), order("not_collected")])).toBe(true)
+  })
+
+  test("a checkout with a shop still working on its part isn't", () => {
+    expect(orderGroupSettled([order("delivered"), order("packed")])).toBe(false)
+    expect(orderGroupSettled([order("new")])).toBe(false)
   })
 })

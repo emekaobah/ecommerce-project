@@ -65,6 +65,9 @@ export default function AppLayout() {
         <Stack.Screen name="quick-add/index" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="quick-add/[barcode]" />
         <Stack.Screen name="quick-add/done" options={{ headerBackVisible: false }} />
+        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        {/* "Which shop today?" titles the page; the bar keeps only a bare back chevron. */}
+        <Stack.Screen name="switch-shop" options={{ title: '', headerBackButtonDisplayMode: 'minimal' }} />
       </Stack>
     </>
   );

@@ -241,9 +241,9 @@ function ShopCard({
   return (
     <Group>
       <View style={[styles.row, { gap: theme.space[2] }]}>
-        {seller ? <ShopMark name={seller.name} logoUrl={seller.logo} size="sm" /> : null}
+        {seller ? <ShopMark name={seller.name} logoUrl={seller.logo} size="md" /> : null}
         <View style={styles.fill}>
-          <Text weight="bold">{seller?.name ?? 'No longer available'}</Text>
+          <Text weight="extrabold">{seller?.name ?? 'No longer available'}</Text>
           {status ? (
             <Text variant="meta" tone="muted">
               {status}
@@ -264,19 +264,20 @@ function ShopCard({
       {seller && group.perishable ? <PerishableRule /> : null}
       <View style={{ gap: theme.space[3] }}>{children}</View>
       {seller ? (
-        <View
-          style={[
-            styles.row,
-            { gap: theme.space[2], paddingTop: theme.space[3], borderTopWidth: theme.line.divider, borderTopColor: theme.colors.line },
-          ]}>
-          <View style={styles.fill}>
-            <Text weight="bold">Subtotal</Text>
-            <Text variant="meta" tone="muted">{`${itemsWord(itemCount(group))} + delivery`}</Text>
-          </View>
-          <View style={styles.end}>
+        <View style={{ gap: theme.space[1], padding: theme.space[3], borderRadius: theme.radius.md, backgroundColor: theme.colors.tile }}>
+          <View style={[styles.row, { gap: theme.space[3] }]}>
+            <Text weight="bold" style={styles.fill}>
+              Subtotal
+            </Text>
             <Text weight="extrabold" tabular>
               {money(group.item_subtotal)}
             </Text>
+          </View>
+          <View style={[styles.row, { gap: theme.space[3] }]}>
+            {/* Wrapped in a view so the line wraps at large text instead of being cut. */}
+            <View style={styles.fill}>
+              <Text variant="meta" tone="muted">{`${itemsWord(itemCount(group))} + delivery`}</Text>
+            </View>
             {checkoutShop ? (
               <Button
                 label="Checkout this shop"
@@ -411,7 +412,7 @@ function CartSkeleton() {
     <View style={{ paddingHorizontal: theme.space[4] }} accessible accessibilityLabel="Loading your cart">
       <Group>
         <View style={[styles.row, { gap: theme.space[2] }]}>
-          <Skeleton width={theme.shopMark.sm.size} height={theme.shopMark.sm.size} radius="md" />
+          <Skeleton width={theme.shopMark.md.size} height={theme.shopMark.md.size} radius="md" />
           <Skeleton width="50%" height={theme.type.body.fontSize} />
         </View>
         {[0, 1].map((line) => (
@@ -431,7 +432,6 @@ function CartSkeleton() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
-  end: { alignItems: 'flex-end' },
   start: { alignSelf: 'flex-start' },
   faded: { opacity: 0.5 },
 });

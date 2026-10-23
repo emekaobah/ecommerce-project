@@ -304,6 +304,7 @@ function CheckoutForm({
 
   const back = () => (screenStep === 1 ? router.back() : setScreenStep((screenStep - 1) as CheckoutStep));
   const renderBack = () => <BackButton step={screenStep} onPress={back} />;
+  const renderStep = () => <StepCount step={screenStep} />;
 
   const content = () => {
     if (screenStep === 1) {
@@ -374,6 +375,10 @@ function CheckoutForm({
           title: STEP_TITLES[screenStep],
           headerBackVisible: false,
           headerLeft: renderBack,
+          headerRight: renderStep,
+          // iOS: a bare chevron and "Step 2 of 3", not set in the bar's glass button background.
+          unstable_headerLeftItems: () => [{ type: 'custom', element: renderBack(), hidesSharedBackground: true }],
+          unstable_headerRightItems: () => [{ type: 'custom', element: renderStep(), hidesSharedBackground: true }],
         }}
       />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -404,30 +409,34 @@ function BackButton({ step, onPress }: Readonly<{ step: CheckoutStep; onPress: (
   );
 }
 
-/** "Step 2 of 3" over three bars, filled as far as the buyer has got. */
+/** "Step 2 of 3", at the header's end. */
+function StepCount({ step }: Readonly<{ step: CheckoutStep }>) {
+  return (
+    <Text variant="meta" weight="bold" tone="muted" accessible={false} importantForAccessibility="no">
+      {`Step ${step} of 3`}
+    </Text>
+  );
+}
+
+/** Three bars under the header, filled as far as the buyer has got. */
 function StepProgress({ step }: Readonly<{ step: CheckoutStep }>) {
   const theme = useTheme();
   return (
     <View
       accessible
       accessibilityRole="progressbar"
+      // The label says the step; a numeric value made iOS read now/(max - min) as 50%, 100%, 150%.
       accessibilityLabel={`Step ${step} of 3`}
-      accessibilityValue={{ min: 1, max: 3, now: step }}
-      style={{ gap: theme.space[1], paddingHorizontal: theme.space[4], paddingVertical: theme.space[2], backgroundColor: theme.colors.bg }}>
-      <Text variant="meta" weight="bold" tone="muted" style={styles.right}>
-        {`Step ${step} of 3`}
-      </Text>
-      <View style={[styles.progress, { gap: theme.space[1] }]}>
-        {([1, 2, 3] as const).map((bar) => (
-          <View
-            key={bar}
-            style={[
-              styles.fill,
-              { height: theme.space[1], borderRadius: theme.radius.pill, backgroundColor: bar <= step ? theme.colors.primary : theme.colors.line },
-            ]}
-          />
-        ))}
-      </View>
+      style={[styles.progress, { gap: theme.space[1], paddingHorizontal: theme.space[4], paddingVertical: theme.space[2], backgroundColor: theme.colors.bg }]}>
+      {([1, 2, 3] as const).map((bar) => (
+        <View
+          key={bar}
+          style={[
+            styles.fill,
+            { height: theme.space[1], borderRadius: theme.radius.pill, backgroundColor: bar <= step ? theme.colors.primary : theme.colors.line },
+          ]}
+        />
+      ))}
     </View>
   );
 }
@@ -495,5 +504,4 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   centred: { alignItems: 'center', justifyContent: 'center' },
   progress: { flexDirection: 'row' },
-  right: { textAlign: 'right' },
 });

@@ -42,7 +42,8 @@ export function RadioOption({ selected, disabled, disabledReason, onPress, child
           gap: theme.space[2],
           borderRadius: theme.radius.md,
           borderWidth: theme.line.input,
-          borderColor: selected ? theme.colors.accent : theme.colors.control,
+          // The option's edge is the light line; the radio mark carries the 3:1 control outline.
+          borderColor: selected ? theme.colors.accent : theme.colors.line,
           backgroundColor: selected ? theme.colors.selected : theme.colors.raised,
         },
       ]}

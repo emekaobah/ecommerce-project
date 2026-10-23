@@ -1,6 +1,13 @@
-import { deliveryEstimate, distanceLabel, PERISHABLE_HOLD_OPEN_DAYS, PICKUP_HOLD_OPEN_DAYS, type DeliveryTag } from '@oja/domain';
+import {
+  deliveryDay,
+  distanceLabel,
+  PERISHABLE_HOLD_OPEN_DAYS,
+  PICKUP_HOLD_OPEN_DAYS,
+  preparedWhenOpens,
+  type DeliveryTag,
+} from '@oja/domain';
 import { Group, GroupList, InlineNote, RadioOption, ShopMark, Text, useTheme } from '@oja/ui';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { refusalMessage, useChooseDelivery, type Checkout, type CheckoutSellerGroup } from '@/api/checkout';
 import { SumRow } from '@/components/cart/summary';
@@ -85,10 +92,17 @@ function ShopDelivery({
   const { seller } = group;
   const sellerId = seller?.id;
   const busy = choose.isPending || choosingMethod;
+  const stacked = usePriceUnder();
   const now = new Date();
   // While a choice is being saved, it shows as chosen.
   const chosenId = (choose.isPending && choose.variables?.choiceId) || group.shipping?.choice_id;
   const collecting = group.method === 'pickup';
+  // A closed shop that takes orders prepares them when it opens: the first option says when.
+  const status = group.shop_status;
+  const preparedLater =
+    status?.state === 'closed' && status.orderable && group.delivery_choices[0]
+      ? preparedWhenOpens(status.opens_at, now, group.delivery_choices[0].time_zone)
+      : null;
 
   return (
     <Group gap={2}>
@@ -97,10 +111,11 @@ function ShopDelivery({
 
       <View style={{ gap: theme.space[2] }} accessibilityRole="radiogroup" accessibilityLabel={`How to get ${seller?.name ?? 'these'} items`}>
         {sellerId && !collecting
-          ? group.delivery_choices.map((choice) => (
+          ? group.delivery_choices.map((choice, index) => (
               <CourierOption
                 key={choice.id}
                 choice={choice}
+                note={index === 0 ? preparedLater : null}
                 now={now}
                 selected={choice.id === chosenId}
                 disabled={busy}
@@ -128,11 +143,12 @@ function ShopDelivery({
             onPress={() => {
               if (!collecting) onChooseMethod(sellerId, 'pickup');
             }}
-            trailing={<Text weight="extrabold">Free</Text>}>
+            trailing={stacked ? undefined : <Text weight="extrabold">Free</Text>}>
             <Text weight="bold">Pick up at the shop</Text>
             <Text variant="meta" tone="muted">
               {pickupLine({ ...group, pickup: group.pickup })}
             </Text>
+            {stacked ? <Text weight="extrabold">Free</Text> : null}
           </RadioOption>
         ) : null}
       </View>
@@ -149,28 +165,25 @@ function ShopDelivery({
   );
 }
 
-/** The shop's mark and name, when a closed shop will prepare the order, and how many items. */
+/** The shop's mark and name, and how many items. */
 function ShopHeading({ group }: Readonly<{ group: CheckoutSellerGroup }>) {
   const theme = useTheme();
-  const { seller, shop_status: status } = group;
-  const preparedLater = status?.state === 'closed' && status.orderable ? `${status.label} · prepared then` : null;
+  const { seller } = group;
   return (
     <View style={[styles.row, { gap: theme.space[2] }]}>
       {seller ? <ShopMark name={seller.name} logoUrl={seller.logo} size="sm" /> : null}
-      <View style={styles.fill}>
-        <Text weight="bold">{seller?.name ?? 'No longer available'}</Text>
-        {preparedLater ? (
-          <Text variant="meta" tone="muted">
-            {preparedLater}
-          </Text>
-        ) : null}
-      </View>
+      <Text weight="extrabold" style={styles.fill}>
+        {seller?.name ?? 'No longer available'}
+      </Text>
       <Text variant="meta" tone="muted">
         {itemsWord(group)}
       </Text>
     </View>
   );
 }
+
+/** At the largest text sizes the price goes under the option's words, so the title keeps the row's width. */
+const usePriceUnder = () => useWindowDimensions().fontScale > 1.2;
 
 /** What stands in the way of the shop's options: not taking orders, fresh items, no delivery, no pickup. */
 function ShopNotes({ group }: Readonly<{ group: CheckoutSellerGroup }>) {
@@ -187,9 +200,13 @@ function ShopNotes({ group }: Readonly<{ group: CheckoutSellerGroup }>) {
   );
 }
 
-/** A courier's rate: its tag and date, the courier, and its price; choosing it again does nothing. */
+/**
+ * A courier's rate: its tag and date, the courier (or when a closed shop prepares the order),
+ * and its price; choosing it again does nothing.
+ */
 function CourierOption({
   choice,
+  note,
   now,
   selected,
   disabled,
@@ -197,14 +214,21 @@ function CourierOption({
   onChoose,
 }: Readonly<{
   choice: CheckoutSellerGroup['delivery_choices'][number];
+  /** "Prepared when it opens 10am Mon", in place of the courier. */
+  note: string | null;
   now: Date;
   selected: boolean;
   disabled: boolean;
   money: (amount: number) => string;
   onChoose: () => void;
 }>) {
-  const tags = choice.tags.map((tag) => TAG_LABELS[tag]);
-  const arrives = deliveryEstimate(choice.delivery_eta_time, now, choice.time_zone);
+  const stacked = usePriceUnder();
+  const price = (
+    <Text weight="extrabold" tabular>
+      {money(choice.amount)}
+    </Text>
+  );
+  const tag = choice.tags[0];
   return (
     <RadioOption
       selected={selected}
@@ -212,16 +236,13 @@ function CourierOption({
       onPress={() => {
         if (!selected) onChoose();
       }}
-      trailing={
-        <Text weight="extrabold" tabular>
-          {money(choice.amount)}
-        </Text>
-      }>
-      {/* "Best value · Thu 23 Oct"; a rate that is also the cheapest or fastest says so beside its courier. */}
-      <Text weight="bold">{[tags[0], arrives].filter(Boolean).join(' · ')}</Text>
+      trailing={stacked ? undefined : price}>
+      {/* "Best value · Thu 23 Oct": one tag, the strongest, then the day it arrives. */}
+      <Text weight="bold">{[tag ? TAG_LABELS[tag] : null, deliveryDay(choice.delivery_eta_time, now, choice.time_zone)].filter(Boolean).join(' · ')}</Text>
       <Text variant="meta" tone="muted">
-        {[choice.courier_name, ...tags.slice(1)].join(' · ')}
+        {note ?? choice.courier_name}
       </Text>
+      {stacked ? price : null}
     </RadioOption>
   );
 }

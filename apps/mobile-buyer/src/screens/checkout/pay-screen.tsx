@@ -44,6 +44,9 @@ export function PayScreen() {
         headerBackVisible: false,
         headerLeft: renderClose,
         headerRight: SecureChip,
+        // iOS: a bare close and the Secure chip on its own, not set in the bar's glass button background.
+        unstable_headerLeftItems: () => [{ type: 'custom', element: renderClose(), hidesSharedBackground: true }],
+        unstable_headerRightItems: () => [{ type: 'custom', element: <SecureChip />, hidesSharedBackground: true }],
       }}
     />
   );

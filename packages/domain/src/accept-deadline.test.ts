@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { acceptClockFraction, acceptDeadline, acceptReminderDue, acceptTimeLeft } from "./accept-deadline"
+import { acceptClockFraction, acceptClockTime, acceptDeadline, acceptReminderDue, acceptTimeLeft } from "./accept-deadline"
 import type { ShopHours } from "./shop-hours"
 
 // Weekdays 08:00–18:00, Saturday 09:00–14:00, closed Sunday, in Lagos (UTC+1). Friday 9 October 2026.
@@ -51,6 +51,22 @@ describe("acceptDeadline", () => {
 
   test("is 24 hours on for a shop without hours", () => {
     expect(acceptDeadline("2026-10-03T19:30:00.000Z", null)).toBe("2026-10-04T19:30:00.000Z")
+  })
+})
+
+describe("acceptClockTime", () => {
+  const deadline = "2026-10-04T19:30:00.000Z"
+
+  test.each([
+    ["hours and minutes, without \"left\"", "2026-10-03T19:32:00.000Z", "23h 58m"],
+    ["overdue once the deadline has passed", "2026-10-04T19:30:00.000Z", "Overdue"],
+  ])("shows %s", (_, now, label) => {
+    expect(acceptClockTime(deadline, new Date(now))).toBe(label)
+  })
+
+  test("counts open time with the shop's hours", () => {
+    // Monday 08:00 to Tuesday 17:00: 10 and 9 open hours.
+    expect(acceptClockTime(lagos("2026-10-13T17:00:00"), new Date(lagos("2026-10-12T08:00:00")), HOURS)).toBe("19h")
   })
 })
 
