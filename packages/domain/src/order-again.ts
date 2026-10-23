@@ -108,3 +108,12 @@ export function orderAgainClosedNote({ not_taking_orders, shop_status, seller }:
   }
   return shop_status.note ? `${shop_status.label}. ${shop_status.note}` : shop_status.label
 }
+
+/**
+ * The lines ticked on the sheet: every one that can be added, less those the buyer unticked.
+ * None while the shop takes no orders, whose lines show only what was ordered.
+ */
+export function orderAgainTicked(lines: readonly OrderAgainLine[], unticked: ReadonlySet<string>, takingOrders: boolean): ReadonlySet<string> {
+  if (!takingOrders) return new Set()
+  return new Set(lines.filter((line) => line.addable && !unticked.has(line.id)).map((line) => line.id))
+}

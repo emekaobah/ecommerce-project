@@ -2,9 +2,11 @@ import { useAuth } from '@clerk/expo';
 import {
   distanceLabel,
   formatMoney,
+  itemsLabel,
   orderAgainClosedNote,
   orderAgainLines,
   orderAgainSummary,
+  orderAgainTicked,
   orderLineName,
   shopStatusChip,
   type OrderAgainLine,
@@ -17,7 +19,7 @@ import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAddOfferLines } from '@/api/cart';
-import { refusedWith } from '@/api/errors';
+import { refusedWith, useFailureMessage } from '@/api/errors';
 import { useOrderAgain, type OrderAgain } from '@/api/orders';
 import { useShop } from '@/api/shops';
 import { useCartSession } from '@/cart/cart-provider';
@@ -105,12 +107,14 @@ function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Read
   const { cartIdForAdding } = useCartSession();
   const add = useAddOfferLines(cartIdForAdding);
   const lines = orderAgainLines(preview.items, currency);
-  // Every line that can be added starts ticked; the buyer unticks what they don't want.
-  const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
-  const ticked = new Set(lines.filter((line) => line.addable && !unticked.has(line.id)).map((line) => line.id));
-  const summary = orderAgainSummary(lines, ticked);
+  const items = new Map(preview.items.map((item) => [item.id, item]));
   const note = orderAgainClosedNote(preview);
   const takesOrders = !preview.not_taking_orders;
+  // Every line that can be added starts ticked; the buyer unticks what they don't want.
+  const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
+  const ticked = orderAgainTicked(lines, unticked, takesOrders);
+  const summary = orderAgainSummary(lines, ticked);
+  const failure = useFailureMessage(add.error, [400], "Couldn't add these to your cart. Check your connection and try again.");
 
   const toggle = (id: string) => {
     haptics.selection();
@@ -131,7 +135,7 @@ function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Read
         haptics.success();
         onAdded();
         toast({
-          message: `${summary.count} ${summary.count === 1 ? 'item' : 'items'} added`,
+          message: `${itemsLabel(summary.count)} added`,
           action: { label: 'View cart', onPress: () => router.navigate('/cart') },
         });
       },
@@ -141,7 +145,6 @@ function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Read
     });
   };
 
-  const refused = add.error ? refusedWith(add.error, [400]) : null;
   return (
     <>
       <ShopLine preview={preview} />
@@ -150,28 +153,29 @@ function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Read
           {note}
         </Text>
       ) : null}
-      {preview.items.length ? (
+      {lines.length ? (
         <ScrollView style={{ maxHeight: linesMaxHeight }} contentContainerStyle={{ gap: theme.space[2], paddingVertical: theme.space[1] }}>
-          {preview.items.map((item, index) => (
-            <Line
-              key={item.id}
-              name={orderLineName(item)}
-              thumbnail={item.thumbnail}
-              line={lines[index]}
-              currency={currency}
-              ticked={ticked.has(item.id)}
-              onToggle={() => toggle(item.id)}
-              disabled={!takesOrders}
-            />
-          ))}
+          {lines.map((line) => {
+            const item = items.get(line.id);
+            return item ? (
+              <Line
+                key={line.id}
+                name={orderLineName(item)}
+                thumbnail={item.thumbnail}
+                line={line}
+                currency={currency}
+                ticked={ticked.has(line.id)}
+                onToggle={() => toggle(line.id)}
+                disabled={!takesOrders}
+              />
+            ) : null;
+          })}
         </ScrollView>
       ) : null}
       {note && !takesOrders ? <InlineNote>{note}</InlineNote> : null}
       {takesOrders ? (
         <View style={{ gap: theme.space[2], marginTop: theme.space[1] }}>
-          {add.error ? (
-            <InlineNote>{refused ?? "Couldn't add these to your cart. Check your connection and try again."}</InlineNote>
-          ) : null}
+          {failure ? <InlineNote>{failure}</InlineNote> : null}
           <Button
             label={summary.label}
             detail={summary.count ? formatMoney(summary.total, currency) : undefined}

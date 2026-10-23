@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { formatMoney } from "./money"
-import { orderAgainClosedNote, orderAgainLines, orderAgainSummary, type OrderAgainItemInput } from "./order-again"
+import { orderAgainClosedNote, orderAgainLines, orderAgainSummary, orderAgainTicked, type OrderAgainItemInput } from "./order-again"
 
 const naira = (amount: number) => formatMoney(amount, "ngn")
 
@@ -140,5 +140,20 @@ describe("orderAgainClosedNote", () => {
 
   test("not taking orders without a status still says so", () => {
     expect(orderAgainClosedNote({ not_taking_orders: "paused", shop_status: null, seller })).toBe("Iya Bisi Foodstuff isn't taking orders now.")
+  })
+})
+
+describe("orderAgainTicked", () => {
+  const lines = orderAgainLines(
+    [item(), item({ id: "item_rice", offer: { id: "offer_rice", unit_price: 9000, compare_at_unit_price: null, available_quantity: 0 } }), item({ id: "item_oil" })],
+    "ngn"
+  )
+
+  test("every line that can be added starts ticked, except those the buyer unticked", () => {
+    expect([...orderAgainTicked(lines, new Set(["item_oil"]), true)]).toEqual(["item_tomatoes"])
+  })
+
+  test("a shop taking no orders now ticks nothing, so no line looks chosen", () => {
+    expect(orderAgainTicked(lines, new Set(), false).size).toBe(0)
   })
 })

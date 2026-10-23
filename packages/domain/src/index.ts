@@ -218,7 +218,7 @@ export { canReview, isReceived, ratingSummary, reviewAction, reviewCounts, revie
 export type { OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
 export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAddFormValue } from "./quick-add"
 export { DISTANCE_BANDS_KM, deliveringTo, distanceBand, distanceKm, distanceLabel, roundedDistanceKm } from "./distance"
-export { orderAgainClosedNote, orderAgainLines, orderAgainSummary } from "./order-again"
+export { orderAgainClosedNote, orderAgainLines, orderAgainSummary, orderAgainTicked } from "./order-again"
 export type { OrderAgainItemInput, OrderAgainLine } from "./order-again"
 export { itemsLabel } from "./items-label"
 export { acceptWithinLabel, takeoverAnnouncement } from "./new-order-takeover"
