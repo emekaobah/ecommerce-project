@@ -100,7 +100,7 @@ export {
   pickupCodeCollectByLabel,
 } from "./pickup-hold"
 export type { HoldReminder } from "./pickup-hold"
-export { dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
+export { bySize, dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
 export type { DisplayPrice, ListingPrice, PricedOffer, ShopDeal, ShopGroup } from "./listing"
 export { greeting } from "./greeting"
 export { currentShop, shopChoice } from "./shop-choice"

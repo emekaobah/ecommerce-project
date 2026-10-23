@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { deliveryEstimate, formatMoney, formatWeight, isSaved, listingPrice, offerPrice, shipsIn } from '@oja/domain';
+import { bySize, deliveryEstimate, formatMoney, formatWeight, isSaved, listingPrice, offerPrice, shipsIn } from '@oja/domain';
 import {
   EmptyState,
   ErrorState,
@@ -254,14 +254,14 @@ function ShopLine({ seller }: Readonly<{ seller: ListingDetail['seller'] }>) {
   );
 }
 
-/** One chip per size this shop offers; the price and the button follow the choice. */
+/** One chip per size this shop offers, small to large; the price and the button follow the choice. */
 function SizeChips({ offers, selectedId, onSelect }: Readonly<{ offers: Offer[]; selectedId: string; onSelect: (id: string) => void }>) {
   const theme = useTheme();
   const height = theme.space[8];
   const slop = Math.max(0, (theme.hitArea - height) / 2);
   return (
     <View accessibilityRole="radiogroup" accessibilityLabel="Size" style={[styles.row, styles.wrap, { gap: theme.space[2], paddingVertical: theme.space[1] }]}>
-      {offers.map((offer) => {
+      {bySize(offers).map((offer) => {
         const on = offer.id === selectedId;
         return (
           <PressableSurface

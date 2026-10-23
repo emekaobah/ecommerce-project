@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
+import { bySize, dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
 
 let nextId = 0
 const offer = (calculated_amount: number, original_amount = calculated_amount) => ({
@@ -103,5 +103,28 @@ describe("dealLabel", () => {
     expect(dealLabel({ type: "fixed", value: 1000, allocation: "across", currency_code: "ngn" }, "en-NG")).toBe(
       "₦1,000.00 off at this shop"
     )
+  })
+})
+
+// A product's size chips, small to large whatever order the shop added them in (catalogue 13: 2kg, 5kg, 10kg).
+describe("bySize", () => {
+  const sizes = (...titles: (string | null)[]) => titles.map((variant_title) => ({ variant_title }))
+  const titles = (offers: { variant_title: string | null }[]) => offers.map((o) => o.variant_title)
+
+  test("orders weights small to large", () => {
+    expect(titles(bySize(sizes("10kg", "2kg", "5kg")))).toEqual(["2kg", "5kg", "10kg"])
+  })
+
+  test("orders clothing sizes small to large", () => {
+    expect(titles(bySize(sizes("XL", "M", "S", "L")))).toEqual(["S", "M", "L", "XL"])
+    expect(titles(bySize(sizes("XXL", "XS", "2XL")))).toEqual(["XS", "XXL", "2XL"])
+  })
+
+  test("orders volumes small to large", () => {
+    expect(titles(bySize(sizes("3L", "500ml", "1 litre", "75cl")))).toEqual(["500ml", "75cl", "1 litre", "3L"])
+  })
+
+  test("keeps sizes it can't measure in the shop's order, after the ones it can", () => {
+    expect(titles(bySize(sizes("Family pack", "500g", null, "Single", "1kg")))).toEqual(["500g", "1kg", "Family pack", null, "Single"])
   })
 })
