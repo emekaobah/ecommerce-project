@@ -57,12 +57,12 @@ export function holdReminderDue(
 }
 
 /**
- * "Collect by 6pm, Thu 15 Oct", or "Collect by 6pm today" on the last day: when a pickup order's
+ * "Collect by Thu 15 Oct, 6pm", or "Collect by 6pm today" on the last day: when a pickup order's
  * hold ends (`collectBy`, ISO 8601), in the region's timezone, as its buyer and the shop's staff read it.
  */
 export function collectByLabel(collectBy: string, now: Date, timeZone: string): string {
   const instant = Date.parse(collectBy)
   const time = timeLabel(instant, timeZone)
   if (dateIn(instant, timeZone) === dateIn(now.getTime(), timeZone)) return `Collect by ${time} today`
-  return `Collect by ${time}, ${dayLabel(instant, timeZone, { weekday: "short", day: "numeric", month: "short" })}`
+  return `Collect by ${dayLabel(instant, timeZone, { weekday: "short", day: "numeric", month: "short" })}, ${time}`
 }

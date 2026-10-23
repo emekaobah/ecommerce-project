@@ -79,11 +79,13 @@ export {
   checkPickupCode,
   isPickupCodeFormat,
   openingHoursLines,
+  pickupCodeGroups,
   PERISHABLE_PICKUP_NOTE,
   PICKUP_CODE_ATTEMPTS,
   PICKUP_CODE_LENGTH,
   PICKUP_CODE_WINDOW_MS,
   PICKUP_HOLD_NOTICE,
+  todayHoursLabel,
 } from "./pickup"
 export type { PickupCodeCheck, PickupCodeState } from "./pickup"
 export { collectBy, collectByLabel, HOLD_REMINDERS, holdReminderDue, PERISHABLE_HOLD_OPEN_DAYS, PICKUP_HOLD_OPEN_DAYS } from "./pickup-hold"
