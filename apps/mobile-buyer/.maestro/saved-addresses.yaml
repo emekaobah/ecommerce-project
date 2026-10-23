@@ -14,9 +14,9 @@ env:
 # Another buyer may be signed in from an earlier flow.
 - runFlow:
     when:
-      visible: "Sign out"
+      visible: "Sign out.*"
     commands:
-      - tapOn: "Sign out"
+      - tapOn: "Sign out.*"
       - extendedWaitUntil:
           visible: "Sign in"
           timeout: 15000
@@ -26,7 +26,7 @@ env:
     env:
       BUYER_EMAIL: ${BUYER_EMAIL}
       BUYER_PASSWORD: ${BUYER_PASSWORD}
-- tapOn: "Addresses"
+- tapOn: "Addresses.*"
 - extendedWaitUntil:
     visible: "No saved addresses"
     timeout: 15000
@@ -124,7 +124,7 @@ env:
 # Delete it again, leaving the buyer as the flow found them.
 - back
 - tapOn: "Account"
-- tapOn: "Addresses"
+- tapOn: "Addresses.*"
 - tapOn: "Delete"
 # The sheet names the address; its red Delete, not the link on the card behind it.
 - extendedWaitUntil:

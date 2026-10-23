@@ -13,9 +13,9 @@ env:
 - tapOn: "Account"
 - runFlow:
     when:
-      visible: "Sign out"
+      visible: "Sign out.*"
     commands:
-      - tapOn: "Sign out"
+      - tapOn: "Sign out.*"
       - extendedWaitUntil:
           notVisible: "Sign out"
           timeout: 15000
