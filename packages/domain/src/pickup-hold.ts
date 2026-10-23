@@ -57,13 +57,25 @@ export function holdReminderDue(
   return middle && today >= dayOf(middle) ? "half_way" : null
 }
 
+/** When a hold ends, as its time and its day: "6pm", "Thu 15 Oct"; no day on the last day itself. */
+function holdEnd(collectBy: string, now: Date, timeZone: string) {
+  const instant = Date.parse(collectBy)
+  const lastDay = dateIn(instant, timeZone) === dateIn(now.getTime(), timeZone)
+  return { time: timeLabel(instant, timeZone), day: lastDay ? null : dateLabel(instant, timeZone) }
+}
+
 /**
- * "Collect by Thu 15 Oct, 6pm", or "Collect by 6pm today" on the last day: when a pickup order's
- * hold ends (`collectBy`, ISO 8601), in the region's timezone, as its buyer and the shop's staff read it.
+ * "Collect by 6pm, Thu 15 Oct", or "Collect by 6pm today" on the last day: when a pickup order's
+ * hold ends (`collectBy`, ISO 8601), in the region's timezone, as its buyer's push and email and
+ * the shop's staff read it.
  */
 export function collectByLabel(collectBy: string, now: Date, timeZone: string): string {
-  const instant = Date.parse(collectBy)
-  const time = timeLabel(instant, timeZone)
-  if (dateIn(instant, timeZone) === dateIn(now.getTime(), timeZone)) return `Collect by ${time} today`
-  return `Collect by ${dateLabel(instant, timeZone)}, ${time}`
+  const { time, day } = holdEnd(collectBy, now, timeZone)
+  return day ? `Collect by ${time}, ${day}` : `Collect by ${time} today`
+}
+
+/** "Collect by Sat 25 Oct, 6pm", or "Collect by 6pm today" on the last day: the hold as the pickup code shows it, day first. */
+export function pickupCodeCollectByLabel(collectBy: string, now: Date, timeZone: string): string {
+  const { time, day } = holdEnd(collectBy, now, timeZone)
+  return day ? `Collect by ${day}, ${time}` : `Collect by ${time} today`
 }

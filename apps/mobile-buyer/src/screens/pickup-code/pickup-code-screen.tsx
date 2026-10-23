@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { collectByLabel, orderNumber, todayHoursLabel } from '@oja/domain';
+import { orderNumber, pickupCodeCollectByLabel, todayHoursLabel } from '@oja/domain';
 import { Band, EmptyState, ErrorState, Icon, PressableSurface, Skeleton, StatusChip, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -89,7 +89,7 @@ function PickupCodeView({ order, code, groupId }: Readonly<{ order: SellerOrder;
     void Linking.openURL(Platform.OS === 'ios' ? `maps:?q=${encodeURIComponent(query)}` : `geo:0,0?q=${encodeURIComponent(query)}`);
   const hours = todayHoursLabel(pickup.today);
   // Collect by when, with today's hours under it; today's hours alone if the hold has no end.
-  const when = collectBy ? collectByLabel(collectBy.at, new Date(), collectBy.time_zone) : hours;
+  const when = collectBy ? pickupCodeCollectByLabel(collectBy.at, new Date(), collectBy.time_zone) : hours;
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + theme.space[6] }}>
