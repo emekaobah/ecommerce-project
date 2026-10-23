@@ -166,7 +166,16 @@ export { orderBuyerLine } from "./order-buyer-line"
 export type { BuyerLineOrder } from "./order-buyer-line"
 export { orderPlacedSteps } from "./order-placed-steps"
 export type { PlacedOrder, PlacedStep } from "./order-placed-steps"
-export { courierChangedNote, deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
+export {
+  courierChangedNote,
+  deliveryChoices,
+  deliveryDay,
+  deliveryEstimate,
+  deliveryStartsAt,
+  etaCountedFrom,
+  orderArrival,
+  preparedWhenOpens,
+} from "./delivery"
 export type { DeliveryChoice, DeliveryRate, DeliveryTag, OrderDelivery } from "./delivery"
 export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from "./perishable"
 export { pushTarget } from "./push"

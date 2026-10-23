@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test"
-import { courierChangedNote, deliveryChoices, deliveryEstimate, deliveryStartsAt, etaCountedFrom, orderArrival } from "./delivery"
+import {
+  courierChangedNote,
+  deliveryChoices,
+  deliveryDay,
+  deliveryEstimate,
+  deliveryStartsAt,
+  etaCountedFrom,
+  orderArrival,
+  preparedWhenOpens,
+} from "./delivery"
 import type { ShopHours } from "./shop-hours"
 
 const rate = (id: string, amount: number, delivery_eta_time: string, tracking_level = 5) => ({
@@ -50,6 +59,31 @@ describe("deliveryChoices", () => {
 
   test("no rates, no choices", () => {
     expect(deliveryChoices([])).toEqual([])
+  })
+})
+
+describe("deliveryDay", () => {
+  const now = new Date("2026-10-04T09:00:00+01:00")
+  const lagos = "Africa/Lagos"
+
+  test.each([
+    ["later today", "2026-10-04T18:00:00+01:00", "Today"],
+    ["tomorrow", "2026-10-05T12:00:00+01:00", "Tomorrow"],
+    ["a later date by weekday and date", "2026-10-07T12:00:00+01:00", "Wed 7 Oct"],
+  ])("names %s, as a courier option's title does", (_, eta, label) => {
+    expect(deliveryDay(eta, now, lagos)).toBe(label)
+  })
+})
+
+describe("preparedWhenOpens", () => {
+  const now = new Date("2026-10-03T20:00:00+01:00")
+
+  test("says when a closed shop prepares the order", () => {
+    expect(preparedWhenOpens("2026-10-05T10:00:00+01:00", now, "Africa/Lagos")).toBe("Prepared when it opens 10am Mon")
+  })
+
+  test("says only that it's prepared at opening when the time isn't known", () => {
+    expect(preparedWhenOpens(null, now, "Africa/Lagos")).toBe("Prepared when it opens")
   })
 })
 
