@@ -31,7 +31,8 @@ export function CodeBoxes({ label, value, onChangeText, length = 6, error, disab
 
   return (
     <View style={{ gap: theme.space[1] }}>
-      <Text variant="meta" weight="bold" tone="muted">
+      {/* The input carries the label, so it is read once, with the field. */}
+      <Text variant="meta" weight="bold" tone="muted" accessibilityElementsHidden importantForAccessibility="no">
         {label}
       </Text>
       <View style={[styles.row, { gap: theme.space[2] }]}>
