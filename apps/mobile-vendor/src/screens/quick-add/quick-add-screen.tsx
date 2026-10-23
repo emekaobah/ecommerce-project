@@ -1,20 +1,22 @@
 import { formatMoney, quickAddForm, type QuickAddFormErrors } from '@oja/domain';
-import { Button, ErrorState, LoadingState, StatusChip, Text, useTheme } from '@oja/ui';
+import { Button, ErrorState, InlineNote, Skeleton, StatusChip, Text, TextField, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { refusedWith } from '@/api/errors';
 import { useBarcodeLookup, useQuickAdd, type BarcodeLookup } from '@/api/quick-add';
-import { Field } from '@/components/field';
 import { useSession } from '@/session/session-store';
 
 import { PhotoCapture, type ProductPhoto } from './photo-capture';
 
 /**
- * Quick-add after a scan (#38). A product the catalogue has: staff set the shop's price and
- * stock. One it lacks: they also photograph it and name it, and it goes to review. A product
- * the shop already sells can't be changed here: that is for owners and managers.
+ * Quick-add after a scan (#38, catalogue v-shop #2). A product the catalogue has: staff set the
+ * shop's price and stock, and it keeps the catalogue's photos. One it lacks: they also
+ * photograph it and name it, and it goes to review. A product the shop already sells, or one
+ * still in review, can't be added here.
  */
 export function QuickAddScreen() {
   const router = useRouter();
@@ -25,15 +27,21 @@ export function QuickAddScreen() {
 
   const content = () => {
     if (lookup.error) {
-      return <ErrorState title="Couldn't look the barcode up" body="Check your connection and try again." error={lookup.error} onRetry={() => void lookup.refetch()} />;
+      return (
+        <ErrorState
+          title="Couldn't look the barcode up"
+          body="Check your connection and try again. Nothing has been added to your shop."
+          error={lookup.error}
+          onRetry={() => void lookup.refetch()}
+        />
+      );
     }
-    if (!lookup.data) return <LoadingState />;
+    if (!lookup.data) return <QuickAddSkeleton />;
     const { product, offer, currency_code } = lookup.data;
     if (product && offer) {
       return (
         <Notice
-          chip={<StatusChip label="Already in your shop" tone="info" />}
-          title={product.title}
+          product={<ProductHeader lookup={lookup.data} chip={<StatusChip label="Already in your shop" tone="info" icon={null} />} />}
           lines={[
             `Selling at ${offer.price === null ? 'no price yet' : formatMoney(offer.price, currency_code)}` +
               (offer.stock === null ? '.' : `, ${offer.stock} in stock.`),
@@ -46,8 +54,7 @@ export function QuickAddScreen() {
     if (product?.in_review) {
       return (
         <Notice
-          chip={<StatusChip label="In review" tone="new" icon="clock" />}
-          title={product.title}
+          product={<ProductHeader lookup={lookup.data} chip={<StatusChip label="In review" tone="new" icon="clock" />} />}
           lines={['This product is still being reviewed for the catalogue. Add it once it is approved.']}
           onScanAgain={scanAgain}
         />
@@ -64,25 +71,68 @@ export function QuickAddScreen() {
   );
 }
 
-function Notice({
-  chip,
-  title,
-  lines,
-  onScanAgain,
-}: Readonly<{ chip: React.ReactNode; title: string; lines: string[]; onScanAgain: () => void }>) {
+/** The catalogue's 96 px product photo tile: two standard controls high. */
+const productTile = (theme: ReturnType<typeof useTheme>) => theme.control.md * 2;
+
+/** The photo tile, chip, name and barcode while the barcode is looked up. */
+function QuickAddSkeleton() {
+  const theme = useTheme();
+  const tile = productTile(theme);
+  return (
+    <View style={{ padding: theme.space[4], gap: theme.space[4] }}>
+      <View style={[styles.row, { gap: theme.space[3] }]}>
+        <Skeleton width={tile} height={tile} radius="lg" />
+        <View style={[styles.fill, { gap: theme.space[2] }]}>
+          <Skeleton width="60%" height={theme.space[6]} radius="pill" />
+          <Skeleton width="80%" height={theme.space[4]} radius="pill" />
+        </View>
+      </View>
+      <Skeleton height={theme.control.md} radius="md" />
+      <Skeleton height={theme.control.md} radius="md" />
+    </View>
+  );
+}
+
+/** The catalogue's product: its photo tile, a chip, its name and its barcode. */
+function ProductHeader({ lookup, chip }: Readonly<{ lookup: BarcodeLookup; chip: ReactNode }>) {
+  const theme = useTheme();
+  const tile = productTile(theme);
+  const { product, barcode } = lookup;
+  return (
+    <View style={[styles.row, { gap: theme.space[3] }]}>
+      <View style={{ width: tile, height: tile, borderRadius: theme.radius.lg, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+        {product?.thumbnail ? (
+          <Image source={{ uri: product.thumbnail }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityIgnoresInvertColors />
+        ) : null}
+      </View>
+      <View style={[styles.fill, styles.start, { gap: theme.space[1] }]}>
+        {chip}
+        <Text variant="strong" style={{ marginTop: theme.space[1] }}>
+          {product?.title}
+        </Text>
+        <Text variant="meta" tone="muted" tabular>{`Barcode ${barcode}`}</Text>
+      </View>
+    </View>
+  );
+}
+
+function Notice({ product, lines, onScanAgain }: Readonly<{ product: ReactNode; lines: string[]; onScanAgain: () => void }>) {
   const theme = useTheme();
   const router = useRouter();
   return (
-    <View style={{ flex: 1, padding: theme.space[6], gap: theme.space[4] }}>
-      {chip}
-      <Text variant="titleNamed">{title}</Text>
-      {lines.map((line) => (
-        <Text key={line} tone="muted">
-          {line}
-        </Text>
-      ))}
-      <Button label="Scan another" onPress={onScanAgain} />
-      <Button label="Back to orders" variant="link" onPress={() => router.dismissTo('/')} />
+    <View style={styles.fill}>
+      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }}>
+        {product}
+        {lines.map((line) => (
+          <Text key={line} tone="muted">
+            {line}
+          </Text>
+        ))}
+      </ScrollView>
+      <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2], gap: theme.space[2] }}>
+        <Button label="Scan another" icon="scan" size="main" onPress={onScanAgain} />
+        <Button label="Back to orders" variant="secondary" onPress={() => router.dismissTo('/')} />
+      </SafeAreaView>
     </View>
   );
 }
@@ -120,6 +170,7 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
     }
     setErrors({});
     const { mime_type, data } = photo ?? {};
+    const name = lookup.product?.title ?? form.value.title ?? lookup.barcode;
     quickAdd.mutate(
       {
         barcode: lookup.barcode,
@@ -131,7 +182,13 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
         onSuccess: ({ result }) =>
           router.replace({
             pathname: '/quick-add/done',
-            params: { result, title: lookup.product?.title ?? form.value.title ?? lookup.barcode },
+            params: {
+              result,
+              title: name,
+              price: formatMoney(form.value.price, lookup.currency_code),
+              stock: form.value.stock === null ? '' : String(form.value.stock),
+              thumbnail: lookup.product?.thumbnail ?? photo?.uri ?? '',
+            },
           }),
       },
     );
@@ -139,67 +196,71 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding: theme.space[6], gap: theme.space[4] }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }} keyboardShouldPersistTaps="handled">
         {lookup.product ? (
-          <View style={{ flexDirection: 'row', gap: theme.space[4], alignItems: 'center' }}>
-            {lookup.product.thumbnail ? (
-              <Image
-                source={{ uri: lookup.product.thumbnail }}
-                style={[styles.thumbnail, { borderRadius: theme.radius.md, backgroundColor: theme.colors.productTile }]}
-                contentFit="contain"
-                accessibilityIgnoresInvertColors
-              />
-            ) : null}
-            <View style={styles.fill}>
-              <Text variant="heading">{lookup.product.title}</Text>
-              <Text tone="muted">Barcode {lookup.barcode}</Text>
-            </View>
-          </View>
+          <ProductHeader lookup={lookup} chip={<StatusChip label="Found in catalogue" tone="success" icon="check" />} />
         ) : (
-          <View style={{ gap: theme.space[2] }}>
-            <StatusChip label="New to the catalogue" tone="info" />
+          <View style={[styles.start, { gap: theme.space[2] }]}>
+            <StatusChip label="New to the catalogue" tone="info" icon={null} />
             <Text tone="muted">
               {`The catalogue doesn't have barcode ${lookup.barcode}. Photograph it and name it: it is reviewed before buyers see it, and your price applies once it is approved.`}
             </Text>
             {photo ? (
               <Image
                 source={{ uri: photo.uri }}
-                style={[styles.photo, { borderRadius: theme.radius.md, backgroundColor: theme.colors.productTile }]}
+                style={[styles.photo, { borderRadius: theme.radius.lg, backgroundColor: theme.colors.productTile }]}
                 contentFit="contain"
                 accessibilityLabel="The product's photo"
               />
             ) : null}
-            <Button label={photo ? 'Retake photo' : 'Take photo'} variant="secondary" onPress={() => setCapturing(true)} />
-            {errors.photo ? <Text tone="danger">{errors.photo}</Text> : null}
-            <Field testID="title" label="Product name" placeholder="As on the pack, with its size" value={title} onChangeText={setTitle} error={errors.title} />
+            <Button
+              label={photo ? 'Retake photo' : 'Take photo'}
+              icon="camera"
+              variant="secondary"
+              style={styles.stretch}
+              onPress={() => setCapturing(true)}
+            />
+            {errors.photo ? <InlineNote>{errors.photo}</InlineNote> : null}
+            <View style={styles.stretch}>
+              <TextField testID="title" label="Product name" hint="As on the pack, with its size" value={title} onChangeText={setTitle} error={errors.title} />
+            </View>
           </View>
         )}
-        <Field
+        <TextField
           testID="price"
-          label={`Your price (${lookup.currency_code.toUpperCase()})`}
+          label="Your price"
+          placeholder={formatMoney(0, lookup.currency_code)}
           keyboardType="decimal-pad"
           value={price}
           onChangeText={setPrice}
           error={errors.price}
         />
-        <Field
+        <TextField
           testID="stock"
           label="In stock"
-          placeholder="Leave empty if you don't count it"
+          hint="Leave empty if you don't count it"
           keyboardType="number-pad"
           value={stock}
           onChangeText={setStock}
           error={errors.stock}
         />
-        {quickAdd.error ? <Text tone="danger">{quickAdd.error.message}</Text> : null}
-        <Button label={newProduct ? 'Send for review' : 'Add to shop'} onPress={submit} loading={quickAdd.isPending} />
       </ScrollView>
+      <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2], gap: theme.space[2], backgroundColor: theme.colors.bg }}>
+        {quickAdd.error ? (
+          <InlineNote>
+            {refusedWith(quickAdd.error, [400, 409]) ?? "Couldn't add it to your shop. Check your connection and try again."}
+          </InlineNote>
+        ) : null}
+        <Button label={newProduct ? 'Send for review' : 'Add to my shop'} size="main" onPress={submit} loading={quickAdd.isPending} />
+      </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  thumbnail: { width: 72, height: 72 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  start: { alignItems: 'flex-start' },
+  stretch: { alignSelf: 'stretch' },
   photo: { width: '100%', aspectRatio: 1 },
 });

@@ -61,11 +61,13 @@ export default function AppLayout() {
         <Stack.Screen name="orders/[id]/packed" options={{ headerBackVisible: false }} />
         {/* In-store pickup (#12): scan or type the buyer's code, then hand the order over. */}
         <Stack.Screen name="orders/[id]/collect" />
+        <Stack.Screen name="orders/[id]/hand-over" options={formSheet} />
         {/* Quick-add (#38): the scanner fills the screen, then the product's form and its confirmation. */}
         <Stack.Screen name="quick-add/index" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="quick-add/[barcode]" />
         <Stack.Screen name="quick-add/done" options={{ headerBackVisible: false }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="pause-orders" options={formSheet} />
         {/* "Which shop today?" titles the page; the bar keeps only a bare back chevron. */}
         <Stack.Screen name="switch-shop" options={{ title: '', headerBackButtonDisplayMode: 'minimal' }} />
       </Stack>

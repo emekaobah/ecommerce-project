@@ -48,9 +48,11 @@ env:
 # The courier confirms the pickup a few seconds after booking; the order refreshes every minute,
 # so allow two refreshes and a slow simulator.
 - extendedWaitUntil:
-    visible: "Handed to courier"
+    visible: "Courier on the way"
     timeout: 150000
+# Handed to courier asks first: the rider may not have the parcel yet.
 - tapOn: "Handed to courier"
+- tapOn: "Yes, handed over"
 - extendedWaitUntil:
-    visible: "Handed over by .*. Waiting for the courier to confirm the pickup."
+    visible: "Handed to courier, done, By .*"
     timeout: 15000
