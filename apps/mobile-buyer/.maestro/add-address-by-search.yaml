@@ -17,7 +17,7 @@ env:
     commands:
       - tapOn: "Sign out.*"
       - extendedWaitUntil:
-          notVisible: "Sign out"
+          notVisible: "Sign out.*"
           timeout: 15000
 - tapOn: "Home"
 - tapOn: "Ofada Rice 5kg.*"

@@ -19,7 +19,7 @@ env:
     commands:
       - tapOn: "Sign out.*"
       - extendedWaitUntil:
-          notVisible: "Sign out"
+          notVisible: "Sign out.*"
           timeout: 15000
 
 # One item from each shop.
