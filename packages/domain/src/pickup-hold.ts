@@ -1,4 +1,5 @@
-import { afterOpenDays, dateIn, dayLabel, isOpenAt, timeLabel, type ShopHours } from "./shop-hours"
+import { dateLabel } from "./date-label"
+import { afterOpenDays, dateIn, isOpenAt, timeLabel, type ShopHours } from "./shop-hours"
 
 /**
  * How long a pickup order waits at the counter (#32, docs/design.md → Pickup, ADR 0004): from
@@ -64,5 +65,5 @@ export function collectByLabel(collectBy: string, now: Date, timeZone: string): 
   const instant = Date.parse(collectBy)
   const time = timeLabel(instant, timeZone)
   if (dateIn(instant, timeZone) === dateIn(now.getTime(), timeZone)) return `Collect by ${time} today`
-  return `Collect by ${dayLabel(instant, timeZone, { weekday: "short", day: "numeric", month: "short" })}, ${time}`
+  return `Collect by ${dateLabel(instant, timeZone)}, ${time}`
 }

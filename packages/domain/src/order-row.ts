@@ -1,3 +1,4 @@
+import { dateLabel } from "./date-label"
 import { orderNumber } from "./order-number"
 
 /** What an order row's meta line reads from its checkout. */
@@ -27,18 +28,7 @@ function placedOn(placed: Date, now: Date, timeZone: string) {
   if (placedDay === today) return "Today"
   const daysAgo = (Date.parse(today) - Date.parse(placedDay)) / DAY_MS
   const sameYear = placedDay.slice(0, 4) === today.slice(0, 4)
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    weekday: daysAgo < WEEKDAY_DAYS ? "short" : undefined,
-    day: "numeric",
-    month: "short",
-    year: sameYear ? undefined : "numeric",
-  }).formatToParts(placed)
-  // en-GB puts a comma after the weekday ("Sat, 18 Oct"); the app reads "Sat 18 Oct".
-  return parts
-    .filter((part) => part.type !== "literal")
-    .map((part) => part.value)
-    .join(" ")
+  return dateLabel(placed, timeZone, { weekday: daysAgo < WEEKDAY_DAYS, year: !sameYear })
 }
 
 /** An order row's meta line: "Today · 4 items · OJ-2410". */

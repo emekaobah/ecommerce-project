@@ -4,6 +4,7 @@
  * in the shop's region's timezone.
  */
 
+import { dateLabel } from "./date-label"
 import type { StatusChipView } from "./status"
 
 export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const
@@ -344,12 +345,6 @@ export function timeLabel(instant: number, timeZone: string): string {
   return `${twelve}${minutes}${hour < 12 ? "am" : "pm"}`
 }
 
-export const dayLabel = (instant: number, timeZone: string, options: Intl.DateTimeFormatOptions) => {
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, ...options }).formatToParts(instant)
-  const part = (type: string) => parts.find((p) => p.type === type)?.value
-  return [part("weekday"), part("day"), part("month")].filter(Boolean).join(" ")
-}
-
 /**
  * What the buyer app shows for the shop's status (docs/design.md): "Open · closes 7pm",
  * "Closed · opens 8am Mon", "Closed until Tue 14 Oct", in the region's timezone.
@@ -361,7 +356,7 @@ export function shopStatusLabel(status: ShopStatus, now: Date, timeZone: string)
   const instant = Date.parse(at)
   const sameDay = dateIn(instant, timeZone) === dateIn(now.getTime(), timeZone)
   if (status.state === "closed_until") {
-    return `Closed until ${sameDay ? timeLabel(instant, timeZone) : dayLabel(instant, timeZone, { weekday: "short", day: "numeric", month: "short" })}`
+    return `Closed until ${sameDay ? timeLabel(instant, timeZone) : dateLabel(instant, timeZone)}`
   }
   return `Closed · opens ${openingLabel(at, now, timeZone)}`
 }
@@ -384,6 +379,6 @@ export function openingLabel(opensAt: string, now: Date, timeZone: string): stri
   const time = timeLabel(instant, timeZone)
   if (dateIn(instant, timeZone) === dateIn(now.getTime(), timeZone)) return time
   const withinWeek = instant - now.getTime() < 6 * DAY_MS
-  const day = dayLabel(instant, timeZone, withinWeek ? { weekday: "short" } : { weekday: "short", day: "numeric", month: "short" })
+  const day = dateLabel(instant, timeZone, { date: !withinWeek })
   return `${time} ${day}`
 }

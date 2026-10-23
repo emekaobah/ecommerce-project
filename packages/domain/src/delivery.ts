@@ -3,6 +3,7 @@
  * cheapest, the fastest and the best value, with best value preselected (docs/design.md).
  */
 
+import { dateLabel } from "./date-label"
 import type { FulfilmentState } from "./fulfilment"
 import { nextOpening, type ShopHours } from "./shop-hours"
 
@@ -67,8 +68,7 @@ export function deliveryEstimate(etaTime: string, now: Date, timeZone: string): 
   const days = Math.round((Date.parse(dateIn(arrives, timeZone)) - Date.parse(dateIn(now, timeZone))) / DAY_MS)
   if (days <= 0) return "Arrives today"
   if (days === 1) return "Arrives tomorrow"
-  const date = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short", day: "numeric", month: "short" })
-  return `Arrives ${date.format(arrives).replace(",", "")}`
+  return `Arrives ${dateLabel(arrives, timeZone)}`
 }
 
 /**
