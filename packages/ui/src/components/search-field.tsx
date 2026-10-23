@@ -20,7 +20,8 @@ export type SearchFieldProps = {
 
 /**
  * The search field: a search icon, what's typed and a clear button once there is something to
- * clear. Raised, so it reads on the band and on a page; focused, an accent outline and ring.
+ * clear, outlined like any input, an accent outline and ring when focused. As a button on the
+ * band it has no outline.
  */
 export function SearchField({ value, onChangeText, placeholder, onSubmitEditing, autoFocus, editable = true, onPress }: Readonly<SearchFieldProps>) {
   const theme = useTheme()
@@ -52,7 +53,8 @@ export function SearchField({ value, onChangeText, placeholder, onSubmitEditing,
     <View
       style={[
         field,
-        focused ? { borderWidth: theme.line.input, borderColor: theme.colors.accent, boxShadow: focusRing(theme) } : null,
+        { borderWidth: theme.line.input, borderColor: focused ? theme.colors.accent : theme.colors.control },
+        focused ? { boxShadow: focusRing(theme) } : null,
       ]}
     >
       <Icon name="search" use="step" color={theme.colors.muted} />
