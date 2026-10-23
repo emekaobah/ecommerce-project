@@ -15,13 +15,18 @@ function calendarDay(instant: number, timeZone: string) {
   return { year: part("year"), month: part("month"), day: part("day") }
 }
 
+/** Milliseconds since the epoch for a Date, ms or ISO 8601 string. */
+function instantOf(at: Date | number | string): number {
+  if (typeof at === "string") return Date.parse(at)
+  return typeof at === "number" ? at : at.getTime()
+}
+
 /**
  * "Fri 23 Oct" for an instant (Date, ms or ISO 8601) in `timeZone`; `{ date: false }` reads
  * "Fri", `{ weekday: false }` "23 Oct", and `year: true` adds the year: "28 Dec 2025".
  */
 export function dateLabel(at: Date | number | string, timeZone: string, { weekday = true, date = true, year = false }: DateLabelParts = {}): string {
-  const instant = typeof at === "string" ? Date.parse(at) : typeof at === "number" ? at : at.getTime()
-  const day = calendarDay(instant, timeZone)
+  const day = calendarDay(instantOf(at), timeZone)
   const words: (string | number)[] = []
   if (weekday) words.push(WEEKDAY_SHORT[new Date(Date.UTC(day.year, day.month - 1, day.day)).getUTCDay()]!)
   if (date) words.push(day.day, MONTH_SHORT[day.month - 1]!)

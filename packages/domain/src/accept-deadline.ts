@@ -55,6 +55,15 @@ const openTimeLeft = (deadline: string, now: Date, hours: ShopHours | null): num
 
 export type AcceptTimeLeft = { label: string; accessibilityLabel: string; urgent: boolean }
 
+/** "5h 12m", "21h", "24m" or "Less than a minute" for a positive span of ms. */
+function timeLeftLabel(left: number): string {
+  if (left < MINUTE_MS) return "Less than a minute"
+  const hoursLeft = Math.floor(left / HOUR_MS)
+  const minutes = Math.floor((left % HOUR_MS) / MINUTE_MS)
+  if (!hoursLeft) return `${minutes}m`
+  return minutes ? `${hoursLeft}h ${minutes}m` : `${hoursLeft}h`
+}
+
 /**
  * The countdown staff see on a new order: "5h 12m left", "21h left", "24m left", or "Overdue".
  * With the shop's hours it counts open time, so it holds still overnight and turns urgent in
@@ -65,10 +74,7 @@ export function acceptTimeLeft(deadline: string, now: Date, hours: ShopHours | n
   const left = overdue ? 0 : openTimeLeft(deadline, now, hours)
   const urgent = left <= URGENT_MS
   if (overdue) return { label: "Overdue", accessibilityLabel: "Overdue to accept", urgent }
-  const hoursLeft = Math.floor(left / HOUR_MS)
-  const minutes = Math.floor((left % HOUR_MS) / MINUTE_MS)
-  const time =
-    left < MINUTE_MS ? "Less than a minute" : !hoursLeft ? `${minutes}m` : minutes ? `${hoursLeft}h ${minutes}m` : `${hoursLeft}h`
+  const time = timeLeftLabel(left)
   return {
     label: `${time} left`,
     accessibilityLabel: `${time} ${hours ? "of open time " : ""}left to accept`,

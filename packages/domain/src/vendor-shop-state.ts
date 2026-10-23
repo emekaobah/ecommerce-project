@@ -14,13 +14,17 @@ function stateLine(status: ShopStatus, now: Date, timeZone: string): string {
   return status.until ? `${closed} until ${at(status.until)}` : closed
 }
 
+/** The chip's word: "Open", "Paused" (closed by staff) or "Closed". */
+function chipLabel(status: ShopStatus): string {
+  if (status.state === "open") return "Open"
+  return status.state === "closed_until" && status.reason === "pause" ? "Paused" : "Closed"
+}
+
 /** "Mon 20 Oct · open until 7pm" with an Open chip: the shop's state as its staff read it now. */
 export function vendorShopState(hours: ShopHours, now: Date): VendorShopState {
   const status = shopStatus(hours, now)
-  const paused = status.state === "closed_until" && status.reason === "pause"
-  const label = status.state === "open" ? "Open" : paused ? "Paused" : "Closed"
   return {
-    chip: shopStatusChip(status.state, label),
+    chip: shopStatusChip(status.state, chipLabel(status)),
     line: `${dateLabel(now, hours.time_zone)} · ${stateLine(status, now, hours.time_zone)}`,
   }
 }

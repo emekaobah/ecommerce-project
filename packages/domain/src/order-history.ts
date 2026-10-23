@@ -168,7 +168,8 @@ export function orderGroupSummary(orders: readonly SummaryOrder[]): string {
   if (only && !others.length) {
     const [state, n] = only
     if (n === 1) return capitalise(state)
-    return capitalise(`${n === 2 ? "both" : `all ${countWord(n)}`} ${state}`)
+    const all = n === 2 ? "both" : `all ${countWord(n)}`
+    return capitalise(`${all} ${state}`)
   }
   return capitalise([...counts].map(([state, n]) => `${countWord(n)} ${state}`).join(", "))
 }

@@ -86,7 +86,8 @@ function clockLabel(time: string): string {
   const [hour, minute] = time.split(":").map(Number) as [number, number]
   if (hour === 24) return "midnight"
   const twelve = hour % 12 === 0 ? 12 : hour % 12
-  return `${twelve}${minute ? `:${String(minute).padStart(2, "0")}` : ""}${hour < 12 ? "am" : "pm"}`
+  const minutes = minute ? `:${String(minute).padStart(2, "0")}` : ""
+  return `${twelve}${minutes}${hour < 12 ? "am" : "pm"}`
 }
 
 /**
@@ -98,5 +99,6 @@ export function todayHoursLabel(today: DayHours | null): string | null {
   const { periods, closure } = today
   if (!periods.length) return closure?.note ? `Closed today · ${closure.note}` : "Closed today"
   if (periods.length === 1 && periods[0]!.opens === "00:00" && periods[0]!.closes === "24:00") return "Open 24 hours today"
-  return `Open today ${periods.map((p) => `${clockLabel(p.opens)}–${clockLabel(p.closes)}`).join(", ")}`
+  const ranges = periods.map((p) => `${clockLabel(p.opens)}–${clockLabel(p.closes)}`).join(", ")
+  return `Open today ${ranges}`
 }
