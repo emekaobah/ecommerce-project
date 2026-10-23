@@ -1,5 +1,6 @@
-import { Icon, ListRow, SwitchRow, useTheme } from '@oja/ui';
-import { useEffect, useRef } from 'react';
+import { reportError } from '@oja/expo-sentry';
+import { Icon, InlineNote, ListRow, SwitchRow, useTheme } from '@oja/ui';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, Linking, Platform } from 'react-native';
 
 import { setNewOrderAlertMode, useNewOrderAlertMode } from '@/alerts/new-order-alert-store';
@@ -8,18 +9,23 @@ import { createNewOrderChannel } from '@/push/new-order-channel';
 /**
  * "Full-screen new orders" (catalogue v-shop #4): on, a new order arriving while the app is open
  * takes over the screen; off, it shows as a banner. A setting of this phone, so it takes no shop.
- * On Android, a way into the system setting that lets the alarm ring through Do Not Disturb.
+ * A choice the phone couldn't keep flips back and says so. On Android, a way into the system
+ * setting that lets the alarm ring through Do Not Disturb.
  */
 export function NewOrderAlertSetting() {
   const mode = useNewOrderAlertMode();
+  const [notKept, setNotKept] = useState(false);
+  const choose = (on: boolean) => {
+    setNotKept(false);
+    setNewOrderAlertMode(on ? 'takeover' : 'banner').catch((error: unknown) => {
+      reportError(error, "Couldn't keep the new-order alert setting");
+      setNotKept(true);
+    });
+  };
   return (
     <>
-      <SwitchRow
-        label="Full-screen new orders"
-        description="Off shows a banner instead."
-        value={mode === 'takeover'}
-        onValueChange={(on) => void setNewOrderAlertMode(on ? 'takeover' : 'banner')}
-      />
+      <SwitchRow label="Full-screen new orders" description="Off shows a banner instead." value={mode === 'takeover'} onValueChange={choose} />
+      {notKept ? <InlineNote>{"Couldn't save that on this phone. Try again."}</InlineNote> : null}
       {Platform.OS === 'android' ? <DoNotDisturbAccess /> : null}
     </>
   );

@@ -1,5 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
-import { useSyncExternalStore } from 'react';
+import { keptValue } from '@/storage/kept-value';
 
 /**
  * How a new order shows while the app is open (#83): full screen, or as a banner. A setting of
@@ -7,40 +6,19 @@ import { useSyncExternalStore } from 'react';
  */
 export type NewOrderAlertMode = 'takeover' | 'banner';
 
-const KEY = 'new-order-alert';
+// Held outside React so the push handler can read it when a push arrives. Full screen until it
+// is read, or if it can't be: a new order still takes over the screen.
+const mode = keptValue<NewOrderAlertMode>('new-order-alert', 'takeover', {
+  parse: (stored) => (stored === 'banner' ? 'banner' : 'takeover'),
+  stringify: (value) => value,
+});
 
-// Held outside React so the push handler can read it when a push arrives.
-let mode: NewOrderAlertMode = 'takeover';
-const listeners = new Set<() => void>();
+export const getNewOrderAlertMode = mode.get;
 
-function setMode(next: NewOrderAlertMode) {
-  mode = next;
-  listeners.forEach((listener) => listener());
-}
+/** Restores the phone's choice. */
+export const hydrateNewOrderAlertMode = mode.hydrate;
 
-export function getNewOrderAlertMode(): NewOrderAlertMode {
-  return mode;
-}
+/** Keeps the phone's choice; rejects, with the choice as it was, when the phone can't keep it. */
+export const setNewOrderAlertMode = mode.save;
 
-/** Restores the phone's choice; full screen until it is read, or if it can't be. */
-export async function hydrateNewOrderAlertMode(): Promise<void> {
-  try {
-    if ((await SecureStore.getItemAsync(KEY)) === 'banner') setMode('banner');
-  } catch {
-    // An unreadable keychain keeps the default: a new order still takes over the screen.
-  }
-}
-
-export async function setNewOrderAlertMode(next: NewOrderAlertMode): Promise<void> {
-  setMode(next);
-  await SecureStore.setItemAsync(KEY, next);
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function useNewOrderAlertMode(): NewOrderAlertMode {
-  return useSyncExternalStore(subscribe, () => mode);
-}
+export const useNewOrderAlertMode = mode.use;
