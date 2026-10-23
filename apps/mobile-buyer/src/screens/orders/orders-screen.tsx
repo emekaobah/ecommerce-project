@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
 import { formatMoney, historyEntries, orderRowMeta, type HistoryEntry } from '@oja/domain';
-import { EmptyState, ErrorState, OrderRow, Skeleton, Text, useTheme, useToast } from '@oja/ui';
+import { EmptyState, ErrorState, OrderRow, SearchField, Skeleton, Text, useTheme, useToast } from '@oja/ui';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, SectionList, StyleSheet, View } from 'react-native';
@@ -12,8 +12,6 @@ import { SignInPrompt } from '@/components/sign-in-prompt';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { openOrderGroup } from '@/navigation';
-
-import { SearchField } from './search-field';
 
 type Entry = HistoryEntry<OrderGroup, SellerOrder>;
 
