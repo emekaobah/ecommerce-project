@@ -39,8 +39,8 @@ export function PickScreen() {
   const recordPick = useRecordPick(id);
   const pack = usePackOrder(id);
   // A failed pack or tick in plain words; a pack the API refused (the order moved on) in its own.
-  const packFailure = useFailureMessage(pack.error, [400, 409], "Couldn't mark the order packed. Check your connection and try again.");
-  const tickFailure = useFailureMessage(recordPick.error, [], "Couldn't save that tick. Check your connection; the list shows what's saved.");
+  const packFailure = useFailureMessage(pack.error, "Couldn't mark the order packed. Check your connection and try again.");
+  const tickFailure = useFailureMessage(recordPick.error, "Couldn't save that tick. Check your connection; the list shows what's saved.");
 
   const markShort = (line: PickListLine) =>
     router.push({ pathname: '/orders/[id]/unavailable', params: { id, item: line.id } });

@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { isNotFound, refusedWith } from '@/api/errors';
+import { isNotFound, useFailureMessage } from '@/api/errors';
 import { useOrderGroup } from '@/api/orders';
 import {
   useRefund,
@@ -132,22 +132,17 @@ function Amount({ refund }: Readonly<{ refund: BuyerRefund }>) {
   );
 }
 
-/**
- * What a failed check or send says: the API words a refused account or a Paystack outage for
- * the buyer (400) and a refund that no longer needs an account (409); anything else is a
- * connection problem, never a raw error.
- */
-function problem(error: Error | null, fallback: string): string | null {
-  if (!error) return null;
-  return refusedWith(error, [400, 409]) ?? fallback;
-}
-
 function AccountForm({ refund }: Readonly<{ refund: BuyerRefund }>) {
   const theme = useTheme();
   const { userId } = useAuth();
   const banks = useRefundBanks(userId, refund.id);
   const resolve = useResolveRefundAccount(refund.id);
   const retry = useRetryRefund(userId, refund.id);
+  // A refused account or a Paystack outage (400) in the screen's words; a refund that no longer
+  // needs an account (409) in the API's.
+  const resolveProblem = useFailureMessage(resolve.error, "Couldn't check the account. Check your connection and try again.", {
+    400: "That account couldn't be checked. Check the bank and account number, and try again.",
+  });
   const [bankCode, setBankCode] = useState<string | null>(null);
   const [accountNumber, setAccountNumber] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -188,7 +183,6 @@ function AccountForm({ refund }: Readonly<{ refund: BuyerRefund }>) {
     );
   }
 
-  const resolveProblem = problem(resolve.error, "Couldn't check the account. Check your connection and try again.");
   return (
     <KeyboardAvoidingView style={[styles.fill, { backgroundColor: theme.colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }} keyboardShouldPersistTaps="handled">
@@ -264,7 +258,9 @@ function ConfirmAccount({
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const amount = formatMoney(refund.amount, refund.currency_code);
-  const sendProblem = problem(retry.error, "Couldn't send your refund. Check your connection and try again; nothing was sent.");
+  const sendProblem = useFailureMessage(retry.error, "Couldn't send your refund. Check your connection and try again; nothing was sent.", {
+    400: "Your refund couldn't be sent to that account. Check it and try again; nothing was sent.",
+  });
   return (
     <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }}>

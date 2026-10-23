@@ -6,6 +6,7 @@ import type { TypedClient } from "./types"
 export type OjaClient = TypedClient<Routes>
 
 export { ClientError }
+export { failureMessage, isRefusal } from "./failure-message"
 
 /**
  * A refused request, with the error response's whole JSON body, so an app reads a refusal's own

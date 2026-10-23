@@ -16,7 +16,8 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { SavedAddressRecord } from '@/api/addresses';
-import { refusalMessage, type Checkout, type CheckoutContact, type usePrepareCheckout } from '@/api/checkout';
+import type { Checkout, CheckoutContact, usePrepareCheckout } from '@/api/checkout';
+import { useFailureMessage } from '@/api/errors';
 import { AddressCard } from '@/components/address/address-card';
 import { AddressEntry } from '@/components/address/address-entry';
 import { AddressForm } from '@/components/address/address-form';
@@ -168,6 +169,9 @@ function SavedAddressPicker({
 }>) {
   const theme = useTheme();
   const busy = !!choosing;
+  const failure = useFailureMessage(error, "Couldn't use that address. Check your connection and try again.", {
+    400: "That address can't be used for this order. Check its pin, or try another.",
+  });
   return (
     <View style={{ gap: theme.space[2] }} accessibilityRole="radiogroup" accessibilityLabel="Delivery address">
       {addresses.map((saved) => {
@@ -182,7 +186,7 @@ function SavedAddressPicker({
           </RadioOption>
         );
       })}
-      {error ? <InlineNote>{refusalMessage(error) ?? "Couldn't use that address. Check your connection and try again."}</InlineNote> : null}
+      {failure ? <InlineNote>{failure}</InlineNote> : null}
       <Button label="Add a new address" variant="secondary" onPress={onAdd} disabled={busy} />
     </View>
   );
@@ -218,6 +222,9 @@ export function ContactDetails({
   onSave: (contact: CheckoutContact) => void;
 }>) {
   const theme = useTheme();
+  const failure = useFailureMessage(error, "Couldn't save your details. Check your connection and try again.", {
+    400: 'Give your name and phone number for the shop.',
+  });
   const config = getAddressConfig(countryCode);
   const fields = { ...config, fields: config.fields.filter((f) => CONTACT_FIELDS.has(f.key)) };
   const [values, setValues] = useState<AddressFormValues>({
@@ -250,7 +257,7 @@ export function ContactDetails({
             errors={errors}
             onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
           />
-          {error ? <InlineNote>{refusalMessage(error) ?? "Couldn't save your details. Check your connection and try again."}</InlineNote> : null}
+          {failure ? <InlineNote>{failure}</InlineNote> : null}
           <Button label="Continue" size="main" onPress={save} loading={saving} />
         </>
       ) : (

@@ -20,7 +20,7 @@ export function BookCourier({
   const theme = useTheme();
   const mutation = useBookLabel(orderId);
   const [options, setOptions] = useState<CourierOption[] | null>(null);
-  const failure = useFailureMessage(mutation.error, [400, 409], "Couldn't book the courier. Check your connection and try again.");
+  const failure = useFailureMessage(mutation.error, "Couldn't book the courier. Check your connection and try again.");
   const book = (courier?: CourierPick) =>
     mutation.mutate(courier, {
       onSuccess: ({ courier_options, fulfilment }) => {

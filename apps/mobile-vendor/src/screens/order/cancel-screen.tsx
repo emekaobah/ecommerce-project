@@ -38,8 +38,8 @@ export function CancelScreen() {
   const cancel = useCancelOrder(id);
   const failure = useFailureMessage(
     cancel.error,
-    [400, 403, 409],
-    "Couldn't cancel the order. Check your connection and try again; nothing has changed."
+    "Couldn't cancel the order. Check your connection and try again; nothing has changed.",
+    { 403: 'Only the owner or a manager can cancel an accepted order.' }
   );
   // The view measures itself below the header: without its height the keyboard covers the foot button.
   const headerHeight = useHeaderHeight();

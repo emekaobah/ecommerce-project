@@ -142,7 +142,9 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
   const theme = useTheme();
   const router = useRouter();
   const quickAdd = useQuickAdd();
-  const failure = useFailureMessage(quickAdd.error, [400, 409], "Couldn't add it to your shop. Check your connection and try again.");
+  const failure = useFailureMessage(quickAdd.error, "Couldn't add it to your shop. Check your connection and try again.", {
+    403: 'Only owners, managers and fulfilment staff can add products.',
+  });
   // The view measures itself below the header: without its height the keyboard covers the foot button.
   const headerHeight = useHeaderHeight();
   const newProduct = !lookup.product;

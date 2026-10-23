@@ -16,7 +16,6 @@ export function HandOverSheet() {
   const courier = order.data?.fulfilment.shipment?.courier_name ?? 'the courier';
   const failure = useFailureMessage(
     handOver.error,
-    [400, 409],
     "Couldn't record the handover. Check your connection and try again; nothing has changed."
   );
 

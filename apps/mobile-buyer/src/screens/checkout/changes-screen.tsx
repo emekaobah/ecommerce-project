@@ -4,8 +4,8 @@ import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
-import { checkoutKeys, refusalMessage, useCheckout, useStartPayment } from '@/api/checkout';
-import { isAlreadyPaid } from '@/api/errors';
+import { checkoutKeys, useCheckout, useStartPayment } from '@/api/checkout';
+import { isAlreadyPaid, useFailureMessage } from '@/api/errors';
 import { useDeliveringToId } from '@/delivering-to/delivering-to-provider';
 
 import { PAYMENT_RETURN_URL } from './review-step';
@@ -43,13 +43,17 @@ export function ChangesScreen() {
       },
     });
 
+  const failure = useFailureMessage(
+    startPayment.error && !isAlreadyPaid(startPayment.error) ? startPayment.error : null,
+    "Couldn't start the payment. You haven't been charged. Try again.",
+    { 400: "Something in your order needs a change before paying: check each shop's delivery. You haven't been charged." }
+  );
+
   return (
     <View>
-      {startPayment.error && !isAlreadyPaid(startPayment.error) ? (
+      {failure ? (
         <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[4], backgroundColor: theme.colors.raised }}>
-          <InlineNote>
-            {refusalMessage(startPayment.error) ?? "Couldn't start the payment. You haven't been charged. Try again."}
-          </InlineNote>
+          <InlineNote>{failure}</InlineNote>
         </View>
       ) : null}
       <ChangesSheet

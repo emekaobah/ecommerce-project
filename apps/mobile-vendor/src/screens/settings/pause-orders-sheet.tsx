@@ -40,8 +40,8 @@ export function PauseOrdersSheet() {
   };
   const failed = useFailureMessage(
     pause.error,
-    [400, 403],
-    "Couldn't pause orders. Check your connection and try again; the shop is still taking orders."
+    "Couldn't pause orders. Check your connection and try again; the shop is still taking orders.",
+    { 403: 'Only the owner or a manager can pause the shop.' }
   );
   const failure = failed ? <InlineNote>{failed}</InlineNote> : null;
 

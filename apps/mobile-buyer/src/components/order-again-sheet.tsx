@@ -1,4 +1,5 @@
 import { useAuth } from '@clerk/expo';
+import { ClientError } from '@oja/api-client';
 import {
   distanceLabel,
   formatMoney,
@@ -19,7 +20,7 @@ import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAddOfferLines } from '@/api/cart';
-import { refusedWith, useFailureMessage } from '@/api/errors';
+import { useFailureMessage } from '@/api/errors';
 import { useOrderAgain, type OrderAgain } from '@/api/orders';
 import { useShop } from '@/api/shops';
 import { useCartSession } from '@/cart/cart-provider';
@@ -114,7 +115,11 @@ function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Read
   const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
   const ticked = orderAgainTicked(lines, unticked, takesOrders);
   const summary = orderAgainSummary(lines, ticked);
-  const failure = useFailureMessage(add.error, [400], "Couldn't add these to your cart. Check your connection and try again.");
+  // The cart refused the lines (400): the shop stopped taking orders, or stock moved. The
+  // preview is fetched again, so the sheet shows what can be had now.
+  const failure = useFailureMessage(add.error, "Couldn't add these to your cart. Check your connection and try again.", {
+    400: "Something changed at the shop since. Check the lines and try again.",
+  });
 
   const toggle = (id: string) => {
     haptics.selection();
@@ -140,7 +145,7 @@ function Preview({ preview, currency, onAdded, onRefused, linesMaxHeight }: Read
         });
       },
       onError: (error) => {
-        if (refusedWith(error, [400])) onRefused();
+        if (error instanceof ClientError && error.status === 400) onRefused();
       },
     });
   };

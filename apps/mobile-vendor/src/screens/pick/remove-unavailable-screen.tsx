@@ -23,7 +23,7 @@ export function RemoveUnavailableScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const pickList = usePickList(id);
   const remove = useRemoveUnavailable(id);
-  const failure = useFailureMessage(remove.error, [400, 409], "Couldn't remove the items. Check your connection and try again.");
+  const failure = useFailureMessage(remove.error, "Couldn't remove the items. Check your connection and try again.");
   // Back to the pick list it came from, or to a fresh one when the summary was opened on its own.
   const toPicking = () => router.dismissTo({ pathname: '/orders/[id]/pick', params: { id } });
 

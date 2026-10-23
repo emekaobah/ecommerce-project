@@ -24,7 +24,7 @@ export function UnavailableSheet() {
   const pickList = usePickList(id);
   const line = pickList.data?.lines.find((l) => l.id === item);
   const mark = useMarkUnavailable(id);
-  const failure = useFailureMessage(mark.error, [400, 409], "Couldn't save that. Check your connection and try again.");
+  const failure = useFailureMessage(mark.error, "Couldn't save that. Check your connection and try again.");
   const [count, setCount] = useState<number | null>(null);
 
   const frame = (children: ReactNode) => (

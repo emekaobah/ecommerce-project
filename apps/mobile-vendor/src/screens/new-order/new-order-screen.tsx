@@ -62,7 +62,6 @@ export function NewOrderScreen() {
   const isNew = data?.fulfilment.state === 'new';
   const failed = useFailureMessage(
     accept.error,
-    [400, 409],
     `Couldn't accept order #${data?.display_id ?? ''}. Check your connection and try again.`
   );
   useAlarm(!answered && (isNew || (Boolean(order.error) && !data)));
