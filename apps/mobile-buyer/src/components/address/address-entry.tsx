@@ -11,7 +11,7 @@ import {
 } from '@oja/domain';
 import { Button, InlineNote, line, ListRow, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import * as Location from 'expo-location';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
 import {
@@ -47,6 +47,7 @@ async function currentPosition(): Promise<Pin | null> {
  * fills the country's form; then confirm the pin on the map, whose sheet takes the rider's
  * landmark and the courier's phone. "Enter manually" is the plain form, but the pin is still
  * confirmed before saving. `onSave` gets the confirmed pin once the whole form is valid.
+ * `locateOnOpen` starts with the current location, for a buyer who chose it before opening this.
  */
 export function AddressEntry({
   lookup,
@@ -63,6 +64,7 @@ export function AddressEntry({
   saveError,
   saveLabel = 'Confirm address',
   stepLabel,
+  locateOnOpen = false,
   children,
 }: Readonly<{
   lookup: LookupFor;
@@ -83,6 +85,8 @@ export function AddressEntry({
   saveLabel?: string;
   /** "Step 1 of 3", on the map at checkout. */
   stepLabel?: string;
+  /** Locate the buyer as soon as the entry opens, as tapping "Use my current location" does. */
+  locateOnOpen?: boolean;
   /** Shown above the save button, e.g. whether to keep the address for next time. */
   children?: ReactNode;
 }>) {
@@ -90,7 +94,7 @@ export function AddressEntry({
   const [mode, setMode] = useState<'search' | 'form'>(values.address_1 ? 'form' : 'search');
   const [pinRequest, setPinRequest] = useState<PinRequest | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
+  const [locating, setLocating] = useState(locateOnOpen);
 
   /** A new place: its address fills the form, and the old pin no longer marks it. */
   const fill = (place: LookedUpPlace | null) => {
@@ -120,9 +124,8 @@ export function AddressEntry({
   };
 
   const addressAt = useAddressAt(lookup);
-  const locateMe = async () => {
-    setNotice(null);
-    setLocating(true);
+  /** Fills the form from where the buyer is; `locating` is already on. */
+  const locate = async () => {
     try {
       const here = await currentPosition();
       if (!here) {
@@ -138,6 +141,16 @@ export function AddressEntry({
       setLocating(false);
     }
   };
+  const locateMe = () => {
+    setNotice(null);
+    setLocating(true);
+    void locate();
+  };
+  // Opened to locate: `locating` starts on, so the button shows it before the permission prompt.
+  const locateOnce = useEffectEvent(() => void locate());
+  useEffect(() => {
+    if (locateOnOpen) locateOnce();
+  }, [locateOnOpen]);
 
   /** The map for a pin the buyer places by hand: where they are, else their state, else the country. */
   const placePinByHand = async () => {
@@ -178,7 +191,7 @@ export function AddressEntry({
           <Button
             label="Use my current location"
             variant="secondary"
-            onPress={() => void locateMe()}
+            onPress={locateMe}
             loading={locating}
           />
           <Button label="Can't find it? Enter manually" variant="link" onPress={() => setMode('form')} />

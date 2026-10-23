@@ -31,8 +31,8 @@ async function rememberAsked(userId: string): Promise<void> {
 
 /**
  * "Where should we deliver?": a sheet over Home for a signed-in buyer with no saved address,
- * asked once on this phone. Searching or using the current location both open the address
- * entry, which offers them; "Enter it later" closes it. A guest's band asks them to sign in instead.
+ * asked once on this phone. Searching opens the address entry at its search; using the current
+ * location opens it locating the buyer, the quick path. "Enter it later" closes it. A guest's band asks them to sign in instead.
  */
 export function AddressPrompt() {
   const { userId } = useAuth();
@@ -64,6 +64,10 @@ export function AddressPrompt() {
     close();
     router.push('/addresses/edit');
   };
+  const useLocation = () => {
+    close();
+    router.push({ pathname: '/addresses/edit', params: { locate: '1' } });
+  };
 
   return (
     <SheetModal visible={visible} onClose={close}>
@@ -72,7 +76,7 @@ export function AddressPrompt() {
         message="We'll show the shops nearest to it first."
         actions={
           <>
-            <Button label="Use my current location" icon="locate" size="main" onPress={enterAddress} />
+            <Button label="Use my current location" icon="locate" size="main" onPress={useLocation} />
             <Button label="Enter it later" variant="secondary" onPress={close} />
           </>
         }>
