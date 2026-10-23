@@ -1,11 +1,18 @@
 import { ratingSummary, type Rating, type ReviewKind } from '@oja/domain';
-import { Button, Icon, Text, useTheme } from '@oja/ui';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Button, Icon, PressableSurface, Skeleton, Text, useTheme } from '@oja/ui';
+import { StyleSheet, View } from 'react-native';
 
 import { REVIEW_PREVIEW_COUNT, useReviewPreview, type PublishedReview } from '@/api/reviews';
 import { openReviews } from '@/navigation';
 
 const MAX_STARS = 5;
+
+const dayMonth = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+
+/** When a review was written, as its card shows it: "12 Oct". */
+export function reviewDate(at: string | Date): string {
+  return dayMonth.format(new Date(at));
+}
 
 /** A rating out of five as stars, read out as a number; half a star or more rounds up. */
 export function Stars({ rating }: Readonly<{ rating: number }>) {
@@ -16,7 +23,7 @@ export function Stars({ rating }: Readonly<{ rating: number }>) {
       accessible
       accessibilityRole="image"
       accessibilityLabel={`${rating.toFixed(1)} out of ${MAX_STARS} stars`}
-      style={styles.row}>
+      style={[styles.row, { gap: theme.space[1] / 2 }]}>
       {Array.from({ length: MAX_STARS }, (_, i) => (
         <Icon key={i} name="star" use="chip" color={i < filled ? theme.colors.accent : theme.colors.line} filled />
       ))}
@@ -30,7 +37,9 @@ export function RatingLine({ rating }: Readonly<{ rating: Rating }>) {
   return (
     <View style={[styles.row, { gap: theme.space[1] }]}>
       {rating.average != null ? <Stars rating={rating.average} /> : null}
-      <Text tone="muted">{ratingSummary(rating)}</Text>
+      <Text variant="meta" tone="muted">
+        {ratingSummary(rating)}
+      </Text>
     </View>
   );
 }
@@ -42,7 +51,7 @@ export function ShopRating({ sellerId }: Readonly<{ sellerId: string }>) {
   return <RatingLine rating={{ average: data.average_rating, count: data.count }} />;
 }
 
-/** Tap a star to rate one to five; each star is its own button. */
+/** Tap a star to rate one to five; each star is its own button, large enough to hit. */
 export function StarInput({
   value,
   onChange,
@@ -50,56 +59,91 @@ export function StarInput({
 }: Readonly<{ value: number; onChange: (rating: number) => void; label: string }>) {
   const theme = useTheme();
   return (
-    <View style={styles.row} accessibilityRole="radiogroup" accessibilityLabel={label}>
+    <View style={[styles.row, styles.centre]} accessibilityRole="radiogroup" accessibilityLabel={label}>
       {Array.from({ length: MAX_STARS }, (_, i) => i + 1).map((star) => (
-        <Pressable
+        <PressableSurface
           key={star}
           accessibilityRole="radio"
           accessibilityLabel={`${star} ${star === 1 ? 'star' : 'stars'}`}
           accessibilityState={{ selected: value === star }}
           onPress={() => onChange(star)}
-          style={[styles.star, { minWidth: theme.hitArea, minHeight: theme.hitArea }]}>
-          <Icon name="star" color={star <= value ? theme.colors.accent : theme.colors.line} filled />
-        </Pressable>
+          style={[styles.star, { minWidth: theme.hitArea, minHeight: theme.hitArea, borderRadius: theme.radius.md }]}>
+          <Icon name="star" use="quietEmblem" color={star <= value ? theme.colors.accent : theme.colors.line} filled />
+        </PressableSurface>
       ))}
     </View>
   );
 }
 
-/** A published review: its stars, who wrote it and when, what they said, and the shop's reply under it. */
-export function ReviewItem({ review }: Readonly<{ review: PublishedReview }>) {
+/**
+ * A published review: who wrote it and when, its stars, what they said, and the shop's reply
+ * under it. `shop` names the replying shop on the shop's own page.
+ */
+export function ReviewItem({ review, shop }: Readonly<{ review: PublishedReview; shop?: string }>) {
   const theme = useTheme();
-  const date = new Date(review.created_at).toLocaleDateString(undefined, { dateStyle: 'medium' });
   return (
     <View
       style={{
-        gap: theme.space[1],
-        paddingVertical: theme.space[4],
-        borderTopWidth: StyleSheet.hairlineWidth,
+        gap: theme.space[2],
+        paddingVertical: theme.space[3],
+        borderTopWidth: theme.line.divider,
         borderTopColor: theme.colors.line,
       }}>
+      <View style={[styles.row, styles.between, { gap: theme.space[2] }]}>
+        <Text variant="meta" weight="bold" style={styles.shrink}>
+          {review.author}
+        </Text>
+        <Text variant="meta" tone="muted">
+          {reviewDate(review.created_at)}
+        </Text>
+      </View>
       <Stars rating={review.rating} />
-      <Text variant="meta" tone="muted">{`${review.author} · ${date}`}</Text>
       {review.customer_note ? <Text>{review.customer_note}</Text> : null}
-      {review.seller_note ? <ShopReply note={review.seller_note} /> : null}
+      {review.seller_note ? <ShopReply note={review.seller_note} shop={shop} /> : null}
     </View>
   );
 }
 
-/** The shop's reply, set under the review it answers. */
-export function ShopReply({ note }: Readonly<{ note: string }>) {
+/** The shop's public reply, set in under the review it answers: "Iya Bisi Foodstuff replied: …". */
+export function ShopReply({ note, shop }: Readonly<{ note: string; shop?: string }>) {
   const theme = useTheme();
   return (
     <View
       style={{
-        gap: theme.space[1],
-        marginTop: theme.space[1],
+        marginLeft: theme.space[2],
         padding: theme.space[2],
-        borderRadius: theme.radius.md,
+        borderLeftWidth: theme.line.tab,
+        borderLeftColor: theme.colors.accent,
+        borderTopRightRadius: theme.radius.md,
+        borderBottomRightRadius: theme.radius.md,
         backgroundColor: theme.colors.tile,
       }}>
-      <Text variant="strong">Reply from the shop</Text>
-      <Text>{note}</Text>
+      <Text variant="meta" tone="muted">
+        <Text variant="meta" weight="bold">{`${shop ?? 'The shop'} replied:`}</Text> {note}
+      </Text>
+    </View>
+  );
+}
+
+/** The shape of a few reviews while they load. */
+export function ReviewsSkeleton({ count = 3 }: Readonly<{ count?: number }>) {
+  const theme = useTheme();
+  return (
+    <View accessible accessibilityLabel="Loading reviews">
+      {Array.from({ length: count }, (_, i) => (
+        <View
+          key={i}
+          style={{
+            gap: theme.space[2],
+            paddingVertical: theme.space[3],
+            borderTopWidth: theme.line.divider,
+            borderTopColor: theme.colors.line,
+          }}>
+          <Skeleton width="40%" height={theme.type.meta.lineHeight} />
+          <Skeleton width="25%" height={theme.type.meta.lineHeight} />
+          <Skeleton width="90%" height={theme.type.body.lineHeight} />
+        </View>
+      ))}
     </View>
   );
 }
@@ -113,7 +157,7 @@ export function ReviewsPreview({ kind, id, title }: Readonly<{ kind: ReviewKind;
   const preview = useReviewPreview(kind, id);
 
   const body = () => {
-    if (preview.error) {
+    if (preview.error && !preview.data) {
       return (
         <View style={{ gap: theme.space[1], alignItems: 'flex-start' }}>
           <Text tone="muted">{"Couldn't load the reviews."}</Text>
@@ -121,13 +165,13 @@ export function ReviewsPreview({ kind, id, title }: Readonly<{ kind: ReviewKind;
         </View>
       );
     }
-    if (!preview.data) return <ActivityIndicator color={theme.colors.ink} accessibilityLabel="Loading reviews" />;
+    if (!preview.data) return <ReviewsSkeleton count={2} />;
     const { reviews, average_rating, count } = preview.data;
     return (
       <>
         <RatingLine rating={{ average: average_rating, count }} />
         {reviews.map((review) => (
-          <ReviewItem key={review.id} review={review} />
+          <ReviewItem key={review.id} review={review} shop={kind === 'seller' ? title : undefined} />
         ))}
         {count > REVIEW_PREVIEW_COUNT ? (
           <Button
@@ -151,6 +195,9 @@ export function ReviewsPreview({ kind, id, title }: Readonly<{ kind: ReviewKind;
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
+  between: { justifyContent: 'space-between' },
+  centre: { justifyContent: 'center' },
+  shrink: { flexShrink: 1 },
   star: { alignItems: 'center', justifyContent: 'center' },
   inlineLink: { paddingHorizontal: 0, alignSelf: 'flex-start' },
 });

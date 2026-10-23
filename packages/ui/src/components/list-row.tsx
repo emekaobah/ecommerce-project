@@ -11,10 +11,12 @@ export type ListRowProps = {
   /** e.g. a price, status chip or chevron. */
   trailing?: ReactNode
   onPress?: () => void
+  /** Red, for a row that ends something, like Sign out. */
+  destructive?: boolean
 }
 
 /** A row in a list, divided by a hairline; pressed, it fills with Mist edge to edge. */
-export function ListRow({ title, subtitle, leading, trailing, onPress }: Readonly<ListRowProps>) {
+export function ListRow({ title, subtitle, leading, trailing, onPress, destructive }: Readonly<ListRowProps>) {
   const theme = useTheme()
   return (
     <Pressable
@@ -36,7 +38,9 @@ export function ListRow({ title, subtitle, leading, trailing, onPress }: Readonl
     >
       {leading}
       <View style={[styles.text, { gap: theme.space[1] }]}>
-        <Text weight="bold">{title}</Text>
+        <Text weight="bold" tone={destructive ? "danger" : undefined}>
+          {title}
+        </Text>
         {subtitle ? (
           <Text variant="meta" tone="muted">
             {subtitle}

@@ -22,3 +22,24 @@ export function useCustomer(userId: string | null | undefined) {
     queryFn: userId ? fetchCustomer : skipToken,
   });
 }
+
+export const summaryKeys = {
+  all: ['account-summary'] as const,
+  /** Keyed by Clerk user, like the profile. */
+  me: (userId: string) => [...summaryKeys.all, { userId }] as const,
+};
+
+async function fetchAccountSummary() {
+  const { summary } = await storeClient.store.customers.me.summary.query();
+  return summary;
+}
+
+export type AccountSummary = Awaited<ReturnType<typeof fetchAccountSummary>>;
+
+/** The counts on the Account screen (#73): saved items, reviews, orders to review and addresses, in one request. */
+export function useAccountSummary(userId: string | null | undefined) {
+  return useQuery({
+    queryKey: summaryKeys.me(userId ?? ''),
+    queryFn: userId ? fetchAccountSummary : skipToken,
+  });
+}
