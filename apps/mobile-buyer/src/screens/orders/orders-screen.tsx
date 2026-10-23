@@ -1,12 +1,13 @@
 import { useAuth } from '@clerk/expo';
-import { formatMoney, historyEntries, orderRowMeta, type HistoryEntry } from '@oja/domain';
-import { Divider, EmptyState, ErrorState, OrderRow, SearchField, Skeleton, Text, useTheme, useToast } from '@oja/ui';
+import { formatMoney, historyEntries, isReceived, orderRowMeta, type HistoryEntry } from '@oja/domain';
+import { Divider, EmptyState, ErrorState, Icon, OrderRow, PressableSurface, SearchField, Skeleton, Text, useTheme, useToast } from '@oja/ui';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, SectionList, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useOrderSearch, useOrdersInProgress, usePastOrders, type OrderGroup, type SellerOrder } from '@/api/orders';
+import { OrderAgainSheet } from '@/components/order-again-sheet';
 import { orderChips } from '@/components/order-status';
 import { SignInPrompt } from '@/components/sign-in-prompt';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -179,29 +180,75 @@ const entriesOf = (groups: readonly OrderGroup[]) => historyEntries<SellerOrder,
 /** The buyer's time zone: a row's "Today" is their today. */
 const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-/** A checkout: one shop's order on its own, or the shops' orders it was split into, each with its chips. */
+/**
+ * A checkout: one shop's order on its own, or the shops' orders it was split into, each with its
+ * chips. A single shop's order the buyer received swaps its price (into the meta) for Order again
+ * (#86), which opens the sheet; a checkout across shops opens the order for that, where each shop
+ * has its own.
+ */
 function HistoryRow({ entry }: Readonly<{ entry: Entry }>) {
   const { group } = entry;
+  const [orderingAgain, setOrderingAgain] = useState(false);
   const orders = entry.kind === 'order' ? [entry.order] : group.orders;
   const items = orders.flatMap((order) => order.items);
+  const reorder = entry.kind === 'order' && isReceived(entry.order.fulfilment.state) ? entry.order : null;
+  const price = formatMoney(entry.paid_total, orders[0]?.currency_code ?? '');
   const meta = orderRowMeta(
     { createdAt: group.created_at, itemCount: items.reduce((sum, item) => sum + item.quantity, 0), displayId: group.display_id },
     new Date(),
     TIME_ZONE,
   );
+  const openSheet = () => setOrderingAgain(true);
   return (
-    <OrderRow
-      title={entry.kind === 'order' ? entry.order.seller.name : `${group.orders.length} shops`}
-      meta={meta}
-      price={formatMoney(entry.paid_total, orders[0]?.currency_code ?? '')}
-      thumbnails={items.flatMap((item) => (item.thumbnail ? [item.thumbnail] : []))}
-      shops={orders.map((order) => ({
-        key: order.id,
-        name: entry.kind === 'group' ? order.seller.name : undefined,
-        chips: orderChips(order),
-      }))}
-      onPress={() => openOrderGroup(group)}
-    />
+    <>
+      <OrderRow
+        title={entry.kind === 'order' ? entry.order.seller.name : `${group.orders.length} shops`}
+        meta={reorder ? `${meta} · ${price}` : meta}
+        price={price}
+        trailing={reorder ? <OrderAgainPill onPress={openSheet} /> : undefined}
+        actions={reorder ? [{ label: 'Order again', onPress: openSheet }] : undefined}
+        thumbnails={items.flatMap((item) => (item.thumbnail ? [item.thumbnail] : []))}
+        shops={orders.map((order) => ({
+          key: order.id,
+          name: entry.kind === 'group' ? order.seller.name : undefined,
+          chips: orderChips(order),
+        }))}
+        onPress={() => openOrderGroup(group)}
+      />
+      {reorder ? (
+        <OrderAgainSheet
+          visible={orderingAgain}
+          onClose={() => setOrderingAgain(false)}
+          groupId={group.id}
+          seller={reorder.seller}
+          currency={reorder.currency_code}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The catalogue's Order again pill (`.opill`): accent on mist, 32 tall inside a 44pt target.
+ * Screen readers reach it as the row's action; the row itself is one button.
+ */
+function OrderAgainPill({ onPress }: Readonly<{ onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+      onPress={onPress}
+      hitSlop={(theme.hitArea - theme.space[8]) / 2}
+      style={[
+        styles.pill,
+        { gap: theme.space[1], minHeight: theme.space[8], paddingHorizontal: theme.space[3], borderRadius: theme.radius.pill, backgroundColor: theme.colors.tile },
+      ]}>
+      <Icon name="refresh" use="chip" color={theme.colors.accent} />
+      <Text variant="meta" weight="extrabold" tone="accent">
+        Order again
+      </Text>
+    </PressableSurface>
   );
 }
 
@@ -240,6 +287,7 @@ function OrdersSkeleton() {
 }
 
 const styles = StyleSheet.create({
+  pill: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
   fill: { flex: 1 },
   grow: { flexGrow: 1 },
   row: { flexDirection: 'row' },

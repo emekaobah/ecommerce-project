@@ -104,3 +104,18 @@ export function useSetCartItemQuantity(cartId: string) {
     onSettled,
   });
 }
+
+/**
+ * Order again (#86): adds the shops' offers to the cart `cartIdForAdding` resolves in one go, all
+ * or none; quantities add to lines already in the cart.
+ */
+export function useAddOfferLines(cartIdForAdding: () => Promise<string>) {
+  const onSettled = useRefetchCartAfterWrite();
+  return useMutation({
+    mutationFn: async (items: { offer_id: string; quantity: number }[]) => {
+      const cartId = await cartIdForAdding();
+      await storeClient.store.carts.$id.offerLines.mutate({ $id: cartId, items });
+    },
+    onSettled,
+  });
+}

@@ -33,10 +33,11 @@ import {
 } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Fragment, useRef } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { Linking, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View, type ScrollViewInstance } from 'react-native';
 
 import { useOrderGroup, type SellerOrder } from '@/api/orders';
+import { OrderAgainSheet } from '@/components/order-again-sheet';
 import { OrderReviews } from '@/components/order-reviews';
 import { OrderStatusDetails } from '@/components/order-status';
 import { PickupDetails } from '@/components/pickup';
@@ -180,6 +181,7 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
   const chip = <StatusChip label={status.label} tone={status.tone} icon={status.icon} />;
   // At the largest text sizes the chip goes under the name, so the name keeps the width to wrap in.
   const stacked = useWindowDimensions().fontScale >= LARGE_TEXT;
+  const [orderingAgain, setOrderingAgain] = useState(false);
   return (
     <View onLayout={(event) => (cardY.current = event.nativeEvent.layout.y)}>
       <Group>
@@ -234,9 +236,15 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
             </Text>
           ) : null}
         </View>
-        {/* Order again (#86) sits beside the review button here once delivered or collected. */}
-        <OrderReviews groupId={groupId} order={order} />
+        <OrderReviews groupId={groupId} order={order} onOrderAgain={() => setOrderingAgain(true)} />
       </Group>
+      <OrderAgainSheet
+        visible={orderingAgain}
+        onClose={() => setOrderingAgain(false)}
+        groupId={groupId}
+        seller={order.seller}
+        currency={order.currency_code}
+      />
     </View>
   );
 }
