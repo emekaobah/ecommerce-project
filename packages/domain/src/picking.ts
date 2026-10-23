@@ -136,3 +136,13 @@ export function parcelWeightLabel(items: WeighedItem[]): string | null {
   const grams = weights.reduce((total, weight) => total + weight, 0)
   return `about ${formatWeight(grams < 1000 ? Math.round(grams) : Math.round(grams / 100) * 100)}`
 }
+
+/**
+ * The Not available counter for a line (#22): from none up to the units not yet picked
+ * (`most`), starting at what is marked already, else one, and never above `most`; a line picked
+ * in full has none left to mark.
+ */
+export function unavailableCounter(line: Pick<PickLine, "quantity" | "picked" | "unavailable">): { most: number; start: number } {
+  const most = Math.max(line.quantity - line.picked, 0)
+  return { most, start: Math.min(Math.max(line.unavailable, 1), most) }
+}

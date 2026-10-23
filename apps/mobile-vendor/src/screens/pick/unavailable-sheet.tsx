@@ -1,11 +1,11 @@
-import { formatMoney } from '@oja/domain';
+import { formatMoney, unavailableCounter } from '@oja/domain';
 import { Button, Icon, InlineNote, LoadingState, PressableSurface, Text, useTheme } from '@oja/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { refusedWith } from '@/api/errors';
+import { useFailureMessage } from '@/api/errors';
 import { useMarkUnavailable, usePickList } from '@/api/orders';
 
 import { LinePhoto } from './line-photo';
@@ -14,7 +14,7 @@ import { LinePhoto } from './line-photo';
  * Not available (catalogue v-pick #3, #22): a counter for how many of a line the shop can't
  * supply, from none up to the units not yet picked, with the refund the buyer gets for them
  * spelled out from the server's price per unit. They stay on the order until removed from it,
- * before packing, which is when the buyer is refunded.
+ * before packing, which is when the buyer is refunded. A line picked in full has none to mark.
  */
 export function UnavailableSheet() {
   const theme = useTheme();
@@ -24,14 +24,10 @@ export function UnavailableSheet() {
   const pickList = usePickList(id);
   const line = pickList.data?.lines.find((l) => l.id === item);
   const mark = useMarkUnavailable(id);
+  const failure = useFailureMessage(mark.error, [400, 409], "Couldn't save that. Check your connection and try again.");
   const [count, setCount] = useState<number | null>(null);
 
-  if (!pickList.data || !line) return <LoadingState />;
-  const most = line.quantity - line.picked;
-  const quantity = count ?? Math.max(line.unavailable, 1);
-  const refund = formatMoney(quantity * Number(line.unit_refund), pickList.data.currency_code);
-
-  return (
+  const frame = (children: ReactNode) => (
     <View
       style={{
         backgroundColor: theme.colors.raised,
@@ -40,6 +36,33 @@ export function UnavailableSheet() {
         paddingBottom: Math.max(insets.bottom, theme.space[4]),
         gap: theme.space[4],
       }}>
+      {children}
+    </View>
+  );
+
+  if (pickList.error && !pickList.data) {
+    return frame(
+      <>
+        <InlineNote>{"Couldn't load the pick list. Check your connection and try again; nothing has been marked."}</InlineNote>
+        <Button label="Try again" variant="secondary" size="main" icon="refresh" onPress={() => void pickList.refetch()} />
+      </>
+    );
+  }
+  if (!pickList.data) return <LoadingState />;
+  if (!line) {
+    return frame(
+      <>
+        <Text tone="muted">{"This item isn't on the order any more."}</Text>
+        <Button label="Close" variant="secondary" size="main" onPress={() => router.back()} />
+      </>
+    );
+  }
+  const { most, start } = unavailableCounter(line);
+  const quantity = Math.min(count ?? start, most);
+  const refund = formatMoney(quantity * Number(line.unit_refund), pickList.data.currency_code);
+
+  return frame(
+    <>
       <View style={[styles.row, { gap: theme.space[3] }]}>
         <LinePhoto uri={line.thumbnail} />
         <View style={styles.grow}>
@@ -49,18 +72,22 @@ export function UnavailableSheet() {
       </View>
       <Text variant="titlePushed">{"How many can't you supply?"}</Text>
 
-      <View style={[styles.row, styles.centre, { gap: theme.space[6], paddingVertical: theme.space[2] }]}>
-        <Step icon="minus" label="One fewer" disabled={quantity <= 0} onPress={() => setCount(Math.max(quantity - 1, 0))} />
-        <Text
-          variant="displayXxl"
-          tabular
-          accessibilityLiveRegion="polite"
-          accessibilityLabel={`${quantity} not available`}
-          style={{ minWidth: theme.control.main, textAlign: 'center' }}>
-          {quantity}
-        </Text>
-        <Step icon="plus" label="One more" disabled={quantity >= most} onPress={() => setCount(Math.min(quantity + 1, most))} />
-      </View>
+      {most === 0 ? (
+        <Text tone="muted">{`All ${line.quantity} are picked: none are left to mark not available.`}</Text>
+      ) : (
+        <View style={[styles.row, styles.centre, { gap: theme.space[6], paddingVertical: theme.space[2] }]}>
+          <Step icon="minus" label="One fewer" disabled={quantity <= 0} onPress={() => setCount(Math.max(quantity - 1, 0))} />
+          <Text
+            variant="displayXxl"
+            tabular
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={`${quantity} not available`}
+            style={{ minWidth: theme.control.main, textAlign: 'center' }}>
+            {quantity}
+          </Text>
+          <Step icon="plus" label="One more" disabled={quantity >= most} onPress={() => setCount(Math.min(quantity + 1, most))} />
+        </View>
+      )}
 
       {quantity > 0 ? (
         <InlineNote tone="info">
@@ -71,19 +98,15 @@ export function UnavailableSheet() {
           {` for ${quantity === 1 ? 'it' : 'them'} when you remove the unavailable items, before packing.`}
         </InlineNote>
       ) : null}
-      {mark.error ? (
-        <InlineNote>
-          {refusedWith(mark.error, [400, 409]) ?? "Couldn't save that. Check your connection and try again."}
-        </InlineNote>
-      ) : null}
+      {failure ? <InlineNote>{failure}</InlineNote> : null}
       <Button
         label={quantity === 0 ? 'Clear unavailable' : `Mark ${quantity} not available`}
         size="main"
         loading={mark.isPending}
-        disabled={quantity === line.unavailable}
+        disabled={most === 0 || quantity === line.unavailable}
         onPress={() => mark.mutate({ itemId: line.id, quantity }, { onSuccess: () => router.back() })}
       />
-    </View>
+    </>
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { parcelWeightLabel, pickBand, pickLineView, pickProgress, scanBarcode, type PickLine } from "./picking"
+import { parcelWeightLabel, pickBand, pickLineView, pickProgress, scanBarcode, unavailableCounter, type PickLine } from "./picking"
 
 const rice: PickLine = { id: "item_rice", quantity: 2, picked: 0, unavailable: 0, codes: ["5901234123457"] }
 const lantern: PickLine = { id: "item_lantern", quantity: 1, picked: 0, unavailable: 0, codes: ["036000291452"] }
@@ -170,5 +170,19 @@ describe("parcelWeightLabel", () => {
   test("says nothing when no line has a weight", () => {
     expect(parcelWeightLabel([{ quantity: 1, variant: { weight: null, product: { weight: null } } }, { quantity: 1, variant: null }])).toBeNull()
     expect(parcelWeightLabel([])).toBeNull()
+  })
+})
+
+describe("unavailableCounter", () => {
+  test("counts up to the units not yet picked, starting at one", () => {
+    expect(unavailableCounter({ quantity: 3, picked: 1, unavailable: 0 })).toEqual({ most: 2, start: 1 })
+  })
+
+  test("starts at what is already marked", () => {
+    expect(unavailableCounter({ quantity: 3, picked: 0, unavailable: 2 })).toEqual({ most: 3, start: 2 })
+  })
+
+  test("a line picked in full has nothing left to mark: no count is offered", () => {
+    expect(unavailableCounter({ quantity: 2, picked: 2, unavailable: 0 })).toEqual({ most: 0, start: 0 })
   })
 })
