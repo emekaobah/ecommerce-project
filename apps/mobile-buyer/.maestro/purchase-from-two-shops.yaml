@@ -32,9 +32,9 @@ env:
     visible: "Ofada Rice 5kg.*"
     timeout: 10000
 - tapOn: "Ofada Rice 5kg.*"
-- tapOn: "Add to cart.*"
+- tapOn: "Add, .*"
 - extendedWaitUntil:
-    visible: "View cart"
+    visible: "In cart · View cart"
     timeout: 10000
 # The header's back button (Maestro's `back` is Android's).
 - tapOn: "Back"
@@ -46,8 +46,8 @@ env:
     visible: "6-Way Surge Protector.*"
     timeout: 10000
 - tapOn: "6-Way Surge Protector.*"
-- tapOn: "Add to cart.*"
-- tapOn: "View cart"
+- tapOn: "Add, .*"
+- tapOn: "In cart · View cart"
 - assertVisible: "Iya Bisi Foodstuff"
 - assertVisible: "Ikeja Gadget Hub"
 # The main button checks out every shop and says how many ("Checkout this shop" pays for one).

@@ -21,8 +21,8 @@ env:
           timeout: 15000
 - tapOn: "Home"
 - tapOn: "Ofada Rice 5kg.*"
-- tapOn: "Add to cart.*"
-- tapOn: "View cart"
+- tapOn: "Add, .*"
+- tapOn: "In cart · View cart"
 - tapOn: "Checkout.*"
 - runFlow:
     file: sign-in.yaml

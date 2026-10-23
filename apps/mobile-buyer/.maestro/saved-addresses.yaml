@@ -105,8 +105,8 @@ env:
 - back
 - tapOn: "Home"
 - tapOn: "Ofada Rice 5kg.*"
-- tapOn: "Add to cart.*"
-- tapOn: "View cart"
+- tapOn: "Add, .*"
+- tapOn: "In cart · View cart"
 - tapOn: "Checkout.*"
 - extendedWaitUntil:
     visible: "Green gate opposite the church"
