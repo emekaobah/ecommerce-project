@@ -353,6 +353,7 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
       <BarWithNote
         label="In cart · View cart"
         variant="secondary"
+        tone="accent"
         onPress={() => router.navigate('/cart')}
         leading={
           <QuantityStepper

@@ -19,6 +19,8 @@ export type ButtonProps = {
   icon?: IconName
   disabled?: boolean
   loading?: boolean
+  /** "accent" colours a secondary button's label like a link: "In cart · View cart". */
+  tone?: "accent"
   style?: StyleProp<ViewStyle>
 }
 
@@ -44,6 +46,13 @@ const inks = (theme: Theme): Record<ButtonVariant, string> => ({
   link: theme.colors.link,
 })
 
+/** The label's tone and the matching ink for its icon and spinner. */
+function labelColour(theme: Theme, variant: ButtonVariant, disabled: boolean | undefined, labelTone: "accent" | undefined) {
+  if (disabled) return { tone: "muted" as TextTone, ink: theme.colors.muted }
+  if (labelTone === "accent") return { tone: "accent" as TextTone, ink: theme.colors.accent }
+  return { tone: LABEL_TONES[variant], ink: inks(theme)[variant] }
+}
+
 /**
  * Primary is the one indigo action on a screen; secondary is Mist; danger is for destructive
  * actions only; link is bold link-coloured text, with no underline. Disabled turns the fill to Mist with a muted label (never faded).
@@ -59,14 +68,14 @@ export function Button({
   icon,
   disabled,
   loading,
+  tone: labelTone,
   style,
 }: Readonly<ButtonProps>) {
   const theme = useTheme()
   const inactive = disabled || loading
   const isLink = variant === "link"
   const fill = disabled && !isLink ? theme.colors.tile : fills(theme)[variant]
-  const tone: TextTone = disabled ? "muted" : LABEL_TONES[variant]
-  const ink = disabled ? theme.colors.muted : inks(theme)[variant]
+  const { tone, ink } = labelColour(theme, variant, disabled, labelTone)
 
   return (
     <PressableSurface
