@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { FulfilmentState } from "./fulfilment"
-import { canReview, ratingSummary, reviewerName, reviewAction, reviewForm, reviewStatus, reviewTitle } from "./review"
+import { canReview, ratingSummary, reviewCounts, reviewerName, reviewAction, reviewForm, reviewStatus, reviewTitle } from "./review"
 
 describe("canReview", () => {
   test("lets the buyer review a shop's order once it is delivered, or collected in store", () => {
@@ -118,5 +118,16 @@ describe("reviewStatus", () => {
   test("tells the author a review is published, or that it wasn't", () => {
     expect(reviewStatus("published")).toMatchObject({ label: "Published", tone: "success", icon: "check" })
     expect(reviewStatus("rejected")).toMatchObject({ label: "Not published", tone: "neutral", icon: "x" })
+  })
+})
+
+describe("reviewCounts", () => {
+  test("counts the buyer's reviews in all, of shops and of products, for My reviews' filters", () => {
+    const reviews = [{ reference: "product" }, { reference: "seller" }, { reference: "product" }] as const
+    expect(reviewCounts(reviews)).toEqual({ all: 3, shops: 1, products: 2 })
+  })
+
+  test("counts nothing before the buyer has written a review", () => {
+    expect(reviewCounts([])).toEqual({ all: 0, shops: 0, products: 0 })
   })
 })

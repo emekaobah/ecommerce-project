@@ -166,7 +166,7 @@ export type { BuyerPush, BuyerPushOrder, BuyerPushPickup, ConfirmedShop, RefundA
 export { pickProgress, scanBarcode } from "./picking"
 export type { PickLine, PickProgress, ScanResult } from "./picking"
 export { photoUploadSize, quickAddForm } from "./quick-add"
-export { canReview, isReceived, ratingSummary, reviewAction, reviewerName, reviewForm, reviewStatus, reviewTitle } from "./review"
+export { canReview, isReceived, ratingSummary, reviewAction, reviewCounts, reviewerName, reviewForm, reviewStatus, reviewTitle } from "./review"
 export type { OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
 export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAddFormValue } from "./quick-add"
 export { DISTANCE_BANDS_KM, deliveringTo, distanceBand, distanceKm, distanceLabel, roundedDistanceKm } from "./distance"

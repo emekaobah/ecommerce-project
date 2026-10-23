@@ -121,3 +121,9 @@ const STATUSES: Record<ReviewStatus, StatusView> = {
 export function reviewStatus(status: ReviewStatus): StatusView {
   return STATUSES[status]
 }
+
+/** How many reviews the buyer wrote, in all and of shops and of products: My reviews' filters. */
+export function reviewCounts(reviews: readonly { reference: ReviewKind }[]): { all: number; shops: number; products: number } {
+  const shops = reviews.filter((review) => review.reference === "seller").length
+  return { all: reviews.length, shops, products: reviews.length - shops }
+}
