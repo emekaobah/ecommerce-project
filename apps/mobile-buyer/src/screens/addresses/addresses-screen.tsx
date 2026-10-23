@@ -99,7 +99,11 @@ function AddressRow({ address, onDelete }: Readonly<{ address: SavedAddressRecor
         borderRadius: theme.radius.lg,
         backgroundColor: theme.colors.raised,
       }}>
-      <View style={[styles.row, { gap: theme.space[2] }]}>
+      <PressableSurface
+        accessibilityRole="button"
+        accessibilityLabel={`${unpinned ? 'Add a pin to' : 'Edit'} ${street}, ${[area, name].filter(Boolean).join(', ')}${address.is_default_shipping ? ', default' : ''}`}
+        onPress={() => editAddress(address)}
+        style={[styles.row, { gap: theme.space[2], minHeight: theme.hitArea, borderRadius: theme.radius.md }]}>
         <View style={[styles.centre, { width: tile, height: tile, borderRadius: theme.radius.md, backgroundColor: theme.colors.tile }]}>
           <Icon name={address.is_default_shipping ? 'home' : 'pin'} use="step" color={theme.colors.accent} />
         </View>
@@ -111,15 +115,12 @@ function AddressRow({ address, onDelete }: Readonly<{ address: SavedAddressRecor
             {[area, name].filter(Boolean).join(' · ')}
           </Text>
         </View>
-        {address.is_default_shipping ? <StatusChip label="Default" tone="info" icon="check" /> : null}
-        <PressableSurface
-          accessibilityRole="button"
-          accessibilityLabel={unpinned ? `Add a pin to ${street}` : `Edit ${street}`}
-          onPress={() => editAddress(address)}
-          style={[styles.centre, { minWidth: theme.hitArea, minHeight: theme.hitArea, borderRadius: theme.radius.md }]}>
+        {address.is_default_shipping ? (
+          <StatusChip label="Default" tone="info" icon="check" />
+        ) : (
           <Icon name="edit" use="step" color={theme.colors.muted} />
-        </PressableSurface>
-      </View>
+        )}
+      </PressableSurface>
       {landmark ? (
         <Text variant="meta" tone="muted">
           {landmark}
