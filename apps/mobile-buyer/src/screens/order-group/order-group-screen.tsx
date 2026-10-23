@@ -98,7 +98,8 @@ export function OrderGroupScreen() {
       {header(orderNumber(group.data.display_id), true)}
       <ScrollView
         ref={scroll}
-        style={{ backgroundColor: theme.colors.bg }}
+        // The order's page is tinted (the catalogue's Order detail); its shops sit flat on it.
+        style={{ backgroundColor: theme.colors.bgGrouped }}
         contentContainerStyle={{ paddingBottom: theme.space[8] }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
         <Band>
@@ -342,7 +343,7 @@ function SumRow({ label, value, total }: Readonly<{ label: string; value: string
 function OrderSkeleton() {
   const theme = useTheme();
   return (
-    <View accessible accessibilityLabel="Loading this order" style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+    <View accessible accessibilityLabel="Loading this order" style={[styles.fill, { backgroundColor: theme.colors.bgGrouped }]}>
       <Band>
         <View style={{ height: theme.type.titleNamed.lineHeight }} />
       </Band>
