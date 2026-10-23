@@ -261,6 +261,10 @@ export type Theme = {
     onInverse: string
     inverseSuccess: string
     inverseDanger: string
+    /** The accept clock's ring around a time chip: its track, the time left, and the last two hours. */
+    clockTrack: string
+    clockRing: string
+    clockRingUrgent: string
   }
   /** Chip text and background per tone, each at 7:1 or more (catalogue Accessibility). */
   status: Record<StatusTone, { foreground: string; background: string }>
@@ -338,6 +342,9 @@ export const lightTheme: Theme = {
     onInverse: white,
     inverseSuccess: "#8FD3AE",
     inverseDanger: "#F2938A",
+    clockTrack: "rgba(18, 22, 43, 0.08)",
+    clockRing: "#C98A1A",
+    clockRingUrgent: ember,
   },
   status: {
     neutral: { foreground: "#494F66", background: "#F0F1F4" },
@@ -389,6 +396,9 @@ export const darkTheme: Theme = {
     onInverse: "#12152A",
     inverseSuccess: "#165A3C",
     inverseDanger: "#962218",
+    clockTrack: "rgba(255, 255, 255, 0.1)",
+    clockRing: "#F2C76B",
+    clockRingUrgent: "#F0A474",
   },
   status: {
     neutral: { foreground: "#B4B4BC", background: "#26262A" },

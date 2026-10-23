@@ -1,9 +1,25 @@
 import { useAuth } from '@clerk/expo';
-import { formatMoney } from '@oja/domain';
-import { Button, ErrorState, line, ListRow, LoadingState, MAX_FONT_SCALE, RadioOption, Text, useTheme } from '@oja/ui';
+import { ClientError } from '@oja/api-client';
+import { formatMoney, orderNumber, type StatusChipView } from '@oja/domain';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Icon,
+  InlineNote,
+  PressableSurface,
+  ShopMark,
+  Skeleton,
+  StatusChip,
+  StickyAction,
+  Text,
+  TextField,
+  useTheme,
+} from '@oja/ui';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isNotFound } from '@/api/errors';
 import {
@@ -20,10 +36,11 @@ const ACCOUNT_LENGTH = 10;
 
 /**
  * A refund Paystack couldn't return to the buyer's card (#13), opened from the push or email
- * asking for a bank account. The buyer picks their bank and enters an account number; Paystack
- * names the account's holder, and once the buyer confirms it the refund is sent there. Anyone's
- * account will do. The account number lives in this screen only: it goes to the API and on to
- * Paystack, and is never kept.
+ * asking for a bank account, or from the order. The buyer picks their bank and types the
+ * account number; Paystack reads the holder's name back under it, and the buyer confirms the
+ * account before any money moves. Anyone's account will do. The account number lives in this
+ * screen only: it goes to the API and on to Paystack, and is never kept. A refund that needs no
+ * account (any more) says where it is in plain words.
  */
 export function RefundAccountScreen({ refundId }: Readonly<{ refundId: string }>) {
   const { userId } = useAuth();
@@ -31,37 +48,79 @@ export function RefundAccountScreen({ refundId }: Readonly<{ refundId: string }>
 
   if (refund.error && !refund.data) {
     if (isNotFound(refund.error)) {
-      return <ErrorState title="Refund not found" body="This refund isn't one of yours." />;
+      return <EmptyState title="Refund not found" body="This refund isn't one of yours." icon="info" />;
     }
-    return <ErrorState title="Couldn't load this refund" body="Check your connection and try again. Your refund is safe." error={refund.error} onRetry={() => void refund.refetch()} />;
+    return (
+      <ErrorState
+        title="Couldn't load this refund"
+        body="Check your connection and try again. Your refund is safe."
+        error={refund.error}
+        onRetry={() => void refund.refetch()}
+      />
+    );
   }
-  if (!refund.data) return <LoadingState />;
+  if (!refund.data) return <RefundSkeleton />;
   return refund.data.needs_account ? <AccountForm refund={refund.data} /> : <RefundState refund={refund.data} />;
 }
 
-/** What the buyer is told of a refund that doesn't need an account (any more). */
-function refundMessage(refund: BuyerRefund): string {
+/** "For your order OJ-2301 from Mama Put.": the refund's order. Which items it covers isn't known here. */
+const forOrder = (refund: BuyerRefund) => `For your order ${orderNumber(refund.order.display_id)} from ${refund.order.shop}.`;
+
+/** Where a refund that needs no account (any more) is: a chip and a line in plain words. */
+function refundState(refund: BuyerRefund): { chip: StatusChipView; message: string } {
   const amount = formatMoney(refund.amount, refund.currency_code);
+  if (refund.status === 'processed') {
+    return { chip: { label: 'Refunded', tone: 'success', icon: 'check' }, message: `Your ${amount} refund has reached you.` };
+  }
   if (refund.handed_over) {
-    return `Our team is sending your ${amount} refund for order #${refund.order.display_id}, and will contact you if they need your details.`;
+    return {
+      chip: { label: 'Our team is sending it', tone: 'new', icon: 'clock' },
+      message: `Our team is sending your ${amount} refund by hand, and will contact you if they need your details.`,
+    };
   }
   if (refund.account) {
-    return `Your ${amount} refund is on its way to your ${refund.account.bank_name} account ending ${refund.account.last4}.`;
+    return {
+      chip: { label: 'Refund on its way', tone: 'success', icon: 'check' },
+      message: `Your ${amount} refund is on its way to your ${refund.account.bank_name} account ending ${refund.account.last4}.`,
+    };
   }
-  return refund.status === 'processed' ? `Your ${amount} refund has reached you.` : `Your ${amount} refund is on its way.`;
+  return { chip: { label: 'Refund on its way', tone: 'success', icon: 'check' }, message: `Your ${amount} refund is on its way.` };
 }
 
-/** Where a refund that doesn't need an account (any more) is. */
 function RefundState({ refund }: Readonly<{ refund: BuyerRefund }>) {
   const theme = useTheme();
   const groupId = refund.order.order_group_id;
+  const { chip, message } = refundState(refund);
   return (
-    <View style={{ flex: 1, padding: theme.space[4], gap: theme.space[6], backgroundColor: theme.colors.bg }}>
-      <Text variant="heading">{`Refund for order #${refund.order.display_id}`}</Text>
-      <Text>{refundMessage(refund)}</Text>
-      {groupId ? <Button label="View the order" variant="secondary" onPress={() => router.replace(`/order/${groupId}`)} /> : null}
-    </View>
+    <ScrollView style={{ backgroundColor: theme.colors.bg }} contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }}>
+      <StatusChip {...chip} />
+      <Amount refund={refund} />
+      <Text>{message}</Text>
+      <Text tone="muted">{forOrder(refund)}</Text>
+      {groupId ? (
+        <Button label="View the order" variant="secondary" onPress={() => router.replace({ pathname: '/order/[id]', params: { id: groupId } })} />
+      ) : null}
+    </ScrollView>
   );
+}
+
+function Amount({ refund }: Readonly<{ refund: BuyerRefund }>) {
+  return (
+    <Text variant="displayLg" tabular>
+      {formatMoney(refund.amount, refund.currency_code)}
+    </Text>
+  );
+}
+
+/**
+ * What a failed check or send says: the API words a refused account or a Paystack outage for
+ * the buyer (400) and a refund that no longer needs an account (409); anything else is a
+ * connection problem, never a raw error.
+ */
+function problem(error: Error | null, fallback: string): string | null {
+  if (!error) return null;
+  if (error instanceof ClientError && (error.status === 400 || error.status === 409)) return error.message;
+  return fallback;
 }
 
 function AccountForm({ refund }: Readonly<{ refund: BuyerRefund }>) {
@@ -72,192 +131,304 @@ function AccountForm({ refund }: Readonly<{ refund: BuyerRefund }>) {
   const retry = useRetryRefund(userId, refund.id);
   const [bankCode, setBankCode] = useState<string | null>(null);
   const [accountNumber, setAccountNumber] = useState('');
+  const [confirming, setConfirming] = useState(false);
 
   const input: RefundAccountInput | null =
     bankCode && accountNumber.length === ACCOUNT_LENGTH ? { bank_code: bankCode, account_number: accountNumber } : null;
-  const confirming = resolve.data && !resolve.isPending ? resolve.data : null;
-  const amount = formatMoney(refund.amount, refund.currency_code);
+  const bank = banks.data?.find((b) => b.code === bankCode) ?? null;
+  const account = resolve.data && !resolve.isPending ? resolve.data : null;
 
-  // Any change to the details asks Paystack for the holder's name again.
+  // Paystack names the holder once the bank and all 10 digits are in, once per pair: test mode
+  // allows only a few lookups a day, so nothing asks again until the details change.
+  const { mutate: resolveAccount, reset: resetResolve } = resolve;
+  useEffect(() => {
+    if (bankCode && accountNumber.length === ACCOUNT_LENGTH) resolveAccount({ bank_code: bankCode, account_number: accountNumber });
+  }, [bankCode, accountNumber, resolveAccount]);
+
   const change = (update: () => void) => {
-    resolve.reset();
+    resetResolve();
     retry.reset();
+    setConfirming(false);
     update();
   };
-  const inputStyle = useInputStyle();
 
+  if (confirming && account && input) {
+    return (
+      <ConfirmAccount
+        refund={refund}
+        account={account}
+        last4={accountNumber.slice(-4)}
+        retry={retry}
+        onSend={() => retry.mutate(input)}
+        onChange={() => {
+          retry.reset();
+          setConfirming(false);
+        }}
+      />
+    );
+  }
+
+  const resolveProblem = problem(resolve.error, "Couldn't check the account. Check your connection and try again.");
   return (
-    <ScrollView
-      style={{ backgroundColor: theme.colors.bg }}
-      contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6], paddingBottom: theme.space[12] }}
-      keyboardShouldPersistTaps="handled">
-      <View style={{ gap: theme.space[1] }}>
-        <Text variant="heading">{`Your ${amount} refund`}</Text>
+    <KeyboardAvoidingView style={[styles.fill, { backgroundColor: theme.colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }} keyboardShouldPersistTaps="handled">
+        <StatusChip label="Needs your bank details" tone="attention" icon="info" />
+        <Amount refund={refund} />
         <Text tone="muted">
-          {`Your bank couldn't take the refund for order #${refund.order.display_id} from ${refund.order.shop} back to your card. Add a bank account and we'll send it there. It can be anyone's account: you'll see the name on it before it's sent.`}
+          {`${forOrder(refund)} Your card's bank couldn't take the money back, so we'll send it to a bank account instead.`}
         </Text>
-      </View>
-
-      <View style={{ gap: theme.space[2] }}>
-        <Text variant="strong">Bank</Text>
-        <BankField banks={banks} bankCode={bankCode} onChoose={(code) => change(() => setBankCode(code))} />
-      </View>
-
-      <View style={{ gap: theme.space[2] }}>
-        <Text variant="strong">Account number</Text>
-        <TextInput
-          maxFontSizeMultiplier={MAX_FONT_SCALE}
-          value={accountNumber}
-          onChangeText={(text) => change(() => setAccountNumber(text.replace(/\D/g, '').slice(0, ACCOUNT_LENGTH)))}
-          placeholder="10 digits"
-          placeholderTextColor={theme.colors.muted}
-          accessibilityLabel="Account number"
-          keyboardType="number-pad"
-          textContentType="none"
-          autoComplete="off"
-          maxLength={ACCOUNT_LENGTH}
-          style={inputStyle}
-        />
-      </View>
-
-      {confirming && input ? (
-        <ConfirmAccount
-          account={confirming}
-          last4={accountNumber.slice(-4)}
-          amount={amount}
-          retry={retry}
-          onSend={() => retry.mutate(input)}
-          onChange={() => change(() => {})}
-        />
-      ) : (
-        <View style={{ gap: theme.space[4] }}>
-          {resolve.error ? (
-            <Text tone="muted" accessibilityLiveRegion="polite">
-              {resolve.error.message}
-            </Text>
-          ) : null}
-          <Button
-            label="Check the account"
-            disabled={!input}
-            loading={resolve.isPending}
-            onPress={() => {
-              if (input) resolve.mutate(input);
-            }}
+        <BankField banks={banks} bankName={bank?.name ?? null} bankCode={bankCode} onChoose={(code) => change(() => setBankCode(code))} />
+        <View style={{ gap: theme.space[1] }}>
+          <TextField
+            label="Account number"
+            value={accountNumber}
+            onChangeText={(text) => change(() => setAccountNumber(text.replace(/\D/g, '').slice(0, ACCOUNT_LENGTH)))}
+            placeholder="10 digits"
+            keyboardType="number-pad"
+            textContentType="none"
+            autoComplete="off"
+            maxLength={ACCOUNT_LENGTH}
           />
+          <AccountName pending={resolve.isPending} name={account?.account_name ?? null} />
         </View>
-      )}
-    </ScrollView>
+        <View style={[styles.row, { gap: theme.space[2], padding: theme.space[2], borderRadius: theme.radius.md, backgroundColor: theme.colors.tile }]}>
+          <Icon name="shield" use="chip" color={theme.colors.accent} />
+          <Text variant="meta" tone="muted" style={styles.fill}>
+            Paystack sends the refund to this account.
+          </Text>
+        </View>
+      </ScrollView>
+      {resolveProblem ? (
+        <View style={{ paddingHorizontal: theme.space[4] }}>
+          <InlineNote>{resolveProblem}</InlineNote>
+        </View>
+      ) : null}
+      <StickyAction label="Send refund to this account" disabled={!account} onPress={() => setConfirming(true)} />
+    </KeyboardAvoidingView>
   );
 }
 
-/** The account Paystack named, for the buyer to confirm before the refund is sent to it. */
+/** The holder's name Paystack read back, in leaf under the account number, or that it's being checked. */
+function AccountName({ pending, name }: Readonly<{ pending: boolean; name: string | null }>) {
+  if (pending) {
+    return (
+      <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
+        Checking the account…
+      </Text>
+    );
+  }
+  if (!name) return null;
+  return (
+    <Text variant="meta" weight="bold" tone="leaf" accessibilityLabel={`Account name ${name}`} accessibilityLiveRegion="polite">
+      {name}
+    </Text>
+  );
+}
+
+/** The account Paystack named, and one question before the refund is sent to it. */
 function ConfirmAccount({
+  refund,
   account,
   last4,
-  amount,
   retry,
   onSend,
   onChange,
 }: Readonly<{
+  refund: BuyerRefund;
   account: { account_name: string; bank_name: string };
   last4: string;
-  amount: string;
   retry: ReturnType<typeof useRetryRefund>;
   onSend: () => void;
   onChange: () => void;
 }>) {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const amount = formatMoney(refund.amount, refund.currency_code);
+  const sendProblem = problem(retry.error, "Couldn't send your refund. Check your connection and try again; nothing was sent.");
   return (
-    <View style={{ gap: theme.space[4] }}>
-      <View
-        style={{
-          gap: theme.space[1],
-          padding: theme.space[4],
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: theme.colors.ink,
-        }}>
-        <Text variant="strong">{account.account_name}</Text>
-        <Text tone="muted">{`${account.bank_name}, account ending ${last4}`}</Text>
+    <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }}>
+        <Amount refund={refund} />
+        <View
+          accessible
+          style={[styles.row, { gap: theme.space[3], padding: theme.space[3], borderRadius: theme.radius.lg, backgroundColor: theme.colors.tile }]}>
+          <ShopMark name={account.bank_name} />
+          <View style={[styles.fill, { gap: theme.space[1] }]}>
+            <Text weight="bold">{account.account_name}</Text>
+            <Text variant="meta" tone="muted">{`${account.bank_name} · account ending ${last4}`}</Text>
+          </View>
+        </View>
+        <Text>{`Is this the account to send your ${amount} refund to?`}</Text>
+      </ScrollView>
+      <View style={{ gap: theme.space[2], paddingHorizontal: theme.space[4], paddingTop: theme.space[3], paddingBottom: Math.max(insets.bottom, theme.space[4]) }}>
+        {sendProblem ? <InlineNote>{sendProblem}</InlineNote> : null}
+        <Button label={`Send ${amount} to this account`} loading={retry.isPending} onPress={onSend} />
+        <Button label="Change the details" variant="secondary" disabled={retry.isPending} onPress={onChange} />
       </View>
-      <Text tone="muted">{`Is this the account to send your ${amount} refund to?`}</Text>
-      {retry.error ? (
-        <Text tone="muted" accessibilityLiveRegion="polite">
-          {`Couldn't send your refund: ${retry.error.message}`}
-        </Text>
-      ) : null}
-      <Button label={`Send ${amount} to this account`} loading={retry.isPending} onPress={onSend} />
-      <Button label="Change the details" variant="secondary" disabled={retry.isPending} onPress={onChange} />
     </View>
   );
 }
 
-/** The style of the screen's text inputs. */
-function useInputStyle() {
-  const theme = useTheme();
-  return [
-    styles.input,
-    theme.type.body,
-    {
-      minHeight: theme.hitArea,
-      borderRadius: theme.radius.md,
-      borderColor: theme.colors.control,
-      paddingHorizontal: theme.space[4],
-      color: theme.colors.ink,
-    },
-  ];
-}
-
-/** The bank the refund goes to: the one chosen, or Paystack's banks to search and choose from. */
+/** The bank the refund goes to, as a field; pressed, Paystack's banks to search and choose from. */
 function BankField({
   banks,
+  bankName,
   bankCode,
   onChoose,
-}: Readonly<{ banks: ReturnType<typeof useRefundBanks>; bankCode: string | null; onChoose: (code: string) => void }>) {
+}: Readonly<{ banks: ReturnType<typeof useRefundBanks>; bankName: string | null; bankCode: string | null; onChoose: (code: string) => void }>) {
   const theme = useTheme();
-  const inputStyle = useInputStyle();
   const [choosing, setChoosing] = useState(false);
-  const [search, setSearch] = useState('');
+  return (
+    <View style={{ gap: theme.space[1] }}>
+      <Text variant="meta" weight="bold" tone="muted">
+        Bank
+      </Text>
+      <PressableSurface
+        accessibilityRole="button"
+        accessibilityLabel={`Bank, ${bankName ?? 'not chosen'}`}
+        accessibilityHint="Opens the list of banks"
+        onPress={() => setChoosing(true)}
+        style={[
+          styles.row,
+          {
+            minHeight: theme.control.md,
+            gap: theme.space[2],
+            paddingHorizontal: theme.space[4],
+            borderRadius: theme.radius.md,
+            borderWidth: theme.line.input,
+            borderColor: theme.colors.control,
+            backgroundColor: theme.colors.raised,
+          },
+        ]}>
+        <Text tone={bankName ? 'default' : 'muted'} style={styles.fill}>
+          {bankName ?? 'Choose your bank'}
+        </Text>
+        <Icon name="down" use="chip" color={theme.colors.muted} />
+      </PressableSurface>
+      <BankPicker
+        visible={choosing}
+        banks={banks}
+        bankCode={bankCode}
+        onClose={() => setChoosing(false)}
+        onChoose={(code) => {
+          onChoose(code);
+          setChoosing(false);
+        }}
+      />
+    </View>
+  );
+}
 
+/** Paystack's banks in a sheet, searched by name. */
+function BankPicker({
+  visible,
+  banks,
+  bankCode,
+  onClose,
+  onChoose,
+}: Readonly<{
+  visible: boolean;
+  banks: ReturnType<typeof useRefundBanks>;
+  bankCode: string | null;
+  onClose: () => void;
+  onChoose: (code: string) => void;
+}>) {
+  const theme = useTheme();
+  const [search, setSearch] = useState('');
+  const matching = (banks.data ?? []).filter((b) => b.name.toLowerCase().includes(search.trim().toLowerCase()));
+
+  let list;
   if (banks.error && !banks.data) {
-    return <ErrorState title="Couldn't load the banks" body="Check your connection and try again. Your refund is safe." error={banks.error} onRetry={() => void banks.refetch()} />;
-  }
-  if (!choosing) {
-    const bank = banks.data?.find((b) => b.code === bankCode) ?? null;
-    return (
-      <ListRow title={bank?.name ?? 'Choose your bank'} trailing={<Text tone="accent">{bank ? 'Change' : 'Choose'}</Text>} onPress={() => setChoosing(true)} />
+    list = (
+      <ErrorState
+        title="Couldn't load the banks"
+        body="Check your connection and try again. Your refund is safe."
+        error={banks.error}
+        onRetry={() => void banks.refetch()}
+      />
+    );
+  } else if (banks.data) {
+    list = (
+      <FlatList
+        data={matching}
+        keyExtractor={(b) => b.code}
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={
+          <Text tone="muted" style={{ padding: theme.space[4] }}>
+            {`No bank called "${search.trim()}"`}
+          </Text>
+        }
+        renderItem={({ item }) => (
+          <PressableSurface
+            accessibilityRole="button"
+            accessibilityState={{ selected: item.code === bankCode }}
+            onPress={() => {
+              setSearch('');
+              onChoose(item.code);
+            }}
+            style={[
+              styles.row,
+              {
+                minHeight: theme.hitArea,
+                gap: theme.space[2],
+                paddingHorizontal: theme.space[4],
+                paddingVertical: theme.space[3],
+                borderBottomWidth: theme.line.divider,
+                borderBottomColor: theme.colors.line,
+              },
+            ]}>
+            <Text style={styles.fill}>{item.name}</Text>
+            {item.code === bankCode ? <Icon name="check" use="chip" color={theme.colors.accent} /> : null}
+          </PressableSurface>
+        )}
+      />
+    );
+  } else {
+    list = (
+      <View accessible accessibilityLabel="Loading the banks" style={{ padding: theme.space[4], gap: theme.space[4] }}>
+        {[60, 45, 70, 50].map((width) => (
+          <Skeleton key={width} width={`${width}%`} height={theme.type.body.lineHeight} />
+        ))}
+      </View>
     );
   }
-  const matching = (banks.data ?? []).filter((b) => b.name.toLowerCase().includes(search.trim().toLowerCase()));
+
   return (
-    <View style={{ gap: theme.space[2] }}>
-      <TextInput
-        maxFontSizeMultiplier={MAX_FONT_SCALE}
-        value={search}
-        onChangeText={setSearch}
-        placeholder="Search banks"
-        placeholderTextColor={theme.colors.muted}
-        accessibilityLabel="Search banks"
-        autoFocus
-        style={inputStyle}
-      />
-      {banks.data ? null : <LoadingState />}
-      {matching.map((b) => (
-        <RadioOption
-          key={b.code}
-          selected={b.code === bankCode}
-          onPress={() => {
-            onChoose(b.code);
-            setChoosing(false);
-            setSearch('');
-          }}>
-          <Text>{b.name}</Text>
-        </RadioOption>
-      ))}
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+        <View style={[styles.row, { padding: theme.space[4], paddingBottom: theme.space[2], gap: theme.space[2] }]}>
+          <Text variant="titlePushed" style={styles.fill}>
+            Choose your bank
+          </Text>
+          <Button label="Cancel" variant="link" size="md" onPress={onClose} />
+        </View>
+        <View style={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[2] }}>
+          <TextField label="Search banks" value={search} onChangeText={setSearch} placeholder="e.g. GTBank" autoCorrect={false} />
+        </View>
+        {list}
+      </View>
+    </Modal>
+  );
+}
+
+/** The form's shape while the refund loads: chip, amount, why, and the two fields. */
+function RefundSkeleton() {
+  const theme = useTheme();
+  return (
+    <View
+      accessible
+      accessibilityLabel="Loading your refund"
+      style={[styles.fill, { padding: theme.space[4], gap: theme.space[4], backgroundColor: theme.colors.bg }]}>
+      <Skeleton width="45%" height={theme.type.label.lineHeight + theme.space[2]} radius="pill" />
+      <Skeleton width="35%" height={theme.type.displayLg.lineHeight} />
+      <Skeleton width="90%" height={theme.type.body.lineHeight * 2} />
+      <Skeleton width="100%" height={theme.control.md} radius="md" />
+      <Skeleton width="100%" height={theme.control.md} radius="md" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  input: { borderWidth: line.input },
+  fill: { flex: 1 },
+  row: { flexDirection: 'row', alignItems: 'center' },
 });

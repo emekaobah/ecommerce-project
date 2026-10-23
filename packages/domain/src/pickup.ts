@@ -3,7 +3,7 @@
  * counter checks it, and what the buyer is told at checkout.
  */
 
-import { WEEKDAYS, type OpenPeriod, type Weekday, type WeeklyHours } from "./shop-hours"
+import { WEEKDAYS, type DayHours, type OpenPeriod, type Weekday, type WeeklyHours } from "./shop-hours"
 
 /** A pickup code is this many digits, shown in the buyer's order and as a QR code of them. */
 export const PICKUP_CODE_LENGTH = 6
@@ -76,4 +76,27 @@ export function checkPickupCode({ code, wrongAttempts }: PickupCodeState, entere
   }
   if (code && sameCode(code, entered)) return { ok: true }
   return { ok: false, reason: "wrong_code", wrongAttempts: [...recent, now.toISOString()] }
+}
+
+/** "482 913": a pickup code in groups of three, as the buyer reads it out at the counter. */
+export const pickupCodeGroups = (code: string) => code.replace(/(\d{3})(?=\d)/g, "$1 ")
+
+/** "10am", "7:30pm", "12pm", "midnight" (24:00, a day's end): a local "HH:MM" as buyers read it. */
+function clockLabel(time: string): string {
+  const [hour, minute] = time.split(":").map(Number) as [number, number]
+  if (hour === 24) return "midnight"
+  const twelve = hour % 12 === 0 ? 12 : hour % 12
+  return `${twelve}${minute ? `:${String(minute).padStart(2, "0")}` : ""}${hour < 12 ? "am" : "pm"}`
+}
+
+/**
+ * Today's hours on the pickup code, with any closure today applied (`todaysHours`):
+ * "Open today 10am–6pm", "Closed today · Family event"; null for a shop without hours.
+ */
+export function todayHoursLabel(today: DayHours | null): string | null {
+  if (!today) return null
+  const { periods, closure } = today
+  if (!periods.length) return closure?.note ? `Closed today · ${closure.note}` : "Closed today"
+  if (periods.length === 1 && periods[0]!.opens === "00:00" && periods[0]!.closes === "24:00") return "Open 24 hours today"
+  return `Open today ${periods.map((p) => `${clockLabel(p.opens)}–${clockLabel(p.closes)}`).join(", ")}`
 }
