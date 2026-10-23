@@ -1,6 +1,6 @@
 import {
   addressLines,
-  deliveryEstimate,
+  deliveryDay,
   notPlacedChangeMessage,
   notPlacedMessage,
   priceChangeMessage,
@@ -8,7 +8,7 @@ import {
   type PaymentReturn,
   type PriceChange,
 } from '@oja/domain';
-import { Button, Icon, InlineNote, StickyAction, Text, useTheme, type ChangesSheetChange, type IconName } from '@oja/ui';
+import { Icon, InlineNote, PressableSurface, StickyAction, Text, useTheme, type ChangesSheetChange, type IconName } from '@oja/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import type { ReactNode } from 'react';
@@ -75,9 +75,6 @@ export function ReviewStep({
           <SumRow key={promotion.code} label={`Promo ${promotion.code}`} value={`−${money(promotion.amount)}`} tone="leaf" />
         ))}
         <SumRow label="Total" value={money(checkout.total)} total />
-        <Text variant="meta" tone="muted">
-          Prices include VAT. Each shop delivers its own items, or hands them over in store.
-        </Text>
       </View>
     </View>
   );
@@ -87,7 +84,7 @@ export function ReviewStep({
 function howItComes(group: CheckoutSellerGroup, now: Date): string {
   if (group.method === 'pickup') return 'Pickup';
   const choice = group.delivery_choices.find((c) => c.id === group.shipping?.choice_id);
-  return choice ? deliveryEstimate(choice.delivery_eta_time, now, choice.time_zone) : 'Delivery to choose';
+  return choice ? deliveryDay(choice.delivery_eta_time, now, choice.time_zone) : 'Delivery to choose';
 }
 
 /** A chosen thing with its icon, and Change, which goes back to the step it was chosen on. */
@@ -101,7 +98,7 @@ function ReviewRow({
   const theme = useTheme();
   return (
     <View style={[styles.row, { gap: theme.space[3], paddingVertical: theme.space[3] }]}>
-      <Icon name={icon} color={theme.colors.accent} />
+      <Icon name={icon} />
       <View style={styles.fill}>
         <Text weight="bold">{title}</Text>
         {details.map((line) => (
@@ -110,7 +107,15 @@ function ReviewRow({
           </Text>
         ))}
       </View>
-      <Button label="Change" variant="link" onPress={onChange} />
+      <PressableSurface
+        accessibilityRole="button"
+        accessibilityLabel={`Change ${title}`}
+        onPress={onChange}
+        style={[styles.change, { minHeight: theme.hitArea, minWidth: theme.hitArea }]}>
+        <Text variant="meta" tone="muted">
+          Change
+        </Text>
+      </PressableSurface>
     </View>
   );
 }
@@ -266,4 +271,5 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
   note: { flexDirection: 'row', alignItems: 'flex-start' },
+  change: { alignItems: 'flex-end', justifyContent: 'center' },
 });
