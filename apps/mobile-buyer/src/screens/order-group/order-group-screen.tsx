@@ -185,7 +185,10 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
             </Text>
             <ShopLine order={order} />
           </View>
-          <StatusChip label={status.label} tone={status.tone} icon={status.icon} />
+          {/* Wrapped so it centres on the name's line instead of keeping to the top. */}
+          <View>
+            <StatusChip label={status.label} tone={status.tone} icon={status.icon} />
+          </View>
         </View>
         {changed ? (
           <Text variant="meta" tone="muted">
