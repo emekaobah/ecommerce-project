@@ -51,3 +51,14 @@ export function newOrderTakeover(data: unknown, state: TakeoverState): NewOrderP
   if (!push || push.orderId === state.showing || state.answered.has(push.orderId)) return null
   return push
 }
+
+/**
+ * The data for the banner a new order rings as when its takeover can't open after all (the
+ * member's shop couldn't be checked, or they have left it): the push's own, less what marks it a
+ * new order, so the banner opens the order when tapped and never tries to take over again.
+ */
+export function newOrderBanner(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== "object") return {}
+  const { kind: _kind, ...banner } = data as Record<string, unknown>
+  return banner
+}

@@ -8,7 +8,7 @@ import { queryClient } from '@/api/query-client';
 import { getSession } from '@/session/session-store';
 
 import { actForShop } from './act-for-shop';
-import { openTakeover, takeoverFor } from './new-order-takeover';
+import { openTakeover } from './new-order-takeover';
 
 /** Opens the order a tapped push is about, acting for its shop first when the member is in several. */
 async function open(response: Notifications.NotificationResponse) {
@@ -26,8 +26,7 @@ async function open(response: Notifications.NotificationResponse) {
 /** Refreshes the orders for a push arriving while the app is open; a new order may take over the screen. */
 function received(notification: Notifications.Notification) {
   void queryClient.invalidateQueries({ queryKey: orderKeys.all });
-  const takeover = takeoverFor(notification.request.content.data);
-  if (takeover) void openTakeover(takeover);
+  void openTakeover(notification);
 }
 
 /**

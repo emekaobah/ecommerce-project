@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { newOrderPush, newOrderTakeover, pushTarget } from "./push"
+import { newOrderBanner, newOrderPush, newOrderTakeover, pushTarget } from "./push"
 
 describe("pushTarget", () => {
   test("opens the screen a push names", () => {
@@ -80,5 +80,18 @@ describe("newOrderTakeover", () => {
 
   test("any other push is a banner", () => {
     expect(newOrderTakeover({ ...push, kind: "accept_reminder" }, phone)).toBeNull()
+  })
+})
+
+describe("newOrderBanner", () => {
+  const push = { url: "/orders/order_123", order_id: "order_123", seller_id: "sel_1", kind: "new_order" }
+  const phone = { mode: "takeover", signedIn: true, showing: null, answered: new Set<string>() } as const
+
+  test("a takeover that can't open rings as a banner instead, never as another takeover", () => {
+    expect(newOrderTakeover(newOrderBanner(push), phone)).toBeNull()
+  })
+
+  test("tapping the banner still opens the order, for its shop", () => {
+    expect(pushTarget(newOrderBanner(push))).toEqual({ path: "/orders/order_123", sellerId: "sel_1" })
   })
 })

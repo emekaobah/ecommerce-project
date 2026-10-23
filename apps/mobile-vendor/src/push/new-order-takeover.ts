@@ -1,5 +1,8 @@
-import { newOrderPush, newOrderTakeover, type NewOrderPush } from '@oja/domain';
+import { NEW_ORDER_ALARM, newOrderBanner, newOrderPush, newOrderTakeover, type NewOrderPush } from '@oja/domain';
+import { reportError } from '@oja/expo-sentry';
+import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
+import { Platform } from 'react-native';
 
 import { getNewOrderAlertMode } from '@/alerts/new-order-alert-store';
 import { getSession } from '@/session/session-store';
@@ -27,7 +30,7 @@ export function takeoverAnswered(orderId: string): void {
 }
 
 /** The new order a push arriving while the app is open shows full screen (#83); null shows it as a banner. */
-export function takeoverFor(data: unknown): NewOrderPush | null {
+function takeoverFor(data: unknown): NewOrderPush | null {
   return newOrderTakeover(data, { mode: getNewOrderAlertMode(), signedIn: Boolean(getSession()), showing, answered });
 }
 
@@ -37,12 +40,44 @@ export function shownInApp(data: unknown): boolean {
 }
 
 /**
- * Opens the takeover for a new order, acting for its shop first. A second new order arriving
- * while one is showing takes its place: the first stays in the New queue, as after Not now.
+ * Opens the takeover for a new order's push, acting for its shop first. A second new order
+ * arriving while one is showing takes its place: the first stays in the New queue, as after Not
+ * now. The system kept quiet about the push (`shownInApp`), so a takeover that can't open after
+ * all, the shop left or not checkable, rings as a banner instead: a new order is never silent.
  */
-export async function openTakeover({ orderId, sellerId }: NewOrderPush): Promise<void> {
-  if (!(await actForShop(sellerId)) || showing === orderId) return;
+export async function openTakeover(notification: Notifications.Notification): Promise<void> {
+  const push = takeoverFor(notification.request.content.data);
+  if (!push) return;
+  let canOpen = false;
+  try {
+    canOpen = await actForShop(push.sellerId);
+  } catch (error) {
+    reportError(error, "Couldn't act for a new order's shop");
+  }
+  if (!canOpen) {
+    await ringAsBanner(notification);
+    return;
+  }
+  showTakeover(push);
+}
+
+function showTakeover({ orderId }: NewOrderPush) {
+  if (showing === orderId) return;
   const href = { pathname: '/new-order/[id]', params: { id: orderId } } as const;
   if (showing) router.replace(href);
   else router.push(href);
+}
+
+/** The push again as a banner with the alarm, in place of the quiet copy in the notification list. */
+async function ringAsBanner(notification: Notifications.Notification): Promise<void> {
+  const { identifier, content } = notification.request;
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title: content.title, body: content.body, data: newOrderBanner(content.data), sound: NEW_ORDER_ALARM.sound },
+      trigger: Platform.OS === 'android' ? { channelId: NEW_ORDER_ALARM.channelId } : null,
+    });
+    await Notifications.dismissNotificationAsync(identifier);
+  } catch (error) {
+    reportError(error, "Couldn't ring a new order as a banner");
+  }
 }
