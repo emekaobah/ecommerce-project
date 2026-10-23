@@ -118,7 +118,7 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
   return (
     <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       {hideHeader}
-      {/* The photo runs under the status bar and pads itself. */}
+      <StatusStrip />
       <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={{ paddingBottom: theme.space[8] }}>
         <Gallery
           images={product.images}
@@ -159,6 +159,13 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
   );
 }
 
+/** A tinted strip behind the status bar, so the white photo panel starts below it in either theme. */
+function StatusStrip() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  return <View style={{ height: insets.top, backgroundColor: theme.colors.tile }} />;
+}
+
 /** Every photo, swiped sideways on white with dots for position; back and save over the top. */
 function Gallery({
   images,
@@ -166,10 +173,9 @@ function Gallery({
   actions,
 }: Readonly<{ images: ListingDetail['product']['images']; dimmed: boolean; actions: ReactNode }>) {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [page, setPage] = useState(0);
-  const height = insets.top + Math.round(width * HERO_ASPECT);
+  const height = Math.round(width * HERO_ASPECT);
   return (
     <View
       style={{
@@ -188,7 +194,7 @@ function Gallery({
         onMomentumScrollEnd={(event) => setPage(Math.round(event.nativeEvent.contentOffset.x / width))}
         renderItem={({ item, index }) => (
           // Contained with a 10% margin, never cropped (tile rules).
-          <View style={{ width, height, paddingTop: insets.top, padding: '10%' }}>
+          <View style={{ width, height, padding: '10%' }}>
             <Image
               source={item.url}
               contentFit="contain"
@@ -204,7 +210,7 @@ function Gallery({
           </View>
         }
       />
-      <View style={[styles.actions, { top: insets.top + theme.space[1], left: theme.space[3], right: theme.space[3] }]}>
+      <View style={[styles.actions, { top: theme.space[1], left: theme.space[3], right: theme.space[3] }]}>
         <RoundButton icon="back" label="Back" onPress={() => router.back()} />
         {actions}
       </View>
@@ -527,14 +533,14 @@ function MoreFromShop({
 /** The photo, name, price and facts in their shapes; back works straight away. */
 function ProductSkeleton() {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const height = insets.top + Math.round(width * HERO_ASPECT);
+  const height = Math.round(width * HERO_ASPECT);
   return (
     <View accessible accessibilityLabel="Loading product">
+      <StatusStrip />
       <View style={{ height }}>
         <Skeleton height={height} style={StyleSheet.absoluteFill} />
-        <View style={[styles.actions, { top: insets.top + theme.space[1], left: theme.space[3], right: theme.space[3] }]}>
+        <View style={[styles.actions, { top: theme.space[1], left: theme.space[3], right: theme.space[3] }]}>
           <RoundButton icon="back" label="Back" onPress={() => router.back()} />
         </View>
       </View>
