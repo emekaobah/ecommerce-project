@@ -1,13 +1,13 @@
 import { formatMoney } from '@oja/domain';
-import { Button, line, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
+import { Button, Icon, InlineNote, StatusChip, Text, TextField, useTheme } from '@oja/ui';
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { useApplyPromoCode, useRemovePromoCode, type Checkout, type CheckoutPromotion } from '@/api/checkout';
+import { refusalMessage, useApplyPromoCode, useRemovePromoCode, type Checkout, type CheckoutPromotion } from '@/api/checkout';
 
 /**
- * Promo codes at checkout (#6): the code box, and the discounts on the cart. A shop's code says
- * it only takes money off that shop's items; a code the buyer can't use says why.
+ * Promo codes at checkout (#6): each code on the cart with what it takes off and whose it is,
+ * then the box for another. A code the buyer can't use says why, in the store's words.
  */
 export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; checkout: Checkout }>) {
   const theme = useTheme();
@@ -18,16 +18,10 @@ export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; chec
     if (!code.trim()) return;
     apply.mutate(code.trim(), { onSuccess: () => setCode('') });
   };
+  const applyProblem = apply.error ? (refusalMessage(apply.error) ?? "Couldn't apply the code. Check your connection and try again.") : null;
 
   return (
-    <View
-      style={{
-        gap: theme.space[2],
-        paddingTop: theme.space[4],
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: theme.colors.line,
-      }}>
-      <Text variant="heading">Promo code</Text>
+    <View style={{ gap: theme.space[2] }}>
       {checkout.promotions.map((promotion) => (
         <Promotion
           key={promotion.code}
@@ -37,50 +31,31 @@ export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; chec
           onRemove={() => remove.mutate(promotion.code)}
         />
       ))}
-      <View style={[styles.row, { gap: theme.space[2] }]}>
-        <TextInput
-          maxFontSizeMultiplier={MAX_FONT_SCALE}
-          value={code}
-          onChangeText={(text) => {
-            setCode(text);
-            apply.reset();
-          }}
-          onSubmitEditing={submit}
-          placeholder="Enter a code"
-          placeholderTextColor={theme.colors.muted}
-          accessibilityLabel="Promo code"
-          autoCapitalize="characters"
-          autoCorrect={false}
-          returnKeyType="done"
-          style={[
-            styles.input,
-            theme.type.body,
-            {
-              minHeight: theme.hitArea,
-              borderRadius: theme.radius.md,
-              borderColor: theme.colors.control,
-              paddingHorizontal: theme.space[4],
-              color: theme.colors.ink,
-            },
-          ]}
-        />
+      {remove.error ? <InlineNote>{"Couldn't remove the code. Check your connection and try again."}</InlineNote> : null}
+      <View style={[styles.row, styles.bottom, { gap: theme.space[2] }]}>
+        <View style={styles.fill}>
+          <TextField
+            label="Promo code"
+            value={code}
+            onChangeText={(text) => {
+              setCode(text);
+              apply.reset();
+            }}
+            onSubmitEditing={submit}
+            placeholder="Enter a code"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="done"
+          />
+        </View>
         <Button label="Apply" variant="secondary" onPress={submit} loading={apply.isPending} disabled={!code.trim()} />
       </View>
-      {apply.error ? (
-        <Text tone="danger" accessibilityLiveRegion="polite">
-          {apply.error.message}
-        </Text>
-      ) : null}
-      {remove.error ? (
-        <Text tone="danger" accessibilityLiveRegion="polite">
-          {`Couldn't remove the code: ${remove.error.message}`}
-        </Text>
-      ) : null}
+      {applyProblem ? <InlineNote>{applyProblem}</InlineNote> : null}
     </View>
   );
 }
 
-/** A discount on the cart: whose it is, what it takes off, and (for a code the buyer entered) Remove. */
+/** A discount on the cart: its code with what it takes off, whose it is, and (one the buyer entered) Remove. */
 function Promotion({
   promotion,
   currencyCode,
@@ -88,23 +63,38 @@ function Promotion({
   onRemove,
 }: Readonly<{ promotion: CheckoutPromotion; currencyCode: string; removing: boolean; onRemove: () => void }>) {
   const theme = useTheme();
-  const scope = promotion.seller ? `On ${promotion.seller.name}'s items only` : 'On your whole order';
+  const whose = promotion.seller ? `${promotion.seller.name}'s code.` : 'Applied by Oja.';
   return (
-    <View style={[styles.row, { gap: theme.space[2] }]}>
-      <View style={[styles.fill, { gap: theme.space[1] }]}>
-        <Text variant="strong">{promotion.automatic ? `${promotion.code} · Automatic deal` : promotion.code}</Text>
-        <Text variant="meta" tone="muted">
-          {scope}
+    <View style={{ gap: theme.space[1] }}>
+      <View
+        style={[
+          styles.row,
+          {
+            gap: theme.space[2],
+            minHeight: theme.control.md,
+            paddingHorizontal: theme.space[3],
+            borderRadius: theme.radius.md,
+            borderWidth: theme.line.input,
+            borderColor: theme.colors.leafText,
+            backgroundColor: theme.colors.raised,
+          },
+        ]}>
+        <Icon name="tag" use="step" />
+        <Text weight="bold" style={styles.fill}>
+          {promotion.code}
         </Text>
+        <StatusChip label={`−${formatMoney(promotion.amount, currencyCode)}`} tone="success" icon="check" />
+        {promotion.automatic ? null : <Button label="Remove" variant="link" onPress={onRemove} loading={removing} />}
       </View>
-      <Text variant="strong">{`−${formatMoney(promotion.amount, currencyCode)}`}</Text>
-      {promotion.automatic ? null : <Button label="Remove" variant="link" onPress={onRemove} loading={removing} />}
+      <Text variant="meta" tone="muted">
+        {promotion.automatic ? `Automatic deal. ${whose}` : whose}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
+  bottom: { alignItems: 'flex-end' },
   fill: { flex: 1 },
-  input: { flex: 1, borderWidth: line.input },
 });

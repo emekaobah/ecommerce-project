@@ -1,0 +1,185 @@
+import { deliveryEstimate, distanceLabel, PERISHABLE_HOLD_OPEN_DAYS, PICKUP_HOLD_OPEN_DAYS, type DeliveryTag } from '@oja/domain';
+import { InlineNote, RadioOption, ShopMark, Text, useTheme } from '@oja/ui';
+import { StyleSheet, View } from 'react-native';
+
+import { refusalMessage, useChooseDelivery, type Checkout, type CheckoutSellerGroup } from '@/api/checkout';
+import { Card, SumRow } from '@/components/cart/summary';
+import { PerishableRule } from '@/components/perishable';
+import { PickupDetails } from '@/components/pickup';
+
+const TAG_LABELS: Record<DeliveryTag, string> = { best_value: 'Best value', cheapest: 'Cheapest', fastest: 'Fastest' };
+
+/** Step 2: one list per shop, each option with its date, its courier or pickup place, and its price. */
+export function DeliveryStep({
+  cartId,
+  checkout,
+  choosingMethod,
+  onChooseMethod,
+  money,
+}: Readonly<{
+  cartId: string;
+  checkout: Checkout;
+  choosingMethod: boolean;
+  onChooseMethod: (sellerId: string, method: 'delivery' | 'pickup') => void;
+  money: (amount: number) => string;
+}>) {
+  const theme = useTheme();
+  const delivered = checkout.sellers.filter((group) => group.method === 'delivery').length;
+  return (
+    <View style={{ gap: theme.space[2] }}>
+      {checkout.sellers.map((group) => (
+        <ShopDelivery
+          key={group.seller?.id ?? 'gone'}
+          cartId={cartId}
+          group={group}
+          money={money}
+          choosingMethod={choosingMethod}
+          onChooseMethod={onChooseMethod}
+        />
+      ))}
+      <View style={{ paddingTop: theme.space[2] }}>
+        <SumRow
+          label={delivered ? `Delivery, ${delivered} ${delivered === 1 ? 'shop' : 'shops'}` : 'Delivery'}
+          value={money(checkout.shipping_total)}
+        />
+      </View>
+    </View>
+  );
+}
+
+const itemsWord = (group: CheckoutSellerGroup) => {
+  const count = group.items.reduce((sum, item) => sum + item.quantity, 0);
+  return `${count} ${count === 1 ? 'item' : 'items'}`;
+};
+
+/** "Surulere · 1 km · collect within 5 open days"; fresh items are held one open day. */
+function pickupLine(group: CheckoutSellerGroup & { pickup: NonNullable<CheckoutSellerGroup['pickup']> }): string {
+  const { pickup } = group;
+  const distance = pickup.distance_km === null ? null : distanceLabel(pickup.distance_km);
+  const days = group.perishable ? PERISHABLE_HOLD_OPEN_DAYS : PICKUP_HOLD_OPEN_DAYS;
+  const hold = days === 1 ? 'collect within 1 open day' : `collect within ${days} open days`;
+  return [pickup.address.city, distance, hold].filter(Boolean).join(' · ');
+}
+
+/**
+ * One shop's options: its courier rates (best value preselected), then pickup when the shop has
+ * a collection point. Choosing pickup shows where and the hold; choosing a courier back quotes it.
+ */
+function ShopDelivery({
+  cartId,
+  group,
+  money,
+  choosingMethod,
+  onChooseMethod,
+}: Readonly<{
+  cartId: string;
+  group: CheckoutSellerGroup;
+  money: (amount: number) => string;
+  choosingMethod: boolean;
+  onChooseMethod: (sellerId: string, method: 'delivery' | 'pickup') => void;
+}>) {
+  const theme = useTheme();
+  const choose = useChooseDelivery(cartId);
+  const { seller, shop_status: status } = group;
+  const sellerId = seller?.id;
+  const busy = choose.isPending || choosingMethod;
+  const now = new Date();
+  // While a choice is being saved, it shows as chosen.
+  const chosenId = (choose.isPending && choose.variables?.choiceId) || group.shipping?.choice_id;
+  const collecting = group.method === 'pickup';
+  const preparedLater = status?.state === 'closed' && status.orderable ? `${status.label} · prepared then` : null;
+
+  return (
+    <Card gap={2}>
+      <View style={[styles.row, { gap: theme.space[2] }]}>
+        {seller ? <ShopMark name={seller.name} logoUrl={seller.logo} size="sm" /> : null}
+        <View style={styles.fill}>
+          <Text weight="bold">{seller?.name ?? 'No longer available'}</Text>
+          {preparedLater ? (
+            <Text variant="meta" tone="muted">
+              {preparedLater}
+            </Text>
+          ) : null}
+        </View>
+        <Text variant="meta" tone="muted">
+          {itemsWord(group)}
+        </Text>
+      </View>
+      {status && !status.orderable ? (
+        <InlineNote>{`${status.label}. Remove ${seller?.name ?? 'its'} items from your cart to pay for the rest.`}</InlineNote>
+      ) : null}
+      {group.perishable && !group.delivery_unavailable ? <PerishableRule /> : null}
+      {group.delivery_unavailable ? <InlineNote>{group.delivery_unavailable.reason}</InlineNote> : null}
+      {group.pickup_note ? <InlineNote>{group.pickup_note}</InlineNote> : null}
+
+      <View style={{ gap: theme.space[2] }} accessibilityRole="radiogroup" accessibilityLabel={`How to get ${seller?.name ?? 'these'} items`}>
+        {sellerId && !collecting
+          ? group.delivery_choices.map((choice) => {
+              const tags = choice.tags.map((tag) => TAG_LABELS[tag]);
+              const arrives = deliveryEstimate(choice.delivery_eta_time, now, choice.time_zone);
+              const selected = choice.id === chosenId;
+              return (
+                <RadioOption
+                  key={choice.id}
+                  selected={selected}
+                  disabled={busy}
+                  onPress={() => {
+                    if (!selected) choose.mutate({ sellerId, choiceId: choice.id });
+                  }}
+                  trailing={
+                    <Text weight="extrabold" tabular>
+                      {money(choice.amount)}
+                    </Text>
+                  }>
+                  <Text weight="bold">{[...tags, arrives].join(' · ')}</Text>
+                  <Text variant="meta" tone="muted">
+                    {choice.courier_name}
+                  </Text>
+                </RadioOption>
+              );
+            })
+          : null}
+        {sellerId && !collecting && !group.delivery_choices.length && !group.delivery_unavailable ? (
+          <Text tone="muted">Confirm your address to see delivery options.</Text>
+        ) : null}
+        {/* Collected: delivery is quoted again only once the buyer picks it. */}
+        {sellerId && collecting && !group.pickup_note ? (
+          <RadioOption selected={false} disabled={busy} onPress={() => onChooseMethod(sellerId, 'delivery')}>
+            <Text weight="bold">Delivery</Text>
+            <Text variant="meta" tone="muted">
+              Couriers and dates are shown once you choose it
+            </Text>
+          </RadioOption>
+        ) : null}
+        {sellerId && group.pickup ? (
+          <RadioOption
+            selected={collecting}
+            disabled={busy}
+            onPress={() => {
+              if (!collecting) onChooseMethod(sellerId, 'pickup');
+            }}
+            trailing={<Text weight="extrabold">Free</Text>}>
+            <Text weight="bold">Pick up at the shop</Text>
+            <Text variant="meta" tone="muted">
+              {pickupLine({ ...group, pickup: group.pickup })}
+            </Text>
+          </RadioOption>
+        ) : null}
+      </View>
+      {collecting && group.pickup ? (
+        <View style={{ gap: theme.space[2], paddingTop: theme.space[1] }}>
+          <Text variant="meta">{group.pickup.hold_notice}</Text>
+          <PickupDetails place={group.pickup} />
+        </View>
+      ) : null}
+      {choose.error ? (
+        <InlineNote>{refusalMessage(choose.error) ?? "Couldn't change the delivery. Check your connection and try again."}</InlineNote>
+      ) : null}
+    </Card>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+});
