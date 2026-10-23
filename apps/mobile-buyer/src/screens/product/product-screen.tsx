@@ -5,6 +5,7 @@ import {
   ErrorState,
   FactTile,
   Icon,
+  InlineNote,
   PressableSurface,
   ProductRail,
   QuantityStepper,
@@ -384,33 +385,14 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
   );
 }
 
-/**
- * The sticky action with what went wrong above it, in the ember note, announced to screen readers
- * (State rules: inline problems).
- * TODO(#79): use @oja/ui InlineNote.
- */
+/** The sticky action with what went wrong just above it, in the ember note (State rules: inline problems). */
 function BarWithNote({ note, ...action }: Readonly<StickyActionProps & { note: string | null }>) {
   const theme = useTheme();
   return (
-    <View style={{ backgroundColor: theme.colors.bg, paddingTop: note ? theme.space[2] : 0 }}>
+    <View style={{ backgroundColor: theme.colors.bg }}>
       {note ? (
-        <View
-          accessibilityRole="alert"
-          accessibilityLiveRegion="polite"
-          style={[
-            styles.row,
-            {
-              gap: theme.space[2],
-              marginHorizontal: theme.space[4],
-              padding: theme.space[2],
-              borderRadius: theme.radius.md,
-              backgroundColor: theme.status.attention.background,
-            },
-          ]}>
-          <Icon name="alert" use="chip" color={theme.status.attention.foreground} />
-          <Text variant="meta" weight="semibold" style={[styles.fill, { color: theme.status.attention.foreground }]}>
-            {note}
-          </Text>
+        <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2] }}>
+          <InlineNote>{note}</InlineNote>
         </View>
       ) : null}
       <StickyAction {...action} />
