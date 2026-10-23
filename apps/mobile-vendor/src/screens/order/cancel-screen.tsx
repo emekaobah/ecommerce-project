@@ -90,7 +90,7 @@ export function CancelScreen() {
               </Text>
               {CANCEL_REASONS.map((option) => (
                 <RadioOption key={option} selected={reason === option} onPress={() => setReason(option)}>
-                  <Text>{CANCEL_REASON_CHOICES[option]}</Text>
+                  <Text weight="semibold">{CANCEL_REASON_CHOICES[option]}</Text>
                 </RadioOption>
               ))}
             </View>

@@ -15,7 +15,7 @@ import {
   useToast,
 } from '@oja/ui';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -27,6 +27,7 @@ import { itemsSummary } from '@/orders/items';
 import { shopHoursOf } from '@/orders/shop-state';
 import { useNow } from '@/orders/use-now';
 import { useSession } from '@/session/session-store';
+import { rememberShop, useShopSnapshot } from '@/session/shop-snapshot';
 
 const STAGE_LABELS: Record<OrderStage, string> = { new: 'New', picking: 'Picking', ready: 'Ready', out: 'Out' };
 
@@ -48,7 +49,18 @@ export function OrdersScreen() {
   const [stage, setStage] = useState<OrderStage>('new');
   const counts = useStageCounts(sellerId);
   const orders = useStageOrders(sellerId, stage);
-  const hours = shopHoursOf(useShopHours(sellerId).data);
+  const shopHours = useShopHours(sellerId).data;
+  const seller = useCurrentSeller(sellerId).data;
+  // Until the server answers, the shop's name and open state are the last visit's.
+  const kept = useShopSnapshot(sellerId);
+  const hours = shopHoursOf(shopHours ?? kept?.hours ?? undefined);
+  const name = seller?.name ?? kept?.name ?? null;
+  useEffect(() => {
+    if (sellerId && shopHours) rememberShop(sellerId, { hours: shopHours });
+  }, [sellerId, shopHours]);
+  useEffect(() => {
+    if (sellerId && seller?.name) rememberShop(sellerId, { name: seller.name });
+  }, [sellerId, seller?.name]);
   const now = useNow();
   // Only a pull shows the spinner; background refetches stay silent.
   const [pulling, setPulling] = useState(false);
@@ -89,7 +101,7 @@ export function OrdersScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={[styles.grow, { backgroundColor: theme.colors.bg }]}>
-      <ShopHeader sellerId={sellerId} hours={hours} now={now} />
+      <ShopHeader name={name} hours={hours} now={now} />
       <View style={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[4] }}>
         <StageTiles
           stages={ORDER_STAGES.map((key) => ({ key, label: STAGE_LABELS[key], count: counts.data?.[key] ?? null }))}
@@ -105,12 +117,11 @@ export function OrdersScreen() {
 /**
  * The shop's name and open state, then today's date with when it closes or opens, beside
  * Quick-add and Settings.
- * The name comes from the cached shop list, so it shows at once.
+ * The name and hours are kept from the last visit, so they show at once.
  */
-function ShopHeader({ sellerId, hours, now }: Readonly<{ sellerId: string | undefined; hours: ShopHours | null; now: Date }>) {
+function ShopHeader({ name, hours, now }: Readonly<{ name: string | null; hours: ShopHours | null; now: Date }>) {
   const theme = useTheme();
   const router = useRouter();
-  const seller = useCurrentSeller(sellerId);
   const state = hours ? vendorShopState(hours, now) : null;
   const pill = theme.status[state?.chip.tone ?? 'neutral'];
 
@@ -118,7 +129,7 @@ function ShopHeader({ sellerId, hours, now }: Readonly<{ sellerId: string | unde
     <View style={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[2] }}>
       <View style={[styles.row, { gap: theme.space[2] }]}>
         <Text variant="titleNamed" numberOfLines={2} style={styles.name}>
-          {seller.data?.name ?? ''}
+          {name ?? ''}
         </Text>
         {state ? (
           <View

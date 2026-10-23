@@ -60,7 +60,7 @@ export default function AppLayout() {
           options={formSheet}
         />
         <Stack.Screen name="orders/[id]/remove-unavailable" options={{ title: 'Remove unavailable items' }} />
-        <Stack.Screen name="orders/[id]/packed" options={{ headerBackVisible: false }} />
+        <Stack.Screen name="orders/[id]/packed" options={{ title: 'Order', headerBackVisible: false }} />
         {/* In-store pickup (#12): scan or type the buyer's code, then hand the order over. */}
         <Stack.Screen name="orders/[id]/collect" />
         <Stack.Screen name="orders/[id]/hand-over" options={formSheet} />

@@ -5,6 +5,9 @@ import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+/** Behind the camera's picture, dark in both themes like the pick list's scanner: the white controls sit on it. */
+const CAMERA_BACKDROP = '#0B0C10';
+
 /** Product barcodes; QR and other symbologies aren't on shop shelves. */
 const BARCODE_TYPES = ['ean13', 'ean8', 'upc_a', 'upc_e', 'itf14'] as const;
 
@@ -82,7 +85,7 @@ export function ScanProductScreen() {
   }
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.colors.inverse }]}>
+    <View style={[styles.fill, { backgroundColor: CAMERA_BACKDROP }]}>
       <CameraView
         style={StyleSheet.absoluteFill}
         facing="back"

@@ -7,6 +7,7 @@ import { useCurrentSeller } from '@/api/sellers';
 import { useShopHours } from '@/api/shop-hours';
 import { shopHoursOf } from '@/orders/shop-state';
 import { useNow } from '@/orders/use-now';
+import { useShopSnapshot } from '@/session/shop-snapshot';
 
 /**
  * The shop's card on Settings (catalogue v-shop #4): its mark, name and state line ("Open until
@@ -16,6 +17,9 @@ import { useNow } from '@/orders/use-now';
 export function ShopCard({ sellerId, children }: Readonly<{ sellerId: string | undefined; children: ReactNode }>) {
   const theme = useTheme();
   const seller = useCurrentSeller(sellerId);
+  // Known from the last visit, so the card is named even before (or without) the server's answer.
+  const kept = useShopSnapshot(sellerId);
+  const name = seller.data?.name ?? kept?.name ?? null;
   const shop = useShopHours(sellerId);
   // Re-rendered every half minute; the clock is read at render, so a pause that just began counts.
   useNow();
@@ -48,9 +52,9 @@ export function ShopCard({ sellerId, children }: Readonly<{ sellerId: string | u
         borderBottomColor: theme.colors.line,
       }}>
       <View style={[styles.row, { gap: theme.space[2] }]}>
-        <ShopMark name={seller.data?.name ?? ''} logoUrl={seller.data?.logo} />
+        <ShopMark name={name ?? ''} logoUrl={seller.data?.logo} />
         <View style={[styles.fill, { gap: theme.space[1] }]}>
-          <Text weight="bold">{seller.data?.name ?? ' '}</Text>
+          <Text weight="bold">{name ?? ' '}</Text>
           {stateLine()}
         </View>
       </View>

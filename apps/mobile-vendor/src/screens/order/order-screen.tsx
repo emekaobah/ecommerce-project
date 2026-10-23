@@ -1,4 +1,5 @@
 import {
+  asSentence,
   canCancel,
   cancelledBy,
   cancelReasonText,
@@ -16,9 +17,9 @@ import {
   Icon,
   ErrorState,
   ListRow,
-  LoadingState,
   PressableSurface,
   QuantityPill,
+  Skeleton,
   Text,
   Timeline,
   useTheme,
@@ -66,7 +67,7 @@ export function OrderScreen() {
         />
       );
     }
-    if (!order.data) return <LoadingState />;
+    if (!order.data) return <OrderSkeleton />;
     const { fulfilment, currency_code } = order.data;
     const isNew = fulfilment.state === 'new';
     const timeZone = shop.data?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -89,12 +90,13 @@ export function OrderScreen() {
           </Band>
 
           <View style={{ padding: theme.space[4], gap: theme.space[6] }}>
-            {isNew ? null : (
+            {/* Only when there is a note: an empty block would still take the gap below the band. */}
+            {!isNew && (stateNote(fulfilment) || fulfilment.courier_approval) ? (
               <View style={{ gap: theme.space[2] }}>
                 <StateNote fulfilment={fulfilment} />
                 <ApprovalNote fulfilment={fulfilment} currency={currency_code} />
               </View>
-            )}
+            ) : null}
 
             <CourierLabel fulfilment={fulfilment} />
 
@@ -132,6 +134,35 @@ export function OrderScreen() {
   );
 }
 
+/** The order's shape while it loads: the band, then rows of photo, name and quantity, and the total. */
+function OrderSkeleton() {
+  const theme = useTheme();
+  return (
+    <View accessible accessibilityLabel="Loading the order">
+      <Band style={{ gap: theme.space[2] }}>
+        <View style={{ height: theme.type.titleNamed.lineHeight }} />
+        <View style={{ height: theme.type.meta.lineHeight }} />
+      </Band>
+      <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
+        {[0, 1].map((row) => (
+          <View key={row} style={[styles.row, { gap: theme.space[2] }]}>
+            <Skeleton width={theme.control.md} height={theme.control.md} radius="md" />
+            <View style={[styles.grow, { gap: theme.space[2] }]}>
+              <Skeleton width="60%" height={theme.space[3]} radius="pill" />
+              <Skeleton width="35%" height={theme.space[3]} radius="pill" />
+            </View>
+            <Skeleton width={theme.control.md} height={theme.space[8]} radius="pill" />
+          </View>
+        ))}
+        <View style={[styles.row, styles.between, { paddingTop: theme.space[4] }]}>
+          <Skeleton width="30%" height={theme.space[4]} radius="pill" />
+          <Skeleton width="35%" height={theme.space[5]} radius="pill" />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 /** The order's lines, each with its photo, unit price, Perishable tag and quantity, then the total. */
 function Lines({ order }: Readonly<{ order: Order }>) {
   const theme = useTheme();
@@ -155,13 +186,9 @@ function Lines({ order }: Readonly<{ order: Order }>) {
           </View>
           <View style={styles.grow}>
             <Text weight="bold">{item.product_title ?? 'Item'}</Text>
+            {/* A plain muted tag, as on the takeover (catalogue v-triage #3). */}
             <Text variant="meta" tone="muted" tabular>
-              {item.perishable ? (
-                <Text variant="meta" weight="bold" tone="ember">
-                  {'Perishable · '}
-                </Text>
-              ) : null}
-              {`${formatMoney(Number(item.unit_price), order.currency_code)} each`}
+              {`${item.perishable ? 'Perishable · ' : ''}${formatMoney(Number(item.unit_price), order.currency_code)} each`}
             </Text>
           </View>
           <QuantityPill label={`×${Number(item.quantity)}`} />
@@ -311,12 +338,12 @@ const DETAILED_NOTES: Partial<Record<OrderFulfilment['state'], (fulfilment: Orde
       ? `Handed over by ${collection.staff.name ?? 'a staff member'} to ${collection.collected_by} at ${timeOf(collection.staff.at)}.`
       : null,
   rejected: ({ rejected_by, reject_reason }) => {
-    const why = rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${reject_reason}.`;
+    const why = rejected_by === 'accept_deadline' ? 'Not accepted in time.' : `Rejected: ${asSentence(reject_reason ?? '')}`;
     return `${why} The buyer's payment for this order is being refunded.`;
   },
   cancelled: ({ cancellation }) =>
     cancellation
-      ? `Cancelled by ${cancelledBy(cancellation.by)}: ${cancelReasonText(cancellation)}. The buyer is refunded all they paid for it.`
+      ? `Cancelled by ${cancelledBy(cancellation.by)}: ${asSentence(cancelReasonText(cancellation))} The buyer is refunded all they paid for it.`
       : null,
 };
 
