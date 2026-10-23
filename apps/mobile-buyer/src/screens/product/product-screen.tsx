@@ -333,8 +333,8 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
   const { cartId, cartIdForAdding } = useCartSession();
   const cart = useCart(cartId);
   const add = useAddToCart(cartIdForAdding);
-  const setQuantity = useSetCartItemQuantity(cartId ?? '');
-  const [quantity, setLocalQuantity] = useState(1);
+  const setLineQuantity = useSetCartItemQuantity(cartId ?? '');
+  const [quantity, setQuantity] = useState(1);
   const line = cart.data?.sellers.flatMap((group) => group.items).find((item) => item.offer_id === offer.id);
   const unit = offerPrice(offer).amount;
 
@@ -355,11 +355,11 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
             name={name}
             min={0}
             // A shop not taking orders keeps what's in the cart as it is; the cart can still remove it.
-            disabled={setQuantity.isPending || !orderable}
-            onChange={(next) => setQuantity.mutate({ itemId: line.id, quantity: next })}
+            disabled={setLineQuantity.isPending || !orderable}
+            onChange={(next) => setLineQuantity.mutate({ itemId: line.id, quantity: next })}
           />
         }
-        note={setQuantity.error ? "Couldn't change the quantity. Try again." : null}
+        note={setLineQuantity.error ? "Couldn't change the quantity. Try again." : null}
       />
     );
   }
@@ -379,7 +379,7 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
           available={offer.available_quantity}
           name={name}
           disabled={!orderable}
-          onChange={setLocalQuantity}
+          onChange={setQuantity}
         />
       }
     />
