@@ -8,6 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LightStatusBar } from '@/components/light-status-bar';
 
+/** What Clerk's first step needs: email, Continue, then Apple and Google. */
+const FORM_HEIGHT = 420;
+
 const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
 /**
@@ -29,29 +32,25 @@ export function SignInScreen() {
   return (
     <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       <LightStatusBar />
-      <View
-        style={[
-          styles.band,
-          {
-            backgroundColor: theme.colors.band,
-            paddingTop: insets.top + theme.space[12],
-            paddingHorizontal: theme.space[6],
-            paddingBottom: theme.space[6],
-            gap: theme.space[2],
-          },
-        ]}>
-        <AdirePattern fade="top" opacity={0.55} />
-        <Text variant="displayXxl" tone="onBand" accessibilityRole="header" accessibilityLabel="Oja">
-          oja
-        </Text>
-        <Text variant="titleNamed" tone="onBand">
-          {'Your neighbourhood\nshops, in one app.'}
-        </Text>
-        <Text variant="meta" tone="onBand">
-          Shop the stores around you. Get it delivered, or pick it up on your way.
-        </Text>
+      {/* The band takes the space Clerk's form leaves, its words pinned to the foot; the pattern
+          fades out above them, so the type sits on plain indigo. */}
+      <View style={[styles.band, { backgroundColor: theme.colors.band }]}>
+        <View style={styles.pattern}>
+          <AdirePattern fade="top" opacity={0.55} />
+        </View>
+        <View style={{ paddingHorizontal: theme.space[6], paddingBottom: theme.space[6], gap: theme.space[2] }}>
+          <Text variant="displayXxl" tone="onBand" accessibilityRole="header" accessibilityLabel="Oja">
+            oja
+          </Text>
+          <Text variant="titleNamed" tone="onBand">
+            {'Your neighbourhood\nshops, in one app.'}
+          </Text>
+          <Text variant="meta" tone="onBand" style={styles.subtitle}>
+            Shop the stores around you. Get it delivered, or pick it up on your way.
+          </Text>
+        </View>
       </View>
-      <View style={styles.fill}>
+      <View style={[styles.form, { minHeight: FORM_HEIGHT }]}>
         <AuthView onDismiss={close} isDismissible={false} logo={<View />} logoMaxHeight={1} />
       </View>
       <Text
@@ -69,6 +68,10 @@ export function SignInScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  band: { overflow: 'hidden', justifyContent: 'flex-end' },
+  band: { flex: 1, overflow: 'hidden', justifyContent: 'flex-end' },
+  // The pattern fills the band above its words and fades out before them.
+  pattern: { flex: 1 },
+  form: { flexShrink: 0 },
+  subtitle: { opacity: 0.85 },
   centred: { textAlign: 'center' },
 });
