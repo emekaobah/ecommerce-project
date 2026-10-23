@@ -30,8 +30,10 @@ env:
 # A line reads "<name>, 0 of 2 picked" until ticked, "<name>, 2 of 2 picked" once it is.
 - tapOn: ".*, 0 of .* picked"
 - assertVisible: ".*, (\\d+) of \\1 picked"
-# The header's back button (Maestro's `back` is Android's).
-- tapOn: "Order #.*"
+# The header's back button (Maestro's `back` is Android's). By id: its label, "Order #N", is
+# also the title's.
+- tapOn:
+    id: "BackButton"
 - tapOn: "Continue picking"
 - assertVisible: ".*, (\\d+) of \\1 picked"
 # Packing waits for every line.
