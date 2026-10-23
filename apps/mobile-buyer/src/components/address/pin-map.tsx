@@ -1,8 +1,8 @@
 import type { Pin } from '@oja/domain';
-import { Button, Icon, InlineNote, PressableSurface, StatusChip, Text, TextField, useTheme } from '@oja/ui';
-import { useRef, useState } from 'react';
+import { Button, Icon, InlineNote, PressableSurface, Text, TextField, useTheme, type Theme } from '@oja/ui';
+import { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from 'react-native';
-import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { PROVIDER_GOOGLE, type MapStyleElement } from 'react-native-maps';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 /** How close the map opens: on a found place, on a state, or on the whole country. */
@@ -12,6 +12,18 @@ export type PinZoom = 'place' | 'state' | 'country';
 const SPAN: Record<PinZoom, number> = { place: 0.004, state: 0.6, country: 9 };
 
 export type PinRequest = { at: Pin; zoom: PinZoom };
+
+/** The catalogue's muted map, in the theme's greys: no places of interest or transit. */
+const quietMap = ({ colors }: Theme): MapStyleElement[] => [
+  { elementType: 'geometry', stylers: [{ color: colors.tile }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: colors.muted }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: colors.tile }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: colors.raised }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: colors.line }] },
+];
 
 /** A field the buyer fills on the map's sheet: its value, what's wrong with it, and how it changes. */
 export type SheetField = { value: string; error?: string; onChange: (value: string) => void };
@@ -69,6 +81,7 @@ export function PinMap({
   const pin = request?.zoom === 'place' || moved ? centre : null;
   const span = request ? SPAN[request.zoom] : SPAN.country;
   const round = theme.control.row;
+  const mapStyle = useMemo(() => quietMap(theme), [theme]);
 
   const locate = async () => {
     const here = await onLocate().catch(() => null);
@@ -90,6 +103,8 @@ export function PinMap({
                 style={StyleSheet.absoluteFill}
                 provider={PROVIDER_GOOGLE}
                 initialRegion={{ ...request.at, latitudeDelta: span, longitudeDelta: span }}
+                customMapStyle={mapStyle}
+                showsPointsOfInterests={false}
                 showsUserLocation
                 onRegionChangeComplete={(region, details) => {
                   setCentre({ latitude: region.latitude, longitude: region.longitude });
@@ -108,7 +123,18 @@ export function PinMap({
                   ]}>
                   <Icon name="back" />
                 </PressableSurface>
-                {stepLabel ? <StatusChip label={stepLabel} tone="info" /> : null}
+                {stepLabel ? (
+                  <View
+                    style={[
+                      styles.centred,
+                      theme.elevation.floating,
+                      { height: round, paddingHorizontal: theme.space[3], borderRadius: theme.radius.pill, backgroundColor: theme.colors.raised },
+                    ]}>
+                    <Text variant="label" weight="extrabold" style={{ color: theme.status.info.foreground }}>
+                      {stepLabel}
+                    </Text>
+                  </View>
+                ) : null}
               </SafeAreaView>
               {/* Lifted by half its height, so the pin's point is on the map's centre. */}
               <View pointerEvents="none" style={styles.pinLayer}>
@@ -118,7 +144,7 @@ export function PinMap({
                       {request.zoom === 'place' ? 'Drag the map to your gate' : 'Drag the map to where the rider should come'}
                     </Text>
                   </View>
-                  <Icon name="pin" use="emblem" color={theme.colors.primary} label="Delivery pin" />
+                  <DropPin />
                 </View>
               </View>
               <PressableSurface
@@ -133,7 +159,7 @@ export function PinMap({
                     width: round,
                     height: round,
                     right: theme.space[4],
-                    bottom: theme.space[4],
+                    bottom: theme.radius.sheet + theme.space[2],
                     borderRadius: theme.radius.md,
                     backgroundColor: theme.colors.raised,
                   },
@@ -141,17 +167,20 @@ export function PinMap({
                 <Icon name="locate" color={theme.colors.accent} />
               </PressableSurface>
             </View>
+            {/* The sheet laps over the map, so its rounded top shows against it. */}
             <SafeAreaView
               edges={['bottom']}
               style={{
+                marginTop: -theme.radius.sheet,
                 backgroundColor: theme.colors.raised,
                 borderTopLeftRadius: theme.radius.sheet,
                 borderTopRightRadius: theme.radius.sheet,
                 paddingHorizontal: theme.space[4],
-                paddingTop: theme.space[4],
+                paddingTop: theme.space[2],
                 paddingBottom: theme.space[4],
                 gap: theme.space[2],
               }}>
+              <View style={[styles.grabber, { width: theme.space[8] + theme.space[1], height: theme.space[1], backgroundColor: theme.colors.line }]} />
               <Text variant="titlePushed">{title || 'Your delivery spot'}</Text>
               <Text tone="muted">{place ? `${place} · pin checked with the courier` : 'The pin is checked with the courier'}</Text>
               <TextField
@@ -181,7 +210,35 @@ export function PinMap({
   );
 }
 
+/** The pin: an indigo drop with a white dot, standing on its shadow. Its point is the delivery spot. */
+function DropPin() {
+  const theme = useTheme();
+  const head = theme.control.md * 0.7;
+  const dot = head * 0.35;
+  return (
+    <View accessible accessibilityLabel="Delivery pin" style={styles.centred}>
+      <View
+        style={[
+          styles.centred,
+          theme.elevation.floating,
+          {
+            width: head,
+            height: head,
+            borderRadius: head / 2,
+            borderBottomLeftRadius: 0,
+            backgroundColor: theme.colors.primary,
+            transform: [{ rotate: '-45deg' }],
+          },
+        ]}>
+        <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: theme.colors.onPrimary }} />
+      </View>
+      <View style={[{ backgroundColor: theme.colors.scrim, opacity: 0.4, marginTop: theme.space[2], width: dot * 1.2, height: dot * 0.4, borderRadius: dot }]} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  grabber: { alignSelf: 'center', borderRadius: 2 },
   fill: { flex: 1 },
   centred: { alignItems: 'center', justifyContent: 'center' },
   topBar: {
