@@ -21,10 +21,6 @@ export function AcceptClock({ acceptBy, now, hours }: Readonly<{ acceptBy: strin
   );
 }
 
-/** Whether a new order is in its last two open hours to accept. */
-export const acceptUrgent = (fulfilment: OrderFulfilment, now: Date, hours: ShopHours | null) =>
-  fulfilment.state === 'new' && !!fulfilment.accept_by && acceptTimeLeft(fulfilment.accept_by, now, hours).urgent;
-
 /** A new order shows the time left to accept it; any other its state. */
 export function FulfilmentChip({ fulfilment, now, hours }: ChipProps) {
   if (fulfilment.state === 'new' && fulfilment.accept_by) {

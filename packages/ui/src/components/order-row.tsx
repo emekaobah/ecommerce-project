@@ -29,8 +29,9 @@ export type OrderRowProps = {
 const MAX_THUMBNAILS = 4
 
 /**
- * One checkout in the Orders list ("Orders, full scroll"): a card with its title, meta and
- * price, the first items' photos, and each shop's state as chips. The whole card opens the order.
+ * One checkout in the Orders list ("Orders, full scroll"): a flat row with its title, meta and
+ * price, the first items' photos, and each shop's state as chips; the list puts a `Divider`
+ * between rows. The whole row opens the order.
  */
 export function OrderRow({ title, meta, price, shops, thumbnails = [], trailing, onPress }: Readonly<OrderRowProps>) {
   const theme = useTheme()
@@ -52,14 +53,7 @@ export function OrderRow({ title, meta, price, shops, thumbnails = [], trailing,
       accessibilityRole="button"
       accessibilityLabel={spoken}
       onPress={onPress}
-      style={{
-        gap: theme.space[2],
-        padding: theme.space[3],
-        borderRadius: theme.radius.lg,
-        borderWidth: theme.line.divider,
-        borderColor: theme.colors.line,
-        backgroundColor: theme.colors.raised,
-      }}
+      style={{ gap: theme.space[2], paddingTop: theme.space[5], paddingBottom: theme.space[6] }}
     >
       <View style={[styles.top, { gap: theme.space[3] }]}>
         <View style={styles.fill}>

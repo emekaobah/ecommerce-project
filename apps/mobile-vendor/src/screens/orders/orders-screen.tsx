@@ -1,6 +1,7 @@
 import { collectByLabel, formatMoney, ORDER_STAGES, vendorShopState, type OrderStage, type ShopHours } from '@oja/domain';
 import {
   Button,
+  Divider,
   EmptyState,
   ErrorState,
   haptics,
@@ -21,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { orderValue, useAcceptOrder, useStageCounts, useStageOrders, type StageOrder } from '@/api/orders';
 import { useCurrentSeller } from '@/api/sellers';
 import { useShopHours } from '@/api/shop-hours';
-import { acceptUrgent, FulfilmentChip } from '@/orders/fulfilment-chip';
+import { FulfilmentChip } from '@/orders/fulfilment-chip';
 import { itemsSummary } from '@/orders/items';
 import { shopHoursOf } from '@/orders/shop-state';
 import { useNow } from '@/orders/use-now';
@@ -73,7 +74,8 @@ export function OrdersScreen() {
       <FlatList
         data={orders.data}
         keyExtractor={(o) => o.id}
-        contentContainerStyle={orders.data.length === 0 ? styles.fill : { paddingBottom: theme.space[6] }}
+        contentContainerStyle={orders.data.length === 0 ? styles.fill : { paddingHorizontal: theme.space[4], paddingBottom: theme.space[6] }}
+        ItemSeparatorComponent={Divider}
         ListEmptyComponent={<EmptyState {...EMPTY[stage]} />}
         refreshing={pulling}
         onRefresh={refresh}
@@ -172,22 +174,11 @@ function OrderCard({ order, now, hours }: Readonly<{ order: StageOrder; now: Dat
   const theme = useTheme();
   const router = useRouter();
   const { fulfilment } = order;
-  const urgent = acceptUrgent(fulfilment, now, hours);
-  const dark = theme.scheme === 'dark';
   const open = () => router.push({ pathname: '/orders/[id]', params: { id: order.id } });
   const method = fulfilment.method === 'pickup' ? 'Pickup' : 'Delivery';
   const hold = fulfilment.collect_by ? collectByLabel(fulfilment.collect_by.at, now, fulfilment.collect_by.time_zone) : null;
-  // Light draws an outline, ember in the last two hours; dark lifts the card, ember-tinted then.
-  const card = {
-    marginHorizontal: theme.space[4],
-    marginBottom: theme.space[2],
-    padding: theme.space[3],
-    gap: theme.space[2],
-    borderRadius: theme.radius.lg,
-    borderWidth: dark ? 0 : theme.line.input,
-    borderColor: urgent ? theme.colors.ember : theme.colors.line,
-    backgroundColor: dark && urgent ? theme.status.attention.background : theme.colors.raised,
-  };
+  // A flat row between dividers, with no fill or outline: the time chip says when it's urgent.
+  const card = { gap: theme.space[2], paddingTop: theme.space[5], paddingBottom: theme.space[6] };
 
   const body = (
     <>
@@ -245,7 +236,7 @@ function AcceptButton({ orderId, displayId }: Readonly<{ orderId: string; displa
   );
 }
 
-/** Two order cards in their shape while the stage's orders load. */
+/** Two order rows in their shape while the stage's orders load. */
 function CardsLoading() {
   const theme = useTheme();
   return (
@@ -258,7 +249,7 @@ function CardsLoading() {
             paddingTop: theme.space[5],
             paddingBottom: theme.space[6],
             borderBottomWidth: theme.line.divider,
-            borderBottomColor: theme.colors.line,
+            borderBottomColor: theme.colors.divider,
           }}>
           <View style={styles.cardTop}>
             <Skeleton width="45%" height={theme.type.strong.fontSize} />

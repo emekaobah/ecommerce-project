@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
 import { formatMoney, historyEntries, orderRowMeta, type HistoryEntry } from '@oja/domain';
-import { EmptyState, ErrorState, OrderRow, SearchField, Skeleton, Text, useTheme, useToast } from '@oja/ui';
+import { Divider, EmptyState, ErrorState, OrderRow, SearchField, Skeleton, Text, useTheme, useToast } from '@oja/ui';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, SectionList, StyleSheet, View } from 'react-native';
@@ -29,7 +29,7 @@ export function OrdersScreen() {
   const [query, setQuery] = useState('');
   const q = useDebouncedValue(query.trim(), SEARCH_DELAY_MS);
   return (
-    <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bgGrouped }]}>
+    <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       {isSignedIn ? (
         <>
           <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[3], gap: theme.space[3] }}>
@@ -84,7 +84,7 @@ function OrderSections({ userId }: Readonly<{ userId: string | null | undefined 
       keyExtractor={(entry) => entry.group.id}
       stickySectionHeadersEnabled={false}
       contentContainerStyle={[{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[6] }, !sections.length && styles.grow]}
-      ItemSeparatorComponent={RowGap}
+      ItemSeparatorComponent={Divider}
       refreshing={refreshing}
       onRefresh={refresh}
       onEndReached={() => {
@@ -131,7 +131,7 @@ function SearchResults({ userId, q }: Readonly<{ userId: string | null | undefin
       data={entries}
       keyExtractor={(entry) => entry.group.id}
       contentContainerStyle={[{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[6] }, !entries.length && styles.grow]}
-      ItemSeparatorComponent={RowGap}
+      ItemSeparatorComponent={Divider}
       refreshing={refreshing}
       onRefresh={refresh}
       onEndReached={() => {
@@ -182,11 +182,6 @@ function HistoryRow({ entry }: Readonly<{ entry: Entry }>) {
   );
 }
 
-function RowGap() {
-  const theme = useTheme();
-  return <View style={{ height: theme.space[2] }} />;
-}
-
 function EndNote({ children }: Readonly<{ children: string }>) {
   const theme = useTheme();
   return (
@@ -196,25 +191,18 @@ function EndNote({ children }: Readonly<{ children: string }>) {
   );
 }
 
-/** Loading: order cards in outline, never a blank screen. */
+/** Loading: order rows in outline, never a blank screen. */
 function OrdersSkeleton() {
   const theme = useTheme();
-  const card = {
-    gap: theme.space[2],
-    padding: theme.space[3],
-    borderRadius: theme.radius.lg,
-    borderWidth: theme.line.divider,
-    borderColor: theme.colors.line,
-    backgroundColor: theme.colors.raised,
-  };
+  const row = { gap: theme.space[2], paddingTop: theme.space[5], paddingBottom: theme.space[6] };
   return (
     <View
       accessible
       accessibilityLabel="Loading your orders"
-      style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[4], gap: theme.space[2] }}>
+      style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[4] }}>
       <Skeleton width="40%" height={theme.type.heading.lineHeight} radius="pill" />
       {[0, 1, 2].map((key) => (
-        <View key={key} style={card}>
+        <View key={key} style={[row, key > 0 && { borderTopWidth: theme.line.divider, borderTopColor: theme.colors.divider }]}>
           <Skeleton width="55%" height={theme.type.strong.lineHeight} radius="pill" />
           <Skeleton width="70%" height={theme.type.meta.lineHeight} radius="pill" />
           <View style={[styles.row, { gap: theme.space[2] }]}>
