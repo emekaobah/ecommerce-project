@@ -411,8 +411,8 @@ function StepProgress({ step }: Readonly<{ step: CheckoutStep }>) {
     <View
       accessible
       accessibilityRole="progressbar"
+      // The label says the step; a numeric value made iOS read now/(max - min) as 50%, 100%, 150%.
       accessibilityLabel={`Step ${step} of 3`}
-      accessibilityValue={{ min: 1, max: 3, now: step }}
       style={{ gap: theme.space[1], paddingHorizontal: theme.space[4], paddingVertical: theme.space[2], backgroundColor: theme.colors.bg }}>
       <Text variant="meta" weight="bold" tone="muted" style={styles.right}>
         {`Step ${step} of 3`}
