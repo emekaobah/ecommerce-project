@@ -18,7 +18,7 @@
     "medusa"
   ],
   "scripts": {
-    "build": "medusa build && node ./scripts/bundle-dashboards.mjs",
+    "build": "medusa build && node ./scripts/bundle-dashboards.mjs && cp -R src/scripts/demo-images .medusa/server/src/scripts/",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "demo:order": "medusa exec ./src/scripts/demo-order.ts",
     "demo:images": "medusa exec ./src/scripts/demo-images.ts",
