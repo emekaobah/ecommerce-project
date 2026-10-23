@@ -1,3 +1,5 @@
+const os = require("node:os")
+const path = require("node:path")
 const { MetadataStorage } = require("@medusajs/framework/mikro-orm/core")
 
 MetadataStorage.clear()
@@ -6,3 +8,6 @@ MetadataStorage.clear()
 // Paystack (helpers/paystack.ts), which resolves any 10-digit account at its banks.
 process.env.SEED_BANK_CODE = "058"
 process.env.SEED_BANK_ACCOUNT_NUMBER = "0123456789"
+
+// Every seed uploads the demo photos (src/scripts/demo-images.ts): keep test uploads out of ./static.
+process.env.FILE_UPLOAD_DIR = path.join(os.tmpdir(), "oja-test-uploads")

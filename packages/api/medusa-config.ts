@@ -110,6 +110,10 @@ const fileProvider = process.env.S3_BUCKET
       options: {
         // The local provider bakes this into every uploaded file URL.
         backend_url: process.env.FILE_BACKEND_URL || 'http://localhost:9000/static',
+        // ./static unless set: integration tests upload to a temp folder (integration-tests/setup.js),
+        // since every seed uploads the demo photos.
+        upload_dir: process.env.FILE_UPLOAD_DIR || undefined,
+        private_upload_dir: process.env.FILE_UPLOAD_DIR || undefined,
       },
     }
 
