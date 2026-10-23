@@ -327,7 +327,7 @@ function SoldOutNote({ shop }: Readonly<{ shop: string }>) {
  * The sticky buy bar. Quantity sits beside Add and stops at what's in stock, and Add's price
  * follows it. Once the size is in the cart, the bar shows that line's quantity and changes it
  * there, so a second tap never adds a duplicate line. Sold out, or a shop not taking orders
- * (ADR 0004), disables Add.
+ * (ADR 0004), disables Add, and the in-cart quantity with it.
  */
 function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offer; name: string; currencyCode: string; orderable: boolean }>) {
   const { cartId, cartIdForAdding } = useCartSession();
@@ -354,7 +354,8 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
             available={offer.available_quantity}
             name={name}
             min={0}
-            disabled={setQuantity.isPending}
+            // A shop not taking orders keeps what's in the cart as it is; the cart can still remove it.
+            disabled={setQuantity.isPending || !orderable}
             onChange={(next) => setQuantity.mutate({ itemId: line.id, quantity: next })}
           />
         }
