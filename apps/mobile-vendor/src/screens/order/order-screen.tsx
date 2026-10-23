@@ -16,7 +16,7 @@ import {
 import { useMayManageShop } from '@/api/sellers';
 import { useShopHours } from '@/api/shop-hours';
 import { ApprovalNote, BookCourier } from '@/orders/courier-choice';
-import { AcceptClock } from '@/orders/fulfilment-chip';
+import { AcceptClockPill } from '@/orders/fulfilment-chip';
 import { shopHoursOf } from '@/orders/shop-state';
 import { useNow } from '@/orders/use-now';
 import { useSession } from '@/session/session-store';
@@ -57,7 +57,6 @@ export function OrderScreen() {
       <>
         <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }}>
           <Band style={{ gap: theme.space[2] }}>
-            {isNew && fulfilment.accept_by ? <AcceptClock acceptBy={fulfilment.accept_by} now={now} hours={hours} /> : null}
             <Text variant="titleNamed" tone="onBand">
               {`${staffStatus(fulfilment.state).label} · ${fulfilment.method}`}
             </Text>
@@ -81,7 +80,8 @@ export function OrderScreen() {
             {isNew ? null : <NextStep orderId={id} fulfilment={fulfilment} currency={currency_code} />}
             <CancelOrder orderId={id} fulfilment={fulfilment} />
 
-            {fulfilment.timeline.length ? <Timeline steps={fulfilment.timeline} /> : null}
+            {/* A new order has only been placed: its timeline starts once it's accepted. */}
+            {!isNew && fulfilment.timeline.length ? <Timeline steps={fulfilment.timeline} /> : null}
           </View>
         </ScrollView>
         {isNew ? <AcceptOrReject orderId={id} displayId={order.data.display_id} /> : null}
@@ -89,9 +89,21 @@ export function OrderScreen() {
     );
   };
 
+  // While it's new, the accept clock sits at the header's end, on the band's row (iOS: outside the bar's glass).
+  const acceptBy = order.data?.fulfilment.state === 'new' ? order.data.fulfilment.accept_by : null;
+  const renderClock = () => (acceptBy ? <AcceptClockPill acceptBy={acceptBy} now={now} hours={hours} /> : null);
   return (
     <>
-      <Stack.Screen options={{ title: order.data ? `Order #${order.data.display_id}` : 'Order' }} />
+      <Stack.Screen
+        options={{
+          title: order.data ? `Order #${order.data.display_id}` : 'Order',
+          headerRight: renderClock,
+          unstable_headerRightItems: () =>
+            acceptBy
+              ? [{ type: 'custom', element: <AcceptClockPill acceptBy={acceptBy} now={now} hours={hours} />, hidesSharedBackground: true }]
+              : [],
+        }}
+      />
       {content()}
     </>
   );
@@ -115,8 +127,8 @@ function Lines({ order }: Readonly<{ order: Order }>) {
             .filter(Boolean)
             .join(', ')}
           style={[styles.row, { gap: theme.space[2] }]}>
-          <View style={{ width: photo, height: photo, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.tile }}>
-            {item.thumbnail ? <Image source={{ uri: item.thumbnail }} contentFit="cover" style={StyleSheet.absoluteFill} /> : null}
+          <View style={{ width: photo, height: photo, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+            {item.thumbnail ? <Image source={{ uri: item.thumbnail }} contentFit="contain" style={StyleSheet.absoluteFill} /> : null}
           </View>
           <View style={styles.grow}>
             <Text weight="bold">{item.product_title ?? 'Item'}</Text>
@@ -146,7 +158,7 @@ function Lines({ order }: Readonly<{ order: Order }>) {
           </View>
         </View>
       ))}
-      <View style={[styles.row, styles.between, { paddingTop: theme.space[2] }]}>
+      <View style={[styles.row, styles.between, { paddingTop: theme.space[4] }]}>
         <Text variant="strong">Order total</Text>
         <Text variant="heading" tabular>
           {formatMoney(orderValue(order), order.currency_code)}
@@ -174,6 +186,7 @@ function AcceptOrReject({ orderId, displayId }: Readonly<{ orderId: string; disp
         onPress={() => router.push({ pathname: '/orders/[id]/reject', params: { id: orderId } })}
         style={[
           styles.centre,
+          styles.reject,
           {
             minHeight: theme.control.main,
             paddingHorizontal: theme.space[6],
@@ -354,6 +367,8 @@ function Action({
 }
 
 const styles = StyleSheet.create({
+  // Reject takes a little less of the row than Accept order (the catalogue's 44 to 56).
+  reject: { flex: 0.8 },
   row: { flexDirection: 'row', alignItems: 'center' },
   between: { justifyContent: 'space-between' },
   grow: { flex: 1 },
