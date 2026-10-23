@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { checkPickupCode, isPickupCodeFormat, openingHoursLines, pickupCodeGroups, todayHoursLabel } from "./pickup"
+import {
+  checkPickupCode,
+  isPickupCodeFormat,
+  openingHoursLines,
+  PICKUP_WRONG_CODE_MESSAGE,
+  pickupCodeGroups,
+  pickupLockoutMessage,
+  todayHoursLabel,
+} from "./pickup"
 
 const now = new Date("2026-10-11T12:00:00.000Z")
 const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString()
@@ -127,5 +135,26 @@ describe("todayHoursLabel", () => {
 
   test("a shop without hours has no line", () => {
     expect(todayHoursLabel(null)).toBeNull()
+  })
+})
+
+describe("pickupLockoutMessage", () => {
+  // Lagos is UTC+1 all year.
+  test("says when the counter may try again, in the shop's time", () => {
+    expect(pickupLockoutMessage("2026-10-23T14:15:00Z", new Date("2026-10-23T14:02:00Z"), "Africa/Lagos")).toBe(
+      "Too many wrong codes. Try again at 3:15pm."
+    )
+  })
+
+  test("names the day when that is another day", () => {
+    expect(pickupLockoutMessage("2026-10-23T23:10:00Z", new Date("2026-10-23T22:58:00Z"), "Africa/Lagos")).toBe(
+      "Too many wrong codes. Try again at 12:10am Sat."
+    )
+  })
+})
+
+describe("PICKUP_WRONG_CODE_MESSAGE", () => {
+  test("tells staff to check the code with the buyer", () => {
+    expect(PICKUP_WRONG_CODE_MESSAGE).toBe("That code doesn't match this order. Check it with the buyer.")
   })
 })
