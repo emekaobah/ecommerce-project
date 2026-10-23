@@ -31,14 +31,15 @@ export function SignInScreen() {
           edges={['top']}
           style={[styles.top, { padding: theme.space[6], gap: theme.space[2], backgroundColor: theme.colors.band }]}>
           <AdirePattern fade="top" opacity={0.55} />
-          <Text variant="displayXxl" tone="onBand">
+          {/* The wordmark's tight tracking runs on into "for shops", so it reads as part of the logo. */}
+          <Text variant="displayXxl" tone="onBand" style={{ letterSpacing: -0.03 * theme.type.displayXxl.fontSize }}>
             {PRODUCT_NAME.toLowerCase()}
             <Text variant="titlePushed" weight="bold" tone="onBand" style={styles.soft}>
               {' for shops'}
             </Text>
           </Text>
           <Text variant="titleNamed" weight="bold" tone="onBand">
-            Accept, pick, pack and hand over.
+            {'Accept, pick, pack\nand hand over.'}
           </Text>
         </SafeAreaView>
         <SafeAreaView edges={['bottom']} style={{ padding: theme.space[4], paddingBottom: theme.space[6], gap: theme.space[2] }}>
