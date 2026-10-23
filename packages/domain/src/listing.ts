@@ -90,3 +90,35 @@ export function groupByShop<L extends { seller: { id: string } }>(listings: L[])
   }
   return [...groups.values()]
 }
+
+const SIZE = /^\s*(\d+(?:\.\d+)?)\s*(kg|g|ml|cl|l|litres?|liters?)\b/i
+/** Each unit in grams or millilitres, so a product's weights (or volumes) share one scale; "litre" spelled out is a litre. */
+const LITRE = 1000
+const UNIT_SCALE: Record<string, number> = { g: 1, kg: 1000, ml: 1, cl: 10, l: LITRE }
+const CLOTHING = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]
+const CLOTHING_ALIASES: Record<string, string> = { "2XL": "XXL", "3XL": "XXXL" }
+
+/**
+ * A size's place on one scale: grams or millilitres for weights and volumes, the letter's place
+ * for clothing; null when it isn't one we can measure.
+ */
+function sizeRank(title: string | null): number | null {
+  const letter = (title ?? "").trim().toUpperCase()
+  const clothing = CLOTHING.indexOf(CLOTHING_ALIASES[letter] ?? letter)
+  if (clothing >= 0) return clothing
+  const match = SIZE.exec(title ?? "")
+  const [, amount, unit] = match ?? []
+  if (!amount || !unit) return null
+  return Number(amount) * (UNIT_SCALE[unit.toLowerCase()] ?? LITRE)
+}
+
+/**
+ * A product's sizes small to large, whatever order the shop added them in. Sizes that can't be
+ * measured keep their order, after the ones that can.
+ */
+export function bySize<O extends { variant_title: string | null }>(offers: O[]): O[] {
+  return offers
+    .map((offer, index) => ({ offer, index, rank: sizeRank(offer.variant_title) }))
+    .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || a.index - b.index)
+    .map(({ offer }) => offer)
+}

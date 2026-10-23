@@ -19,7 +19,8 @@ export type CodeBoxesProps = {
 
 /**
  * A code typed one digit to a box, spread across the width. One hidden input takes the typing,
- * so paste and one-time-code autofill work, and screen readers hear one field. The next box
+ * so paste and one-time-code autofill work, and screen readers hear one field, its digits read
+ * one by one with how many are left to type. The next box
  * to fill shows the focus outline and ring.
  */
 export function CodeBoxes({ label, value, onChangeText, length = 6, error, disabled, autoFocus, ref }: Readonly<CodeBoxesProps>) {
@@ -71,12 +72,23 @@ export function CodeBoxes({ label, value, onChangeText, length = 6, error, disab
           maxLength={length}
           caretHidden
           accessibilityLabel={label}
+          // Read digit by digit ("4 8 2"), never as one number, and how many are left to type.
+          accessibilityValue={{ text: spokenCode(value, length) }}
           accessibilityState={{ disabled }}
           style={[StyleSheet.absoluteFill, styles.input]}
         />
       </View>
     </View>
   )
+}
+
+/** "4 8 2, 3 more digits": what is typed so far, as a screen reader says it. */
+function spokenCode(value: string, length: number) {
+  const left = length - value.length
+  const typed = value.split("").join(" ")
+  if (!left) return typed
+  const more = `${left} ${value ? "more " : ""}${left === 1 ? "digit" : "digits"}`
+  return typed ? `${typed}, ${more}` : more
 }
 
 function boxOutline(theme: Theme, box: { error?: boolean; disabled?: boolean; next: boolean }) {

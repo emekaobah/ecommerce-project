@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { FulfilmentState } from "./fulfilment"
-import { ORDER_STAGES, orderStageOf, statesInStage, type OrderStage } from "./order-stage"
+import { ORDER_STAGES, orderStageOf, stageCountLabel, statesInStage, type OrderStage } from "./order-stage"
 
 describe("orderStageOf", () => {
   test.each<[FulfilmentState, OrderStage]>([
@@ -36,5 +36,17 @@ describe("statesInStage", () => {
 
   test("the stages run in the order the tiles show them", () => {
     expect(ORDER_STAGES).toEqual(["new", "picking", "ready", "out"])
+  })
+})
+
+describe("stageCountLabel", () => {
+  test.each([
+    [0, "0"],
+    [7, "7"],
+    [99, "99"],
+    [100, "99+"],
+    [1250, "99+"],
+  ])("shows %i orders as %s", (count, label) => {
+    expect(stageCountLabel(count)).toBe(label)
   })
 })

@@ -60,6 +60,15 @@ function RootStack() {
 
   if (!isLoaded) return null;
 
+  // Sheets slide up with the platform's own presentation, its grabber and the sheet corner radius.
+  const formSheet = {
+    presentation: 'formSheet',
+    headerShown: false,
+    sheetAllowedDetents: 'fitToContents',
+    sheetGrabberVisible: true,
+    sheetCornerRadius: theme.radius.sheet,
+  } as const;
+
   return (
     <Stack
       screenOptions={{
@@ -80,19 +89,26 @@ function RootStack() {
       {/* Guests browse freely; checkout, orders, reviewing and the wishlist need a signed-in buyer (ADR 0001). */}
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="checkout/index" options={{ title: 'Checkout' }} />
+        {/* What changed when a payment didn't start slides up over Review and pay. */}
+        <Stack.Screen
+          name="checkout/changes"
+          options={formSheet}
+        />
         {/* Paying ends in the confirmation screen, or back at checkout to try again. */}
-        <Stack.Screen name="checkout/pay" options={{ title: 'Pay with Paystack', gestureEnabled: false }} />
-        <Stack.Screen name="checkout/confirmation" options={{ title: 'Confirming payment', gestureEnabled: false }} />
+        <Stack.Screen name="checkout/pay" options={{ title: 'Pay', gestureEnabled: false }} />
+        <Stack.Screen name="checkout/confirmation" options={{ title: 'Order', gestureEnabled: false }} />
         <Stack.Screen name="wishlist" options={{ title: 'Wishlist' }} />
         <Stack.Screen name="addresses/index" options={{ title: 'Addresses' }} />
         <Stack.Screen name="addresses/edit" options={{ title: 'Address' }} />
         <Stack.Screen name="delivering-to" options={{ title: 'Delivering to' }} />
         <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
+        <Stack.Screen name="pickup/[id]" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="review/[id]" options={{ title: 'Review' }} />
+        <Stack.Screen name="my-reviews" options={{ title: 'My reviews' }} />
         <Stack.Screen name="refund/[id]" options={{ title: 'Refund' }} />
       </Stack.Protected>
-      {/* AuthView draws its own chrome, including the dismiss button. */}
-      <Stack.Screen name="sign-in" options={{ presentation: 'modal', headerShown: false }} />
+      {/* AuthView draws its own chrome, including the dismiss button. Full screen, so the indigo runs to the top edge. */}
+      <Stack.Screen name="sign-in" options={{ presentation: 'fullScreenModal', headerShown: false }} />
     </Stack>
   );
 }

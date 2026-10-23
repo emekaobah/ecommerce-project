@@ -1,4 +1,5 @@
 import {
+  addressFromForm,
   formFromLookup,
   mapCentre,
   type AddressConfig,
@@ -8,9 +9,9 @@ import {
   type LookedUpPlace,
   type Pin,
 } from '@oja/domain';
-import { Button, line, ListRow, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
+import { Button, InlineNote, line, ListRow, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
 import * as Location from 'expo-location';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
 import {
@@ -23,9 +24,13 @@ import {
 } from '@/api/address-lookup';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
+import { refusalMessage } from '@/api/checkout';
+
 import { AddressForm } from './address-form';
 import { PinMap, type PinRequest } from './pin-map';
 
+/** Filled on the map's sheet, beside the pin they help the rider and courier find. */
+const SHEET_FIELDS = new Set<string>(['metadata.landmark', 'phone'] satisfies AddressFieldKey[]);
 
 /** Where the buyer is, once they allow it; null when location is off. */
 async function currentPosition(): Promise<Pin | null> {
@@ -39,8 +44,10 @@ async function currentPosition(): Promise<Pin | null> {
 
 /**
  * The delivery address (ADR 0002): search with Google or use the current location, which
- * fills the country's form; then confirm a pin on the map. "Enter manually" is the plain form,
- * but the pin is still placed before saving. `onSave` gets the confirmed pin once the form is valid.
+ * fills the country's form; then confirm the pin on the map, whose sheet takes the rider's
+ * landmark and the courier's phone. "Enter manually" is the plain form, but the pin is still
+ * confirmed before saving. `onSave` gets the confirmed pin once the whole form is valid.
+ * `locateOnOpen` starts with the current location, for a buyer who chose it before opening this.
  */
 export function AddressEntry({
   lookup,
@@ -55,7 +62,9 @@ export function AddressEntry({
   onSave,
   saving,
   saveError,
-  saveLabel = 'Use this address',
+  saveLabel = 'Confirm address',
+  stepLabel,
+  locateOnOpen = false,
   children,
 }: Readonly<{
   lookup: LookupFor;
@@ -74,16 +83,18 @@ export function AddressEntry({
   saving: boolean;
   saveError: Error | null;
   saveLabel?: string;
+  /** "Step 1 of 3", on the map at checkout. */
+  stepLabel?: string;
+  /** Locate the buyer as soon as the entry opens, as tapping "Use my current location" does. */
+  locateOnOpen?: boolean;
   /** Shown above the save button, e.g. whether to keep the address for next time. */
   children?: ReactNode;
 }>) {
   const theme = useTheme();
   const [mode, setMode] = useState<'search' | 'form'>(values.address_1 ? 'form' : 'search');
   const [pinRequest, setPinRequest] = useState<PinRequest | null>(null);
-  // Saving waits for the pin when the buyer hasn't placed one yet.
-  const [saveOnConfirm, setSaveOnConfirm] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
+  const [locating, setLocating] = useState(locateOnOpen);
 
   /** A new place: its address fills the form, and the old pin no longer marks it. */
   const fill = (place: LookedUpPlace | null) => {
@@ -92,19 +103,29 @@ export function AddressEntry({
     setMode('form');
   };
 
+  /** What's wrong with the form, apart from the fields on the map's sheet. */
+  const formErrors = () => {
+    const checked = addressFromForm(values, config.countryCode);
+    return checked.ok ? [] : Object.keys(checked.errors).filter((key) => !SHEET_FIELDS.has(key));
+  };
+
+  // Confirming the pin saves the address once it's whole; a field off the sheet that's wrong
+  // sends the buyer back to the form, with what it needs.
   const confirmPin = (confirmed: Pin) => {
-    setPinRequest(null);
     onPin(confirmed);
-    if (saveOnConfirm) {
-      setSaveOnConfirm(false);
-      onSave(confirmed);
+    if (!validate()) {
+      if (formErrors().length) {
+        setPinRequest(null);
+        setMode('form');
+      }
+      return;
     }
+    onSave(confirmed);
   };
 
   const addressAt = useAddressAt(lookup);
-  const locateMe = async () => {
-    setNotice(null);
-    setLocating(true);
+  /** Fills the form from where the buyer is; `locating` is already on. */
+  const locate = async () => {
     try {
       const here = await currentPosition();
       if (!here) {
@@ -120,6 +141,16 @@ export function AddressEntry({
       setLocating(false);
     }
   };
+  const locateMe = () => {
+    setNotice(null);
+    setLocating(true);
+    void locate();
+  };
+  // Opened to locate: `locating` starts on, so the button shows it before the permission prompt.
+  const locateOnce = useEffectEvent(() => void locate());
+  useEffect(() => {
+    if (locateOnOpen) locateOnce();
+  }, [locateOnOpen]);
 
   /** The map for a pin the buyer places by hand: where they are, else their state, else the country. */
   const placePinByHand = async () => {
@@ -132,14 +163,14 @@ export function AddressEntry({
     setPinRequest({ at: centre, zoom });
   };
 
-  const save = () => {
-    if (!validate()) return;
-    if (pin) {
-      onSave(pin);
+  // The form's fields first, then the pin, the landmark and the phone on the map.
+  const toMap = () => {
+    if (formErrors().length) {
+      validate();
       return;
     }
-    setSaveOnConfirm(true);
-    void placePinByHand();
+    if (pin) setPinRequest({ at: pin, zoom: 'place' });
+    else void placePinByHand();
   };
 
   return (
@@ -160,18 +191,14 @@ export function AddressEntry({
           <Button
             label="Use my current location"
             variant="secondary"
-            onPress={() => void locateMe()}
+            onPress={locateMe}
             loading={locating}
           />
           <Button label="Can't find it? Enter manually" variant="link" onPress={() => setMode('form')} />
         </View>
       ) : null}
 
-      {notice ? (
-        <Text tone="muted" accessibilityLiveRegion="polite">
-          {notice}
-        </Text>
-      ) : null}
+      {notice ? <InlineNote>{notice}</InlineNote> : null}
 
       {mode === 'form' ? (
         <>
@@ -183,32 +210,35 @@ export function AddressEntry({
               setMode('search');
             }}
           />
-          <AddressForm config={config} values={values} errors={errors} onChange={onChange} />
-          <View style={[styles.spread, { gap: theme.space[4] }]}>
-            <Text tone="muted" style={styles.shrink}>
-              {pin ? 'Delivery pin placed on the map.' : "You'll place a pin on the map before saving."}
-            </Text>
-            {pin ? (
-              <Button label="Move pin" variant="link" onPress={() => setPinRequest({ at: pin, zoom: 'place' })} />
-            ) : null}
-          </View>
-          {saveError ? (
-            <Text tone="danger" accessibilityLiveRegion="polite">
-              {saveError.message}
-            </Text>
-          ) : null}
+          <AddressForm
+            config={{ ...config, fields: config.fields.filter((field) => !SHEET_FIELDS.has(field.key)) }}
+            values={values}
+            errors={errors}
+            onChange={onChange}
+          />
+          <Text tone="muted">{"Next, you'll confirm the pin on the map and add a landmark for the rider."}</Text>
           {children}
-          <Button label={saveLabel} onPress={save} loading={saving} />
+          <Button label="Continue to the map" size="main" onPress={toMap} loading={saving} />
         </>
       ) : null}
 
       <PinMap
         request={pinRequest}
-        onConfirm={confirmPin}
-        onCancel={() => {
-          setPinRequest(null);
-          setSaveOnConfirm(false);
+        title={values.address_1 ?? ''}
+        place={[values.city, values.province].filter(Boolean).join(', ')}
+        landmark={{
+          value: values['metadata.landmark'] ?? '',
+          error: errors['metadata.landmark'],
+          onChange: (value) => onChange('metadata.landmark', value),
         }}
+        phone={{ value: values.phone ?? '', error: errors.phone, onChange: (value) => onChange('phone', value) }}
+        stepLabel={stepLabel}
+        confirmLabel={saveLabel}
+        saving={saving}
+        problem={saveError ? (refusalMessage(saveError) ?? "Couldn't save the address. Check your connection and try again.") : null}
+        onLocate={currentPosition}
+        onConfirm={confirmPin}
+        onCancel={() => setPinRequest(null)}
       />
     </View>
   );
@@ -285,21 +315,11 @@ function AddressSearch({ lookup, onFound }: Readonly<{ lookup: LookupFor; onFoun
           Powered by Google
         </Text>
       ) : null}
-      {error ? (
-        <Text tone="danger" accessibilityLiveRegion="polite">
-          {`Couldn't look up the address: ${error.message}`}
-        </Text>
-      ) : null}
+      {error ? <InlineNote>{"Couldn't look up the address. Check your connection, or enter it manually."}</InlineNote> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   box: { borderWidth: line.input, justifyContent: 'center' },
-  spread: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  shrink: { flexShrink: 1 },
 });

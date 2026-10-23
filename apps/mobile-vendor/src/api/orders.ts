@@ -1,21 +1,23 @@
-import { pickProgress, type CancelRequest } from '@oja/domain';
+import { pickProgress, type CancelRequest, type OrderStage } from '@oja/domain';
 import { ClientError } from '@oja/api-client';
-import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { vendorClient } from './client';
 
 export const orderKeys = {
   all: ['orders'] as const,
-  list: (sellerId: string) => [...orderKeys.all, 'list', { sellerId }] as const,
+  stages: (sellerId: string) => [...orderKeys.all, 'stages', { sellerId }] as const,
+  stage: (sellerId: string, stage: OrderStage) => [...orderKeys.all, 'stage', { sellerId, stage }] as const,
   detail: (orderId: string) => [...orderKeys.all, 'detail', orderId] as const,
   pickList: (orderId: string) => [...orderKeys.all, 'pick-list', orderId] as const,
   cancel: (orderId: string) => [...orderKeys.all, 'cancel', orderId] as const,
 };
 
 // The default fields leave out the order total; `+` adds it to them. The buyer's name is who a
-// pickup order is for (#12).
+// pickup order is for (#12). The defaults bring the shipping address (the buyer's area) and the
+// shipping method, whose quote is the courier the buyer chose at checkout.
 const ORDER_FIELDS =
-  '+total,+credit_line_total,+created_at,+items.product_title,+items.quantity,+billing_address.first_name,+billing_address.last_name';
+  '+total,+credit_line_total,+created_at,+items.product_title,+items.quantity,+items.unit_price,+items.thumbnail,+billing_address.first_name,+billing_address.last_name';
 
 // A list row shows only the order's number, what the buyer paid, its lines and its fulfilment
 // (which the API adds), so a list asks for those alone, not Mercur's heavy order defaults (#69).
@@ -36,49 +38,47 @@ export type OrderFulfilment = Awaited<ReturnType<typeof acceptOrder>>['fulfilmen
 // The API adds each order's fulfilment to Mercur's order responses, which its types don't know.
 type WithFulfilment<T> = T & { fulfilment: OrderFulfilment };
 
-async function fetchOrders() {
-  const { orders } = await vendorClient.vendor.orders.query({ limit: 50, order: '-created_at', fields: LIST_FIELDS });
-  return orders as WithFulfilment<(typeof orders)[number]>[];
-}
-
 async function fetchOrder(orderId: string) {
   const { order } = await vendorClient.vendor.orders.$id.query({ $id: orderId, fields: ORDER_FIELDS });
-  return order as WithFulfilment<typeof order>;
+  // Each line also says whether it is perishable (#70).
+  type Line = NonNullable<typeof order.items>[number] & { perishable: boolean };
+  return order as WithFulfilment<Omit<typeof order, 'items'> & { items: Line[] | null }>;
 }
 
 export type Order = Awaited<ReturnType<typeof fetchOrder>>;
 
-/**
- * The shop's orders, newest first. Waits while there is no session. Checked again every
- * minute while on screen, so a new order shows up before its accept deadline runs down even
- * on a device that gets no pushes; a push arriving refreshes it at once (#27).
- */
-export function useOrders(sellerId: string | undefined) {
+/** How many of the shop's orders are New, Picking, Ready and Out (#69): the stage tiles. */
+export function useStageCounts(sellerId: string | undefined) {
   return useQuery({
-    queryKey: orderKeys.list(sellerId ?? ''),
-    queryFn: sellerId ? fetchOrders : skipToken,
+    queryKey: orderKeys.stages(sellerId ?? ''),
+    queryFn: sellerId ? async () => (await vendorClient.vendor.orderStages.query()).counts : skipToken,
     refetchInterval: 60_000,
   });
 }
 
-async function fetchReadyOrders() {
-  const { order_ids } = await vendorClient.vendor.readyForPickup.query();
-  if (!order_ids.length) return [];
-  const { orders } = await vendorClient.vendor.orders.query({ id: order_ids, limit: order_ids.length, fields: LIST_FIELDS });
-  const byId = new Map((orders as WithFulfilment<(typeof orders)[number]>[]).map((o) => [o.id, o]));
-  // Longest waiting first, as the server lists them.
-  return order_ids.flatMap((id) => byId.get(id) ?? []);
+/** How many orders a page of a stage's list holds. */
+const STAGE_PAGE = 50;
+
+async function fetchStageOrders(stage: OrderStage, offset: number) {
+  const page = await vendorClient.vendor.orderStages.$stage.query({ $stage: stage, fields: LIST_FIELDS, limit: STAGE_PAGE, offset });
+  return { ...page, orders: page.orders as WithFulfilment<(typeof page.orders)[number]>[] };
 }
 
+export type StageOrder = Awaited<ReturnType<typeof fetchStageOrders>>['orders'][number];
+
 /**
- * The shop's orders waiting at the counter for their buyers (#12), longest waiting first,
- * however old: the server finds them, not the recent orders the list shows. Checked again every
- * minute while on screen.
+ * Every one of the shop's orders in a stage, however old, newest first, a page at a time (#69).
+ * Waits while there is no session. Checked again every minute while on screen, so a new order
+ * shows up before its accept deadline runs down even on a device that gets no pushes; a push
+ * arriving refreshes it at once (#27).
  */
-export function useReadyOrders(sellerId: string | undefined) {
-  return useQuery({
-    queryKey: [...orderKeys.list(sellerId ?? ''), 'ready-for-pickup'],
-    queryFn: sellerId ? fetchReadyOrders : skipToken,
+export function useStageOrders(sellerId: string | undefined, stage: OrderStage) {
+  return useInfiniteQuery({
+    queryKey: orderKeys.stage(sellerId ?? '', stage),
+    queryFn: sellerId ? ({ pageParam }) => fetchStageOrders(stage, pageParam) : skipToken,
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.offset + last.orders.length < last.count ? last.offset + last.orders.length : undefined),
+    select: (data) => data.pages.flatMap((page) => page.orders),
     refetchInterval: 60_000,
   });
 }

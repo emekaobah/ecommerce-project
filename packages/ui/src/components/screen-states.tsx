@@ -18,7 +18,7 @@ type StateLayoutProps = { emblem: ReactNode; title: string; body: string; childr
 function StateLayout({ emblem, title, body, children }: Readonly<StateLayoutProps>) {
   const theme = useTheme()
   return (
-    <View style={[styles.layout, { paddingTop: theme.space[12], paddingHorizontal: theme.space[6], gap: theme.space[3] }]}>
+    <View style={[styles.layout, { paddingTop: theme.block.stateTop, paddingHorizontal: theme.block.stateSide, gap: theme.space[3] }]}>
       {emblem}
       <Text variant="titleNamed" style={styles.centred}>
         {title}

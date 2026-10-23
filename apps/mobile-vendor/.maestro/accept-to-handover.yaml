@@ -20,10 +20,11 @@ env:
 - extendedWaitUntil:
     visible: ${SHOP}
     timeout: 15000
-# Orders are newest first. A row reads as one label: its title, items and state chip.
-- tapOn: ".*, New · .*"
+# The New tile is selected and orders are newest first: open the newest one.
+- tapOn: "Details"
+# Accepting starts picking.
 - tapOn: "Accept order"
-- tapOn: "Start picking"
+- tapOn: "Continue picking"
 - extendedWaitUntil:
     visible: "0 of .* picked"
     timeout: 10000
@@ -35,7 +36,9 @@ env:
 - tapOn: "Mark packed"
 - assertVisible: "Order #.* is packed"
 - tapOn: "Back to orders"
-- tapOn: ".*, Packed"
+# Packed orders are in the Ready tile.
+- tapOn: ".* Ready orders?"
+- tapOn: ".*Packed.*"
 - assertVisible: "Packed, ready for a courier label."
 - tapOn: "Book courier label"
 - extendedWaitUntil:

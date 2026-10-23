@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { acceptDeadline, acceptReminderDue, acceptTimeLeft } from "./accept-deadline"
+import { acceptClockFraction, acceptClockTime, acceptDeadline, acceptReminderDue, acceptTimeLeft } from "./accept-deadline"
 import type { ShopHours } from "./shop-hours"
 
 // Weekdays 08:00–18:00, Saturday 09:00–14:00, closed Sunday, in Lagos (UTC+1). Friday 9 October 2026.
@@ -54,23 +54,76 @@ describe("acceptDeadline", () => {
   })
 })
 
+describe("acceptClockTime", () => {
+  const deadline = "2026-10-04T19:30:00.000Z"
+
+  test.each([
+    ["hours and minutes, without \"left\"", "2026-10-03T19:32:00.000Z", "23h 58m"],
+    ["overdue once the deadline has passed", "2026-10-04T19:30:00.000Z", "Overdue"],
+  ])("shows %s", (_, now, label) => {
+    expect(acceptClockTime(deadline, new Date(now))).toBe(label)
+  })
+
+  test("counts open time with the shop's hours", () => {
+    // Monday 08:00 to Tuesday 17:00: 10 and 9 open hours.
+    expect(acceptClockTime(lagos("2026-10-13T17:00:00"), new Date(lagos("2026-10-12T08:00:00")), HOURS)).toBe("19h")
+  })
+})
+
 describe("acceptTimeLeft", () => {
   const deadline = "2026-10-04T19:30:00.000Z"
 
   test.each([
     ["hours and minutes while more than an hour is left", "2026-10-04T14:18:00.000Z", "5h 12m left"],
-    ["whole hours with no minutes", "2026-10-04T17:30:00.000Z", "2h 0m left"],
+    ["whole hours without minutes", "2026-10-04T17:30:00.000Z", "2h left"],
     ["minutes alone in the last hour", "2026-10-04T19:05:30.000Z", "24m left"],
     ["under a minute as less than a minute", "2026-10-04T19:29:31.000Z", "Less than a minute left"],
     ["overdue once the deadline has passed", "2026-10-04T19:30:00.000Z", "Overdue"],
   ])("shows %s", (_, now, label) => {
-    expect(acceptTimeLeft(deadline, new Date(now))).toEqual({ label, urgent: expect.any(Boolean) })
+    expect(acceptTimeLeft(deadline, new Date(now)).label).toBe(label)
   })
 
   test("is urgent in the last two hours", () => {
     expect(acceptTimeLeft(deadline, new Date("2026-10-04T17:29:00.000Z")).urgent).toBe(false)
     expect(acceptTimeLeft(deadline, new Date("2026-10-04T17:30:00.000Z")).urgent).toBe(true)
     expect(acceptTimeLeft(deadline, new Date("2026-10-05T00:00:00.000Z")).urgent).toBe(true)
+  })
+
+  test("says what it counts down to, for VoiceOver", () => {
+    expect(acceptTimeLeft(deadline, new Date("2026-10-04T17:42:00.000Z")).accessibilityLabel).toBe("1h 48m left to accept")
+    expect(acceptTimeLeft(deadline, new Date("2026-10-04T19:30:00.000Z")).accessibilityLabel).toBe("Overdue to accept")
+  })
+
+  describe("with the shop's hours", () => {
+    // Placed Friday 20:00: deadline Tuesday 17:00.
+    const placed = lagos("2026-10-09T20:00:00")
+    const open = lagos("2026-10-13T17:00:00")
+
+    test("counts open time left, not the night", () => {
+      // Monday 08:00: Monday 10 and Tuesday 9 open hours are left, though 33 hours of clock are.
+      expect(acceptTimeLeft(open, new Date(lagos("2026-10-12T08:00:00")), HOURS)).toEqual({
+        label: "19h left",
+        accessibilityLabel: "19h of open time left to accept",
+        urgent: false,
+      })
+      // Overnight Monday, still nine.
+      expect(acceptTimeLeft(open, new Date(lagos("2026-10-12T23:00:00")), HOURS).label).toBe("9h left")
+    })
+
+    test("turns urgent exactly when the reminder push goes", () => {
+      for (const now of ["2026-10-13T14:00:00", "2026-10-13T15:00:00", "2026-10-13T16:59:00"]) {
+        const at = new Date(lagos(now))
+        expect(acceptTimeLeft(open, at, HOURS).urgent).toBe(acceptReminderDue(placed, at, HOURS))
+      }
+    })
+
+    test("is urgent overnight with under two open hours left, as the push is", () => {
+      // Placed Saturday 11:00: deadline Wednesday 09:00, one open hour left all Tuesday night.
+      const deadline = lagos("2026-10-14T09:00:00")
+      const night = new Date(lagos("2026-10-13T23:00:00"))
+      expect(acceptTimeLeft(deadline, night, HOURS)).toEqual({ label: "1h left", accessibilityLabel: "1h of open time left to accept", urgent: true })
+      expect(acceptReminderDue(lagos("2026-10-10T11:00:00"), night, HOURS)).toBe(true)
+    })
   })
 })
 
@@ -107,5 +160,40 @@ describe("acceptReminderDue", () => {
     ["not once the deadline has passed: the order is rejected instead", "2026-10-04T19:30:00.000Z", false],
   ])("is %s", (_, now, due) => {
     expect(acceptReminderDue(placedAt, new Date(now), null)).toBe(due)
+  })
+})
+
+describe("acceptClockFraction", () => {
+  // Placed Friday 20:00: deadline Tuesday 17:00 after Saturday 5, Monday 10 and Tuesday 9 open hours.
+  const deadline = lagos("2026-10-13T17:00:00")
+
+  test("is the share of the 24 open hours still left", () => {
+    // Saturday 09:00: all 24 open hours are left. Monday 08:00: Saturday's 5 are gone, 19 left.
+    expect(acceptClockFraction(deadline, new Date(lagos("2026-10-10T09:00:00")), HOURS)).toBe(1)
+    expect(acceptClockFraction(deadline, new Date(lagos("2026-10-12T08:00:00")), HOURS)).toBeCloseTo(19 / 24)
+  })
+
+  test("holds still while the shop is closed", () => {
+    // Saturday 14:00 to Monday 08:00 is closed: 19 open hours are left all that time.
+    expect(acceptClockFraction(deadline, new Date(lagos("2026-10-10T14:00:00")), HOURS)).toBeCloseTo(19 / 24)
+    expect(acceptClockFraction(deadline, new Date(lagos("2026-10-11T12:00:00")), HOURS)).toBeCloseTo(19 / 24)
+  })
+
+  test("keeps draining through a pause: a pause doesn't stop the clock (#18)", () => {
+    const paused = { ...HOURS, pauses: [{ starts_at: lagos("2026-10-12T08:00:00"), ends_at: null }] }
+    // Tuesday 15:00: two open hours are left, paused or not.
+    expect(acceptClockFraction(deadline, new Date(lagos("2026-10-13T15:00:00")), paused)).toBeCloseTo(2 / 24)
+  })
+
+  test("is empty once the deadline has passed", () => {
+    expect(acceptClockFraction(deadline, new Date(lagos("2026-10-13T17:00:00")), HOURS)).toBe(0)
+    expect(acceptClockFraction(deadline, new Date(lagos("2026-10-14T09:00:00")), HOURS)).toBe(0)
+  })
+
+  test("counts the wall clock for a shop without hours", () => {
+    // 1h 48m of 24h left: the catalogue draws it as 8 of 100.
+    const now = new Date("2026-10-22T10:00:00.000Z")
+    expect(acceptClockFraction("2026-10-22T11:48:00.000Z", now, null)).toBeCloseTo(1.8 / 24)
+    expect(acceptClockFraction("2026-10-23T07:00:00.000Z", now, null)).toBeCloseTo(21 / 24)
   })
 })

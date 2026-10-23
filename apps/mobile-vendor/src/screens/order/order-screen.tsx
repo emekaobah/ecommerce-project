@@ -1,71 +1,216 @@
-import { canCancel, cancelledBy, cancelReasonText, collectByLabel, formatMoney } from '@oja/domain';
-import { Button, ErrorState, ListRow, LoadingState, Text, Timeline, useTheme } from '@oja/ui';
+import { canCancel, cancelledBy, cancelReasonText, collectByLabel, formatMoney, orderBuyerLine, staffStatus } from '@oja/domain';
+import { Band, Button, haptics, ErrorState, ListRow, LoadingState, PressableSurface, Text, Timeline, useTheme, useToast } from '@oja/ui';
+import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Linking, ScrollView, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   orderValue,
   useAcceptOrder,
   useConfirmHandover,
   useOrder,
+  type Order,
   type OrderFulfilment,
 } from '@/api/orders';
 import { useMayManageShop } from '@/api/sellers';
+import { useShopHours } from '@/api/shop-hours';
 import { ApprovalNote, BookCourier } from '@/orders/courier-choice';
-import { FulfilmentChip } from '@/orders/fulfilment-chip';
-import { lineLabel } from '@/orders/items';
+import { AcceptClockPill } from '@/orders/fulfilment-chip';
+import { shopHoursOf } from '@/orders/shop-state';
 import { useNow } from '@/orders/use-now';
 import { useSession } from '@/session/session-store';
 
 /**
- * One order: its state, the deadline to accept it while it is new, its items, and what staff do
- * next: Accept / Reject while new, then pick and pack, book (or rebook) the courier label, and
- * confirm the handover to the courier. Owners and managers can cancel it once accepted, until its
- * courier label is booked (#17). Its timeline shows how far it has got.
+ * One order: an indigo band with its state, who it is for and, while it is new, the accept
+ * clock; its lines with their unit prices and Perishable tags, and its total. While it is new,
+ * Reject and Accept order sit at the foot: accepting starts picking. Then pick and pack, book (or
+ * rebook) the courier label, and confirm the handover to the courier. Owners and managers can
+ * cancel it once accepted, until its courier label is booked (#17). Its timeline shows how far
+ * it has got.
  */
 export function OrderScreen() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const order = useOrder(id);
+  const shop = useShopHours(useSession()?.sellerId);
+  const hours = shopHoursOf(shop.data);
   const now = useNow();
 
   const content = () => {
     if (order.error && !order.data) {
-      return <ErrorState title="Couldn't load the order" body="Check your connection and try again." error={order.error} onRetry={() => void order.refetch()} />;
+      return (
+        <ErrorState
+          title="Couldn't load the order"
+          body="Check your connection and try again. Nothing about the order has changed."
+          error={order.error}
+          onRetry={() => void order.refetch()}
+        />
+      );
     }
     if (!order.data) return <LoadingState />;
-    const { fulfilment, items, currency_code } = order.data;
+    const { fulfilment, currency_code } = order.data;
+    const isNew = fulfilment.state === 'new';
+    const timeZone = shop.data?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     return (
-      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
-        <View style={{ gap: theme.space[2] }}>
-          <FulfilmentChip fulfilment={fulfilment} now={now} />
-          <StateNote fulfilment={fulfilment} />
-          <ApprovalNote fulfilment={fulfilment} currency={currency_code} />
-        </View>
+      <>
+        <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+          <Band style={{ gap: theme.space[2] }}>
+            <Text variant="titleNamed" tone="onBand">
+              {`${staffStatus(fulfilment.state).label} · ${fulfilment.method}`}
+            </Text>
+            <Text variant="meta" tone="onBand">
+              {orderBuyerLine(order.data, timeZone)}
+            </Text>
+          </Band>
 
-        <CourierLabel fulfilment={fulfilment} />
+          <View style={{ padding: theme.space[4], gap: theme.space[6] }}>
+            {isNew ? null : (
+              <View style={{ gap: theme.space[2] }}>
+                <StateNote fulfilment={fulfilment} />
+                <ApprovalNote fulfilment={fulfilment} currency={currency_code} />
+              </View>
+            )}
 
-        <View>
-          {(items ?? []).map((item) => (
-            <ListRow key={item.id} title={lineLabel(item)} />
-          ))}
-          <ListRow title="Total" trailing={<Text variant="strong">{formatMoney(orderValue(order.data), currency_code)}</Text>} />
-        </View>
+            <CourierLabel fulfilment={fulfilment} />
 
-        <NextStep orderId={id} fulfilment={fulfilment} currency={currency_code} />
-        <CancelOrder orderId={id} fulfilment={fulfilment} />
+            <Lines order={order.data} />
 
-        {fulfilment.timeline.length ? <Timeline steps={fulfilment.timeline} /> : null}
-      </ScrollView>
+            {isNew ? null : <NextStep orderId={id} fulfilment={fulfilment} currency={currency_code} />}
+            <CancelOrder orderId={id} fulfilment={fulfilment} />
+
+            {/* A new order has only been placed: its timeline starts once it's accepted. */}
+            {!isNew && fulfilment.timeline.length ? <Timeline steps={fulfilment.timeline} /> : null}
+          </View>
+        </ScrollView>
+        {isNew ? <AcceptOrReject orderId={id} displayId={order.data.display_id} /> : null}
+      </>
     );
   };
 
+  // While it's new, the accept clock sits at the header's end, on the band's row (iOS: outside the bar's glass).
+  const acceptBy = order.data?.fulfilment.state === 'new' ? order.data.fulfilment.accept_by : null;
+  const renderClock = () => (acceptBy ? <AcceptClockPill acceptBy={acceptBy} now={now} hours={hours} /> : null);
   return (
     <>
-      <Stack.Screen options={{ title: order.data ? `Order #${order.data.display_id}` : 'Order' }} />
+      <Stack.Screen
+        options={{
+          title: order.data ? `Order #${order.data.display_id}` : 'Order',
+          headerRight: renderClock,
+          unstable_headerRightItems: () =>
+            acceptBy
+              ? [{ type: 'custom', element: <AcceptClockPill acceptBy={acceptBy} now={now} hours={hours} />, hidesSharedBackground: true }]
+              : [],
+        }}
+      />
       {content()}
     </>
+  );
+}
+
+/** The order's lines, each with its photo, unit price, Perishable tag and quantity, then the total. */
+function Lines({ order }: Readonly<{ order: Order }>) {
+  const theme = useTheme();
+  const photo = theme.control.md;
+  return (
+    <View style={{ gap: theme.space[3] }}>
+      {(order.items ?? []).map((item) => (
+        <View
+          key={item.id}
+          accessible
+          accessibilityLabel={[
+            `${Number(item.quantity)} × ${item.product_title ?? 'Item'}`,
+            `${formatMoney(Number(item.unit_price), order.currency_code)} each`,
+            item.perishable ? 'Perishable' : null,
+          ]
+            .filter(Boolean)
+            .join(', ')}
+          style={[styles.row, { gap: theme.space[2] }]}>
+          <View style={{ width: photo, height: photo, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+            {item.thumbnail ? <Image source={{ uri: item.thumbnail }} contentFit="contain" style={StyleSheet.absoluteFill} /> : null}
+          </View>
+          <View style={styles.grow}>
+            <Text weight="bold">{item.product_title ?? 'Item'}</Text>
+            <Text variant="meta" tone="muted" tabular>
+              {item.perishable ? (
+                <Text variant="meta" weight="bold" tone="ember">
+                  {'Perishable · '}
+                </Text>
+              ) : null}
+              {`${formatMoney(Number(item.unit_price), order.currency_code)} each`}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.quantity,
+              {
+                minWidth: photo,
+                minHeight: theme.space[8],
+                paddingHorizontal: theme.space[2],
+                borderRadius: theme.radius.pill,
+                backgroundColor: theme.colors.tile,
+              },
+            ]}>
+            <Text variant="heading" tabular style={{ fontSize: theme.type.strong.fontSize }}>
+              {`×${Number(item.quantity)}`}
+            </Text>
+          </View>
+        </View>
+      ))}
+      <View style={[styles.row, styles.between, { paddingTop: theme.space[4] }]}>
+        <Text variant="strong">Order total</Text>
+        <Text variant="heading" tabular>
+          {formatMoney(orderValue(order), order.currency_code)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** Reject and Accept order at the foot of a new order. Accepting starts picking straight away. */
+function AcceptOrReject({ orderId, displayId }: Readonly<{ orderId: string; displayId: number }>) {
+  const theme = useTheme();
+  const router = useRouter();
+  const toast = useToast();
+  const accept = useAcceptOrder(orderId);
+  return (
+    <SafeAreaView
+      edges={['bottom']}
+      style={[styles.row, { gap: theme.space[2], paddingHorizontal: theme.space[3], paddingTop: theme.space[2], backgroundColor: theme.colors.bg }]}>
+      <PressableSurface
+        accessibilityRole="button"
+        accessibilityLabel="Reject"
+        disabled={accept.isPending}
+        onPress={() => router.push({ pathname: '/orders/[id]/reject', params: { id: orderId } })}
+        style={[
+          styles.centre,
+          styles.reject,
+          {
+            minHeight: theme.control.main,
+            paddingHorizontal: theme.space[6],
+            borderRadius: theme.radius.lg,
+            backgroundColor: theme.colors.dangerBg,
+          },
+        ]}>
+        <Text variant="strong" tone="danger">
+          Reject
+        </Text>
+      </PressableSurface>
+      <Button
+        label="Accept order"
+        size="main"
+        style={styles.grow}
+        loading={accept.isPending}
+        onPress={() =>
+          accept.mutate(undefined, {
+            // The order is now in Picking: the screen shows the pick list's way in.
+            onSuccess: () => haptics.success(),
+            onError: () => toast({ message: `Couldn't accept order #${displayId}. Pull to see where it is now.`, tone: 'problem' }),
+          })
+        }
+      />
+    </SafeAreaView>
   );
 }
 
@@ -92,7 +237,6 @@ const BEFORE_PACKING = new Set<OrderFulfilment['state']>(['new', 'accepted', 'pi
 
 /** The notes that say more of the order than its state: none when the order lacks what they tell. */
 const DETAILED_NOTES: Partial<Record<OrderFulfilment['state'], (fulfilment: OrderFulfilment) => string | null>> = {
-  new: ({ accept_by }) => (accept_by ? `Accept by ${new Date(accept_by).toLocaleString()}, or it is rejected and refunded.` : null),
   ready_for_pickup: ({ collect_by }) =>
     collect_by
       ? `Ready at the counter. The buyer collects it with the code in their app. ${collectByLabel(collect_by.at, new Date(), collect_by.time_zone)}, or it is not collected.`
@@ -164,31 +308,15 @@ function CourierLabel({ fulfilment }: Readonly<{ fulfilment: OrderFulfilment }>)
 }
 
 /**
- * What staff do next with the order: Accept / Reject while new (accepting starts picking), pick it, then book its courier
- * label, choosing another courier when the buyer's costs more than Oja tops up (#19).
+ * What staff do next with an accepted order: pick it, then book its courier label, choosing
+ * another courier when the buyer's costs more than Oja tops up (#19).
  */
 function NextStep({ orderId, fulfilment, currency }: Readonly<{ orderId: string; fulfilment: OrderFulfilment; currency: string }>) {
-  const theme = useTheme();
   const router = useRouter();
-  const accept = useAcceptOrder(orderId);
   const handOver = useConfirmHandover(orderId);
   const { state } = fulfilment;
   const openPickList = () => router.push({ pathname: '/orders/[id]/pick', params: { id: orderId } });
 
-  if (state === 'new') {
-    return (
-      <View style={{ gap: theme.space[2] }}>
-        {accept.error ? <Text tone="danger">{accept.error.message}</Text> : null}
-        <Button label="Accept order" onPress={() => accept.mutate()} loading={accept.isPending} />
-        <Button
-          label="Reject order"
-          variant="secondary"
-          disabled={accept.isPending}
-          onPress={() => router.push({ pathname: '/orders/[id]/reject', params: { id: orderId } })}
-        />
-      </View>
-    );
-  }
   // Partially available (#22) is still being picked: its unavailable items wait on the pick list.
   if (state === 'picking' || state === 'partially_available') {
     return <Button label="Continue picking" onPress={openPickList} />;
@@ -236,3 +364,13 @@ function Action({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  // Reject takes a little less of the row than Accept order (the catalogue's 44 to 56).
+  reject: { flex: 0.8 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  between: { justifyContent: 'space-between' },
+  grow: { flex: 1 },
+  centre: { alignItems: 'center', justifyContent: 'center' },
+  quantity: { alignItems: 'center', justifyContent: 'center' },
+});

@@ -1,25 +1,47 @@
 import { useAuth } from '@clerk/expo';
-import { formatMoney } from '@oja/domain';
-import { Button, EmptyState, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
+import { formatMoney, shortLineLabel, soldOutButtonLabel, stockShortfall } from '@oja/domain';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Group,
+  GroupList,
+  InlineNote,
+  QuantityStepper,
+  ShopMark,
+  Skeleton,
+  StatusChip,
+  StickyAction,
+  Text,
+  useTheme,
+  useToast,
+} from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect } from 'react';
-import { Pressable, SectionList, StyleSheet, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useState, type ReactNode } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useCart, useMoveShopToOwnCart, useSetCartItemQuantity, type Cart, type CartItem } from '@/api/cart';
+import { useCart, useMoveShopToOwnCart, useSetCartItemQuantity, type Cart, type CartItem, type CartSellerGroup } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
+import { useToggleWishlist } from '@/api/wishlist';
 import { useCartSession } from '@/cart/cart-provider';
+import { SumRow } from '@/components/cart/summary';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
-import { Price } from '@/components/price';
-import { ShopStatusBadge } from '@/components/shop-status';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
-/** The cart, one section per shop: each shop ships, and becomes an order, on its own. */
+/** The cart, a card per shop: each shop ships, and becomes an order, on its own. */
 export function CartScreen() {
   const theme = useTheme();
+  const toast = useToast();
+  const { isSignedIn } = useAuth();
   const { cartId, forgetCart } = useCartSession();
   const cart = useCart(cartId);
   const cartMissing = isNotFound(cart.error);
+  const { refreshing, refresh } = usePullToRefresh(async () => {
+    const result = await cart.refetch();
+    if (result.isError && cart.data) toast({ message: "Couldn't refresh your cart", tone: 'problem' });
+  });
 
   useEffect(() => {
     if (cartMissing) forgetCart();
@@ -29,25 +51,32 @@ export function CartScreen() {
     if (cartId === null || cartMissing || cart.data?.item_count === 0) {
       return (
         <EmptyState
-          title="Your cart is empty"
-          body="Add something from a shop and it will show up here."
-          action={{ label: 'Start shopping', onPress: () => router.navigate('/') }}
+          icon="bag"
+          title="Nothing in your cart yet"
+          body="Start with the shops open near you, or pick up where you left off in your saved items."
+          action={{ label: 'Browse shops near you', onPress: () => router.navigate('/') }}
+          secondaryAction={{ label: 'See your saved items', onPress: () => router.push(isSignedIn ? '/wishlist' : '/sign-in') }}
         />
       );
     }
     // A failed refresh keeps the cart already on screen.
     if (cart.error && !cart.data) {
       return (
-        <ErrorState title="Couldn't load your cart" body="Check your connection and try again. Anything in your cart is saved." error={cart.error} onRetry={() => void cart.refetch()} />
+        <ErrorState
+          title="Couldn't load your cart"
+          body="Check your connection and try again. Anything in your cart is saved."
+          error={cart.error}
+          onRetry={() => void cart.refetch()}
+        />
       );
     }
-    if (!cartId || !cart.data) return <LoadingState />;
-    return <CartContents cartId={cartId} cart={cart.data} />;
+    if (!cartId || !cart.data) return <CartSkeleton />;
+    return <CartContents cartId={cartId} cart={cart.data} refreshing={refreshing} onRefresh={refresh} />;
   };
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <Text variant="titleRoot" style={{ marginVertical: theme.space[4], paddingHorizontal: theme.space[4] }}>
+    <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+      <Text variant="titleRoot" style={{ paddingTop: theme.space[1], paddingBottom: theme.space[2], paddingHorizontal: theme.space[4] }}>
         Cart
       </Text>
       {content()}
@@ -55,16 +84,27 @@ export function CartScreen() {
   );
 }
 
-function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>) {
+/** A line that sold out since it was added (none left): it stays, greyed, until it's dealt with. */
+const isSoldOut = (item: CartItem) => stockShortfall(item.quantity, item.available_quantity)?.type === 'sold_out';
+
+function CartContents({
+  cartId,
+  cart,
+  refreshing,
+  onRefresh,
+}: Readonly<{ cartId: string; cart: Cart; refreshing: boolean; onRefresh: () => void }>) {
   const theme = useTheme();
   const { isSignedIn } = useAuth();
-  // The floating tab bar overlays the screen; its height is in the bottom inset.
-  const { bottom } = useSafeAreaInsets();
   const setQuantity = useSetCartItemQuantity(cartId);
   const moveShopToOwnCart = useMoveShopToOwnCart(cartId);
+  const saveForLater = useToggleWishlist();
+  const [removingSoldOut, setRemovingSoldOut] = useState(false);
   const pendingItemId = setQuantity.isPending ? setQuantity.variables?.itemId : undefined;
   const currency = cart.currency_code;
-  const sections = cart.sellers.map((group) => ({ key: group.seller?.id ?? 'unavailable', group, data: group.items }));
+  const money = (amount: number) => formatMoney(amount, currency);
+  const soldOut = cart.sellers.flatMap((group) => (group.seller ? group.items.filter(isSoldOut) : []));
+  const shops = cart.sellers.filter((group) => group.seller);
+
   // Checkout is protected; a guest goes through the sign-in modal first (ADR 0001).
   const checkout = () => router.push(isSignedIn ? '/checkout' : '/sign-in');
   // With several shops in the cart, one shop's items can be paid for on their own (#11): they
@@ -79,188 +119,319 @@ function CartContents({ cartId, cart }: Readonly<{ cartId: string; cart: Cart }>
       onSuccess: (shopCart) => router.push({ pathname: '/checkout', params: { cartId: shopCart.id } }),
     });
   };
+  // Checkout can't start while a line has none left: the main button clears them all, one at a
+  // time, since each removal rewrites the same cart, and stops at the first that fails.
+  const removeSoldOut = async () => {
+    setRemovingSoldOut(true);
+    try {
+      await soldOut.reduce<Promise<void>>(
+        (removed, item) => removed.then(() => setQuantity.mutateAsync({ itemId: item.id, quantity: 0 })),
+        Promise.resolve(),
+      );
+    } catch {
+      // The note above the button says so; what was removed stays removed.
+    } finally {
+      setRemovingSoldOut(false);
+    }
+  };
+  // Saved items are the buyer's wishlist: the line goes there, then leaves the cart.
+  const save = (group: CartSellerGroup, item: CartItem) => {
+    if (!isSignedIn) {
+      router.push('/sign-in');
+      return;
+    }
+    if (!group.seller || !item.product_id) return;
+    saveForLater.mutate(
+      { sellerId: group.seller.id, productId: item.product_id, save: true },
+      { onSuccess: () => setQuantity.mutate({ itemId: item.id, quantity: 0 }) },
+    );
+  };
+
+  const problem = (() => {
+    if (setQuantity.error) return "Couldn't update your cart. Check your connection and try again.";
+    if (saveForLater.error) return "Couldn't save it for later. It's still in your cart.";
+    if (moveShopToOwnCart.error) return "Couldn't check out that shop on its own. Your cart hasn't changed.";
+    return null;
+  })();
 
   return (
     <>
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        stickySectionHeadersEnabled={false}
+      <ScrollView
+        style={styles.fill}
         contentContainerStyle={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[6] }}
-        renderSectionHeader={({ section: { group } }) => (
-          <View style={{ paddingTop: theme.space[6], paddingBottom: theme.space[2], gap: theme.space[1] }}>
-            <Text variant="heading">{group.seller?.name ?? 'No longer available'}</Text>
-            {group.seller ? null : (
-              <Text tone="muted">These shops stopped selling these items. Remove them to check out.</Text>
-            )}
-            {group.shop_status ? <ShopStatusBadge status={group.shop_status} withNote /> : null}
-            {group.seller && group.perishable ? <PerishableRule /> : null}
-          </View>
-        )}
-        renderItem={({ item, section: { group } }) => (
-          <CartRow
-            item={item}
-            available={!!group.seller}
-            currencyCode={currency}
-            busy={pendingItemId === item.id}
-            onChange={(quantity) => setQuantity.mutate({ itemId: item.id, quantity })}
-          />
-        )}
-        renderSectionFooter={({ section: { group } }) => {
-          const { seller } = group;
-          return (
-            <View style={{ paddingVertical: theme.space[2], gap: theme.space[2] }}>
-              <View style={styles.spread}>
-                <Text tone="muted">{seller ? `${seller.name} subtotal` : 'Subtotal'}</Text>
-                <Text variant="strong">{formatMoney(group.item_subtotal, currency)}</Text>
-              </View>
-              {paysShopByShop && seller ? (
-                <Button
-                  label="Pay for this shop only"
-                  variant="secondary"
-                  loading={moveShopToOwnCart.isPending && moveShopToOwnCart.variables === seller.id}
-                  disabled={moveShopToOwnCart.isPending || !group.shop_status?.orderable}
-                  onPress={() => checkoutShop(seller.id)}
-                />
-              ) : null}
-            </View>
-          );
-        }}
-      />
-      <View
-        style={{
-          padding: theme.space[4],
-          paddingBottom: theme.space[4] + bottom,
-          gap: theme.space[2],
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: theme.colors.line,
-        }}>
-        {setQuantity.error ? (
-          <Text tone="muted" accessibilityLiveRegion="polite">
-            Couldn&apos;t update your cart: {setQuantity.error.message}
-          </Text>
-        ) : null}
-        {moveShopToOwnCart.error ? (
-          <Text tone="muted" accessibilityLiveRegion="polite">
-            Couldn&apos;t check out that shop on its own: {moveShopToOwnCart.error.message}
-          </Text>
-        ) : null}
-        <Text tone="muted">Delivery is chosen for each shop at checkout.</Text>
-        <Button label="Checkout" detail={formatMoney(cart.item_subtotal, currency)} onPress={checkout} />
-      </View>
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <GroupList>
+          {cart.sellers.map((group) => {
+            const { seller } = group;
+            return (
+              <ShopCard
+                key={seller?.id ?? 'unavailable'}
+                group={group}
+                money={money}
+                checkoutShop={
+                  paysShopByShop && seller
+                    ? {
+                        onPress: () => checkoutShop(seller.id),
+                        busy: moveShopToOwnCart.isPending && moveShopToOwnCart.variables === seller.id,
+                        disabled: moveShopToOwnCart.isPending || !group.shop_status?.orderable || group.items.some(isSoldOut),
+                      }
+                    : null
+                }>
+                {group.items.map((item) => (
+                  <CartLine
+                    key={item.id}
+                    item={item}
+                    available={!!seller}
+                    money={money}
+                    busy={pendingItemId === item.id || (saveForLater.isPending && saveForLater.variables?.productId === item.product_id)}
+                    onChange={(quantity) => setQuantity.mutate({ itemId: item.id, quantity })}
+                    onSave={() => save(group, item)}
+                  />
+                ))}
+              </ShopCard>
+            );
+          })}
+          {shops.length > 1 ? <CartTotals cart={cart} money={money} /> : null}
+        </GroupList>
+      </ScrollView>
+      {problem ? (
+        <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2], backgroundColor: theme.colors.bg }}>
+          <InlineNote>{problem}</InlineNote>
+        </View>
+      ) : null}
+      {soldOut.length ? (
+        <StickyAction label={soldOutButtonLabel(soldOut.length)} onPress={() => void removeSoldOut()} loading={removingSoldOut} />
+      ) : (
+        <StickyAction
+          label={shops.length > 1 ? `Checkout ${shops.length} shops` : 'Checkout'}
+          price={money(cart.item_subtotal)}
+          onPress={checkout}
+        />
+      )}
     </>
   );
 }
 
-function CartRow({
+/** "Closed · opens 10am Mon · prepared then": a shop that still takes orders while closed prepares them when it opens. */
+function shopLine(group: CartSellerGroup): string | null {
+  const status = group.shop_status;
+  if (!status) return null;
+  return status.state === 'closed' && status.orderable ? `${status.label} · prepared then` : status.label;
+}
+
+const itemCount = (group: CartSellerGroup) => group.items.reduce((sum, item) => sum + item.quantity, 0);
+const itemsWord = (count: number) => `${count} ${count === 1 ? 'item' : 'items'}`;
+
+/** One shop's part of the cart: its mark and status, its lines, then its subtotal. */
+function ShopCard({
+  group,
+  money,
+  checkoutShop,
+  children,
+}: Readonly<{
+  group: CartSellerGroup;
+  money: (amount: number) => string;
+  /** "Checkout this shop", when the cart has more than one. */
+  checkoutShop: { onPress: () => void; busy: boolean; disabled: boolean } | null;
+  children: ReactNode;
+}>) {
+  const theme = useTheme();
+  const { seller } = group;
+  const status = shopLine(group);
+  return (
+    <Group>
+      <View style={[styles.row, { gap: theme.space[2] }]}>
+        {seller ? <ShopMark name={seller.name} logoUrl={seller.logo} size="md" /> : null}
+        <View style={styles.fill}>
+          <Text weight="extrabold">{seller?.name ?? 'No longer available'}</Text>
+          {status ? (
+            <Text variant="meta" tone="muted">
+              {status}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      {seller ? null : (
+        <Text variant="meta" tone="muted">
+          These shops stopped selling these items. Remove them to check out.
+        </Text>
+      )}
+      {group.shop_status && !group.shop_status.orderable ? (
+        <Text variant="meta" tone="muted">
+          {"You can't order from this shop until it reopens."}
+        </Text>
+      ) : null}
+      {seller && group.perishable ? <PerishableRule /> : null}
+      <View style={{ gap: theme.space[3] }}>{children}</View>
+      {seller ? (
+        <View style={{ gap: theme.space[1], padding: theme.space[3], borderRadius: theme.radius.md, backgroundColor: theme.colors.tile }}>
+          <View style={[styles.row, { gap: theme.space[3] }]}>
+            <Text weight="bold" style={styles.fill}>
+              Subtotal
+            </Text>
+            <Text weight="extrabold" tabular>
+              {money(group.item_subtotal)}
+            </Text>
+          </View>
+          <View style={[styles.row, { gap: theme.space[3] }]}>
+            {/* Wrapped in a view so the line wraps at large text instead of being cut. */}
+            <View style={styles.fill}>
+              <Text variant="meta" tone="muted">{`${itemsWord(itemCount(group))} + delivery`}</Text>
+            </View>
+            {checkoutShop ? (
+              <Button
+                label="Checkout this shop"
+                variant="link"
+                onPress={checkoutShop.onPress}
+                loading={checkoutShop.busy}
+                disabled={checkoutShop.disabled}
+              />
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+    </Group>
+  );
+}
+
+/** "Rice · 5kg": the product, with its size unless it has only the default one. */
+function lineName(item: CartItem): string {
+  const title = item.product_title ?? 'Item';
+  const size = item.variant_title;
+  return size && size !== 'Default' && size !== title ? `${title} · ${size}` : title;
+}
+
+/** "₦4,500 · was ₦5,000" on sale, else "₦4,500": one of the line's price. */
+function unitPriceLabel(item: CartItem, money: (amount: number) => string): string {
+  const price = money(item.unit_price);
+  return item.compare_at_unit_price ? `${price} · was ${money(item.compare_at_unit_price)}` : price;
+}
+
+/**
+ * A cart line: its photo, name and price, and its quantity. A sold-out line stays, greyed, with
+ * Remove and Save for later; one wanting more than is left offers to change to what is.
+ */
+function CartLine({
   item,
   available,
-  currencyCode,
+  money,
   busy,
   onChange,
+  onSave,
 }: Readonly<{
   item: CartItem;
   /** False once the shop stopped selling it: it can only be removed. */
   available: boolean;
-  currencyCode: string;
+  money: (amount: number) => string;
   busy: boolean;
   onChange: (quantity: number) => void;
+  onSave: () => void;
 }>) {
   const theme = useTheme();
-  const title = item.product_title ?? 'Item';
-  const variant = item.variant_title && item.variant_title !== 'Default' ? item.variant_title : null;
+  const name = lineName(item);
+  const shortfall = available ? stockShortfall(item.quantity, item.available_quantity) : null;
+  const soldOut = shortfall?.type === 'sold_out';
+  const greyed = soldOut || !available;
+  const photo = theme.control.md;
   return (
-    <View
-      style={[
-        styles.row,
-        {
-          gap: theme.space[4],
-          paddingVertical: theme.space[2],
-          borderBottomColor: theme.colors.line,
-          opacity: busy ? 0.6 : 1,
-        },
-      ]}>
-      <Image
-        source={item.thumbnail}
-        contentFit="contain"
-        style={[styles.thumb, { backgroundColor: theme.colors.productTile, borderRadius: theme.radius.sm }]}
-      />
-      <View style={[styles.details, { gap: theme.space[1] }]}>
-        <Text numberOfLines={2}>{title}</Text>
-        {variant ? <Text variant="meta" tone="muted">{variant}</Text> : null}
-        {item.perishable ? <PerishableChip /> : null}
-        <Price price={{ amount: item.unit_price, compareAt: item.compare_at_unit_price }} currencyCode={currencyCode} />
+    <View style={[styles.row, { gap: theme.space[2], opacity: busy ? 0.6 : 1 }]}>
+      <View style={{ width: photo, height: photo, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+        {item.thumbnail ? (
+          <Image source={item.thumbnail} contentFit="contain" style={[styles.fill, greyed ? styles.faded : null]} />
+        ) : null}
+      </View>
+      <View style={[styles.fill, { gap: theme.space[1] }]}>
+        <Text weight="bold" tone={greyed ? 'muted' : 'default'} numberOfLines={2}>
+          {name}
+        </Text>
+        {soldOut ? (
+          <StatusChip label="Sold out" tone="neutral" />
+        ) : (
+          <Text variant="meta" tone="muted" tabular>
+            {unitPriceLabel(item, money)}
+          </Text>
+        )}
+        {item.perishable && !greyed ? <PerishableChip /> : null}
         {item.discounts.map((discount) => (
-          <Text key={discount.code} variant="meta" tone="muted">
-            {`${discount.code} −${formatMoney(discount.amount, currencyCode)}`}
+          <Text key={discount.code} variant="meta" tone="leaf">
+            {`${discount.code} −${money(discount.amount)}`}
           </Text>
         ))}
-        {available ? (
-          <Stepper title={title} quantity={item.quantity} disabled={busy} onChange={onChange} />
-        ) : (
+        {shortfall?.type === 'short' ? (
           <Button
-            label="Remove"
+            label={shortLineLabel(shortfall.left)}
             variant="link"
             disabled={busy}
-            onPress={() => onChange(0)}
-            style={styles.removeOnly}
+            onPress={() => onChange(shortfall.left)}
+            style={styles.start}
           />
-        )}
+        ) : null}
+        {greyed ? (
+          <View style={[styles.row, { gap: theme.space[4] }]}>
+            <Button label="Remove" variant="link" disabled={busy} onPress={() => onChange(0)} />
+            {soldOut ? <Button label="Save for later" variant="link" disabled={busy} onPress={onSave} /> : null}
+          </View>
+        ) : null}
       </View>
+      {greyed ? (
+        <Text weight="extrabold" tone="muted" tabular>
+          {money(item.subtotal)}
+        </Text>
+      ) : (
+        <QuantityStepper
+          value={item.quantity}
+          min={0}
+          available={item.available_quantity}
+          name={name}
+          size="line"
+          disabled={busy}
+          onChange={onChange}
+        />
+      )}
     </View>
   );
 }
 
-function Stepper({
-  title,
-  quantity,
-  disabled,
-  onChange,
-}: Readonly<{ title: string; quantity: number; disabled: boolean; onChange: (quantity: number) => void }>) {
-  const theme = useTheme();
-  const control = (label: string, symbol: string, next: number) => (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={disabled}
-      onPress={() => onChange(next)}
-      style={({ pressed }) => [
-        styles.stepperButton,
-        { width: theme.hitArea, height: theme.hitArea },
-        pressed && styles.pressed,
-      ]}>
-      <Text variant="strong">{symbol}</Text>
-    </Pressable>
-  );
+/** Each shop's subtotal, then what the items come to: delivery is priced per shop at checkout. */
+function CartTotals({ cart, money }: Readonly<{ cart: Cart; money: (amount: number) => string }>) {
   return (
-    <View style={[styles.stepperRow, { gap: theme.space[4] }]}>
-      <View
-        style={[
-          styles.stepper,
-          { borderColor: theme.colors.line, borderRadius: theme.radius.md },
-        ]}
-        accessibilityLabel={`${title}, quantity ${quantity}`}>
-        {control(quantity > 1 ? `One fewer ${title}` : `Remove ${title}`, '−', quantity - 1)}
-        <Text variant="strong" style={styles.quantity}>
-          {quantity}
-        </Text>
-        {control(`One more ${title}`, '+', quantity + 1)}
-      </View>
-      <Button label="Remove" variant="link" disabled={disabled} onPress={() => onChange(0)} />
+    <Group gap={2}>
+      {cart.sellers.flatMap((group) =>
+        group.seller ? [<SumRow key={group.seller.id} label={group.seller.name} value={money(group.item_subtotal)} />] : [],
+      )}
+      <SumRow label="Items total" value={money(cart.item_subtotal)} total />
+    </Group>
+  );
+}
+
+/** The cart's shape while it loads: a shop's group with two lines. */
+function CartSkeleton() {
+  const theme = useTheme();
+  const photo = theme.control.md;
+  return (
+    <View style={{ paddingHorizontal: theme.space[4] }} accessible accessibilityLabel="Loading your cart">
+      <Group>
+        <View style={[styles.row, { gap: theme.space[2] }]}>
+          <Skeleton width={theme.shopMark.md.size} height={theme.shopMark.md.size} radius="md" />
+          <Skeleton width="50%" height={theme.type.body.fontSize} />
+        </View>
+        {[0, 1].map((line) => (
+          <View key={line} style={[styles.row, { gap: theme.space[2] }]}>
+            <Skeleton width={photo} height={photo} radius="md" />
+            <View style={[styles.fill, { gap: theme.space[1] }]}>
+              <Skeleton width="70%" height={theme.type.body.fontSize} />
+              <Skeleton width="30%" height={theme.type.meta.fontSize} />
+            </View>
+          </View>
+        ))}
+      </Group>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  row: { flexDirection: 'row', alignItems: 'flex-start', borderBottomWidth: StyleSheet.hairlineWidth },
-  thumb: { width: 72, height: 72 },
-  details: { flex: 1 },
-  stepperRow: { flexDirection: 'row', alignItems: 'center' },
-  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1 },
-  stepperButton: { alignItems: 'center', justifyContent: 'center' },
-  quantity: { minWidth: 24, textAlign: 'center' },
-  pressed: { opacity: 0.6 },
-  removeOnly: { alignSelf: 'flex-start' },
+  fill: { flex: 1 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  start: { alignSelf: 'flex-start' },
+  faded: { opacity: 0.5 },
 });

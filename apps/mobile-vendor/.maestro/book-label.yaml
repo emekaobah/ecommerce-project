@@ -17,7 +17,9 @@ env:
 - extendedWaitUntil:
     visible: ${SHOP}
     timeout: 15000
-- tapOn: ".*, Packed"
+# Packed orders are in the Ready tile.
+- tapOn: ".* Ready orders?"
+- tapOn: ".*Packed.*"
 - assertVisible: "Packed, ready for a courier label."
 - tapOn: "Book courier label"
 - extendedWaitUntil:

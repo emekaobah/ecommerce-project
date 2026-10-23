@@ -3,8 +3,9 @@
  * cheapest, the fastest and the best value, with best value preselected (docs/design.md).
  */
 
+import { dateLabel } from "./date-label"
 import type { FulfilmentState } from "./fulfilment"
-import { nextOpening, type ShopHours } from "./shop-hours"
+import { nextOpening, openingLabel, type ShopHours } from "./shop-hours"
 
 /** A courier's quote for one shop's parcel. `delivery_eta_time` is ISO 8601. */
 export type DeliveryRate = {
@@ -59,16 +60,32 @@ export function deliveryChoices<R extends DeliveryRate>(rates: R[]): DeliveryCho
 const dateIn = (instant: Date, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone }).format(instant)
 
 /**
+ * The day a parcel arrives: "Today", "Tomorrow", or "Wed 7 Oct", as a courier option's title
+ * reads it ("Best value · Wed 7 Oct"). Days are counted in the region's timezone.
+ */
+export function deliveryDay(etaTime: string, now: Date, timeZone: string): string {
+  const arrives = new Date(etaTime)
+  const days = Math.round((Date.parse(dateIn(arrives, timeZone)) - Date.parse(dateIn(now, timeZone))) / DAY_MS)
+  if (days <= 0) return "Today"
+  if (days === 1) return "Tomorrow"
+  return dateLabel(arrives, timeZone)
+}
+
+/**
  * When a parcel arrives, as the buyer reads it: "Arrives today", "Arrives tomorrow", or
  * "Arrives Wed 7 Oct". Days are counted in the region's timezone.
  */
 export function deliveryEstimate(etaTime: string, now: Date, timeZone: string): string {
-  const arrives = new Date(etaTime)
-  const days = Math.round((Date.parse(dateIn(arrives, timeZone)) - Date.parse(dateIn(now, timeZone))) / DAY_MS)
-  if (days <= 0) return "Arrives today"
-  if (days === 1) return "Arrives tomorrow"
-  const date = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short", day: "numeric", month: "short" })
-  return `Arrives ${date.format(arrives).replace(",", "")}`
+  const day = deliveryDay(etaTime, now, timeZone)
+  return day === "Today" || day === "Tomorrow" ? `Arrives ${day.toLowerCase()}` : `Arrives ${day}`
+}
+
+/**
+ * "Prepared when it opens 10am Mon": a closed shop that takes orders prepares them when it opens
+ * (ISO 8601 `opensAt`, in the region's timezone), so its delivery options start from then.
+ */
+export function preparedWhenOpens(opensAt: string | null, now: Date, timeZone: string): string {
+  return opensAt ? `Prepared when it opens ${openingLabel(opensAt, now, timeZone)}` : "Prepared when it opens"
 }
 
 /**

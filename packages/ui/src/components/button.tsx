@@ -17,8 +17,12 @@ export type ButtonProps = {
   detail?: string
   /** Drawn before the label, e.g. refresh on "Try again". */
   icon?: IconName
+  /** Drawn at the button's end with the label at its start, e.g. the forward chevron on "Open Iya Bisi Foodstuff". */
+  trailingIcon?: IconName
   disabled?: boolean
   loading?: boolean
+  /** "accent" colours a secondary button's label like a link: "In cart · View cart". */
+  tone?: "accent"
   style?: StyleProp<ViewStyle>
 }
 
@@ -44,10 +48,18 @@ const inks = (theme: Theme): Record<ButtonVariant, string> => ({
   link: theme.colors.link,
 })
 
+/** The label's tone and the matching ink for its icon and spinner. */
+function labelColour(theme: Theme, variant: ButtonVariant, disabled: boolean | undefined, labelTone: "accent" | undefined) {
+  if (disabled) return { tone: "muted" as TextTone, ink: theme.colors.muted }
+  if (labelTone === "accent") return { tone: "accent" as TextTone, ink: theme.colors.accent }
+  return { tone: LABEL_TONES[variant], ink: inks(theme)[variant] }
+}
+
 /**
  * Primary is the one indigo action on a screen; secondary is Mist; danger is for destructive
- * actions only; link is text. Disabled turns the fill to Mist with a muted label (never faded).
+ * actions only; link is bold link-coloured text, with no underline. Disabled turns the fill to Mist with a muted label (never faded).
  * Loading lays a spinner over the label, so the width stays the same, and keeps a price beside it.
+ * At large text sizes the label wraps and the price stays whole beside it, never cut off.
  */
 export function Button({
   label,
@@ -56,16 +68,17 @@ export function Button({
   size = "md",
   detail,
   icon,
+  trailingIcon,
   disabled,
   loading,
+  tone: labelTone,
   style,
 }: Readonly<ButtonProps>) {
   const theme = useTheme()
   const inactive = disabled || loading
   const isLink = variant === "link"
   const fill = disabled && !isLink ? theme.colors.tile : fills(theme)[variant]
-  const tone: TextTone = disabled ? "muted" : LABEL_TONES[variant]
-  const ink = disabled ? theme.colors.muted : inks(theme)[variant]
+  const { tone, ink } = labelColour(theme, variant, disabled, labelTone)
 
   return (
     <PressableSurface
@@ -80,26 +93,28 @@ export function Button({
           minHeight: isLink ? theme.hitArea : theme.control[size],
           borderRadius: theme.radius.lg,
           paddingHorizontal: isLink ? 0 : theme.space[4],
+          paddingVertical: isLink ? 0 : theme.space[2],
           backgroundColor: fill,
         },
         style,
       ]}
     >
-      <View style={[styles.content, { gap: theme.space[2] }, detail ? styles.spread : null]}>
-        <View style={[styles.label, { gap: theme.space[2] }]}>
-          <View style={[styles.label, { gap: theme.space[2] }, loading && styles.hidden]}>
-            {icon ? <Icon name={icon} use="chip" color={ink} /> : null}
-            <Text variant="strong" tone={tone} style={isLink && styles.underline}>
+      <View style={[styles.content, { gap: theme.space[2] }, detail || trailingIcon ? styles.spread : null]}>
+        <View style={[styles.label, styles.shrink, { gap: theme.space[2] }]}>
+          <View style={[styles.label, styles.shrink, { gap: theme.space[2] }, loading && styles.hidden]}>
+            {icon ? <Icon name={icon} use="step" color={ink} /> : null}
+            <Text variant="strong" tone={tone} style={styles.shrink}>
               {label}
             </Text>
           </View>
           {loading ? <ActivityIndicator color={ink} style={StyleSheet.absoluteFill} /> : null}
         </View>
         {detail ? (
-          <Text variant="strong" tone={tone} tabular>
+          <Text variant="strong" tone={tone} tabular style={styles.whole}>
             {detail}
           </Text>
         ) : null}
+        {trailingIcon ? <Icon name={trailingIcon} use="step" color={ink} /> : null}
       </View>
     </PressableSurface>
   )
@@ -110,6 +125,8 @@ const styles = StyleSheet.create({
   content: { flexDirection: "row", alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
   label: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
   spread: { justifyContent: "space-between" },
-  underline: { textDecorationLine: "underline" },
+  // The label wraps rather than pushing the price out of the button.
+  shrink: { flexShrink: 1 },
+  whole: { flexShrink: 0 },
   hidden: { opacity: 0 },
 })

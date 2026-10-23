@@ -29,7 +29,8 @@ export function Sheet({ title, message, children, actions }: Readonly<SheetProps
         paddingTop: theme.space[4],
         paddingHorizontal: theme.space[4],
         paddingBottom: Math.max(insets.bottom, theme.space[4]),
-        gap: theme.space[3],
+        // The catalogue's sheet sets everything 8 apart.
+        gap: theme.space[2],
       }}
     >
       <Text variant="titlePushed">{title}</Text>

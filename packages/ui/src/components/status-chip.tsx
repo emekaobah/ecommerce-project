@@ -16,8 +16,13 @@ const ICONS: Record<StatusTone, IconName> = {
 export type StatusChipProps = {
   label: string
   tone?: StatusTone
-  /** The status's own symbol (`@oja/domain` gives one with each label); otherwise the tone's. */
-  icon?: IconName
+  /**
+   * The status's own symbol (`@oja/domain` gives one with each label); otherwise the tone's.
+   * `null` for a plain label that isn't a status, such as "Default" or "Step 1 of 3".
+   */
+  icon?: IconName | null
+  /** On the band, the chip sits on the raised surface (white in light) instead of its tone's tint. */
+  onBand?: boolean
 }
 
 /**
@@ -25,7 +30,7 @@ export type StatusChipProps = {
  * symbol and a label with the colour, so status never relies on colour alone. Ember
  * (`attention`) is only for what waits on the buyer and a new order's last two hours to accept.
  */
-export function StatusChip({ label, tone = "neutral", icon = ICONS[tone] }: Readonly<StatusChipProps>) {
+export function StatusChip({ label, tone = "neutral", icon = ICONS[tone], onBand = false }: Readonly<StatusChipProps>) {
   const theme = useTheme()
   const { foreground, background } = theme.status[tone]
   return (
@@ -35,7 +40,7 @@ export function StatusChip({ label, tone = "neutral", icon = ICONS[tone] }: Read
       style={[
         styles.chip,
         {
-          backgroundColor: background,
+          backgroundColor: onBand ? theme.colors.raised : background,
           borderRadius: theme.radius.pill,
           paddingHorizontal: theme.space[2],
           paddingVertical: theme.space[1],
@@ -43,7 +48,7 @@ export function StatusChip({ label, tone = "neutral", icon = ICONS[tone] }: Read
         },
       ]}
     >
-      <Icon name={icon} use="chip" color={foreground} />
+      {icon ? <Icon name={icon} use="chip" color={foreground} /> : null}
       <Text variant="label" weight="extrabold" style={{ color: foreground }}>
         {label}
       </Text>

@@ -3,16 +3,34 @@ import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/reac
 
 import { cartKeys } from './cart';
 import { storeClient } from './client';
+import { refusedWith } from './errors';
 
 export const checkoutKeys = {
   all: ['checkout'] as const,
   detail: (cartId: string) => [...checkoutKeys.all, cartId] as const,
-  orderGroup: (orderGroupId: string) => [...checkoutKeys.all, 'order-group', orderGroupId] as const,
+  /** What changed when the latest payment didn't start, for the changes sheet. */
+  changes: (cartId: string) => [...checkoutKeys.all, cartId, 'changes'] as const,
 };
 
-async function fetchCheckout(cartId: string) {
-  const { checkout } = await storeClient.store.carts.$id.checkout.query({ $id: cartId });
+/**
+ * The checkout; `addressId` is the buyer's "Delivering to" address, which collection points are
+ * measured from while there is no delivery address (an all-pickup cart).
+ */
+async function fetchCheckout(cartId: string, addressId: string | null | undefined) {
+  const { checkout } = await storeClient.store.carts.$id.checkout.query({
+    $id: cartId,
+    ...(addressId ? { address_id: addressId } : {}),
+  });
   return checkout;
+}
+
+/**
+ * Why the store refused a checkout step, in its own words, which are written for the buyer (a
+ * code that expired, a shop that doesn't offer pickup, an address no courier reaches). Null for
+ * any other failure, which the screen words itself (the error goes to Sentry, never on screen).
+ */
+export function refusalMessage(error: unknown): string | null {
+  return refusedWith(error, [400, 422]);
 }
 
 export type Checkout = Awaited<ReturnType<typeof fetchCheckout>>;
@@ -24,10 +42,13 @@ export type CheckoutPromotion = Checkout['promotions'][number];
  * the payment and the cart has become an order group, or the cart failed to become orders and
  * was refunded (`not_placed`, #38).
  */
-export function useCheckout(cartId: string | null | undefined, { waitForOrder = false } = {}) {
+export function useCheckout(
+  cartId: string | null | undefined,
+  { waitForOrder = false, addressId }: { waitForOrder?: boolean; addressId?: string | null } = {},
+) {
   return useQuery({
     queryKey: checkoutKeys.detail(cartId ?? ''),
-    queryFn: cartId ? () => fetchCheckout(cartId) : skipToken,
+    queryFn: cartId ? () => fetchCheckout(cartId, addressId) : skipToken,
     staleTime: 0,
     refetchInterval: (query) =>
       waitForOrder && !query.state.data?.order_group_id && !query.state.data?.not_placed ? 2_000 : false,
@@ -45,6 +66,8 @@ export type CheckoutPreparation = {
   shippingAddress?: PinnedDeliveryAddress | null;
   contact?: CheckoutContact | null;
   pickup: string[];
+  /** The buyer's "Delivering to" address, which collection points are measured from without a delivery address. */
+  addressId?: string | null;
 };
 
 /**
@@ -55,11 +78,12 @@ export type CheckoutPreparation = {
 export function usePrepareCheckout(cartId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ shippingAddress, contact, pickup }: CheckoutPreparation) =>
+    mutationFn: ({ shippingAddress, contact, pickup, addressId }: CheckoutPreparation) =>
       storeClient.store.carts.$id.checkout.mutate({
         $id: cartId,
         ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
         ...(contact ? { contact } : {}),
+        ...(addressId ? { address_id: addressId } : {}),
         pickup,
       }),
     onSuccess: ({ checkout }) => queryClient.setQueryData(checkoutKeys.detail(cartId), checkout),
@@ -131,52 +155,5 @@ export function useStartPayment(cartId: string) {
       queryClient.setQueryData(checkoutKeys.detail(cartId), checkout);
       if (price_changes.length || stock_changes.length) void queryClient.invalidateQueries({ queryKey: cartKeys.all });
     },
-  });
-}
-
-// Mercur's default order-group fields nest deeper than the store allows (3 relations).
-const ORDER_GROUP_FIELDS = [
-  'id',
-  'display_id',
-  'total',
-  'orders.id',
-  'orders.display_id',
-  'orders.currency_code',
-  'orders.total',
-  'orders.seller.name',
-  'orders.items.id',
-  'orders.items.product_title',
-  'orders.items.quantity',
-].join(',');
-
-/** The order group a paid checkout became, in the `ORDER_GROUP_FIELDS` it is fetched with. */
-export type OrderGroup = {
-  id: string;
-  display_id: number;
-  total: number;
-  orders: {
-    id: string;
-    display_id: number;
-    currency_code: string;
-    total: number;
-    seller: { name: string } | null;
-    items: { id: string; product_title: string | null; quantity: number }[];
-  }[];
-};
-
-/** The order group a paid checkout became: one order per shop. */
-export function useOrderGroup(orderGroupId: string | null | undefined) {
-  return useQuery({
-    queryKey: checkoutKeys.orderGroup(orderGroupId ?? ''),
-    queryFn: orderGroupId
-      ? async () => {
-          const { order_group } = await storeClient.store.orderGroups.$id.query({
-            $id: orderGroupId,
-            fields: ORDER_GROUP_FIELDS,
-          });
-          // The route's type is the bare order group; the fields asked for add its orders.
-          return order_group as unknown as OrderGroup;
-        }
-      : skipToken,
   });
 }

@@ -1,5 +1,6 @@
 import ArrowLeftRight from "lucide-react-native/icons/arrow-left-right"
 import Bell from "lucide-react-native/icons/bell"
+import Box from "lucide-react-native/icons/box"
 import Camera from "lucide-react-native/icons/camera"
 import Check from "lucide-react-native/icons/check"
 import ChevronDown from "lucide-react-native/icons/chevron-down"
@@ -7,6 +8,7 @@ import ChevronLeft from "lucide-react-native/icons/chevron-left"
 import ChevronRight from "lucide-react-native/icons/chevron-right"
 import Clock from "lucide-react-native/icons/clock"
 import CloudOff from "lucide-react-native/icons/cloud-off"
+import Handbag from "lucide-react-native/icons/handbag"
 import Heart from "lucide-react-native/icons/heart"
 import House from "lucide-react-native/icons/house"
 import Info from "lucide-react-native/icons/info"
@@ -17,7 +19,6 @@ import LogOut from "lucide-react-native/icons/log-out"
 import Mail from "lucide-react-native/icons/mail"
 import MapPin from "lucide-react-native/icons/map-pin"
 import Minus from "lucide-react-native/icons/minus"
-import Package from "lucide-react-native/icons/package"
 import Pencil from "lucide-react-native/icons/pencil"
 import Plus from "lucide-react-native/icons/plus"
 import RefreshCw from "lucide-react-native/icons/refresh-cw"
@@ -25,7 +26,6 @@ import ScanBarcode from "lucide-react-native/icons/scan-barcode"
 import Search from "lucide-react-native/icons/search"
 import Share from "lucide-react-native/icons/share"
 import ShieldCheck from "lucide-react-native/icons/shield-check"
-import ShoppingBag from "lucide-react-native/icons/shopping-bag"
 import Star from "lucide-react-native/icons/star"
 import Store from "lucide-react-native/icons/store"
 import Tag from "lucide-react-native/icons/tag"
@@ -43,8 +43,8 @@ import type { icon } from "../tokens"
 const ICONS = {
   home: House,
   search: Search,
-  bag: ShoppingBag,
-  box: Package,
+  bag: Handbag,
+  box: Box,
   user: User,
   pin: MapPin,
   down: ChevronDown,
@@ -81,6 +81,10 @@ const ICONS = {
 
 export type IconName = keyof typeof ICONS
 
+/** Glyphs the catalogue draws facing the other way from Lucide's: sign out's arrow leaves the door to the left. */
+const MIRRORED: ReadonlySet<IconName> = new Set<IconName>(["logout"])
+const MIRROR = { transform: [{ scaleX: -1 }] }
+
 /** Where the icon sits: each place has its size and stroke. */
 export type IconUse = keyof typeof icon.size
 
@@ -91,6 +95,8 @@ export type IconProps = {
   color?: string
   /** Filled states, such as a saved heart or a rating star, fill with the same colour. */
   filled?: boolean
+  /** Filled with no outline, as rating stars are drawn: the glyph reads smaller and lighter. */
+  solid?: boolean
   /**
    * Spoken when the icon carries meaning of its own; otherwise the icon is hidden from screen
    * readers. An icon-only button carries its label on the button instead.
@@ -98,16 +104,17 @@ export type IconProps = {
   label?: string
 }
 
-export function Icon({ name, use = "default", color, filled, label }: Readonly<IconProps>) {
+export function Icon({ name, use = "default", color, filled, solid, label }: Readonly<IconProps>) {
   const theme = useTheme()
   const Glyph = ICONS[name]
   const colour = color ?? theme.colors.ink
   return (
     <Glyph
       size={theme.icon.size[use]}
-      strokeWidth={theme.icon.stroke[use]}
+      strokeWidth={solid ? 0 : theme.icon.stroke[use]}
       color={colour}
-      fill={filled ? colour : "none"}
+      fill={filled || solid ? colour : "none"}
+      style={MIRRORED.has(name) ? MIRROR : undefined}
       accessible={Boolean(label)}
       accessibilityLabel={label}
       accessibilityRole={label ? "image" : undefined}

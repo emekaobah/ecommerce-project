@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import type { Listing } from '@/api/listings';
 
 /** Opens a product in the listing's shop context: there is no product page without a shop (docs/design.md). */
-export function openListing(listing: Pick<Listing, 'seller' | 'product'>) {
+export function openListing(listing: { seller: Pick<Listing['seller'], 'id'>; product: Pick<Listing['product'], 'id'> }) {
   router.push({ pathname: '/product/[id]', params: { id: listing.product.id, seller: listing.seller.id } });
 }
 
@@ -31,4 +31,9 @@ export function openWriteReview(group: { id: string }, order: { id: string }) {
 /** Opens a category's listings; the name titles the screen before anything loads. */
 export function openCategory(category: { id: string; name: string }) {
   router.push({ pathname: '/category/[id]', params: { id: category.id, name: category.name } });
+}
+
+/** Opens every review the buyer has written (#81). */
+export function openMyReviews() {
+  router.push('/my-reviews');
 }

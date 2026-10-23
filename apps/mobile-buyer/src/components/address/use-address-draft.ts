@@ -6,7 +6,7 @@ import {
   type AddressFieldKey,
   type AddressFormErrors,
   type AddressFormValues,
-  type BuyerName,
+  type BuyerDetails,
   type Pin,
   type StoredAddress,
 } from '@oja/domain';
@@ -17,20 +17,25 @@ import { useCallback, useState } from 'react';
 /**
  * An address being entered or edited with `AddressEntry`: the form's values, what each wrong
  * field needs, and the confirmed pin. It starts from `start` (a saved address, or the cart's)
- * keeping its pin, or empty with the buyer's name.
+ * keeping its pin, or empty with the buyer's name and phone.
  */
-export function useAddressDraft(countryCode: string, start: StoredAddress | null | undefined, name?: BuyerName) {
+export function useAddressDraft(
+  countryCode: string,
+  start: StoredAddress | null | undefined,
+  buyer?: BuyerDetails
+) {
   const config = getAddressConfig(countryCode);
-  const [typed, setTyped] = useState<AddressFormValues>(() => addressFormValues(start, countryCode, name));
+  const [typed, setTyped] = useState<AddressFormValues>(() => addressFormValues(start, countryCode, buyer));
   const [errors, setErrors] = useState<AddressFormErrors>({});
   const [pin, setPin] = useState<Pin | null>(() => pinOf(start));
 
-  // The buyer's profile may load after the form opens; their name fills the name fields left blank.
-  const { first_name, last_name } = name ?? {};
+  // The buyer's profile may load after the form opens; their name and phone fill the fields left blank.
+  const fromBuyer = addressFormValues(null, countryCode, buyer);
   const values: AddressFormValues = {
     ...typed,
-    first_name: typed.first_name || first_name || '',
-    last_name: typed.last_name || last_name || '',
+    first_name: typed.first_name || fromBuyer.first_name || '',
+    last_name: typed.last_name || fromBuyer.last_name || '',
+    phone: typed.phone || fromBuyer.phone || '',
   };
 
   /** Starts over from another address (or an empty form), e.g. "Add a new address". */

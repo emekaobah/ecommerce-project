@@ -1,28 +1,34 @@
-import { distanceLabel, shipsIn } from '@oja/domain';
-import { Text, type TextProps } from '@oja/ui';
+import { distanceLabel } from '@oja/domain';
+import { Icon, Text, useTheme } from '@oja/ui';
+import { StyleSheet, View } from 'react-native';
 
-import type { Listing } from '@/api/listings';
+import { useReviewPreview } from '@/api/reviews';
 
-/**
- * A shop header's facts line, "Surulere · 3 km · Ships in 2 days", the same wherever the shop
- * appears. The distance is from the address the buyer delivers to, when they have one (#43).
- */
-export function ShopFacts({
-  seller,
-  variant,
-}: Readonly<{
-  seller: Pick<Listing['seller'], 'area' | 'distance_km' | 'default_leadtime_to_ship'>;
-  variant?: TextProps['variant'];
-}>) {
-  const facts = [
-    seller.area,
-    seller.distance_km == null ? null : distanceLabel(seller.distance_km),
-    seller.default_leadtime_to_ship == null ? null : shipsIn(seller.default_leadtime_to_ship),
-  ].filter(Boolean);
-  if (!facts.length) return null;
+/** "Surulere · 1 km": where the shop is and how far, from the address the buyer delivers to (#43). */
+export function shopPlace(seller: { area: string | null; distance_km: number | null }): string | null {
+  const facts = [seller.area, seller.distance_km == null ? null : distanceLabel(seller.distance_km)].filter(Boolean);
+  return facts.length ? facts.join(' · ') : null;
+}
+
+/** A shop's rating as "★ 4.8 (212)"; nothing until it loads, or before its first review. */
+export function ShopStars({ sellerId, count = true }: Readonly<{ sellerId: string; count?: boolean }>) {
+  const theme = useTheme();
+  const { data } = useReviewPreview('seller', sellerId);
+  if (data?.average_rating == null) return null;
+  const average = data.average_rating.toFixed(1);
   return (
-    <Text variant={variant} tone="muted">
-      {facts.join(' · ')}
-    </Text>
+    <View
+      accessible
+      accessibilityLabel={`Rated ${average} out of 5, ${data.count} ${data.count === 1 ? 'review' : 'reviews'}`}
+      style={[styles.row, { gap: theme.space[1] }]}>
+      <Icon name="star" use="chip" color={theme.colors.accent} filled />
+      <Text variant="meta" tone="muted">
+        {count ? `${average} (${data.count})` : average}
+      </Text>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center' },
+});

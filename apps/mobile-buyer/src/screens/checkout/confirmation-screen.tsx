@@ -1,25 +1,27 @@
-import { formatMoney } from '@oja/domain';
-import { Button, ErrorState, LoadingState, Text, useTheme } from '@oja/ui';
+import { useAuth, useUser } from '@clerk/expo';
+import { formatMoney, orderNumber, orderPlacedSteps, type PlacedStep } from '@oja/domain';
+import { AdirePattern, ErrorState, Icon, Skeleton, StickyAction, Text, useTheme } from '@oja/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { cartKeys } from '@/api/cart';
-import { useCheckout, useOrderGroup } from '@/api/checkout';
-import { orderKeys } from '@/api/orders';
+import { useCheckout } from '@/api/checkout';
+import { orderKeys, useOrderGroup, type OrderGroup } from '@/api/orders';
 import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
+import { useDeliveringToId } from '@/delivering-to/delivering-to-provider';
 
 /** How long to wait for Paystack's webhook before telling the buyer it's taking a while. */
 const CONFIRMATION_WAIT_MS = 60_000;
 
 /**
  * After paying: waits for Paystack's webhook to confirm the payment, which turns the cart into
- * one order per shop, then shows them. Nothing counts as ordered before that.
+ * one order per shop, then shows what happens next. Nothing counts as ordered before that.
  */
 export function ConfirmationScreen() {
   const { cartId } = useLocalSearchParams<{ cartId: string }>();
-  const checkout = useCheckout(cartId, { waitForOrder: true });
+  const checkout = useCheckout(cartId, { waitForOrder: true, addressId: useDeliveringToId() });
   const orderGroupId = checkout.data?.order_group_id;
   const notPlaced = !!checkout.data?.not_placed;
   const slow = useElapsed(CONFIRMATION_WAIT_MS);
@@ -44,108 +46,153 @@ export function ConfirmationScreen() {
     void queryClient.invalidateQueries({ queryKey: orderKeys.all });
   }, [orderGroupId, paidAppCart, forgetCart, queryClient]);
 
-  const header = <Stack.Screen options={{ title: orderGroupId ? 'Order placed' : 'Confirming payment', headerBackVisible: false }} />;
-
-  if (orderGroupId) {
-    return (
-      <>
-        {header}
-        <OrderPlaced orderGroupId={orderGroupId} />
-      </>
-    );
-  }
+  if (orderGroupId) return <OrderPlaced orderGroupId={orderGroupId} email={checkout.data?.email ?? null} />;
   return (
     <>
-      {header}
+      <Stack.Screen options={{ title: 'Order', headerBackVisible: false }} />
       {slow ? (
-        <StillConfirming cartId={cartId} onCheckAgain={() => void checkout.refetch()} />
+        <ErrorState
+          icon="clock"
+          title="Still confirming your payment"
+          body="Paystack hasn't confirmed it yet. If you were charged, your order appears in Orders as soon as it's confirmed. If you didn't finish paying, go back to checkout and pay again."
+          retryLabel="Check again"
+          onRetry={() => void checkout.refetch()}
+          secondaryAction={{ label: 'Back to checkout', onPress: () => router.dismissTo({ pathname: '/checkout', params: { cartId } }) }}
+        />
       ) : (
-        <LoadingState label="Confirming your payment with Paystack" />
+        <Confirming />
       )}
     </>
   );
 }
 
-/**
- * Paystack is slow to confirm, or the buyer didn't finish paying. Waiting stays the default:
- * paying again could charge twice if the first payment went through.
- */
-function StillConfirming({ cartId, onCheckAgain }: Readonly<{ cartId: string; onCheckAgain: () => void }>) {
+/** The one wait with a spinner, not a skeleton: there is no layout to preview, only a wait to explain. */
+function Confirming() {
   const theme = useTheme();
   return (
-    <View style={[styles.fill, styles.centered, { padding: theme.space[6], gap: theme.space[4] }]}>
-      <Text variant="heading" style={styles.center}>
-        Still confirming your payment
+    <View style={[styles.fill, styles.centred, { padding: theme.space[6], gap: theme.space[3], backgroundColor: theme.colors.bg }]}>
+      <ActivityIndicator size="large" color={theme.colors.primary} accessibilityLabel="Confirming your payment with Paystack" />
+      <Text variant="titleNamed" style={styles.centre}>
+        Confirming your payment
       </Text>
-      <Text tone="muted" style={styles.center}>
-        Paystack hasn&apos;t confirmed it yet. If you were charged, your order appears in Orders as soon as
-        it&apos;s confirmed. If you didn&apos;t finish paying, go back to checkout and pay again.
+      <Text tone="muted" style={styles.centre}>
+        This usually takes a few seconds.
       </Text>
-      <Button label="Check again" onPress={onCheckAgain} />
-      <Button label="Back to checkout" variant="secondary" onPress={() => router.dismissTo({ pathname: '/checkout', params: { cartId } })}
-      />
     </View>
   );
 }
 
-function OrderPlaced({ orderGroupId }: Readonly<{ orderGroupId: string }>) {
+function OrderPlaced({ orderGroupId, email }: Readonly<{ orderGroupId: string; email: string | null }>) {
   const theme = useTheme();
-  const group = useOrderGroup(orderGroupId);
-  const finish = (to: '/' | '/orders') => {
+  const { userId } = useAuth();
+  const { user } = useUser();
+  const group = useOrderGroup(userId, orderGroupId);
+  const sentTo = email ?? user?.primaryEmailAddress?.emailAddress ?? null;
+  const track = () => {
     router.dismissAll();
-    router.navigate(to);
-  };
-
-  // The order is placed either way; its details are a nice-to-have.
-  const details = () => {
-    if (group.error && !group.data) {
-      return (
-        <ErrorState
-          title="Couldn't load the order details"
-          body="Check your connection and try again. If you paid, your order appears in Orders once Paystack confirms it." error={group.error}
-          onRetry={() => void group.refetch()}
-        />
-      );
-    }
-    if (!group.data) return <LoadingState label="Loading your orders" />;
-    return group.data.orders.map((order) => (
-      <View
-        key={order.id}
-        style={{
-          gap: theme.space[1],
-          paddingTop: theme.space[4],
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: theme.colors.line,
-        }}>
-        <View style={styles.spread}>
-          <Text variant="heading">{order.seller?.name ?? 'Shop'}</Text>
-          <Text tone="muted">#{order.display_id}</Text>
-        </View>
-        {order.items.map((item) => (
-          <Text key={item.id} tone="muted">
-            {item.quantity} × {item.product_title}
-          </Text>
-        ))}
-        <Text variant="strong">{formatMoney(order.total, order.currency_code)}</Text>
-      </View>
-    ));
+    router.push({ pathname: '/order/[id]', params: { id: orderGroupId } });
   };
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
-      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
-        <View style={{ gap: theme.space[2] }}>
-          <Text variant="displayLg">Thanks, your order is placed</Text>
-          <Text tone="muted">
-            Paystack confirmed your payment. Each shop prepares and delivers its own order.
+    <>
+      <Stack.Screen
+        options={{
+          title: '',
+          headerBackVisible: false,
+          headerStyle: { backgroundColor: theme.colors.band },
+          headerShadowVisible: false,
+        }}
+      />
+      <ScrollView style={{ backgroundColor: theme.colors.raised }} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+        <View style={[styles.hero, { backgroundColor: theme.colors.band, padding: theme.space[4], paddingBottom: theme.space[6], gap: theme.space[2] }]}>
+          <AdirePattern opacity={0.5} />
+          <View
+            style={[
+              styles.centred,
+              { width: theme.shopMark.lg.size, height: theme.shopMark.lg.size, borderRadius: theme.radius.lg, backgroundColor: theme.colors.leaf },
+            ]}>
+            <Icon name="check" use="add" color={theme.colors.onPrimary} />
+          </View>
+          <Text variant="displayXl" tone="onBand" accessibilityLiveRegion="polite">
+            Order placed
           </Text>
+          <Text tone="onBand">{placedLine(group.data, sentTo)}</Text>
         </View>
-        {details()}
+        <Text variant="label" tone="muted" style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[4], paddingBottom: theme.space[2] }}>
+          WHAT HAPPENS NEXT
+        </Text>
+        <View style={{ paddingHorizontal: theme.space[4] }}>
+          <WhatHappensNext group={group.data} failed={!!group.error} />
+        </View>
       </ScrollView>
-      <View style={{ padding: theme.space[4], gap: theme.space[2] }}>
-        <Button label="View orders" onPress={() => finish('/orders')} />
-        <Button label="Keep shopping" variant="secondary" onPress={() => finish('/')} />
-      </View>
+      <StickyAction label="Track order" trailingIcon="fwd" onPress={track} />
+    </>
+  );
+}
+
+/** "Order OJ-2410 · ₦49,600 paid · confirmation sent to tolu@example.com" */
+function placedLine(group: OrderGroup | undefined, sentTo: string | null): string {
+  if (!group) return sentTo ? `Confirmation sent to ${sentTo}` : 'Paystack confirmed your payment';
+  const currency = group.orders[0]?.currency_code ?? '';
+  const paid = group.orders.reduce((sum, order) => sum + order.paid_total, 0);
+  return [`Order ${orderNumber(group.display_id)}`, `${formatMoney(paid, currency)} paid`, sentTo ? `confirmation sent to ${sentTo}` : null]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/** Each shop's next steps once the order group loads, skeleton rows until then. */
+function WhatHappensNext({ group, failed }: Readonly<{ group: OrderGroup | undefined; failed: boolean }>) {
+  const theme = useTheme();
+  if (group) return <NextSteps steps={orderPlacedSteps(group.orders, new Date())} />;
+  // The order is placed either way: what happens next is in Orders too.
+  if (failed) return <Text tone="muted">Each shop&apos;s progress shows in Orders.</Text>;
+  return (
+    <View accessible accessibilityLabel="Loading what happens next" style={{ gap: theme.space[3] }}>
+      {[0, 1, 2].map((row) => (
+        <Skeleton key={row} height={theme.control.md} radius="md" />
+      ))}
+    </View>
+  );
+}
+
+/** What happens next, down a line: a leaf dot for what's happening now, grey for what's to come. */
+function NextSteps({ steps }: Readonly<{ steps: PlacedStep[] }>) {
+  const theme = useTheme();
+  const dot = theme.icon.size.chip;
+  return (
+    <View>
+      {steps.map((step, index) => {
+        const last = index === steps.length - 1;
+        return (
+          <View
+            key={step.key}
+            accessible
+            accessibilityLabel={[step.title, step.detail, step.day].filter(Boolean).join(', ')}
+            style={[styles.row, { gap: theme.space[2] }]}>
+            <View style={[styles.rail, { width: dot }]}>
+              <View
+                style={[
+                  styles.centred,
+                  { width: dot, height: dot, borderRadius: dot / 2, backgroundColor: step.now ? theme.colors.leaf : theme.colors.line },
+                ]}>
+                {step.now ? <View style={{ width: dot / 3, height: dot / 3, borderRadius: dot / 6, backgroundColor: theme.colors.onPrimary }} /> : null}
+              </View>
+              {last ? null : <View style={[styles.fill, { width: theme.line.input, backgroundColor: theme.colors.line }]} />}
+            </View>
+            <View style={[styles.fill, { paddingBottom: last ? 0 : theme.space[3] }]}>
+              <Text weight="bold">{step.title}</Text>
+              <Text variant="meta" tone="muted">
+                {step.detail}
+              </Text>
+            </View>
+            {step.day ? (
+              <Text variant="meta" tone="muted">
+                {step.day}
+              </Text>
+            ) : null}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -162,7 +209,9 @@ function useElapsed(ms: number) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  centered: { justifyContent: 'center' },
-  center: { textAlign: 'center' },
+  centred: { alignItems: 'center', justifyContent: 'center' },
+  centre: { textAlign: 'center' },
+  hero: { overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'stretch' },
+  rail: { alignItems: 'center' },
 });

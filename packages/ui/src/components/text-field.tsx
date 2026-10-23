@@ -9,6 +9,8 @@ export type TextFieldProps = Omit<TextInputProps, "style" | "editable"> & {
   label: string
   /** Adds "(optional)" after the label. */
   optional?: boolean
+  /** Reads the label out but doesn't show it, where a heading above already asks for the field (Reject's "Why can't you take it?"). */
+  labelHidden?: boolean
   /** A line under the field that helps fill it in. */
   hint?: string | null
   /** What's wrong with what was typed, in plain words; replaces the hint. */
@@ -21,17 +23,19 @@ export type TextFieldProps = Omit<TextInputProps, "style" | "editable"> & {
  * A labelled input. Focused, an accent outline with a 4pt ring; with an error, a danger outline
  * and the message under it after an alert icon; disabled, a Mist fill with no outline.
  */
-export function TextField({ label, optional, hint, error, disabled, multiline, onFocus, onBlur, ref, ...input }: Readonly<TextFieldProps>) {
+export function TextField({ label, optional, labelHidden, hint, error, disabled, multiline, onFocus, onBlur, ref, ...input }: Readonly<TextFieldProps>) {
   const theme = useTheme()
   const [focused, setFocused] = useState(false)
   const note = error ?? hint
 
   return (
     <View style={{ gap: theme.space[1] }}>
-      <Text variant="meta" weight="bold" tone="muted">
-        {label}
-        {optional ? <Text variant="meta" tone="muted">{" (optional)"}</Text> : null}
-      </Text>
+      {labelHidden ? null : (
+        <Text variant="meta" weight="bold" tone="muted">
+          {label}
+          {optional ? <Text variant="meta" tone="muted">{" (optional)"}</Text> : null}
+        </Text>
+      )}
       <TextInput
         {...input}
         ref={ref}

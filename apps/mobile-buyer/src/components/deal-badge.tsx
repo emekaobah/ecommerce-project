@@ -1,27 +1,12 @@
 import { dealLabel, type ShopDeal } from '@oja/domain';
-import { Text, useTheme } from '@oja/ui';
+import { DealBadge, useTheme } from '@oja/ui';
 import { StyleSheet, View } from 'react-native';
 
 /**
- * A listing's shop's automatic promotion (#6), e.g. "10% off at this shop": sun, the colour
- * kept for deals. Only ever that shop's own deal; no badge compares shops (docs/design.md).
+ * A listing's shop's automatic promotions (#6) as sun badges: the first, or (`all`) each of them;
+ * nothing when it has none. The store returns only deals for the buyer's region, currency, sales
+ * channel and country (ADR 0014), so every one is shown as it comes.
  */
-export function DealBadge({ deal }: Readonly<{ deal: ShopDeal }>) {
-  const theme = useTheme();
-  return (
-    <View
-      style={[
-        styles.badge,
-        { backgroundColor: theme.colors.sun, borderRadius: theme.radius.pill, paddingHorizontal: theme.space[2] },
-      ]}>
-      <Text variant="label" weight="extrabold" style={{ color: theme.colors.onSun }}>
-        {`% ${dealLabel(deal)}`}
-      </Text>
-    </View>
-  );
-}
-
-/** The listing's first deal, or (`all`) each of them; nothing when it has none. */
 export function DealBadges({
   deals,
   all = false,
@@ -32,13 +17,12 @@ export function DealBadges({
   return (
     <View style={[styles.row, { gap: theme.space[1] }]}>
       {shown.map((deal) => (
-        <DealBadge key={deal.promotion_id} deal={deal} />
+        <DealBadge key={deal.promotion_id} label={dealLabel(deal)} />
       ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  badge: { alignSelf: 'flex-start', paddingVertical: 2 },
   row: { flexDirection: 'row', flexWrap: 'wrap' },
 });

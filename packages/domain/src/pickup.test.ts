@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { checkPickupCode, isPickupCodeFormat, openingHoursLines } from "./pickup"
+import { checkPickupCode, isPickupCodeFormat, openingHoursLines, pickupCodeGroups, todayHoursLabel } from "./pickup"
 
 const now = new Date("2026-10-11T12:00:00.000Z")
 const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000).toISOString()
@@ -79,5 +79,53 @@ describe("isPickupCodeFormat", () => {
     expect(isPickupCodeFormat("12345")).toBe(false)
     expect(isPickupCodeFormat("1234567")).toBe(false)
     expect(isPickupCodeFormat("12a456")).toBe(false)
+  })
+})
+
+describe("pickupCodeGroups", () => {
+  test("splits a six-digit code into two groups of three to read at a counter", () => {
+    expect(pickupCodeGroups("482913")).toBe("482 913")
+  })
+})
+
+describe("todayHoursLabel", () => {
+  const day = (periods: { opens: string; closes: string }[], closure: { reason: "exception" | "pause"; note: string | null } | null = null) => ({
+    date: "2026-10-25",
+    periods,
+    closure,
+  })
+
+  test("says today's hours as the buyer reads times", () => {
+    expect(todayHoursLabel(day([{ opens: "10:00", closes: "18:00" }]))).toBe("Open today 10am–6pm")
+  })
+
+  test("keeps minutes, noon and a split day", () => {
+    expect(todayHoursLabel(day([{ opens: "07:30", closes: "12:00" }, { opens: "13:00", closes: "21:45" }]))).toBe(
+      "Open today 7:30am–12pm, 1pm–9:45pm"
+    )
+  })
+
+  test("a day open around the clock, and one open until midnight", () => {
+    expect(todayHoursLabel(day([{ opens: "00:00", closes: "24:00" }]))).toBe("Open 24 hours today")
+    expect(todayHoursLabel(day([{ opens: "18:00", closes: "24:00" }]))).toBe("Open today 6pm–midnight")
+  })
+
+  test("a day the shop doesn't open is closed today", () => {
+    expect(todayHoursLabel(day([]))).toBe("Closed today")
+  })
+
+  test("a closure today says so, with the shop's note", () => {
+    expect(todayHoursLabel(day([], { reason: "exception", note: "Family event" }))).toBe("Closed today · Family event")
+    expect(todayHoursLabel(day([], { reason: "pause", note: null }))).toBe("Closed today")
+  })
+
+  test("a pause that cuts the day short leaves what is still open", () => {
+    expect(todayHoursLabel(day([{ opens: "10:00", closes: "14:00" }], { reason: "pause", note: "Back tomorrow" }))).toBe(
+      "Open today 10am–2pm"
+    )
+  })
+
+  test("a shop without hours has no line", () => {
+    expect(todayHoursLabel(null)).toBeNull()
   })
 })

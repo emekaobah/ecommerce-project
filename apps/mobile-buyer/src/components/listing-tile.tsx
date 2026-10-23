@@ -1,44 +1,69 @@
-import { listingPrice } from '@oja/domain';
-import { Text, useTheme } from '@oja/ui';
-import { Image } from 'expo-image';
-import { Pressable, StyleSheet } from 'react-native';
+import { dealLabel, formatMoney, listingPrice, type ListingPrice } from '@oja/domain';
+import { ProductTile, useToast } from '@oja/ui';
 
+import { useAddToCart } from '@/api/cart';
 import type { Listing } from '@/api/listings';
+import { useCartSession } from '@/cart/cart-provider';
 import { openListing } from '@/navigation';
 
-import { DealBadges } from './deal-badge';
-import { Price } from './price';
+/** A shop's listing as a tile shows it; Home's shops carry their listings without the seller. */
+type TileListing = Pick<Listing, 'product' | 'offers' | 'deals'>;
+type TileSeller = Pick<Listing['seller'], 'id' | 'shop_status'>;
 
-export const LISTING_TILE_SIZE = 140;
+/** Sold out: the shop tracks stock on every size it offers and has none left. */
+export const isSoldOut = (offers: TileListing['offers']) =>
+  offers.length > 0 && offers.every((offer) => offer.available_quantity === 0);
 
-/** One shop's product in a horizontal shelf: photo on a neutral tile, name, the shop's price and its deal. */
-export function ListingTile({ listing, currencyCode }: Readonly<{ listing: Listing; currencyCode: string }>) {
-  const theme = useTheme();
-  const price = listingPrice(listing.offers);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => openListing(listing)}
-      style={({ pressed }) => [{ width: LISTING_TILE_SIZE, gap: theme.space[1] }, pressed && styles.pressed]}>
-      <Image
-        source={listing.product.thumbnail}
-        contentFit="contain"
-        style={{
-          width: LISTING_TILE_SIZE,
-          height: LISTING_TILE_SIZE,
-          backgroundColor: theme.colors.productTile,
-          borderRadius: theme.radius.md,
-        }}
-      />
-      <Text variant="meta" numberOfLines={2}>
-        {listing.product.title}
-      </Text>
-      {price ? <Price price={price} currencyCode={currencyCode} /> : null}
-      <DealBadges deals={listing.deals} />
-    </Pressable>
-  );
+/** "From ₦4,500" for a product whose sizes differ in price, "₦4,500" for one; blank without offers. */
+function priceLabel(price: ListingPrice | undefined, currencyCode: string): string {
+  if (!price) return '';
+  const amount = formatMoney(price.amount, currencyCode);
+  return price.from ? `From ${amount}` : amount;
 }
 
-const styles = StyleSheet.create({
-  pressed: { opacity: 0.6 },
-});
+/**
+ * One shop's product as a tile in a rail or grid: its photo, the shop's price (a sale crossed
+ * out), the shop's deal badge, and an add button that puts one in the cart. A product with more
+ * than one size opens its page to choose; sold out, or a shop not taking orders, has no add button.
+ */
+export function ListingTile({
+  listing,
+  seller,
+  currencyCode,
+  detail,
+}: Readonly<{ listing: TileListing; seller: TileSeller; currencyCode: string; detail?: string | null }>) {
+  const { cartIdForAdding } = useCartSession();
+  const add = useAddToCart(cartIdForAdding);
+  const toast = useToast();
+  const price = listingPrice(listing.offers);
+  const open = () => openListing({ seller, product: listing.product });
+  const [deal] = listing.deals;
+  const name = listing.product.title;
+  const only = listing.offers.length === 1 ? listing.offers[0] : undefined;
+
+  const onAdd = () => {
+    if (!only) return open();
+    add.mutate(
+      { offerId: only.id },
+      {
+        onSuccess: () => toast({ message: `${name} added to your cart`, tone: 'done' }),
+        onError: () => toast({ message: `Couldn't add ${name} to your cart. Try again.`, tone: 'problem' }),
+      }
+    );
+  };
+
+  return (
+    <ProductTile
+      name={name}
+      imageUrl={listing.product.thumbnail}
+      price={priceLabel(price, currencyCode)}
+      wasPrice={price?.compareAt == null ? null : formatMoney(price.compareAt, currencyCode)}
+      deal={deal ? dealLabel(deal) : null}
+      detail={detail}
+      soldOut={isSoldOut(listing.offers)}
+      closed={!seller.shop_status.orderable}
+      onPress={open}
+      onAdd={add.isPending ? undefined : onAdd}
+    />
+  );
+}

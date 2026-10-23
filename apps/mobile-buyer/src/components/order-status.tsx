@@ -1,5 +1,5 @@
-import { formatMoney, orderStatus, owedRefundStatus, refundStatus } from '@oja/domain';
-import { Button, StatusChip, Text, useTheme } from '@oja/ui';
+import { formatMoney, orderStatus, owedRefundStatus, refundStatus, type StatusChipView } from '@oja/domain';
+import { Button, InlineNote, StatusChip, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
@@ -10,37 +10,45 @@ export function orderedAt(createdAt: string) {
   return new Date(createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-/** A shop's order's state, its refund once it has one, and a refund it still owes (#16). */
-export function OrderStatusChips({ order }: Readonly<{ order: SellerOrder }>) {
-  const theme = useTheme();
-  const status = orderStatus(order);
-  const refund = refundStatus(order.refund);
-  const owed = owedRefundStatus(order.owed_refund, order.currency_code);
-  return (
-    <View style={[styles.row, { gap: theme.space[1] }]}>
-      <StatusChip label={status.label} tone={status.tone} icon={status.icon} />
-      {refund ? <StatusChip label={refund.label} tone={refund.tone} icon={refund.icon} /> : null}
-      {owed ? <StatusChip label={owed.label} tone={owed.tone} icon={owed.icon} /> : null}
-    </View>
-  );
+/** A shop's order's state, its refund once it has one, and a refund it still owes (#16), as chips. */
+export function orderChips(order: SellerOrder): StatusChipView[] {
+  return [orderStatus(order), refundStatus(order.refund), owedRefundStatus(order.owed_refund, order.currency_code)]
+    .filter((view) => view !== null)
+    .map(({ label, tone, icon }) => ({ label, tone, icon }));
 }
 
-/** A shop's order's state and refund, with why it was rejected, where the refund is, and what is still owed. */
+/**
+ * Under a shop's name and chip in the order: why it was rejected or cancelled, where its refund
+ * is, and what is still owed. The order's state is the chip beside the name, so it isn't repeated;
+ * a refund waiting on the buyer's bank account is an ember note, with the way to add one.
+ */
 export function OrderStatusDetails({ order }: Readonly<{ order: SellerOrder }>) {
   const theme = useTheme();
   const status = orderStatus(order);
   const refund = refundStatus(order.refund);
   const owed = owedRefundStatus(order.owed_refund, order.currency_code);
+  const waitsOnBuyer = order.refund?.status === 'needs-attention';
+  const chips = [waitsOnBuyer ? null : refund, owed].filter((view) => view !== null);
+  if (!status.note && !refund && !owed && !order.refund_needing_account) return null;
   return (
-    <View style={{ gap: theme.space[1] }}>
-      <OrderStatusChips order={order} />
+    <View style={{ gap: theme.space[2] }}>
+      {chips.length ? (
+        <View style={[styles.row, { gap: theme.space[2] }]}>
+          {chips.map((chip) => (
+            <StatusChip key={chip.label} label={chip.label} tone={chip.tone} icon={chip.icon} />
+          ))}
+        </View>
+      ) : null}
       {status.note ? <Text tone="muted">{`Reason: ${status.note}`}</Text> : null}
-      {refund && order.refund ? (
+      {refund && order.refund && !waitsOnBuyer ? (
         <Text tone="muted">
           {[`${formatMoney(order.refund.amount, order.currency_code)} back to you.`, refund.note].filter(Boolean).join(' ')}
         </Text>
       ) : null}
       {owed?.note ? <Text tone="muted">{`${owed.note}.`}</Text> : null}
+      {waitsOnBuyer && order.refund ? (
+        <RefundDelayedNote amount={formatMoney(order.refund.amount, order.currency_code)} note={refund?.note ?? null} />
+      ) : null}
       {order.refund_needing_account ? (
         <Button
           label="Add a bank account"
@@ -49,6 +57,19 @@ export function OrderStatusDetails({ order }: Readonly<{ order: SellerOrder }>) 
         />
       ) : null}
     </View>
+  );
+}
+
+/** A refund the card's bank turned down, waiting on the buyer: what and why first, then what to do. */
+function RefundDelayedNote({ amount, note }: Readonly<{ amount: string; note: string | null }>) {
+  const theme = useTheme();
+  return (
+    <InlineNote>
+      <Text variant="meta" weight="extrabold" style={{ color: theme.status.attention.foreground }}>
+        {`Your ${amount} refund is delayed.`}
+      </Text>
+      {note ? ` ${note}` : null}
+    </InlineNote>
   );
 }
 

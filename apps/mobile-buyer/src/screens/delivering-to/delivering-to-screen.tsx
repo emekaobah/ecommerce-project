@@ -1,7 +1,7 @@
 import { addressLines, pinOf } from '@oja/domain';
-import { Button, EmptyState, ErrorState, LoadingState, RadioOption, Text, useTheme } from '@oja/ui';
+import { Button, EmptyState, ErrorState, RadioOption, Skeleton, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
-import { ScrollView } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
 
@@ -18,10 +18,19 @@ export function DeliveringToScreen() {
   if (error) {
     return <ErrorState title="Couldn't load your addresses" body="Check your connection and try again." error={error} onRetry={retry} />;
   }
-  if (!saved) return <LoadingState />;
+  if (!saved) {
+    return (
+      <View accessible accessibilityLabel="Loading your addresses" style={{ flex: 1, backgroundColor: theme.colors.bg, padding: theme.space[4], gap: theme.space[4] }}>
+        {[0, 1].map((i) => (
+          <Skeleton key={i} height={theme.control.row * 1.5} radius="md" />
+        ))}
+      </View>
+    );
+  }
   if (!saved.length) {
     return (
       <EmptyState
+        icon="pin"
         title="No saved addresses"
         body="Add where you'd like deliveries to see the shops nearest you."
         action={{ label: 'Add a delivery address', onPress: addAddress }}

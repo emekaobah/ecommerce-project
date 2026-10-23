@@ -1,13 +1,16 @@
 import type { ReviewKind, ReviewSubject } from '@oja/domain';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { storeClient } from './client';
+import { summaryKeys } from './customer';
 import { orderKeys } from './orders';
 
 export const reviewKeys = {
   all: ['reviews'] as const,
   preview: (kind: ReviewKind, id: string) => [...reviewKeys.all, 'preview', { kind, id }] as const,
   pages: (kind: ReviewKind, id: string) => [...reviewKeys.all, 'pages', { kind, id }] as const,
+  /** Keyed by Clerk user so one buyer never sees another's reviews. */
+  mine: (userId: string) => [...reviewKeys.all, 'mine', { userId }] as const,
 };
 
 /** How many reviews a product or shop page shows before "See all". */
@@ -74,6 +77,71 @@ export function useSubmitReviews() {
         saved ? `${saved} of ${drafts.length} reviews were sent; the rest weren't: ${failed[0]!.message}` : failed[0]!.message,
       );
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+    onSettled: () => refetchAfterReviewChange(queryClient),
+  });
+}
+
+/** What a change to the buyer's reviews shows on: their orders, My reviews and the Account counts. */
+function refetchAfterReviewChange(queryClient: ReturnType<typeof useQueryClient>) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: orderKeys.all }),
+    queryClient.invalidateQueries({ queryKey: reviewKeys.all }),
+    queryClient.invalidateQueries({ queryKey: summaryKeys.all }),
+  ]);
+}
+
+/**
+ * What each of the buyer's reviews is of, read through Mercur's links of a review to its shop or
+ * product. A product review isn't linked to the shop it was bought from, so it names no shop.
+ */
+const MY_REVIEW_FIELDS = '+product.title,+product.thumbnail,+seller.name,+seller.logo';
+/** Mercur's most per request; a buyer writes one review per shop and product, so this is rarely more than one. */
+const MY_REVIEWS_PAGE = 50;
+
+type Subject = { reference: ReviewKind; product?: { title: string; thumbnail: string | null } | null; seller?: { name: string; logo: string | null } | null };
+
+async function fetchMyReviews() {
+  const page = (offset: number) =>
+    storeClient.store.reviews.query({ limit: MY_REVIEWS_PAGE, offset, order: '-created_at', fields: MY_REVIEW_FIELDS });
+  const first = await page(0);
+  const reviews = [...first.reviews];
+  while (reviews.length < first.count) {
+    const next = await page(reviews.length);
+    if (!next.reviews.length) break;
+    reviews.push(...next.reviews);
+  }
+  return reviews.map((review) => review as typeof review & Subject);
+}
+
+/** One review the buyer wrote, with what it's of. */
+export type MyReview = Awaited<ReturnType<typeof fetchMyReviews>>[number];
+
+/**
+ * Every review the signed-in buyer wrote, of shops and products, newest first, whatever its
+ * moderation. All of them at once, so My reviews' filter counts are true.
+ */
+export function useMyReviews(userId: string | null | undefined) {
+  return useQuery({
+    queryKey: reviewKeys.mine(userId ?? ''),
+    queryFn: userId ? fetchMyReviews : skipToken,
+  });
+}
+
+/** Edits one of the buyer's reviews; it goes back to moderation. */
+export function useEditReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, rating, customer_note }: { id: string; rating: number; customer_note: string | null }) =>
+      storeClient.store.reviews.$id.mutate({ $id: id, rating, customer_note }),
+    onSettled: () => refetchAfterReviewChange(queryClient),
+  });
+}
+
+/** Deletes one of the buyer's reviews. */
+export function useDeleteReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => storeClient.store.reviews.$id.delete({ $id: id }),
+    onSettled: () => refetchAfterReviewChange(queryClient),
   });
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { collectBy, collectByLabel, holdReminderDue } from "./pickup-hold"
+import { collectBy, collectByLabel, holdReminderDue, pickupCodeCollectByLabel } from "./pickup-hold"
 import type { ShopHours } from "./shop-hours"
 
 // Weekdays 08:00–18:00, Saturday 09:00–14:00, closed Sunday, in Lagos (UTC+1). Friday 9 October 2026.
@@ -108,6 +108,18 @@ describe("collectByLabel", () => {
 
   test("keeps the minutes of a closing time off the hour", () => {
     expect(collectByLabel(lagos("2026-10-10T13:30:00"), new Date(READY_FRIDAY), "Africa/Lagos")).toBe("Collect by 1:30pm, Sat 10 Oct")
+  })
+})
+
+describe("pickupCodeCollectByLabel", () => {
+  const thursday = lagos("2026-10-15T18:00:00")
+
+  test("gives the day first, as the pickup code reads it", () => {
+    expect(pickupCodeCollectByLabel(thursday, new Date(READY_FRIDAY), "Africa/Lagos")).toBe("Collect by Thu 15 Oct, 6pm")
+  })
+
+  test("says today on the last day", () => {
+    expect(pickupCodeCollectByLabel(thursday, new Date(lagos("2026-10-15T09:30:00")), "Africa/Lagos")).toBe("Collect by 6pm today")
   })
 })
 

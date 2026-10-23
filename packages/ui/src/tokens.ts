@@ -100,6 +100,9 @@ export const block = {
   codeBox: grid(48),
   /** A multi-line input's least height. */
   textArea: grid(84),
+  /** Above an empty or error state's emblem, and the state's side inset (the final `.empty` padding). */
+  stateTop: grid(56),
+  stateSide: grid(28),
 }
 
 /** A shop mark (logo or monogram) by where it sits: a row, a shop group's header, the shop page. */
@@ -213,6 +216,8 @@ export type Theme = {
     productTile: string
     /** Dividers, card edges. */
     line: string
+    /** The lighter rule between groups in a list: orders, shops in the cart, checkout and an order, reviews. */
+    divider: string
     /** Input and checkbox outlines (3:1). */
     control: string
     /** Text. */
@@ -261,6 +266,10 @@ export type Theme = {
     onInverse: string
     inverseSuccess: string
     inverseDanger: string
+    /** The accept clock's ring around a time chip: its track, the time left, and the last two hours. */
+    clockTrack: string
+    clockRing: string
+    clockRingUrgent: string
   }
   /** Chip text and background per tone, each at 7:1 or more (catalogue Accessibility). */
   status: Record<StatusTone, { foreground: string; background: string }>
@@ -309,6 +318,7 @@ export const lightTheme: Theme = {
     tile: "#EEF0F7",
     productTile: white,
     line: "#DDE1EE",
+    divider: "#E4E6EE",
     control: "#80869E",
     ink: "#12162B",
     muted: "#494F66",
@@ -338,6 +348,9 @@ export const lightTheme: Theme = {
     onInverse: white,
     inverseSuccess: "#8FD3AE",
     inverseDanger: "#F2938A",
+    clockTrack: "rgba(18, 22, 43, 0.08)",
+    clockRing: "#C98A1A",
+    clockRingUrgent: ember,
   },
   status: {
     neutral: { foreground: "#494F66", background: "#F0F1F4" },
@@ -360,6 +373,7 @@ export const darkTheme: Theme = {
     tile: "#26262A",
     productTile: white,
     line: "#333338",
+    divider: "#2A2A2F",
     control: "#7A7A83",
     ink: "#F2F2F4",
     muted: "#B4B4BC",
@@ -389,6 +403,9 @@ export const darkTheme: Theme = {
     onInverse: "#12152A",
     inverseSuccess: "#165A3C",
     inverseDanger: "#962218",
+    clockTrack: "rgba(255, 255, 255, 0.1)",
+    clockRing: "#F2C76B",
+    clockRingUrgent: "#F0A474",
   },
   status: {
     neutral: { foreground: "#B4B4BC", background: "#26262A" },

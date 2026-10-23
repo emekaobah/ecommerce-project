@@ -1,6 +1,19 @@
 import { describe, expect, test } from "bun:test"
 import { formatMoney } from "./money"
-import { historyEntries, orderStatus, owedRefundStatus, refundStatus } from "./order-history"
+import {
+  historyEntries,
+  missingItemsNote,
+  orderCardStatus,
+  orderGroupSettled,
+  orderGroupSummary,
+  orderLineName,
+  orderProgress,
+  orderStatus,
+  owedRefundStatus,
+  reachedOnLabel,
+  refundStatus,
+  type ProgressStep,
+} from "./order-history"
 
 const placed = { state: "new", rejected_by: null, reject_reason: null, cancellation: null } as const
 
@@ -129,5 +142,202 @@ describe("owedRefundStatus", () => {
       icon: "clock",
       note: `Our team is sending your ${formatMoney(30, "ngn")} refund`,
     })
+  })
+})
+
+describe("orderGroupSummary", () => {
+  const shopOrder = (state: (typeof placed)["state"] | "packed" | "in_transit" | "delivered", opens = false) => ({
+    fulfilment: { ...placed, state },
+    shop_opens: opens ? { at: "2026-10-26T09:00:00Z", time_zone: "Africa/Lagos" } : null,
+  })
+
+  test("a checkout split across shops says where each shop's part is", () => {
+    expect(orderGroupSummary([shopOrder("packed"), shopOrder("new", true)])).toBe("One packed, one waiting for the shop to open")
+  })
+
+  test("one shop's order reads as its state", () => {
+    expect(orderGroupSummary([shopOrder("in_transit")])).toBe("On its way")
+  })
+
+  test("shops at the same point are counted together", () => {
+    expect(orderGroupSummary([shopOrder("packed"), shopOrder("delivered"), shopOrder("packed")])).toBe(
+      "Two packed, one delivered"
+    )
+  })
+
+  test("every shop at the same point says so", () => {
+    expect(orderGroupSummary([shopOrder("delivered"), shopOrder("delivered")])).toBe("Both delivered")
+    expect(orderGroupSummary([shopOrder("packed"), shopOrder("packed"), shopOrder("packed")])).toBe("All three packed")
+  })
+})
+
+describe("missingItemsNote", () => {
+  const tomatoes = { id: "item_1", product_title: "Fresh Tomatoes 1kg", quantity: 0, unavailable_quantity: 2 }
+  const beans = { id: "item_2", product_title: "Honey Beans 2kg", quantity: 1, unavailable_quantity: 0 }
+  const refundFor = (status: "pending" | "processing" | "processed" | "failed" | "needs-attention", amount = 3500) => ({
+    amount,
+    status,
+    lines: [{ item_id: "item_1", quantity: 2 }],
+  })
+
+  test("an item the shop didn't have is explained with where its refund is", () => {
+    expect(missingItemsNote({ items: [tomatoes, beans], refunds: [refundFor("processing")], currency_code: "ngn" })).toEqual({
+      missing: "Fresh Tomatoes 1kg wasn't available.",
+      refund: `${formatMoney(3500, "ngn")} is on its way back to your card.`,
+    })
+  })
+
+  test("once the refund is made it says so, without promising when the bank shows it", () => {
+    expect(missingItemsNote({ items: [tomatoes], refunds: [refundFor("processed")], currency_code: "ngn" })?.refund).toBe(
+      `${formatMoney(3500, "ngn")} has been refunded to your card.`
+    )
+  })
+
+  test.each(["failed", "needs-attention"] as const)("a %s refund is left to its chip", (status) => {
+    expect(missingItemsNote({ items: [tomatoes], refunds: [refundFor(status)], currency_code: "ngn" })).toEqual({
+      missing: "Fresh Tomatoes 1kg wasn't available.",
+      refund: null,
+    })
+  })
+
+  test("refunds for other lines, or for no lines, aren't counted", () => {
+    const delivery = { amount: 1800, status: "processed" as const, lines: null }
+    const other = { amount: 900, status: "processed" as const, lines: [{ item_id: "item_9", quantity: 1 }] }
+    expect(missingItemsNote({ items: [tomatoes], refunds: [delivery, other], currency_code: "ngn" })?.refund).toBeNull()
+  })
+
+  test("several missing items are named together, and their refunds added up", () => {
+    const rice = { id: "item_3", product_title: "Ofada Rice 5kg", quantity: 0, unavailable_quantity: 1 }
+    const oil = { id: "item_4", product_title: "Red Palm Oil 3L", quantity: 0, unavailable_quantity: 1 }
+    const riceRefund = { amount: 9000, status: "pending" as const, lines: [{ item_id: "item_3", quantity: 1 }] }
+    expect(
+      missingItemsNote({ items: [tomatoes, rice, oil], refunds: [refundFor("processed"), riceRefund], currency_code: "ngn" })
+    ).toEqual({
+      missing: "Fresh Tomatoes 1kg, Ofada Rice 5kg and Red Palm Oil 3L weren't available.",
+      refund: `${formatMoney(12500, "ngn")} is on its way back to your card.`,
+    })
+  })
+
+  test("part of a line missing says how many of it", () => {
+    const some = { ...tomatoes, quantity: 1, unavailable_quantity: 2 }
+    expect(missingItemsNote({ items: [some], refunds: [], currency_code: "ngn" })?.missing).toBe(
+      "2 of 3 Fresh Tomatoes 1kg weren't available."
+    )
+  })
+
+  test("nothing missing, no note", () => {
+    expect(missingItemsNote({ items: [beans], refunds: [], currency_code: "ngn" })).toBeNull()
+  })
+})
+
+describe("orderCardStatus", () => {
+  test("a new order's chip on its shop card reads just Waiting, beside the shop's name", () => {
+    expect(orderCardStatus({ fulfilment: placed })).toEqual({ label: "Waiting", tone: "new", icon: "clock", note: null })
+  })
+
+  test("other states read as orderStatus gives them", () => {
+    const packed = { fulfilment: { ...placed, state: "packed" as const } }
+    expect(orderCardStatus(packed)).toEqual(orderStatus(packed))
+  })
+})
+
+describe("reachedOnLabel", () => {
+  const LAGOS = "Africa/Lagos"
+  const timeline = [
+    { label: "Placed", status: "done" as const, at: "2026-09-30T09:00:00Z" },
+    { label: "Delivered", status: "current" as const, at: "2026-10-02T14:00:00Z" },
+  ]
+
+  test("a delivered order reads when it got there", () => {
+    expect(reachedOnLabel({ state: "delivered", timeline }, LAGOS)).toBe("Delivered Fri 2 Oct")
+  })
+
+  test("a collected order reads when it was collected", () => {
+    expect(reachedOnLabel({ state: "collected", timeline }, LAGOS)).toBe("Collected Fri 2 Oct")
+  })
+
+  test("the day is the time zone's, not UTC's", () => {
+    const late = [{ label: "Delivered", status: "current" as const, at: "2026-10-01T23:30:00Z" }]
+    expect(reachedOnLabel({ state: "delivered", timeline: late }, LAGOS)).toBe("Delivered Fri 2 Oct")
+  })
+
+  test("a delivered order with no time for its delivery doesn't borrow an earlier step's", () => {
+    const unknown = [timeline[0]!, { label: "Delivered", status: "done" as const, at: null }]
+    expect(reachedOnLabel({ state: "delivered", timeline: unknown }, LAGOS)).toBeNull()
+  })
+
+  test("skips steps still to come", () => {
+    const steps = [...timeline, { label: "Reviewed", status: "upcoming" as const, at: "2026-10-09T10:00:00Z" }]
+    expect(reachedOnLabel({ state: "delivered", timeline: steps }, LAGOS)).toBe("Delivered Fri 2 Oct")
+  })
+
+  test("nothing until it has got there, or without a time", () => {
+    expect(reachedOnLabel({ state: "in_transit", timeline }, LAGOS)).toBeNull()
+    expect(reachedOnLabel({ state: "delivered", timeline: [] }, LAGOS)).toBeNull()
+  })
+})
+
+describe("orderLineName", () => {
+  test("a line names its product and the variant bought", () => {
+    expect(orderLineName({ product_title: "Adire Kaftan", variant_title: "M" })).toBe("Adire Kaftan · M")
+  })
+
+  test("a product's only variant, named like the product, isn't repeated", () => {
+    expect(orderLineName({ product_title: "Ankara Tote Bag", variant_title: "Ankara Tote Bag" })).toBe("Ankara Tote Bag")
+  })
+
+  test("a line with no names still reads as an item", () => {
+    expect(orderLineName({ product_title: null, variant_title: null })).toBe("Item")
+  })
+})
+
+describe("orderProgress", () => {
+  // Written out: done before the current step, upcoming after it.
+  const steps = (labels: string[], current: number): ProgressStep[] =>
+    labels.map((label, i) => {
+      if (i === current) return { label, status: "current" }
+      return { label, status: i < current ? "done" : "upcoming" }
+    })
+  const DELIVERY = ["Accepted", "Being prepared", "Packed", "On its way"]
+  const PICKUP = ["Accepted", "Being prepared", "Ready for pickup", "Collected"]
+
+  test("a packed delivery is at the third of four steps", () => {
+    expect(orderProgress("packed", "delivery")).toEqual(steps(DELIVERY, 2))
+  })
+
+  test.each([
+    ["accepted", 0],
+    ["picking", 1],
+    ["partially_available", 1],
+    ["label_booked", 2],
+    ["courier_confirmed", 2],
+    ["handed_to_courier", 3],
+    ["in_transit", 3],
+  ] as const)("a delivery %s is at step %i", (state, current) => {
+    expect(orderProgress(state, "delivery")).toEqual(steps(DELIVERY, current))
+  })
+
+  test("a pickup order ready to collect is at its third step, collecting it the last", () => {
+    expect(orderProgress("ready_for_pickup", "pickup")).toEqual(steps(PICKUP, 2))
+  })
+
+  test.each(["new", "delivered", "collected", "not_collected", "rejected", "cancelled"] as const)(
+    "a %s order shows no progress",
+    (state) => {
+      expect(orderProgress(state, "delivery")).toBeNull()
+    }
+  )
+})
+
+describe("orderGroupSettled", () => {
+  const order = (state: "delivered" | "collected" | "rejected" | "cancelled" | "not_collected" | "packed" | "new") => ({ fulfilment: { state } })
+
+  test("a checkout whose shops are all done is settled", () => {
+    expect(orderGroupSettled([order("delivered"), order("collected"), order("rejected"), order("cancelled"), order("not_collected")])).toBe(true)
+  })
+
+  test("a checkout with a shop still working on its part isn't", () => {
+    expect(orderGroupSettled([order("delivered"), order("packed")])).toBe(false)
+    expect(orderGroupSettled([order("new")])).toBe(false)
   })
 })

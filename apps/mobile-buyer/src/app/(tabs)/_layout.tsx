@@ -4,6 +4,11 @@ import { NativeTabs } from 'expo-router/native-tabs';
 import { useCart } from '@/api/cart';
 import { useCartSession } from '@/cart/cart-provider';
 
+/**
+ * The buyer app's native tab bar (Foundations, Android and the tab bar): the platform's own bar
+ * and SF Symbols / Material Symbols icons, with the active tab in accent and the rest in the
+ * inactive tab colour, in both themes. The cart's badge counts its items.
+ */
 export default function TabsLayout() {
   const theme = useTheme();
   const { cartId } = useCartSession();
@@ -13,8 +18,10 @@ export default function TabsLayout() {
       backgroundColor={theme.colors.raised}
       tintColor={theme.colors.accent}
       badgeBackgroundColor={theme.colors.accent}
-      labelStyle={{ selected: { color: theme.colors.accent } }}>
-      <NativeTabs.Trigger name="index">
+      iconColor={{ default: theme.colors.tabInactive, selected: theme.colors.accent }}
+      labelStyle={{ default: { color: theme.colors.tabInactive }, selected: { color: theme.colors.accent } }}>
+      {/* Home's band runs under the status bar, so Home pads its own insets. */}
+      <NativeTabs.Trigger name="index" disableAutomaticContentInsets>
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
       </NativeTabs.Trigger>

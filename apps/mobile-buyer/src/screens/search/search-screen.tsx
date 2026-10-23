@@ -1,18 +1,17 @@
 import { departments } from '@oja/domain';
-import { EmptyState, ErrorState, ListRow, LoadingState, MAX_FONT_SCALE, Text, useTheme } from '@oja/ui';
+import { EmptyState, ErrorState, Icon, ListRow, SearchField, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
-import { Pressable, SectionList, StyleSheet, TextInput, View } from 'react-native';
+import { SectionList, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCategories } from '@/api/categories';
-import { useListings } from '@/api/listings';
-import { DeliveringToPicker } from '@/components/delivering-to-picker';
-import { ShopResults } from '@/components/shop-results';
+import { useListingResults } from '@/api/listings';
+import { resultsLabel, ShopResults, ShopShelfSkeleton } from '@/components/shop-results';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { openCategory } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
-/** Search by product name; with no query, browse by category. */
+/** Search by product name, results grouped by shop; with no query, browse by category. */
 export function SearchScreen() {
   const theme = useTheme();
   const [query, setQuery] = useState('');
@@ -20,41 +19,8 @@ export function SearchScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <View style={{ paddingHorizontal: theme.space[4], paddingVertical: theme.space[4], gap: theme.space[4] }}>
-        <Text variant="titleRoot">Search</Text>
-        <DeliveringToPicker />
-        <View
-          style={[
-            styles.field,
-            {
-              minHeight: theme.hitArea,
-              backgroundColor: theme.colors.tile,
-              borderRadius: theme.radius.md,
-              paddingLeft: theme.space[4],
-            },
-          ]}>
-          <TextInput
-            maxFontSizeMultiplier={MAX_FONT_SCALE}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search products"
-            placeholderTextColor={theme.colors.muted}
-            accessibilityLabel="Search products"
-            returnKeyType="search"
-            autoCorrect={false}
-            clearButtonMode="never"
-            style={[styles.input, theme.type.body, { color: theme.colors.ink }]}
-          />
-          {query ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-              onPress={() => setQuery('')}
-              style={[styles.clear, { minWidth: theme.hitArea, minHeight: theme.hitArea }]}>
-              <Text tone="muted">✕</Text>
-            </Pressable>
-          ) : null}
-        </View>
+      <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[2] }}>
+        <SearchField value={query} onChangeText={setQuery} placeholder="Search products" />
       </View>
       {search ? <Results search={search} onClear={() => setQuery('')} /> : <Browse />}
     </SafeAreaView>
@@ -62,28 +28,63 @@ export function SearchScreen() {
 }
 
 function Results({ search, onClear }: Readonly<{ search: string; onClear: () => void }>) {
+  const theme = useTheme();
   const region = useRegion();
-  const listings = useListings(region.region?.id, { search, limit: 100 });
+  const results = useListingResults(region.region?.id, { search });
 
   if (region.error) {
-    return <ErrorState title="Couldn't reach the store" body="Check your connection and try again. Anything in your cart is saved." error={region.error} onRetry={region.retry} />;
-  }
-  if (listings.error) {
     return (
-      <ErrorState title="Couldn't search" body="Check your connection and try again." error={listings.error} onRetry={() => void listings.refetch()} />
+      <ErrorState
+        title="Couldn't reach the store"
+        body="Check your connection and try again. Anything in your cart is saved."
+        error={region.error}
+        onRetry={region.retry}
+      />
     );
   }
-  if (!region.region || !listings.data) return <LoadingState />;
+  if (results.error && !results.data) {
+    return (
+      <ErrorState
+        title="Couldn't search"
+        body="Check your connection and try again."
+        error={results.error}
+        onRetry={() => void results.refetch()}
+      />
+    );
+  }
+  if (!region.region || !results.data) {
+    return (
+      <View accessible accessibilityLabel="Searching">
+        <ShopShelfSkeleton />
+        <ShopShelfSkeleton />
+      </View>
+    );
+  }
 
+  const [first] = results.data.pages;
   return (
     <ShopResults
-      listings={listings.data}
+      listings={results.data.pages.flatMap((page) => page.listings)}
       currencyCode={region.region.currency_code}
+      header={
+        <Text
+          variant="label"
+          weight="extrabold"
+          tone="muted"
+          style={[styles.caps, { letterSpacing: theme.type.label.fontSize * CAPS_TRACKING_EM, paddingHorizontal: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[1] }]}>
+          {resultsLabel(first?.shop_count ?? 0, first?.count ?? 0)}
+        </Text>
+      }
+      footer={results.hasNextPage ? <ShopShelfSkeleton /> : undefined}
+      onEndReached={() => {
+        if (results.hasNextPage && !results.isFetchingNextPage) void results.fetchNextPage();
+      }}
       empty={
         <EmptyState
           title={`No results for “${search}”`}
           body="Check the spelling, or try fewer or shorter words."
-          action={{ label: 'Clear search', onPress: onClear }}
+          icon="search"
+          secondaryAction={{ label: 'Clear search', onPress: onClear }}
         />
       }
     />
@@ -98,12 +99,13 @@ function Browse() {
     return (
       <ErrorState
         title="Couldn't load categories"
-        body="Check your connection and try again." error={categories.error}
+        body="Check your connection and try again."
+        error={categories.error}
         onRetry={() => void categories.refetch()}
       />
     );
   }
-  if (!categories.data) return <LoadingState />;
+  if (!categories.data) return null;
 
   // A row for everything in the department, then one per sub-category.
   const sections = departments(categories.data).map(({ department, categories: subCategories }) => ({
@@ -118,13 +120,12 @@ function Browse() {
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       stickySectionHeadersEnabled={false}
-      contentContainerStyle={[
-        { paddingHorizontal: theme.space[4], paddingBottom: theme.space[8] },
-        !sections.length && styles.grow,
-      ]}
-      ListEmptyComponent={<EmptyState title="No categories yet" body="Search for a product by name." />}
+      contentContainerStyle={[{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[8] }, !sections.length && styles.grow]}
+      ListEmptyComponent={<EmptyState title="No categories yet" body="Search for a product by name." icon="search" />}
       renderSectionHeader={({ section }) => (
-        <Text variant="heading" style={{ marginTop: theme.space[6], marginBottom: theme.space[1] }}>
+        <Text
+          variant="heading"
+          style={{ paddingTop: theme.space[6], paddingBottom: theme.space[1] }}>
           {section.title}
         </Text>
       )}
@@ -132,17 +133,18 @@ function Browse() {
         <ListRow
           title={item.id === section.department.id ? `All ${item.name.toLowerCase()}` : item.name}
           onPress={() => openCategory(item)}
-          trailing={<Text tone="muted">›</Text>}
+          trailing={<Icon name="fwd" use="chip" color={theme.colors.muted} />}
         />
       )}
     />
   );
 }
 
+/** Caps labels track out by .06em, as the catalogue's section labels (`.lbl2`) do. */
+const CAPS_TRACKING_EM = 0.06;
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  field: { flexDirection: 'row', alignItems: 'center' },
-  input: { flex: 1, paddingVertical: 0 },
-  clear: { alignItems: 'center', justifyContent: 'center' },
   grow: { flexGrow: 1 },
+  caps: { textTransform: 'uppercase' },
 });
