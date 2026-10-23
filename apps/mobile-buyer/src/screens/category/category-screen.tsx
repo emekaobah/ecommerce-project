@@ -28,7 +28,7 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
     <Stack.Screen
       options={{
         title: name ?? '',
-        headerRight: SearchButton,
+        headerRight: () => <SearchButton />,
       }}
     />
   );
