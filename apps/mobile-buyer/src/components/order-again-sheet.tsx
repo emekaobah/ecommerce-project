@@ -277,7 +277,7 @@ function ShopLine({ preview }: Readonly<{ preview: OrderAgain }>) {
         <Text variant="label" weight="extrabold" tone="leaf">
           Open
         </Text>
-        {`${rest}${distance ? ` · ${distance}` : ''}`}
+        {distance ? `${rest} · ${distance}` : rest}
       </Text>
     </View>
   );

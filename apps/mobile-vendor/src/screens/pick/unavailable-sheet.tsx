@@ -102,7 +102,7 @@ export function UnavailableSheet() {
       ) : null}
       {failure ? <InlineNote>{failure}</InlineNote> : null}
       <Button
-        label={most === 0 ? 'Mark not available' : quantity === 0 ? 'Clear unavailable' : `Mark ${quantity} not available`}
+        label={markLabel(most, quantity)}
         size="main"
         loading={mark.isPending}
         disabled={most === 0 || quantity === line.unavailable}
@@ -132,6 +132,12 @@ function Step({
       <Icon name={icon} use="step" color={disabled ? theme.colors.muted : theme.colors.ink} />
     </PressableSurface>
   );
+}
+
+function markLabel(most: number, quantity: number): string {
+  if (most === 0) return 'Mark not available';
+  if (quantity === 0) return 'Clear unavailable';
+  return `Mark ${quantity} not available`;
 }
 
 const styles = StyleSheet.create({

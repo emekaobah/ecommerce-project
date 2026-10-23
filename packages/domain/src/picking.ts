@@ -108,7 +108,9 @@ export function pickLineView(line: PickLine & { perishable: boolean }): PickLine
   const spoken = join([perishable, picked, short], ", ")
   if (short) return { pill: { label: count, tone: "short" }, note: join([perishable, short], " · "), noteTone: "ember", spoken }
   const byHand = line.codes.length ? null : "No barcode: tick by hand"
-  const progress = line.picked > 0 ? picked : byHand ? null : "Tap to tick"
+  let progress: string | null = null
+  if (line.picked > 0) progress = picked
+  else if (!byHand) progress = "Tap to tick"
   return {
     pill: { label: count, tone: "neutral" },
     note: join([perishable, progress, byHand], " · "),

@@ -103,7 +103,7 @@ export function orderAgainClosedNote({ not_taking_orders, shop_status, seller }:
   if (!shop_status || shop_status.state === "open") return null
   if (shop_status.state === "closed") {
     // The label reads "Closed · opens 10am Mon" in the region's timezone, which the preview doesn't carry.
-    const opens = shop_status.label.match(/opens (.+)$/)?.[1]
+    const opens = /opens (.+)$/.exec(shop_status.label)?.[1]
     return opens ? `Prepared when it opens ${opens}` : "Prepared when it opens"
   }
   return shop_status.note ? `${shop_status.label}. ${shop_status.note}` : shop_status.label
