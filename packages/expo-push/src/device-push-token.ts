@@ -15,20 +15,31 @@ export type PushModules = {
   Platform: typeof Platform;
 };
 
+export type PushOptions = {
+  /**
+   * Whether the app shows this push itself while it is open (the vendor app's new-order
+   * takeover), so the system adds it to the notification list only, with no banner or sound.
+   */
+  shownInApp?: (notification: ExpoNotifications.Notification) => boolean;
+};
+
 /**
- * Shows pushes as banners even while the app is open, and returns a function giving this
- * device's Expo push token, asking for permission first. The token is null where pushes can't
- * arrive: a simulator, a refused permission, or a build without an EAS project id (`EAS_PROJECT_ID`).
+ * Shows pushes as banners even while the app is open, except those the app shows itself, and
+ * returns a function giving this device's Expo push token, asking for permission first. The
+ * token is null where pushes can't arrive: a simulator, a refused permission, or a build without
+ * an EAS project id (`EAS_PROJECT_ID`).
  */
-export function pushTokenSource({ Constants, Device, Notifications, Platform }: PushModules) {
+export function pushTokenSource({ Constants, Device, Notifications, Platform }: PushModules, { shownInApp }: PushOptions = {}) {
   Notifications.setNotificationHandler({
-    handleNotification: () =>
-      Promise.resolve({
-        shouldPlaySound: true,
+    handleNotification: (notification) => {
+      const inApp = shownInApp?.(notification) ?? false;
+      return Promise.resolve({
+        shouldPlaySound: !inApp,
         shouldSetBadge: false,
-        shouldShowBanner: true,
+        shouldShowBanner: !inApp,
         shouldShowList: true,
-      }),
+      });
+    },
   });
 
   return async function devicePushToken(): Promise<string | null> {
