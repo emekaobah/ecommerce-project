@@ -34,7 +34,7 @@ import {
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Fragment, useRef } from 'react';
-import { Linking, RefreshControl, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
+import { Linking, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View, type ScrollViewInstance } from 'react-native';
 
 import { useOrderGroup, type SellerOrder } from '@/api/orders';
 import { OrderReviews } from '@/components/order-reviews';
@@ -167,6 +167,9 @@ type ShopOrderProps = {
   onReceiptLayout?: (y: number) => void;
 };
 
+/** The text size (as a scale of the default) from which a shop's chip goes under its name. */
+const LARGE_TEXT = 1.3;
+
 /** One shop's part of the checkout. */
 function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>) {
   const theme = useTheme();
@@ -174,21 +177,23 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
   const missing = missingItemsNote(order);
   const cardY = useRef(0);
   const changed = courierChangedNote(order.fulfilment.state, order.delivery);
+  const chip = <StatusChip label={status.label} tone={status.tone} icon={status.icon} />;
+  // At the largest text sizes the chip goes under the name, so the name keeps the width to wrap in.
+  const stacked = useWindowDimensions().fontScale >= LARGE_TEXT;
   return (
     <View onLayout={(event) => (cardY.current = event.nativeEvent.layout.y)}>
       <Group>
         <View style={[styles.row, { gap: theme.space[2] }]}>
           <ShopMark name={order.seller.name} logoUrl={order.seller.logo} size="sm" />
-          <View style={styles.fill}>
+          <View style={[styles.fill, { gap: stacked ? theme.space[1] : 0 }]}>
             <Text weight="extrabold" numberOfLines={2}>
               {order.seller.name}
             </Text>
             <ShopLine order={order} />
+            {stacked ? chip : null}
           </View>
           {/* Wrapped so it centres on the name's line instead of keeping to the top. */}
-          <View>
-            <StatusChip label={status.label} tone={status.tone} icon={status.icon} />
-          </View>
+          {stacked ? null : <View>{chip}</View>}
         </View>
         {changed ? (
           <Text variant="meta" tone="muted">
