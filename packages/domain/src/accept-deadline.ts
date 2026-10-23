@@ -83,6 +83,15 @@ export function acceptTimeLeft(deadline: string, now: Date, hours: ShopHours | n
 }
 
 /**
+ * The accept clock on an order's own page: the time left alone, "23h 58m", "21h", or "Overdue".
+ * Counted as `acceptTimeLeft` counts it.
+ */
+export function acceptClockTime(deadline: string, now: Date, hours: ShopHours | null = null): string {
+  if (Date.parse(deadline) <= now.getTime()) return "Overdue"
+  return timeLeftLabel(openTimeLeft(deadline, now, hours))
+}
+
+/**
  * How much of the 24 open hours to accept is left at `now`, from 1 (all of it) to 0 (overdue):
  * the time chip's outline drains by it. It holds still while the shop is closed.
  */
