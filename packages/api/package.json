@@ -21,6 +21,7 @@
     "build": "medusa build && node ./scripts/bundle-dashboards.mjs",
     "seed": "medusa exec ./src/scripts/seed.ts",
     "demo:order": "medusa exec ./src/scripts/demo-order.ts",
+    "demo:images": "medusa exec ./src/scripts/demo-images.ts",
     "e2e:backend": "bun e2e/backend.ts",
     "start": "medusa start",
     "dev": "medusa develop",

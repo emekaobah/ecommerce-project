@@ -105,6 +105,8 @@ Each department's categories carry starter attributes (Storage and Shelf life; F
 
 The data lives in `packages/api/src/scripts/seed-data.ts`.
 
+Products and shops have demo photos (`packages/api/src/scripts/demo-images/`): each product's gallery, its first photo the thumbnail, and each shop's logo and banner. The seed uploads them through the file module, so they land in `./static` locally and in R2 where `S3_BUCKET` is set. To put them on a database seeded before they existed, run `bun run demo:images` in `packages/api`: it replaces only the seeded products' images and the seeded shops' logos and banners (never orders, prices or stock), and skips any that already show their demo photos, so re-running it uploads nothing.
+
 Checks: `bun run codegen && bun run check-types && bun run test`.
 
 ## Deploy
