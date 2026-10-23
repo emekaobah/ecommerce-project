@@ -150,7 +150,7 @@ function EntryReview({
       />
       {entry.review ? (
         <Text variant="meta" tone="muted">
-          Your review: change it here. It goes back to Oja's team to check.
+          {"Your review: change it here. It goes back to Oja's team to check."}
         </Text>
       ) : null}
       <StarInput value={draft.rating} onChange={(rating) => onChange({ rating })} label={`Rate ${entry.title}`} />
