@@ -1,112 +1,120 @@
 import { useAuth } from '@clerk/expo';
-import { listingPrice, wishlistMove } from '@oja/domain';
-import { Button, EmptyState, ErrorState, ListRow, LoadingState, Text, useTheme } from '@oja/ui';
-import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { EmptyState, ErrorState, ProductTile, useGridColumns, useTheme } from '@oja/ui';
+import { router, Stack } from 'expo-router';
 import { FlatList, StyleSheet, View } from 'react-native';
 
-import { useMoveToCart, useToggleWishlist, useWishlist, type WishlistItem } from '@/api/wishlist';
-import { useCartSession } from '@/cart/cart-provider';
-import { Price } from '@/components/price';
-import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
-import { openListing } from '@/navigation';
+import type { Listing } from '@/api/listings';
+import { useToggleWishlist, useWishlist, type WishlistItem } from '@/api/wishlist';
+import { GridSkeleton } from '@/components/listing-grid';
+import { ListingTile } from '@/components/listing-tile';
+import { useListRefresh } from '@/hooks/use-list-refresh';
 import { useRegion } from '@/region/region-provider';
 
-/** Account → Wishlist: products the buyer saved, each at the shop they saved it from. */
+/**
+ * Account → Saved items: products the buyer saved, each at the shop they saved it from. A shop on
+ * a break keeps its items visible, greyed, with when it reopens and no add button. Removing an
+ * item happens on its product screen, where the save button lives.
+ */
 export function WishlistScreen() {
   const theme = useTheme();
   const { userId } = useAuth();
   const region = useRegion();
+  const columns = useGridColumns();
   const wishlist = useWishlist(userId, region.region?.id);
-  const { refreshing, refresh } = usePullToRefresh(() => wishlist.refetch());
+  const { refreshing, refresh } = useListRefresh(wishlist.refetch);
+  const title = <Stack.Screen options={{ title: 'Saved' }} />;
 
-  if (region.error) {
-    return <ErrorState title="Couldn't reach the store" body="Check your connection and try again. Anything in your cart is saved." error={region.error} onRetry={region.retry} />;
+  const error = region.error ?? (wishlist.data ? null : wishlist.error);
+  if (error) {
+    return (
+      <>
+        {title}
+        <ErrorState
+          title="Couldn't load your saved items"
+          body="Check your connection and try again. Anything in your cart is saved."
+          error={error}
+          onRetry={region.error ? region.retry : refresh}
+        />
+      </>
+    );
   }
-  if (wishlist.error && !wishlist.data) {
-    return <ErrorState title="Couldn't load your wishlist" body="Check your connection and try again." error={wishlist.error} onRetry={refresh} />;
+  if (!region.region || !wishlist.data) {
+    return (
+      <View style={[styles.fill, { backgroundColor: theme.colors.bg, paddingTop: theme.space[2] }]}>
+        {title}
+        <GridSkeleton />
+      </View>
+    );
   }
-  if (!region.region || !wishlist.data) return <LoadingState />;
 
   const { currency_code } = region.region;
+  const items = wishlist.data;
   return (
-    <FlatList
-      data={wishlist.data}
-      keyExtractor={(item) => item.product.id}
-      style={{ backgroundColor: theme.colors.bg }}
-      contentContainerStyle={[{ paddingHorizontal: theme.space[4] }, !wishlist.data.length && styles.grow]}
-      refreshing={refreshing}
-      onRefresh={refresh}
-      ListEmptyComponent={
-        <EmptyState
-          title="Nothing saved yet"
-          body="Save products from their page to find them here."
-          action={{ label: 'Start shopping', onPress: () => router.navigate('/') }}
-        />
-      }
-      renderItem={({ item }) => <SavedProduct item={item} currencyCode={currency_code} />}
+    <>
+      {title}
+      <FlatList
+        key={columns}
+        numColumns={columns}
+        // An odd last tile keeps its column's width.
+        data={items.length % columns ? [...items, null] : items}
+        keyExtractor={(item) => item?.product.id ?? 'filler'}
+        style={{ backgroundColor: theme.colors.bg }}
+        contentContainerStyle={[{ paddingTop: theme.space[2], paddingBottom: theme.space[8], gap: theme.space[4] }, styles.grow]}
+        columnWrapperStyle={columns > 1 ? { gap: theme.space[3], paddingHorizontal: theme.space[4] } : undefined}
+        refreshing={refreshing}
+        onRefresh={refresh}
+        ListEmptyComponent={
+          <EmptyState
+            title="Nothing saved yet"
+            body="Save products from their page to find them here."
+            icon="heart"
+            action={{ label: 'Browse shops near you', onPress: () => router.navigate('/') }}
+          />
+        }
+        renderItem={({ item }) => (
+          <View style={columns > 1 ? styles.fill : { paddingHorizontal: theme.space[4] }}>
+            {item ? <SavedProduct item={item} currencyCode={currency_code} /> : null}
+          </View>
+        )}
+      />
+    </>
+  );
+}
+
+/** "Iya Bisi Foodstuff · open", "Adire House · closed until Tue 28 Oct". */
+function shopDetail(seller: Listing['seller']): string {
+  const { state, label } = seller.shop_status;
+  const status = state === 'open' ? 'open' : label.charAt(0).toLowerCase() + label.slice(1);
+  return `${seller.name} · ${status}`;
+}
+
+function SavedProduct({ item, currencyCode }: Readonly<{ item: WishlistItem; currencyCode: string }>) {
+  const remove = useToggleWishlist();
+  if (item.listing) {
+    return (
+      <ListingTile
+        listing={item.listing}
+        seller={item.listing.seller}
+        currencyCode={currencyCode}
+        detail={shopDetail(item.listing.seller)}
+      />
+    );
+  }
+  // The shop stopped selling it: it has no page left to remove it from, so its heart stays here.
+  return (
+    <ProductTile
+      name={item.product.title}
+      imageUrl={item.product.thumbnail}
+      price=""
+      detail="No longer available"
+      onPress={() => undefined}
+      saved
+      onToggleSave={() => remove.mutate({ sellerId: item.seller_id, productId: item.product.id, save: false })}
     />
   );
 }
 
-function SavedProduct({ item, currencyCode }: Readonly<{ item: WishlistItem; currencyCode: string }>) {
-  const theme = useTheme();
-  const { cartIdForAdding } = useCartSession();
-  const move = useMoveToCart(cartIdForAdding);
-  const remove = useToggleWishlist();
-  const { listing, product } = item;
-  const action = wishlistMove(item);
-  const price = listing ? listingPrice(listing.offers) : null;
-  const error = move.error ?? remove.error;
-
-  return (
-    <View style={{ borderBottomColor: theme.colors.line, borderBottomWidth: StyleSheet.hairlineWidth }}>
-      <ListRow
-        title={product.title}
-        subtitle={listing ? listing.seller.name : 'No longer available'}
-        onPress={listing ? () => openListing(listing) : undefined}
-        trailing={price ? <Price price={price} currencyCode={currencyCode} /> : null}
-        leading={
-          product.thumbnail ? (
-            <Image
-              source={product.thumbnail}
-              contentFit="contain"
-              style={[styles.thumb, { backgroundColor: theme.colors.productTile, borderRadius: theme.radius.sm }]}
-            />
-          ) : null
-        }
-      />
-      <View style={[styles.actions, { gap: theme.space[4], paddingBottom: theme.space[2] }]}>
-        {action.kind === 'move' ? (
-          <Button
-            label="Move to cart"
-            variant="link"
-            loading={move.isPending}
-            onPress={() => move.mutate({ productId: product.id, offerId: action.offerId })}
-          />
-        ) : null}
-        {/* Several sizes or colours: the buyer picks one on the product page. */}
-        {action.kind === 'choose' && listing ? (
-          <Button label="Choose an option" variant="link" onPress={() => openListing(listing)} />
-        ) : null}
-        <Button
-          label="Remove"
-          variant="link"
-          loading={remove.isPending}
-          onPress={() => remove.mutate({ sellerId: item.seller_id, productId: product.id, save: false })}
-        />
-      </View>
-      {error ? (
-        <Text tone="muted" accessibilityLiveRegion="polite" style={{ paddingBottom: theme.space[2] }}>
-          {`Couldn't update your wishlist: ${error.message}`}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   grow: { flexGrow: 1 },
-  thumb: { width: 64, height: 64 },
-  actions: { flexDirection: 'row', alignItems: 'center' },
 });

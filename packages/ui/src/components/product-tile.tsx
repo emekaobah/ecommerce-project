@@ -4,6 +4,7 @@ import { useTheme } from "../theme"
 import { lightTheme } from "../tokens"
 import { Icon } from "./icon"
 import { PressableSurface } from "./pressable-surface"
+import { DealBadge } from "./deal-badge"
 import { StatusChip } from "./status-chip"
 import { Text } from "./text"
 
@@ -20,6 +21,8 @@ export type ProductTileProps = {
   deal?: string | null
   /** Greys the photo and shows "Sold out" in place of the add button. */
   soldOut?: boolean
+  /** The shop isn't taking orders (a break or a closure): greyed, "Closed", and no add button. */
+  closed?: boolean
   onPress: () => void
   /** Adds one to the cart; without it there is no add button. */
   onAdd?: () => void
@@ -41,6 +44,7 @@ export function ProductTile({
   detail,
   deal,
   soldOut,
+  closed,
   onPress,
   onAdd,
   saved,
@@ -50,27 +54,27 @@ export function ProductTile({
   const button = theme.block.photoButton
   const slop = Math.max(0, (theme.hitArea - button) / 2)
   const spokenPrice = wasPrice ? `was ${wasPrice}, now ${price}` : price
-  const spoken = [name, spokenPrice, deal, detail, soldOut ? "sold out" : null].filter(Boolean).join(", ")
+  const unavailable = soldOut || closed
+  const spoken = [name, spokenPrice, deal, detail, soldOut ? "sold out" : null, closed && !soldOut ? "shop closed" : null]
+    .filter(Boolean)
+    .join(", ")
 
   return (
     <PressableSurface accessibilityRole="button" accessibilityLabel={spoken} onPress={onPress} style={{ gap: theme.space[1] }}>
       <View style={[styles.photo, { backgroundColor: theme.colors.productTile, borderRadius: theme.radius.md }]}>
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} contentFit="contain" style={[styles.image, soldOut && styles.soldOut]} />
+          <Image source={{ uri: imageUrl }} contentFit="contain" style={[styles.image, unavailable && styles.unavailable]} />
         ) : (
           <Icon name="bag" color={lightTheme.colors.muted} />
         )}
-        {deal ? (
-          <View
-            style={[
-              styles.topLeft,
-              { top: theme.space[2], left: theme.space[2], backgroundColor: theme.colors.sun, borderRadius: theme.radius.pill },
-              { paddingHorizontal: theme.space[2], paddingVertical: theme.space[1] },
-            ]}
-          >
-            <Text variant="label" weight="extrabold" style={{ color: theme.colors.onSun }}>
-              {deal}
-            </Text>
+        {unavailable ? (
+          <View style={[styles.corner, { top: theme.space[2], left: theme.space[2] }]}>
+            {soldOut ? <StatusChip label="Sold out" tone="neutral" /> : <StatusChip label="Closed" tone="neutral" icon="clock" />}
+          </View>
+        ) : null}
+        {deal && !unavailable ? (
+          <View style={[styles.corner, { top: theme.space[2], left: theme.space[2], right: theme.space[2] }]}>
+            <DealBadge label={deal} />
           </View>
         ) : null}
         {onToggleSave ? (
@@ -91,12 +95,7 @@ export function ProductTile({
             <Icon name="heart" use="chip" color={saved ? lightTheme.colors.dangerText : lightTheme.colors.ink} filled={saved} />
           </PressableSurface>
         ) : null}
-        {soldOut ? (
-          <View style={[styles.corner, { bottom: theme.space[2], right: theme.space[2] }]}>
-            <StatusChip label="Sold out" tone="neutral" />
-          </View>
-        ) : null}
-        {onAdd && !soldOut ? (
+        {onAdd && !unavailable ? (
           <PressableSurface
             accessibilityRole="button"
             accessibilityLabel={`Add ${name} to cart`}
@@ -128,7 +127,9 @@ export function ProductTile({
           </Text>
         ) : null}
       </View>
-      <Text numberOfLines={2}>{name}</Text>
+      <Text variant="meta" weight="semibold" numberOfLines={2} style={unavailable ? { color: theme.colors.muted } : null}>
+        {name}
+      </Text>
       {detail ? (
         <Text variant="meta" tone="muted">
           {detail}
@@ -141,8 +142,7 @@ export function ProductTile({
 const styles = StyleSheet.create({
   photo: { aspectRatio: 1, alignItems: "center", justifyContent: "center", overflow: "hidden", padding: "10%" },
   image: { width: "100%", height: "100%" },
-  soldOut: { opacity: 0.55 },
-  topLeft: { position: "absolute" },
+  unavailable: { opacity: 0.55 },
   corner: { position: "absolute", alignItems: "center", justifyContent: "center" },
   heart: { backgroundColor: "rgba(255, 255, 255, 0.92)" },
   price: { flexDirection: "row", alignItems: "baseline", flexWrap: "wrap" },

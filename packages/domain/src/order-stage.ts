@@ -20,3 +20,6 @@ export const statesInStage = (stage: OrderStage): FulfilmentState[] => [...STATE
 /** The stage an order in the state is in; null once it is finished (rejected, cancelled, delivered, collected or not collected). */
 export const orderStageOf = (state: FulfilmentState): OrderStage | null =>
   ORDER_STAGES.find((stage) => STATES[stage].includes(state)) ?? null
+
+/** A stage tile's count: the server counts them all, the tile shows "99+" above 99. */
+export const stageCountLabel = (count: number): string => (count > 99 ? "99+" : String(count))

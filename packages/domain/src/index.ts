@@ -35,7 +35,7 @@ export type { AppIdentity } from "./app-identity"
 export { NEW_ORDER_ALARM } from "./new-order-alarm"
 export { selectRegion } from "./region"
 export { CANCEL_REASONS, canCancel, newFulfilment, transition } from "./fulfilment"
-export { ORDER_STAGES, orderStageOf, statesInStage } from "./order-stage"
+export { ORDER_STAGES, orderStageOf, stageCountLabel, statesInStage } from "./order-stage"
 export type { OrderStage } from "./order-stage"
 export { ORDER_PHASES, orderPhase } from "./order-phase"
 export type { OrderPhase, PhaseRefund } from "./order-phase"
@@ -79,17 +79,20 @@ export {
   checkPickupCode,
   isPickupCodeFormat,
   openingHoursLines,
+  pickupCodeGroups,
   PERISHABLE_PICKUP_NOTE,
   PICKUP_CODE_ATTEMPTS,
   PICKUP_CODE_LENGTH,
   PICKUP_CODE_WINDOW_MS,
   PICKUP_HOLD_NOTICE,
+  todayHoursLabel,
 } from "./pickup"
 export type { PickupCodeCheck, PickupCodeState } from "./pickup"
 export { collectBy, collectByLabel, HOLD_REMINDERS, holdReminderDue, PERISHABLE_HOLD_OPEN_DAYS, PICKUP_HOLD_OPEN_DAYS } from "./pickup-hold"
 export type { HoldReminder } from "./pickup-hold"
 export { dealLabel, formatWeight, groupByShop, listingPrice, offerPrice, shipsIn } from "./listing"
 export type { DisplayPrice, ListingPrice, PricedOffer, ShopDeal, ShopGroup } from "./listing"
+export { greeting } from "./greeting"
 export { currentShop, shopChoice } from "./shop-choice"
 export type { ShopChoice } from "./shop-choice"
 export { cartOnSignIn } from "./cart"
@@ -99,7 +102,7 @@ export { departments } from "./category"
 export type { BrowseCategory, Department } from "./category"
 export { isSaved, wishlistMove } from "./wishlist"
 export type { WishlistMove } from "./wishlist"
-export { acceptDeadline, acceptReminderDue, acceptTimeLeft } from "./accept-deadline"
+export { acceptClockFraction, acceptDeadline, acceptReminderDue, acceptTimeLeft } from "./accept-deadline"
 export { fulfilmentTimeline, recordReached } from "./timeline"
 export type { Reached, TimelineStep } from "./timeline"
 export { HANDOVER_DISAGREEMENT_MS, HANDOVER_REALERT_MS, handoverAlertDue, handoverDisagreement } from "./handover"

@@ -99,7 +99,7 @@ describe("collectByLabel", () => {
   const thursday = lagos("2026-10-15T18:00:00")
 
   test("gives the closing time and the day, in the region's timezone", () => {
-    expect(collectByLabel(thursday, new Date(READY_FRIDAY), "Africa/Lagos")).toBe("Collect by 6pm, Thu 15 Oct")
+    expect(collectByLabel(thursday, new Date(READY_FRIDAY), "Africa/Lagos")).toBe("Collect by Thu 15 Oct, 6pm")
   })
 
   test("says today on the last day", () => {
@@ -107,7 +107,7 @@ describe("collectByLabel", () => {
   })
 
   test("keeps the minutes of a closing time off the hour", () => {
-    expect(collectByLabel(lagos("2026-10-10T13:30:00"), new Date(READY_FRIDAY), "Africa/Lagos")).toBe("Collect by 1:30pm, Sat 10 Oct")
+    expect(collectByLabel(lagos("2026-10-10T13:30:00"), new Date(READY_FRIDAY), "Africa/Lagos")).toBe("Collect by Sat 10 Oct, 1:30pm")
   })
 })
 

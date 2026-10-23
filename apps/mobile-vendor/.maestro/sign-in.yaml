@@ -24,6 +24,7 @@ appId: com.emekaobah.oja.vendor
             - tapOn: "Not Now"
 - runFlow:
     when:
-      visible: "Choose a shop"
+      visible: "Which shop today?"
     commands:
       - tapOn: ${SHOP}
+      - tapOn: "Open ${SHOP}"

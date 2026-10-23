@@ -93,6 +93,7 @@ function RootStack() {
         <Stack.Screen name="addresses/edit" options={{ title: 'Address' }} />
         <Stack.Screen name="delivering-to" options={{ title: 'Delivering to' }} />
         <Stack.Screen name="order/[id]" options={{ title: 'Order' }} />
+        <Stack.Screen name="pickup/[id]" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="review/[id]" options={{ title: 'Review' }} />
         <Stack.Screen name="refund/[id]" options={{ title: 'Refund' }} />
       </Stack.Protected>
