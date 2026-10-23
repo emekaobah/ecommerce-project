@@ -106,7 +106,9 @@ function AddressSearchButton({ onPress }: Readonly<{ onPress: () => void }>) {
         backgroundColor: theme.colors.raised,
       }}>
       <Icon name="search" use="step" color={theme.colors.muted} />
-      <Text tone="muted">Street, estate or area</Text>
+      <Text weight="semibold" tone="muted">
+        Street, estate or area
+      </Text>
     </PressableSurface>
   );
 }
