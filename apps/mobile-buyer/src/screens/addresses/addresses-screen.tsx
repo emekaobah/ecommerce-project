@@ -9,6 +9,7 @@ import {
   GroupList,
   Icon,
   PressableSurface,
+  Sheet,
   Skeleton,
   StatusChip,
   Text,
@@ -43,6 +44,7 @@ export function AddressesScreen() {
   const theme = useTheme();
   const { userId } = useAuth();
   const addresses = useSavedAddresses(userId);
+  const [options, setOptions] = useState<SavedAddressRecord | null>(null);
   const [deleting, setDeleting] = useState<SavedAddressRecord | null>(null);
 
   if (addresses.error && !addresses.data) {
@@ -73,21 +75,23 @@ export function AddressesScreen() {
         contentContainerStyle={{ paddingHorizontal: theme.space[4], gap: theme.space[2], paddingBottom: theme.space[12] }}>
         <GroupList>
           {addresses.data.map((address) => (
-            <AddressRow key={address.id} address={address} onDelete={() => setDeleting(address)} />
+            <AddressRow key={address.id} address={address} onPress={() => setOptions(address)} />
           ))}
         </GroupList>
         <Button label="Add an address" variant="secondary" icon="plus" onPress={addAddress} style={{ marginTop: theme.space[2] }} />
       </ScrollView>
+      <AddressOptionsModal address={options} onClose={() => setOptions(null)} onDelete={setDeleting} />
       <DeleteAddressModal address={deleting} onClose={() => setDeleting(null)} />
     </>
   );
 }
 
-/** A saved address by its street, with the area and the name the courier asks for, the rider's landmark, and what to do with it. */
-function AddressRow({ address, onDelete }: Readonly<{ address: SavedAddressRecord; onDelete: () => void }>) {
+/**
+ * A saved address by its street, with the area and the name the courier asks for, and the rider's
+ * landmark: a flat row, as the catalogue draws it. Tapping it opens what can be done with it.
+ */
+function AddressRow({ address, onPress }: Readonly<{ address: SavedAddressRecord; onPress: () => void }>) {
   const theme = useTheme();
-  const toast = useToast();
-  const makeDefault = useMakeDefaultAddress();
   const unpinned = !pinOf(address);
   const { name, landmark } = addressLines(address);
   const { street, area } = streetAndArea(address);
@@ -97,24 +101,23 @@ function AddressRow({ address, onDelete }: Readonly<{ address: SavedAddressRecor
     <Group gap={2}>
       <PressableSurface
         accessibilityRole="button"
-        accessibilityLabel={`${unpinned ? 'Add a pin to' : 'Edit'} ${street}, ${[area, name].filter(Boolean).join(', ')}${address.is_default_shipping ? ', default' : ''}`}
-        onPress={() => editAddress(address)}
-        style={[styles.row, { gap: theme.space[2], minHeight: theme.hitArea, borderRadius: theme.radius.md }]}>
+        accessibilityLabel={`${street}, ${[area, name].filter(Boolean).join(', ')}${address.is_default_shipping ? ', default' : ''}`}
+        accessibilityHint="Edit, make default or delete"
+        onPress={onPress}
+        style={[styles.row, { gap: theme.space[3], minHeight: theme.hitArea, borderRadius: theme.radius.md }]}>
         <View style={[styles.centre, { width: tile, height: tile, borderRadius: theme.radius.md, backgroundColor: theme.colors.tile }]}>
           <Icon name={address.is_default_shipping ? 'home' : 'pin'} use="step" color={theme.colors.accent} />
         </View>
         <View style={styles.fill}>
-          <Text variant="meta" weight="bold">
-            {street}
-          </Text>
+          <Text weight="extrabold">{street}</Text>
           <Text variant="meta" tone="muted">
             {[area, name].filter(Boolean).join(' · ')}
           </Text>
         </View>
         {address.is_default_shipping ? (
-          <StatusChip label="Default" tone="info" icon="check" />
+          <StatusChip label="Default" tone="info" />
         ) : (
-          <Icon name="edit" use="step" color={theme.colors.muted} />
+          <Icon name="edit" use="step" color={theme.colors.ink} />
         )}
       </PressableSurface>
       {landmark ? (
@@ -123,23 +126,62 @@ function AddressRow({ address, onDelete }: Readonly<{ address: SavedAddressRecor
         </Text>
       ) : null}
       {unpinned ? <StatusChip label="Needs a pin" tone="attention" icon="pin" /> : null}
-      <View style={[styles.row, styles.wrap, { gap: theme.space[4] }]}>
-        {address.is_default_shipping ? null : (
-          <Button
-            label="Make default"
-            variant="link"
-            loading={makeDefault.isPending}
-            onPress={() =>
-              makeDefault.mutate(address.id, {
-                onError: () => toast({ message: "Couldn't make it your default. Try again.", tone: 'problem' }),
-              })
-            }
-            style={styles.link}
-          />
-        )}
-        <Button label="Delete" variant="link" onPress={onDelete} style={styles.link} />
-      </View>
     </Group>
+  );
+}
+
+/** What can be done with one address: edit it (or add its pin), make it the default, or delete it. */
+function AddressOptionsModal({
+  address,
+  onClose,
+  onDelete,
+}: Readonly<{ address: SavedAddressRecord | null; onClose: () => void; onDelete: (address: SavedAddressRecord) => void }>) {
+  const toast = useToast();
+  const makeDefault = useMakeDefaultAddress();
+  return (
+    <SheetModal visible={!!address} onClose={onClose}>
+      {address ? (
+        <Sheet
+          title={streetAndArea(address).street}
+          actions={
+            <>
+              <Button
+                label={pinOf(address) ? 'Edit address' : 'Add a pin'}
+                variant="secondary"
+                icon={pinOf(address) ? 'edit' : 'pin'}
+                onPress={() => {
+                  onClose();
+                  editAddress(address);
+                }}
+              />
+              {address.is_default_shipping ? null : (
+                <Button
+                  label="Make default"
+                  variant="secondary"
+                  icon="home"
+                  loading={makeDefault.isPending}
+                  onPress={() =>
+                    makeDefault.mutate(address.id, {
+                      onSuccess: onClose,
+                      onError: () => toast({ message: "Couldn't make it your default. Try again.", tone: 'problem' }),
+                    })
+                  }
+                />
+              )}
+              <Button
+                label="Delete address"
+                variant="danger"
+                onPress={() => {
+                  onClose();
+                  onDelete(address);
+                }}
+              />
+              <Button label="Cancel" variant="secondary" onPress={onClose} />
+            </>
+          }
+        />
+      ) : null}
+    </SheetModal>
   );
 }
 
@@ -187,7 +229,5 @@ function AddressesSkeleton() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
-  wrap: { flexWrap: 'wrap' },
   centre: { alignItems: 'center', justifyContent: 'center' },
-  link: { paddingHorizontal: 0 },
 });

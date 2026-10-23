@@ -84,9 +84,10 @@ env:
     timeout: 15000
 - assertVisible: "Default"
 
-# Edit: the pin is kept, so only the landmark changes, on the map's sheet. The card's header
-# is the edit button, labelled with the street.
-- tapOn: "Edit .*"
+# Edit: the pin is kept, so only the landmark changes, on the map's sheet. The row, labelled
+# with the street, opens its options.
+- tapOn: "Akin Adesola Street.*"
+- tapOn: "Edit address"
 - scrollUntilVisible:
     element: "Continue to the map"
 - tapOn: "Continue to the map"
@@ -125,15 +126,14 @@ env:
 - back
 - tapOn: "Account"
 - tapOn: "Addresses.*"
-- tapOn: "Delete"
-# The sheet names the address; its red Delete, not the link on the card behind it.
+- tapOn: "Akin Adesola Street.*"
+- tapOn: "Delete address"
+# The sheet names the address before deleting it.
 - extendedWaitUntil:
     visible: "Delete this address?"
     timeout: 5000
 - assertVisible: "Akin Adesola Street.*"
-- tapOn:
-    text: "Delete"
-    index: 1
+- tapOn: "Delete"
 - extendedWaitUntil:
     visible: "No saved addresses"
     timeout: 15000
