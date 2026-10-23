@@ -26,22 +26,36 @@ const SEARCH_DELAY_MS = 300;
 export function OrdersScreen() {
   const theme = useTheme();
   const { isSignedIn, userId } = useAuth();
-  const [query, setQuery] = useState('');
-  const q = useDebouncedValue(query.trim(), SEARCH_DELAY_MS);
   return (
     <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       {isSignedIn ? (
-        <>
-          <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[3], gap: theme.space[3] }}>
-            <Text variant="titleRoot">Orders</Text>
-            <SearchField value={query} onChangeText={setQuery} placeholder="Search your orders" />
-          </View>
-          {query.trim() ? <SearchResults userId={userId} q={q} /> : <OrderSections userId={userId} />}
-        </>
+        <SignedInOrders userId={userId} />
       ) : (
         <SignInPrompt title="Your orders" message="Sign in to see and track your orders." />
       )}
     </SafeAreaView>
+  );
+}
+
+/** The title, the search field (once there is an order to search) and the list or the results. */
+function SignedInOrders({ userId }: Readonly<{ userId: string | null | undefined }>) {
+  const theme = useTheme();
+  const [query, setQuery] = useState('');
+  const q = useDebouncedValue(query.trim(), SEARCH_DELAY_MS);
+  // The same queries the list reads: with no orders at all there is nothing to search ("Orders, empty").
+  const inProgress = useOrdersInProgress(userId);
+  const past = usePastOrders(userId);
+  const noOrders = inProgress.data?.length === 0 && past.data?.pages[0]?.order_groups.length === 0;
+  return (
+    <>
+      <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[3], gap: theme.space[3] }}>
+        <Text variant="titleRoot">Orders</Text>
+        {noOrders && !query ? null : (
+          <SearchField value={query} onChangeText={setQuery} placeholder="Search your orders" look="tile" />
+        )}
+      </View>
+      {query.trim() ? <SearchResults userId={userId} q={q} /> : <OrderSections userId={userId} />}
+    </>
   );
 }
 
@@ -85,6 +99,7 @@ function OrderSections({ userId }: Readonly<{ userId: string | null | undefined 
       stickySectionHeadersEnabled={false}
       contentContainerStyle={[{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[6] }, !sections.length && styles.grow]}
       ItemSeparatorComponent={Divider}
+      keyboardShouldPersistTaps="handled"
       refreshing={refreshing}
       onRefresh={refresh}
       onEndReached={() => {
@@ -132,6 +147,9 @@ function SearchResults({ userId, q }: Readonly<{ userId: string | null | undefin
       keyExtractor={(entry) => entry.group.id}
       contentContainerStyle={[{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[6] }, !entries.length && styles.grow]}
       ItemSeparatorComponent={Divider}
+      // A tap on a result opens it while the keyboard is still up, rather than only dismissing it.
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       refreshing={refreshing}
       onRefresh={refresh}
       onEndReached={() => {
