@@ -60,6 +60,15 @@ function RootStack() {
 
   if (!isLoaded) return null;
 
+  // Sheets slide up with the platform's own presentation, its grabber and the sheet corner radius.
+  const formSheet = {
+    presentation: 'formSheet',
+    headerShown: false,
+    sheetAllowedDetents: 'fitToContents',
+    sheetGrabberVisible: true,
+    sheetCornerRadius: theme.radius.sheet,
+  } as const;
+
   return (
     <Stack
       screenOptions={{
@@ -83,7 +92,7 @@ function RootStack() {
         {/* What changed when a payment didn't start slides up over Review and pay. */}
         <Stack.Screen
           name="checkout/changes"
-          options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: 'fitToContents' }}
+          options={formSheet}
         />
         {/* Paying ends in the confirmation screen, or back at checkout to try again. */}
         <Stack.Screen name="checkout/pay" options={{ title: 'Pay', gestureEnabled: false }} />

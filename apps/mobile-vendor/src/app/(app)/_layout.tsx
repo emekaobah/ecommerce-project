@@ -15,6 +15,14 @@ export default function AppLayout() {
 
   // The orders list draws its own header on the page; every screen pushed over it has an indigo one.
   const onOrders = usePathname() === '/';
+  // Sheets slide up with the platform's own presentation, its grabber and the sheet corner radius.
+  const formSheet = {
+    presentation: 'formSheet',
+    headerShown: false,
+    sheetAllowedDetents: 'fitToContents',
+    sheetGrabberVisible: true,
+    sheetCornerRadius: theme.radius.sheet,
+  } as const;
 
   return (
     <>
@@ -36,7 +44,7 @@ export default function AppLayout() {
         {/* The reject reason sheet slides up over the order. */}
         <Stack.Screen
           name="orders/[id]/reject"
-          options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: 'fitToContents' }}
+          options={formSheet}
         />
         {/* Cancelling an accepted order (#17): the reason, then the refund it makes. */}
         <Stack.Screen name="orders/[id]/cancel" options={{ title: 'Cancel order' }} />
@@ -47,7 +55,7 @@ export default function AppLayout() {
         {/* Partial availability (#22): how many of a line are unavailable, then the refund summary. */}
         <Stack.Screen
           name="orders/[id]/unavailable"
-          options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: 'fitToContents' }}
+          options={formSheet}
         />
         <Stack.Screen name="orders/[id]/remove-unavailable" options={{ title: 'Remove unavailable items' }} />
         <Stack.Screen name="orders/[id]/packed" options={{ headerBackVisible: false }} />

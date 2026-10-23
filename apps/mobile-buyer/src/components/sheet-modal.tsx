@@ -16,9 +16,12 @@ export function SheetModal({
   const theme = useTheme();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={dismissible ? onClose : undefined} statusBarTranslucent>
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* The scrim fills the whole screen, behind the sheet too, so the page never shows past the sheet's rounded corners. */}
+      <KeyboardAvoidingView
+        style={[styles.fill, styles.bottom, { backgroundColor: theme.colors.scrim }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable
-          style={[styles.fill, { backgroundColor: theme.colors.scrim }]}
+          style={StyleSheet.absoluteFill}
           onPress={dismissible ? onClose : undefined}
           accessibilityRole="button"
           accessibilityLabel="Close"
@@ -45,5 +48,6 @@ export function SheetModal({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  bottom: { justifyContent: 'flex-end' },
   grabber: { alignSelf: 'center' },
 });
