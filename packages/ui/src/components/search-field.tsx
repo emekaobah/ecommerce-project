@@ -82,7 +82,7 @@ export function SearchField({ value, onChangeText, placeholder, onSubmitEditing,
           onPress={() => onChangeText("")}
           style={[styles.clear, { width: theme.hitArea, minHeight: theme.hitArea }]}
         >
-          <Icon name="x" use="step" color={theme.colors.muted} />
+          <Icon name="x" use="chip" color={theme.colors.muted} />
         </PressableSurface>
       ) : null}
     </View>
