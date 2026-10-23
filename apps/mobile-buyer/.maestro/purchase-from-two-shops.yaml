@@ -50,14 +50,15 @@ env:
 - tapOn: "View cart"
 - assertVisible: "Iya Bisi Foodstuff"
 - assertVisible: "Ikeja Gadget Hub"
-- tapOn: "Checkout.*"
+# The main button checks out every shop and says how many ("Checkout this shop" pays for one).
+- tapOn: "Checkout 2 shops.*"
 - runFlow:
     file: sign-in.yaml
     env:
       BUYER_EMAIL: ${BUYER_EMAIL}
       BUYER_PASSWORD: ${BUYER_PASSWORD}
 # Signed in, the cart is the buyer's; checkout from it again.
-- tapOn: "Checkout.*"
+- tapOn: "Checkout 2 shops.*"
 - extendedWaitUntil:
     visible: "Delivery address"
     timeout: 15000
@@ -65,7 +66,7 @@ env:
 # An address saved by an earlier run is preselected; find the address by search otherwise.
 - runFlow:
     when:
-      notVisible: "Pay with Paystack.*"
+      notVisible: "Continue"
     commands:
       - runFlow:
           when:
@@ -86,9 +87,10 @@ env:
           timeout: 15000
       - tapOn: "3 Akin Adesola Street.*"
       - extendedWaitUntil:
-          visible: "Confirm the delivery spot"
+          visible: "Drag the map to your gate"
           timeout: 15000
-      - tapOn: "Confirm pin"
+      # Back to the form first, to fill in the buyer's name.
+      - tapOn: "Back"
       # The field, not its label above it.
       - tapOn:
           text: "First name"
@@ -101,29 +103,35 @@ env:
       - eraseText
       - inputText: "Obi"
       - scrollUntilVisible:
-          element: "Use this address"
+          element: "Continue to the map"
+      - tapOn: "Continue to the map"
+      - extendedWaitUntil:
+          visible: "Drag the map to your gate"
+          timeout: 15000
+      - tapOn: "Landmark for the rider, optional"
+      - eraseText
+      - inputText: "Opposite the Mobil station"
       - tapOn:
-          text: "Phone number"
+          text: "Phone · for the courier"
           index: 1
       - eraseText
       - inputText: "08031234567"
-      # The landmark last: its keyboard has a return key, which puts the keyboard away.
-      - tapOn:
-          text: "Landmark / directions for the rider (optional)"
-          index: 1
-      - eraseText
-      - inputText: "Opposite the Mobil station"
-      - pressKey: Enter
-      - scrollUntilVisible:
-          element: "Use this address"
-      - tapOn: "Use this address"
+      - tapOn: "Confirm address"
+- runFlow:
+    when:
+      notVisible: "Step 2 of 3"
+    commands:
+      - tapOn: "Continue"
 
 # Each shop's delivery is quoted (best value preselected); one payment covers both.
 - extendedWaitUntil:
-    visible: "Pay with Paystack.*"
+    visible: "Step 2 of 3"
     timeout: 30000
-- scrollUntilVisible:
-    element: "Pay with Paystack.*"
+- assertVisible: "Best value.*"
+- tapOn: "Continue.*"
+- extendedWaitUntil:
+    visible: "Pay with Paystack.*"
+    timeout: 15000
 - tapOn: "Pay with Paystack.*"
 # The fake's payment page, in the app's WebView.
 - extendedWaitUntil:
@@ -133,12 +141,15 @@ env:
 
 # Paystack's webhook places one order per shop.
 - extendedWaitUntil:
-    visible: "Thanks, your order is placed"
+    visible: "Order placed"
     timeout: 60000
-- assertVisible: "Iya Bisi Foodstuff"
-- assertVisible: "Ikeja Gadget Hub"
-# The order list shows the new checkout: one row, both shops' orders waiting for the shop.
-- tapOn: "View orders"
+- assertVisible: "Iya Bisi Foodstuff accepts.*"
+- assertVisible: "Ikeja Gadget Hub accepts.*"
+# Track order opens the order; the order list shows the new checkout: one row, both shops'
+# orders waiting for the shop.
+- tapOn: "Track order"
+- back
+- tapOn: "Orders"
 - extendedWaitUntil:
     visible: "2 shops, .*, Waiting for the shop, .*, Waiting for the shop"
     timeout: 60000
