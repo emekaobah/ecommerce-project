@@ -1,4 +1,4 @@
-import { openingLabel } from '@oja/domain';
+import { takingOrdersLine } from '@oja/domain';
 import { SwitchRow, useToast } from '@oja/ui';
 import { useRouter } from 'expo-router';
 
@@ -17,21 +17,14 @@ export function TakingOrdersSetting({ sellerId }: Readonly<{ sellerId: string }>
   const hours = useShopHours(sellerId);
   const mayManage = useMayManageShop(sellerId);
   const resume = useResumeShop(sellerId);
-  useNow();
+  // Every half minute, so "until 3:47pm" turns into "until 3:47pm Tue" as the day goes by.
+  const now = useNow();
   const pause = hours.data?.pause ?? null;
-
-  const description = () => {
-    if (!pause) return 'Turn off to pause the shop now';
-    const until = pause.ends_at
-      ? `Paused until ${openingLabel(pause.ends_at, new Date(), hours.data!.time_zone)}.`
-      : 'Paused until you turn it back on.';
-    return pause.note ? `${until} Buyers see: “${pause.note}”` : until;
-  };
 
   return (
     <SwitchRow
       label="Taking orders"
-      description={description()}
+      description={takingOrdersLine(hours.data ?? null, now)}
       value={!pause}
       disabled={!hours.data || mayManage.data !== true || resume.isPending}
       disabledReason={mayManage.data === false ? 'Only the owner or a manager can pause the shop' : undefined}

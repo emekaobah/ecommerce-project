@@ -21,22 +21,23 @@ export function ShopCard({ sellerId, children }: Readonly<{ sellerId: string | u
   const kept = useShopSnapshot(sellerId);
   const name = seller.data?.name ?? kept?.name ?? null;
   const shop = useShopHours(sellerId);
-  // Re-rendered every half minute; the clock is read at render, so a pause that just began counts.
-  useNow();
+  // Every half minute, so a pause that just began or ended counts.
+  const now = useNow();
   const hours = shopHoursOf(shop.data);
 
   const stateLine = () => {
     if (!shop.data) return shop.error ? null : <Skeleton height={theme.space[4]} width="60%" radius="pill" />;
     if (!hours) {
       return (
-        <Text variant="meta" tone="danger">
+        // Ember, not red: it asks for something to be done; red is only for reject, cancel and destroying.
+        <Text variant="meta" weight="bold" style={{ color: theme.colors.emberText }}>
           {"Set your weekly hours in the web vendor panel: buyers can't see your shop until you do."}
         </Text>
       );
     }
     return (
       <Text variant="meta" tone="muted">
-        {settingsShopLine(hours, new Date(), shop.data.new_orders)}
+        {settingsShopLine(hours, now, shop.data.new_orders)}
       </Text>
     );
   };
