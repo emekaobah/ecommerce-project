@@ -4,6 +4,8 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  Group,
+  GroupList,
   InlineNote,
   QuantityStepper,
   ShopMark,
@@ -24,7 +26,7 @@ import { useCart, useMoveShopToOwnCart, useSetCartItemQuantity, type Cart, type 
 import { isNotFound } from '@/api/errors';
 import { useToggleWishlist } from '@/api/wishlist';
 import { useCartSession } from '@/cart/cart-provider';
-import { Card, SumRow } from '@/components/cart/summary';
+import { SumRow } from '@/components/cart/summary';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
@@ -73,7 +75,7 @@ export function CartScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bgGrouped }]}>
+    <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       <Text variant="titleRoot" style={{ paddingTop: theme.space[1], paddingBottom: theme.space[2], paddingHorizontal: theme.space[4] }}>
         Cart
       </Text>
@@ -156,39 +158,41 @@ function CartContents({
     <>
       <ScrollView
         style={styles.fill}
-        contentContainerStyle={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[6], gap: theme.space[2] }}
+        contentContainerStyle={{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[6] }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        {cart.sellers.map((group) => {
-          const { seller } = group;
-          return (
-            <ShopCard
-              key={seller?.id ?? 'unavailable'}
-              group={group}
-              money={money}
-              checkoutShop={
-                paysShopByShop && seller
-                  ? {
-                      onPress: () => checkoutShop(seller.id),
-                      busy: moveShopToOwnCart.isPending && moveShopToOwnCart.variables === seller.id,
-                      disabled: moveShopToOwnCart.isPending || !group.shop_status?.orderable || group.items.some(isSoldOut),
-                    }
-                  : null
-              }>
-              {group.items.map((item) => (
-                <CartLine
-                  key={item.id}
-                  item={item}
-                  available={!!seller}
-                  money={money}
-                  busy={pendingItemId === item.id || (saveForLater.isPending && saveForLater.variables?.productId === item.product_id)}
-                  onChange={(quantity) => setQuantity.mutate({ itemId: item.id, quantity })}
-                  onSave={() => save(group, item)}
-                />
-              ))}
-            </ShopCard>
-          );
-        })}
-        {shops.length > 1 ? <CartTotals cart={cart} money={money} /> : null}
+        <GroupList>
+          {cart.sellers.map((group) => {
+            const { seller } = group;
+            return (
+              <ShopCard
+                key={seller?.id ?? 'unavailable'}
+                group={group}
+                money={money}
+                checkoutShop={
+                  paysShopByShop && seller
+                    ? {
+                        onPress: () => checkoutShop(seller.id),
+                        busy: moveShopToOwnCart.isPending && moveShopToOwnCart.variables === seller.id,
+                        disabled: moveShopToOwnCart.isPending || !group.shop_status?.orderable || group.items.some(isSoldOut),
+                      }
+                    : null
+                }>
+                {group.items.map((item) => (
+                  <CartLine
+                    key={item.id}
+                    item={item}
+                    available={!!seller}
+                    money={money}
+                    busy={pendingItemId === item.id || (saveForLater.isPending && saveForLater.variables?.productId === item.product_id)}
+                    onChange={(quantity) => setQuantity.mutate({ itemId: item.id, quantity })}
+                    onSave={() => save(group, item)}
+                  />
+                ))}
+              </ShopCard>
+            );
+          })}
+          {shops.length > 1 ? <CartTotals cart={cart} money={money} /> : null}
+        </GroupList>
       </ScrollView>
       {problem ? (
         <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2], backgroundColor: theme.colors.bg }}>
@@ -235,7 +239,7 @@ function ShopCard({
   const { seller } = group;
   const status = shopLine(group);
   return (
-    <Card>
+    <Group>
       <View style={[styles.row, { gap: theme.space[2] }]}>
         {seller ? <ShopMark name={seller.name} logoUrl={seller.logo} size="sm" /> : null}
         <View style={styles.fill}>
@@ -285,7 +289,7 @@ function ShopCard({
           </View>
         </View>
       ) : null}
-    </Card>
+    </Group>
   );
 }
 
@@ -389,24 +393,23 @@ function CartLine({
 
 /** Each shop's subtotal, then what the items come to: delivery is priced per shop at checkout. */
 function CartTotals({ cart, money }: Readonly<{ cart: Cart; money: (amount: number) => string }>) {
-  const theme = useTheme();
   return (
-    <View style={{ gap: theme.space[2], paddingTop: theme.space[2] }}>
+    <Group gap={2}>
       {cart.sellers.flatMap((group) =>
         group.seller ? [<SumRow key={group.seller.id} label={group.seller.name} value={money(group.item_subtotal)} />] : [],
       )}
       <SumRow label="Items total" value={money(cart.item_subtotal)} total />
-    </View>
+    </Group>
   );
 }
 
-/** The cart's shape while it loads: a shop card with two lines. */
+/** The cart's shape while it loads: a shop's group with two lines. */
 function CartSkeleton() {
   const theme = useTheme();
   const photo = theme.control.md;
   return (
     <View style={{ paddingHorizontal: theme.space[4] }} accessible accessibilityLabel="Loading your cart">
-      <Card>
+      <Group>
         <View style={[styles.row, { gap: theme.space[2] }]}>
           <Skeleton width={theme.shopMark.sm.size} height={theme.shopMark.sm.size} radius="md" />
           <Skeleton width="50%" height={theme.type.body.fontSize} />
@@ -420,7 +423,7 @@ function CartSkeleton() {
             </View>
           </View>
         ))}
-      </Card>
+      </Group>
     </View>
   );
 }

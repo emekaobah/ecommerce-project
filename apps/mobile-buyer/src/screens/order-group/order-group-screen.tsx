@@ -12,10 +12,26 @@ import {
   PICKUP_HOLD_NOTICE,
   reachedOnLabel,
 } from '@oja/domain';
-import { Band, Button, ErrorState, InlineNote, ListRow, PressableSurface, ShopMark, Skeleton, StatusChip, Text, Timeline, useTheme, useToast } from '@oja/ui';
+import {
+  Band,
+  Button,
+  ErrorState,
+  Group,
+  GroupList,
+  InlineNote,
+  ListRow,
+  PressableSurface,
+  ShopMark,
+  Skeleton,
+  StatusChip,
+  Text,
+  Timeline,
+  useTheme,
+  useToast,
+} from '@oja/ui';
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useRef, type ReactNode } from 'react';
+import { useRef } from 'react';
 import { Linking, RefreshControl, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
 
 import { useOrderGroup, type SellerOrder } from '@/api/orders';
@@ -82,7 +98,7 @@ export function OrderGroupScreen() {
       {header(orderNumber(group.data.display_id), true)}
       <ScrollView
         ref={scroll}
-        style={{ backgroundColor: theme.colors.bgGrouped }}
+        style={{ backgroundColor: theme.colors.bg }}
         contentContainerStyle={{ paddingBottom: theme.space[8] }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
         <Band>
@@ -90,23 +106,25 @@ export function OrderGroupScreen() {
             {orderGroupSummary(orders)}
           </Text>
         </Band>
-        <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
-          {orders.map((order, index) => (
-            <ShopOrder
-              key={order.id}
-              groupId={group.data.id}
-              order={order}
-              onReceiptLayout={index === 0 ? (y) => (receiptAt.current = y) : undefined}
-            />
-          ))}
-          {orders.length > 1 ? (
-            <Card>
-              <SumRow label="Paid in all" value={formatMoney(paid, currency)} total />
-              <Text variant="meta" tone="muted">
-                Each shop prepares and delivers its own part.
-              </Text>
-            </Card>
-          ) : null}
+        <View style={{ paddingHorizontal: theme.space[4] }}>
+          <GroupList>
+            {orders.map((order, index) => (
+              <ShopOrder
+                key={order.id}
+                groupId={group.data.id}
+                order={order}
+                onReceiptLayout={index === 0 ? (y) => (receiptAt.current = y) : undefined}
+              />
+            ))}
+            {orders.length > 1 ? (
+              <Group>
+                <SumRow label="Paid in all" value={formatMoney(paid, currency)} total />
+                <Text variant="meta" tone="muted">
+                  Each shop prepares and delivers its own part.
+                </Text>
+              </Group>
+            ) : null}
+          </GroupList>
         </View>
       </ScrollView>
     </>
@@ -129,23 +147,6 @@ function ReceiptButton({ onPress }: Readonly<{ onPress: () => void }>) {
   );
 }
 
-function Card({ children }: Readonly<{ children: ReactNode }>) {
-  const theme = useTheme();
-  return (
-    <View
-      style={{
-        gap: theme.space[3],
-        padding: theme.space[3],
-        borderRadius: theme.radius.lg,
-        borderWidth: theme.line.divider,
-        borderColor: theme.colors.line,
-        backgroundColor: theme.colors.raised,
-      }}>
-      {children}
-    </View>
-  );
-}
-
 type ShopOrderProps = {
   groupId: string;
   order: SellerOrder;
@@ -162,7 +163,7 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
   const changed = courierChangedNote(order.fulfilment.state, order.delivery);
   return (
     <View onLayout={(event) => (cardY.current = event.nativeEvent.layout.y)}>
-      <Card>
+      <Group>
         <View style={[styles.row, { gap: theme.space[2] }]}>
           <ShopMark name={order.seller.name} logoUrl={order.seller.logo} size="sm" />
           <View style={styles.fill}>
@@ -213,7 +214,7 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
         </View>
         {/* Order again (#86) sits beside the review button here once delivered or collected. */}
         <OrderReviews groupId={groupId} order={order} />
-      </Card>
+      </Group>
     </View>
   );
 }
@@ -319,7 +320,7 @@ function SumRow({ label, value, total }: Readonly<{ label: string; value: string
       accessible
       style={[
         styles.spread,
-        total && { borderTopWidth: theme.line.divider, borderTopColor: theme.colors.line, paddingTop: theme.space[2] },
+        total && { paddingTop: theme.space[2] },
       ]}>
       <Text variant={total ? 'strong' : 'body'} tone={total ? 'default' : 'muted'}>
         {label}
@@ -337,16 +338,16 @@ function SumRow({ label, value, total }: Readonly<{ label: string; value: string
   );
 }
 
-/** Loading: the band and a shop card in outline. */
+/** Loading: the band and a shop's part in outline. */
 function OrderSkeleton() {
   const theme = useTheme();
   return (
-    <View accessible accessibilityLabel="Loading this order" style={[styles.fill, { backgroundColor: theme.colors.bgGrouped }]}>
+    <View accessible accessibilityLabel="Loading this order" style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       <Band>
         <View style={{ height: theme.type.titleNamed.lineHeight }} />
       </Band>
-      <View style={{ padding: theme.space[4] }}>
-        <Card>
+      <View style={{ paddingHorizontal: theme.space[4] }}>
+        <Group>
           <View style={[styles.row, { gap: theme.space[2] }]}>
             <Skeleton width={theme.shopMark.sm.size} height={theme.shopMark.sm.size} radius="md" />
             <View style={[styles.fill, { gap: theme.space[1] }]}>
@@ -361,7 +362,7 @@ function OrderSkeleton() {
             </View>
           ))}
           <Skeleton height={theme.type.heading.lineHeight} radius="pill" />
-        </Card>
+        </Group>
       </View>
     </View>
   );

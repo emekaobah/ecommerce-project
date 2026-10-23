@@ -21,7 +21,6 @@ import { AddressCard } from '@/components/address/address-card';
 import { AddressEntry } from '@/components/address/address-entry';
 import { AddressForm } from '@/components/address/address-form';
 import type { useAddressDraft } from '@/components/address/use-address-draft';
-import { Card } from '@/components/cart/summary';
 import { ToggleRow } from '@/components/toggle-row';
 
 /** Where the order is delivered: the cart's address, the buyer's saved ones, or a new one entered. */
@@ -78,17 +77,13 @@ export function DeliveryAddress({
         />
       </View>
       {step === 'starting' ? (
-        <Card>
-          <View accessible accessibilityLabel="Getting your address" style={{ gap: theme.space[2] }}>
-            <Skeleton width="60%" height={theme.type.body.fontSize} />
-            <Skeleton width="80%" height={theme.type.meta.fontSize} />
-          </View>
-        </Card>
+        <View accessible accessibilityLabel="Getting your address" style={{ gap: theme.space[2] }}>
+          <Skeleton width="60%" height={theme.type.body.fontSize} />
+          <Skeleton width="80%" height={theme.type.meta.fontSize} />
+        </View>
       ) : null}
       {step === 'chosen' && checkout.shipping_address ? (
-        <Card>
-          <AddressCard address={checkout.shipping_address} />
-        </Card>
+        <AddressCard address={checkout.shipping_address} />
       ) : null}
       {step === 'chosen' && saveError ? (
         <InlineNote>{"Couldn't save it to your addresses. It's still your delivery address for this order."}</InlineNote>
@@ -260,10 +255,10 @@ export function ContactDetails({
         </>
       ) : (
         contact && (
-          <Card>
+          <View style={{ gap: theme.space[1] }}>
             <Text weight="bold">{`${contact.first_name} ${contact.last_name}`}</Text>
             <Text tone="muted">{contact.phone}</Text>
-          </Card>
+          </View>
         )
       )}
     </View>

@@ -146,12 +146,7 @@ function Lines({ order }: Readonly<{ order: Order }>) {
           </View>
         </View>
       ))}
-      <View
-        style={[
-          styles.row,
-          styles.between,
-          { paddingTop: theme.space[2], borderTopWidth: theme.line.divider, borderTopColor: theme.colors.line },
-        ]}>
+      <View style={[styles.row, styles.between, { paddingTop: theme.space[2] }]}>
         <Text variant="strong">Order total</Text>
         <Text variant="heading" tabular>
           {formatMoney(orderValue(order), order.currency_code)}

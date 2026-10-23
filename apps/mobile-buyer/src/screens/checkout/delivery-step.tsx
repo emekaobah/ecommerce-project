@@ -1,9 +1,9 @@
 import { deliveryEstimate, distanceLabel, PERISHABLE_HOLD_OPEN_DAYS, PICKUP_HOLD_OPEN_DAYS, type DeliveryTag } from '@oja/domain';
-import { InlineNote, RadioOption, ShopMark, Text, useTheme } from '@oja/ui';
+import { Group, GroupList, InlineNote, RadioOption, ShopMark, Text, useTheme } from '@oja/ui';
 import { StyleSheet, View } from 'react-native';
 
 import { refusalMessage, useChooseDelivery, type Checkout, type CheckoutSellerGroup } from '@/api/checkout';
-import { Card, SumRow } from '@/components/cart/summary';
+import { SumRow } from '@/components/cart/summary';
 import { PerishableRule } from '@/components/perishable';
 import { PickupDetails } from '@/components/pickup';
 
@@ -23,10 +23,9 @@ export function DeliveryStep({
   onChooseMethod: (sellerId: string, method: 'delivery' | 'pickup') => void;
   money: (amount: number) => string;
 }>) {
-  const theme = useTheme();
   const delivered = checkout.sellers.filter((group) => group.method === 'delivery').length;
   return (
-    <View style={{ gap: theme.space[2] }}>
+    <GroupList>
       {checkout.sellers.map((group) => (
         <ShopDelivery
           key={group.seller?.id ?? 'gone'}
@@ -37,13 +36,10 @@ export function DeliveryStep({
           onChooseMethod={onChooseMethod}
         />
       ))}
-      <View style={{ paddingTop: theme.space[2] }}>
-        <SumRow
-          label={deliveryLabel(delivered)}
-          value={money(checkout.shipping_total)}
-        />
-      </View>
-    </View>
+      <Group>
+        <SumRow label={deliveryLabel(delivered)} value={money(checkout.shipping_total)} />
+      </Group>
+    </GroupList>
   );
 }
 
@@ -95,7 +91,7 @@ function ShopDelivery({
   const collecting = group.method === 'pickup';
 
   return (
-    <Card gap={2}>
+    <Group gap={2}>
       <ShopHeading group={group} />
       <ShopNotes group={group} />
 
@@ -149,7 +145,7 @@ function ShopDelivery({
       {choose.error ? (
         <InlineNote>{refusalMessage(choose.error) ?? "Couldn't change the delivery. Check your connection and try again."}</InlineNote>
       ) : null}
-    </Card>
+    </Group>
   );
 }
 

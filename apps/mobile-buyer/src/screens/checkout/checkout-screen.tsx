@@ -9,7 +9,18 @@ import {
   type Pin,
   type PinnedDeliveryAddress,
 } from '@oja/domain';
-import { EmptyState, ErrorState, Icon, PressableSurface, Skeleton, StickyAction, Text, useTheme } from '@oja/ui';
+import {
+  EmptyState,
+  ErrorState,
+  Group,
+  GroupList,
+  Icon,
+  PressableSurface,
+  Skeleton,
+  StickyAction,
+  Text,
+  useTheme,
+} from '@oja/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
@@ -20,7 +31,6 @@ import { cartKeys, moveShopCartBack } from '@/api/cart';
 import { useCheckout, usePrepareCheckout, type Checkout, type CheckoutContact, type CheckoutPreparation } from '@/api/checkout';
 import { useCustomer } from '@/api/customer';
 import { useAddressDraft } from '@/components/address/use-address-draft';
-import { Card } from '@/components/cart/summary';
 import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
 import { useDeliveringTo, useDeliveringToId } from '@/delivering-to/delivering-to-provider';
 import { useRegion } from '@/region/region-provider';
@@ -82,15 +92,17 @@ export function CheckoutScreen() {
     return (
       <>
         {header}
-        <View style={[styles.fill, { backgroundColor: theme.colors.bgGrouped, padding: theme.space[4], gap: theme.space[2] }]}>
-          <View accessible accessibilityLabel="Loading checkout" style={{ gap: theme.space[2] }}>
-            {[0, 1].map((card) => (
-              <Card key={card}>
-                <Skeleton width="50%" height={theme.type.body.fontSize} />
-                <Skeleton height={theme.control.md} radius="md" />
-                <Skeleton height={theme.control.md} radius="md" />
-              </Card>
-            ))}
+        <View style={[styles.fill, { backgroundColor: theme.colors.bg, paddingHorizontal: theme.space[4] }]}>
+          <View accessible accessibilityLabel="Loading checkout">
+            <GroupList>
+              {[0, 1].map((shop) => (
+                <Group key={shop}>
+                  <Skeleton width="50%" height={theme.type.body.fontSize} />
+                  <Skeleton height={theme.control.md} radius="md" />
+                  <Skeleton height={theme.control.md} radius="md" />
+                </Group>
+              ))}
+            </GroupList>
           </View>
         </View>
       </>
@@ -367,7 +379,7 @@ function CheckoutForm({
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <StepProgress step={screenStep} />
         <ScrollView
-          style={{ backgroundColor: theme.colors.bgGrouped }}
+          style={{ backgroundColor: theme.colors.bg }}
           contentContainerStyle={{ padding: theme.space[4], paddingTop: theme.space[2], gap: theme.space[4] }}
           keyboardShouldPersistTaps="handled">
           {content()}
@@ -401,7 +413,7 @@ function StepProgress({ step }: Readonly<{ step: CheckoutStep }>) {
       accessibilityRole="progressbar"
       accessibilityLabel={`Step ${step} of 3`}
       accessibilityValue={{ min: 1, max: 3, now: step }}
-      style={{ gap: theme.space[1], paddingHorizontal: theme.space[4], paddingVertical: theme.space[2], backgroundColor: theme.colors.bgGrouped }}>
+      style={{ gap: theme.space[1], paddingHorizontal: theme.space[4], paddingVertical: theme.space[2], backgroundColor: theme.colors.bg }}>
       <Text variant="meta" weight="bold" tone="muted" style={styles.right}>
         {`Step ${step} of 3`}
       </Text>

@@ -77,13 +77,7 @@ export function ChangesSheet({
           </View>
         </View>
       ))}
-      <View
-        accessible
-        style={[
-          styles.total,
-          { paddingTop: theme.space[2], borderTopWidth: theme.line.divider, borderTopColor: theme.colors.line },
-        ]}
-      >
+      <View accessible style={[styles.total, { paddingTop: theme.space[2] }]}>
         <Text variant="strong">{totalLabel}</Text>
         <Text variant="heading" tabular>
           {total}

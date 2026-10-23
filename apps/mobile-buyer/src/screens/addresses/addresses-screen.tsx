@@ -5,6 +5,8 @@ import {
   ConfirmSheet,
   EmptyState,
   ErrorState,
+  Group,
+  GroupList,
   Icon,
   PressableSurface,
   Skeleton,
@@ -68,10 +70,12 @@ export function AddressesScreen() {
     <>
       <ScrollView
         style={{ backgroundColor: theme.colors.bg }}
-        contentContainerStyle={{ padding: theme.space[4], gap: theme.space[2], paddingBottom: theme.space[12] }}>
-        {addresses.data.map((address) => (
-          <AddressRow key={address.id} address={address} onDelete={() => setDeleting(address)} />
-        ))}
+        contentContainerStyle={{ paddingHorizontal: theme.space[4], gap: theme.space[2], paddingBottom: theme.space[12] }}>
+        <GroupList>
+          {addresses.data.map((address) => (
+            <AddressRow key={address.id} address={address} onDelete={() => setDeleting(address)} />
+          ))}
+        </GroupList>
         <Button label="Add an address" variant="secondary" icon="plus" onPress={addAddress} style={{ marginTop: theme.space[2] }} />
       </ScrollView>
       <DeleteAddressModal address={deleting} onClose={() => setDeleting(null)} />
@@ -90,15 +94,7 @@ function AddressRow({ address, onDelete }: Readonly<{ address: SavedAddressRecor
   const tile = theme.shopMark.sm.size * (36 / 32);
 
   return (
-    <View
-      style={{
-        gap: theme.space[2],
-        padding: theme.space[3],
-        borderWidth: theme.line.divider,
-        borderColor: theme.colors.line,
-        borderRadius: theme.radius.lg,
-        backgroundColor: theme.colors.raised,
-      }}>
+    <Group gap={2}>
       <PressableSurface
         accessibilityRole="button"
         accessibilityLabel={`${unpinned ? 'Add a pin to' : 'Edit'} ${street}, ${[area, name].filter(Boolean).join(', ')}${address.is_default_shipping ? ', default' : ''}`}
@@ -143,7 +139,7 @@ function AddressRow({ address, onDelete }: Readonly<{ address: SavedAddressRecor
         )}
         <Button label="Delete" variant="link" onPress={onDelete} style={styles.link} />
       </View>
-    </View>
+    </Group>
   );
 }
 
