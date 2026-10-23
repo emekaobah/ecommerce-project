@@ -122,18 +122,7 @@ function OrderPlaced({ orderGroupId, email }: Readonly<{ orderGroupId: string; e
           WHAT HAPPENS NEXT
         </Text>
         <View style={{ paddingHorizontal: theme.space[4] }}>
-          {group.data ? (
-            <NextSteps steps={orderPlacedSteps(group.data.orders, new Date())} />
-          ) : group.error ? (
-            // The order is placed either way: what happens next is in Orders too.
-            <Text tone="muted">Each shop&apos;s progress shows in Orders.</Text>
-          ) : (
-            <View accessible accessibilityLabel="Loading what happens next" style={{ gap: theme.space[3] }}>
-              {[0, 1, 2].map((row) => (
-                <Skeleton key={row} height={theme.control.md} radius="md" />
-              ))}
-            </View>
-          )}
+          <WhatHappensNext group={group.data} failed={!!group.error} />
         </View>
       </ScrollView>
       <StickyAction label="Track order" icon="fwd" onPress={track} />
@@ -149,6 +138,21 @@ function placedLine(group: OrderGroup | undefined, sentTo: string | null): strin
   return [`Order ${orderNumber(group.display_id)}`, `${formatMoney(paid, currency)} paid`, sentTo ? `confirmation sent to ${sentTo}` : null]
     .filter(Boolean)
     .join(' · ');
+}
+
+/** Each shop's next steps once the order group loads, skeleton rows until then. */
+function WhatHappensNext({ group, failed }: Readonly<{ group: OrderGroup | undefined; failed: boolean }>) {
+  const theme = useTheme();
+  if (group) return <NextSteps steps={orderPlacedSteps(group.orders, new Date())} />;
+  // The order is placed either way: what happens next is in Orders too.
+  if (failed) return <Text tone="muted">Each shop&apos;s progress shows in Orders.</Text>;
+  return (
+    <View accessible accessibilityLabel="Loading what happens next" style={{ gap: theme.space[3] }}>
+      {[0, 1, 2].map((row) => (
+        <Skeleton key={row} height={theme.control.md} radius="md" />
+      ))}
+    </View>
+  );
 }
 
 /** What happens next, down a line: a leaf dot for what's happening now, grey for what's to come. */

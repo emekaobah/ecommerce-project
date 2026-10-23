@@ -1,4 +1,4 @@
-import { dealLabel, formatMoney, listingPrice } from '@oja/domain';
+import { dealLabel, formatMoney, listingPrice, type ListingPrice } from '@oja/domain';
 import { ProductTile, useToast } from '@oja/ui';
 
 import { useAddToCart } from '@/api/cart';
@@ -13,6 +13,13 @@ type TileSeller = Pick<Listing['seller'], 'id' | 'shop_status'>;
 /** Sold out: the shop tracks stock on every size it offers and has none left. */
 export const isSoldOut = (offers: TileListing['offers']) =>
   offers.length > 0 && offers.every((offer) => offer.available_quantity === 0);
+
+/** "From ₦4,500" for a product whose sizes differ in price, "₦4,500" for one; blank without offers. */
+function priceLabel(price: ListingPrice | undefined, currencyCode: string): string {
+  if (!price) return '';
+  const amount = formatMoney(price.amount, currencyCode);
+  return price.from ? `From ${amount}` : amount;
+}
 
 /**
  * One shop's product as a tile in a rail or grid: its photo, the shop's price (a sale crossed
@@ -49,7 +56,7 @@ export function ListingTile({
     <ProductTile
       name={name}
       imageUrl={listing.product.thumbnail}
-      price={price ? `${price.from ? 'From ' : ''}${formatMoney(price.amount, currencyCode)}` : ''}
+      price={priceLabel(price, currencyCode)}
       wasPrice={price?.compareAt == null ? null : formatMoney(price.compareAt, currencyCode)}
       deal={deal ? dealLabel(deal) : null}
       detail={detail}

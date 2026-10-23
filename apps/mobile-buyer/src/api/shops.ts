@@ -41,7 +41,7 @@ export function useShop(regionId: string | undefined, sellerId: string) {
   });
 }
 
-async function fetchShops(regionId: string, categoryId: string | null, addressId: string | null, offset: number) {
+function fetchShops(regionId: string, categoryId: string | null, addressId: string | null, offset: number) {
   return storeClient.store.shops.query({
     region_id: regionId,
     ...near(addressId),
