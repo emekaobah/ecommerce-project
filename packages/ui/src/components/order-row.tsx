@@ -57,7 +57,8 @@ export function OrderRow({ title, meta, price, shops, thumbnails = [], trailing,
     >
       <View style={[styles.top, { gap: theme.space[3] }]}>
         <View style={styles.fill}>
-          <Text variant="strong" numberOfLines={1}>
+          {/* A long shop name wraps to two lines, then truncates; the price beside it never shrinks. */}
+          <Text variant="strong" numberOfLines={2}>
             {title}
           </Text>
           <Text variant="meta" tone="muted">
@@ -93,20 +94,23 @@ export function OrderRow({ title, meta, price, shops, thumbnails = [], trailing,
           ) : null}
         </View>
       ) : null}
-      {shops.map((shop) => (
-        <View key={shop.key} style={{ gap: theme.space[1] }}>
-          {shop.name ? (
-            <Text variant="meta" tone="muted" numberOfLines={1}>
-              {shop.name}
-            </Text>
-          ) : null}
-          <View style={[styles.wrap, { gap: theme.space[2] }]}>
-            {shop.chips.map((chip) => (
-              <StatusChip key={chip.label} label={chip.label} tone={chip.tone} icon={chip.icon} />
-            ))}
+      {/* The chips sit a little apart from the photos (the catalogue's .st margin). */}
+      <View style={{ gap: theme.space[2], marginTop: theme.space[2] }}>
+        {shops.map((shop) => (
+          <View key={shop.key} style={{ gap: theme.space[1] }}>
+            {shop.name ? (
+              <Text variant="meta" tone="muted" numberOfLines={1}>
+                {shop.name}
+              </Text>
+            ) : null}
+            <View style={[styles.wrap, { gap: theme.space[2] }]}>
+              {shop.chips.map((chip) => (
+                <StatusChip key={chip.label} label={chip.label} tone={chip.tone} icon={chip.icon} />
+              ))}
+            </View>
           </View>
-        </View>
-      ))}
+        ))}
+      </View>
     </PressableSurface>
   )
 }

@@ -7,8 +7,11 @@ import {
   openingLabel,
   orderArrival,
   orderCardStatus,
+  orderGroupSettled,
   orderGroupSummary,
+  orderLineName,
   orderNumber,
+  orderProgress,
   PICKUP_HOLD_NOTICE,
   reachedOnLabel,
 } from '@oja/domain';
@@ -25,14 +28,13 @@ import {
   Skeleton,
   StatusChip,
   Text,
-  Timeline,
   useTheme,
   useToast,
 } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useRef } from 'react';
-import { Linking, RefreshControl, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
+import { Fragment, useRef } from 'react';
+import { Linking, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View, type ScrollViewInstance } from 'react-native';
 
 import { useOrderGroup, type SellerOrder } from '@/api/orders';
 import { OrderReviews } from '@/components/order-reviews';
@@ -41,8 +43,9 @@ import { PickupDetails } from '@/components/pickup';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 /**
- * A checkout ("Order detail"): a band saying where each shop's part is, then a card per shop
- * with its progress, anything missing and its refund, its items and its receipt rows.
+ * A checkout ("Order detail"): a band saying where each shop's part is, then each shop's part
+ * with its progress, anything missing and its refund, its items and its receipt rows. Once every
+ * shop's part is over it reads as a receipt, with a plain header and no band ("Delivered order").
  */
 export function OrderGroupScreen() {
   const theme = useTheme();
@@ -57,21 +60,28 @@ export function OrderGroupScreen() {
   const scroll = useRef<ScrollViewInstance>(null);
   const receiptAt = useRef(0);
 
-  const renderReceipt = () => (
-    <ReceiptButton onPress={() => scroll.current?.scrollTo({ y: receiptAt.current, animated: true })} />
-  );
-  const header = (title: string, receipt: boolean) => (
-    <Stack.Screen
-      options={{
-        title,
-        headerStyle: { backgroundColor: theme.colors.band },
-        headerTintColor: theme.colors.onBand,
-        headerTitleStyle: { fontFamily: theme.type.titlePushed.fontFamily, color: theme.colors.onBand },
-        headerShadowVisible: false,
-        headerRight: receipt ? renderReceipt : undefined,
-      }}
-    />
-  );
+  const settled = group.data ? orderGroupSettled(group.data.orders) : false;
+  const header = (title: string, receipt: boolean) => {
+    const ink = settled ? theme.colors.ink : theme.colors.onBand;
+    const receiptButton = (
+      <ReceiptButton onBand={!settled} onPress={() => scroll.current?.scrollTo({ y: receiptAt.current, animated: true })} />
+    );
+    return (
+      <Stack.Screen
+        options={{
+          title,
+          headerStyle: { backgroundColor: settled ? theme.colors.bg : theme.colors.band },
+          headerTintColor: ink,
+          headerTitleStyle: { fontFamily: theme.type.titlePushed.fontFamily, color: ink },
+          headerShadowVisible: false,
+          // Plain text, not a glass pill: the catalogue's Receipt is a word in the header.
+          unstable_headerRightItems: receipt
+            ? () => [{ type: 'custom', element: receiptButton, hidesSharedBackground: true }]
+            : undefined,
+        }}
+      />
+    );
+  };
 
   if (group.error && !group.data) {
     return (
@@ -98,15 +108,17 @@ export function OrderGroupScreen() {
       {header(orderNumber(group.data.display_id), true)}
       <ScrollView
         ref={scroll}
-        // The order's page is tinted (the catalogue's Order detail); its shops sit flat on it.
-        style={{ backgroundColor: theme.colors.bgGrouped }}
+        // An order in progress has a tinted page (the catalogue's Order detail); a receipt is white.
+        style={{ backgroundColor: settled ? theme.colors.bg : theme.colors.bgGrouped }}
         contentContainerStyle={{ paddingBottom: theme.space[8] }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-        <Band>
-          <Text variant="titleNamed" tone="onBand">
-            {orderGroupSummary(orders)}
-          </Text>
-        </Band>
+        {settled ? null : (
+          <Band>
+            <Text variant="titleNamed" tone="onBand">
+              {orderGroupSummary(orders)}
+            </Text>
+          </Band>
+        )}
         <View style={{ paddingHorizontal: theme.space[4] }}>
           <GroupList>
             {orders.map((order, index) => (
@@ -132,8 +144,8 @@ export function OrderGroupScreen() {
   );
 }
 
-/** The header's Receipt button: scrolls down to what was paid. */
-function ReceiptButton({ onPress }: Readonly<{ onPress: () => void }>) {
+/** The header's Receipt button: scrolls down to what was paid. White on the band, accent on a plain header. */
+function ReceiptButton({ onBand, onPress }: Readonly<{ onBand: boolean; onPress: () => void }>) {
   const theme = useTheme();
   return (
     <PressableSurface
@@ -141,7 +153,7 @@ function ReceiptButton({ onPress }: Readonly<{ onPress: () => void }>) {
       accessibilityHint="Scrolls to what was paid"
       onPress={onPress}
       style={[styles.centre, { minHeight: theme.hitArea, paddingHorizontal: theme.space[2] }]}>
-      <Text weight="bold" tone="onBand">
+      <Text variant="meta" weight="bold" tone={onBand ? 'onBand' : 'accent'}>
         Receipt
       </Text>
     </PressableSurface>
@@ -155,6 +167,9 @@ type ShopOrderProps = {
   onReceiptLayout?: (y: number) => void;
 };
 
+/** The text size (as a scale of the default) from which a shop's chip goes under its name. */
+const LARGE_TEXT = 1.3;
+
 /** One shop's part of the checkout. */
 function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>) {
   const theme = useTheme();
@@ -162,24 +177,30 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
   const missing = missingItemsNote(order);
   const cardY = useRef(0);
   const changed = courierChangedNote(order.fulfilment.state, order.delivery);
+  const chip = <StatusChip label={status.label} tone={status.tone} icon={status.icon} />;
+  // At the largest text sizes the chip goes under the name, so the name keeps the width to wrap in.
+  const stacked = useWindowDimensions().fontScale >= LARGE_TEXT;
   return (
     <View onLayout={(event) => (cardY.current = event.nativeEvent.layout.y)}>
       <Group>
         <View style={[styles.row, { gap: theme.space[2] }]}>
           <ShopMark name={order.seller.name} logoUrl={order.seller.logo} size="sm" />
-          <View style={styles.fill}>
-            <Text weight="bold" numberOfLines={2}>
+          <View style={[styles.fill, { gap: stacked ? theme.space[1] : 0 }]}>
+            <Text weight="extrabold" numberOfLines={2}>
               {order.seller.name}
             </Text>
             <ShopLine order={order} />
+            {stacked ? chip : null}
           </View>
-          <StatusChip label={status.label} tone={status.tone} icon={status.icon} />
+          {/* Wrapped so it centres on the name's line instead of keeping to the top. */}
+          {stacked ? null : <View>{chip}</View>}
         </View>
         {changed ? (
           <Text variant="meta" tone="muted">
             {changed}
           </Text>
         ) : null}
+        <Progress order={order} />
         <Tracking order={order} />
         {missing ? (
           <InlineNote>
@@ -201,7 +222,7 @@ function ShopOrder({ groupId, order, onReceiptLayout }: Readonly<ShopOrderProps>
           style={{ gap: theme.space[2], paddingTop: theme.space[1] }}>
           <SumRow label="Items" value={formatMoney(order.item_subtotal, order.currency_code)} />
           {order.pickup && !order.delivery_total ? null : (
-            <SumRow label="Delivery" value={formatMoney(order.delivery_total, order.currency_code)} />
+            <SumRow label="Delivery" value={order.delivery_total ? formatMoney(order.delivery_total, order.currency_code) : 'Free'} />
           )}
           {order.discount_total ? (
             <SumRow label="Discount" value={`−${formatMoney(order.discount_total, order.currency_code)}`} />
@@ -240,14 +261,53 @@ function ShopLine({ order }: Readonly<{ order: SellerOrder }>) {
 }
 
 /**
- * Where the shop's order has got, step by step, and once a courier is booked a link to follow
- * the parcel on the courier's tracking page (#25).
+ * Where the shop's order has got, as four dots on a line: leaf up to where it is, a leaf ring
+ * there, grey after. Hidden while it waits for the shop and once it is over; its chip says so.
  */
+function Progress({ order }: Readonly<{ order: SellerOrder }>) {
+  const theme = useTheme();
+  const steps = orderProgress(order.fulfilment.state, order.pickup ? 'pickup' : 'delivery');
+  if (!steps) return null;
+  const at = steps.findIndex((step) => step.status === 'current');
+  const dot = theme.space[3];
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={`${steps[at]?.label}, step ${at + 1} of ${steps.length}`}
+      style={[styles.row, { paddingVertical: theme.space[1] }]}>
+      {steps.map((step, index) => (
+        <Fragment key={step.label}>
+          {index > 0 ? (
+            <View
+              style={[
+                styles.fill,
+                { height: theme.line.input, backgroundColor: step.status === 'upcoming' ? theme.colors.line : theme.colors.leaf },
+              ]}
+            />
+          ) : null}
+          <View
+            style={[
+              { width: dot, height: dot, borderRadius: dot / 2, backgroundColor: theme.colors.line },
+              step.status === 'done' && { backgroundColor: theme.colors.leaf },
+              step.status === 'current' && {
+                backgroundColor: theme.colors.raised,
+                borderWidth: theme.line.ring,
+                borderColor: theme.colors.leaf,
+              },
+            ]}
+          />
+        </Fragment>
+      ))}
+    </View>
+  );
+}
+
+/** Once a courier is booked, a link to follow the parcel on the courier's tracking page (#25). */
 function Tracking({ order }: Readonly<{ order: SellerOrder }>) {
-  const { timeline, shipment } = order.fulfilment;
+  const { shipment } = order.fulfilment;
   return (
     <>
-      {timeline.length ? <Timeline steps={timeline} /> : null}
       {shipment && !shipment.cancelled ? (
         <ListRow
           title="Track your parcel"
@@ -301,7 +361,7 @@ function ItemLine({ item, currency }: Readonly<{ item: SellerOrder['items'][numb
       </View>
       <View style={styles.fill}>
         <Text weight="bold" numberOfLines={2}>
-          {[item.product_title ?? 'Item', item.variant_title].filter(Boolean).join(' · ')}
+          {orderLineName(item)}
         </Text>
         <Text variant="meta" tone="muted">
           {item.quantity ? `× ${item.quantity}` : 'Not available'}

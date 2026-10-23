@@ -1,5 +1,6 @@
 import ArrowLeftRight from "lucide-react-native/icons/arrow-left-right"
 import Bell from "lucide-react-native/icons/bell"
+import Box from "lucide-react-native/icons/box"
 import Camera from "lucide-react-native/icons/camera"
 import Check from "lucide-react-native/icons/check"
 import ChevronDown from "lucide-react-native/icons/chevron-down"
@@ -18,7 +19,6 @@ import LogOut from "lucide-react-native/icons/log-out"
 import Mail from "lucide-react-native/icons/mail"
 import MapPin from "lucide-react-native/icons/map-pin"
 import Minus from "lucide-react-native/icons/minus"
-import Package from "lucide-react-native/icons/package"
 import Pencil from "lucide-react-native/icons/pencil"
 import Plus from "lucide-react-native/icons/plus"
 import RefreshCw from "lucide-react-native/icons/refresh-cw"
@@ -44,7 +44,7 @@ const ICONS = {
   home: House,
   search: Search,
   bag: Handbag,
-  box: Package,
+  box: Box,
   user: User,
   pin: MapPin,
   down: ChevronDown,

@@ -121,7 +121,10 @@ export {
   historyEntries,
   missingItemsNote,
   orderCardStatus,
+  orderGroupSettled,
   orderGroupSummary,
+  orderLineName,
+  orderProgress,
   orderStatus,
   owedRefundStatus,
   reachedOnLabel,
@@ -135,6 +138,7 @@ export type {
   OrderRefundView,
   OwedRefundState,
   OwedRefundView,
+  ProgressStep,
   RefundStatus,
   SummaryOrder,
 } from "./order-history"

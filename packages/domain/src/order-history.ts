@@ -1,6 +1,6 @@
 import { cancelledBy, cancelReasonText } from "./cancellation"
 import { dateLabel } from "./date-label"
-import type { Cancellation, FulfilmentState } from "./fulfilment"
+import type { Cancellation, FulfilmentMethod, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
 import type { StatusView } from "./status"
 import type { TimelineStep } from "./timeline"
@@ -103,13 +103,16 @@ export function orderCardStatus(order: { fulfilment: OrderFulfilmentView }): Sta
   return order.fulfilment.state === "new" ? { ...status, label: "Waiting" } : status
 }
 
-/** "Delivered Fri 2 Oct": when a delivered or collected order got there, from its timeline; null before that. */
+/**
+ * "Delivered Fri 2 Oct": when a delivered or collected order got there, from its timeline's last
+ * step reached; null before that, or when that step's time isn't known (never an earlier step's).
+ */
 export function reachedOnLabel(
   { state, timeline }: { state: FulfilmentState; timeline: readonly TimelineStep[] },
   timeZone: string
 ): string | null {
   if (state !== "delivered" && state !== "collected") return null
-  const at = [...timeline].reverse().find((step) => step.status !== "upcoming" && step.at)?.at
+  const at = timeline.filter((step) => step.status !== "upcoming").at(-1)?.at
   return at ? `${STATES[state].label} ${dateLabel(at, timeZone)}` : null
 }
 
@@ -230,4 +233,48 @@ function refundSentence(refunds: MissingItemsOrder["refunds"], currencyCode: str
   return refunds.every((refund) => refund.status === "processed")
     ? `${amount} has been refunded to your card.`
     : `${amount} is on its way back to your card.`
+}
+
+/** A line of an order by name: "Adire Kaftan · M"; a product's only variant usually shares its name, which isn't repeated. */
+export function orderLineName({ product_title, variant_title }: { product_title: string | null; variant_title: string | null }): string {
+  const name = product_title ?? "Item"
+  return variant_title && variant_title !== product_title ? `${name} · ${variant_title}` : name
+}
+
+/** One dot of an order's progress bar, named for screen readers. */
+export type ProgressStep = { label: string; status: "done" | "current" | "upcoming" }
+
+const PROGRESS: Record<FulfilmentMethod, { labels: readonly string[]; at: Partial<Record<FulfilmentState, number>> }> = {
+  delivery: {
+    labels: ["Accepted", "Being prepared", "Packed", "On its way"],
+    at: { accepted: 0, picking: 1, partially_available: 1, packed: 2, label_booked: 2, courier_confirmed: 2, handed_to_courier: 3, in_transit: 3 },
+  },
+  pickup: {
+    labels: ["Accepted", "Being prepared", "Ready for pickup", "Collected"],
+    at: { accepted: 0, picking: 1, partially_available: 1, ready_for_pickup: 2 },
+  },
+}
+
+/**
+ * A shop's order's progress as the order detail's four-dot bar draws it ("Order detail"): done up
+ * to where it is, which is current. Null while it waits for the shop, and once it is over
+ * (delivered, collected, not collected, rejected or cancelled): its chip says so.
+ */
+export function orderProgress(state: FulfilmentState, method: FulfilmentMethod): ProgressStep[] | null {
+  const { labels, at } = PROGRESS[method]
+  const current = at[state]
+  if (current === undefined) return null
+  return labels.map((label, i) => ({ label, status: stepStatus(i, current) }))
+}
+
+function stepStatus(step: number, current: number): ProgressStep["status"] {
+  if (step < current) return "done"
+  return step === current ? "current" : "upcoming"
+}
+
+const OVER = new Set<FulfilmentState>(["delivered", "collected", "not_collected", "rejected", "cancelled"])
+
+/** Whether every shop's part of a checkout is over: its order detail then reads as a receipt, with no band ("Delivered order"). */
+export function orderGroupSettled(orders: readonly { fulfilment: { state: FulfilmentState } }[]): boolean {
+  return orders.every((order) => OVER.has(order.fulfilment.state))
 }
