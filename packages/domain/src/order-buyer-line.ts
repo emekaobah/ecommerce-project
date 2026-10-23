@@ -11,13 +11,17 @@ export type BuyerLineOrder = {
   fulfilment: { method: "delivery" | "pickup"; shipment: unknown }
 }
 
-const quoteOf = (order: BuyerLineOrder) =>
-  (order.shipping_methods ?? [])
-    .map((method) => (method?.data as { quote?: CourierQuote } | null | undefined)?.quote)
-    .find((quote): quote is Required<CourierQuote> => !!quote?.courier_name && !!quote.delivery_eta_time)
+/** The courier the buyer chose at checkout, when the order has a full quote for it. */
+export function buyerCourierQuote(order: Pick<BuyerLineOrder, "shipping_methods">): { courier_name: string; delivery_eta_time: string } | null {
+  return (
+    (order.shipping_methods ?? [])
+      .map((method) => (method?.data as { quote?: CourierQuote } | null | undefined)?.quote)
+      .find((quote): quote is Required<CourierQuote> => !!quote?.courier_name && !!quote.delivery_eta_time) ?? null
+  )
+}
 
 /** "Tolu A.": the buyer's first name and initial. */
-function buyerName(order: BuyerLineOrder): string | null {
+export function buyerShortName(order: Pick<BuyerLineOrder, "billing_address">): string | null {
   const first = order.billing_address?.first_name?.trim()
   if (!first) return null
   const initial = order.billing_address?.last_name?.trim().charAt(0)
@@ -30,11 +34,11 @@ function buyerName(order: BuyerLineOrder): string | null {
  * when the courier block takes over; a pickup order is collected in store.
  */
 export function orderBuyerLine(order: BuyerLineOrder, timeZone: string): string {
-  const name = buyerName(order)
+  const name = buyerShortName(order)
   const parts = [name ? `For ${name}` : null]
   if (order.fulfilment.method === "pickup") return [...parts, "collecting in store"].filter(Boolean).join(" · ")
   parts.push(order.shipping_address?.city?.trim() || null)
-  const quote = order.fulfilment.shipment ? undefined : quoteOf(order)
+  const quote = order.fulfilment.shipment ? null : buyerCourierQuote(order)
   if (quote) parts.push(`buyer chose ${quote.courier_name}, arriving ${dateLabel(quote.delivery_eta_time, timeZone, { date: false })}`)
   return parts.filter(Boolean).join(" · ")
 }

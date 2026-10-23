@@ -166,7 +166,7 @@ export {
 export type { DayHours, HoursException, OpenPeriod, ShopHours, ShopPause, ShopStatus, Weekday, WeeklyHours } from "./shop-hours"
 export { vendorShopState } from "./vendor-shop-state"
 export type { VendorShopState } from "./vendor-shop-state"
-export { orderBuyerLine } from "./order-buyer-line"
+export { buyerCourierQuote, buyerShortName, orderBuyerLine } from "./order-buyer-line"
 export type { BuyerLineOrder } from "./order-buyer-line"
 export { orderPlacedSteps } from "./order-placed-steps"
 export type { PlacedOrder, PlacedStep } from "./order-placed-steps"

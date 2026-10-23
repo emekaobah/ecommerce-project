@@ -227,6 +227,8 @@ export type Theme = {
     /** The brand band and the new-order takeover: the same indigo in both themes. */
     band: string
     onBand: string
+    /** A light wash on the band: the takeover's quantity pills. */
+    onBandTile: string
     /** The main button. */
     primary: string
     onPrimary: string
@@ -324,6 +326,7 @@ export const lightTheme: Theme = {
     muted: "#494F66",
     band: indigo,
     onBand: white,
+    onBandTile: "rgba(255, 255, 255, 0.16)",
     primary: indigo,
     onPrimary: white,
     accent: indigo,
@@ -379,6 +382,7 @@ export const darkTheme: Theme = {
     muted: "#B4B4BC",
     band: indigo,
     onBand: white,
+    onBandTile: "rgba(255, 255, 255, 0.16)",
     primary: "#3D4DBB",
     onPrimary: white,
     accent: "#AEB8FF",
