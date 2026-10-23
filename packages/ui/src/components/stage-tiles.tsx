@@ -15,8 +15,10 @@ export type StageTilesProps<K extends string = string> = {
 }
 
 /** "2 New orders", "1 Ready order": what VoiceOver reads for a tile, the full count however many. */
-const spoken = ({ label, count }: StageTile) =>
-  count === null ? `${label} orders, loading` : `${count} ${label} ${count === 1 ? "order" : "orders"}`
+function spoken({ label, count }: StageTile): string {
+  if (count === null) return `${label} orders, loading`
+  return `${count} ${label} ${count === 1 ? "order" : "orders"}`
+}
 
 /**
  * The vendor app's stage tiles: four equal tiles, each a stage's count over its name, the

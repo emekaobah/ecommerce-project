@@ -31,52 +31,60 @@ export type ProductTileProps = {
   onToggleSave?: () => void
 }
 
+/** What VoiceOver reads for the tile: "Rice, was ₦5,000, now ₦4,500, 10% off at this shop, sold out". */
+function spokenTile({ name, price, wasPrice, deal, detail, soldOut, closed }: Readonly<ProductTileProps>): string {
+  const spokenPrice = wasPrice ? `was ${wasPrice}, now ${price}` : price
+  const state = soldOut ? "sold out" : closed && "shop closed"
+  return [name, spokenPrice, deal, detail, state].filter(Boolean).join(", ")
+}
+
+/** The photo's top-left corner: "Sold out" or "Closed" when it can't be bought, else the deal. */
+function CornerBadge({ soldOut, closed, deal }: Readonly<Pick<ProductTileProps, "soldOut" | "closed" | "deal">>) {
+  const theme = useTheme()
+  const inset = { top: theme.space[2], left: theme.space[2] }
+  if (soldOut) {
+    return (
+      <View style={[styles.corner, inset]}>
+        <StatusChip label="Sold out" tone="neutral" />
+      </View>
+    )
+  }
+  if (closed) {
+    return (
+      <View style={[styles.corner, inset]}>
+        <StatusChip label="Closed" tone="neutral" icon="clock" />
+      </View>
+    )
+  }
+  if (!deal) return null
+  return (
+    <View style={[styles.corner, inset, { right: theme.space[2] }]}>
+      <DealBadge label={deal} />
+    </View>
+  )
+}
+
 /**
  * A product in a rail or grid: the photo on white in both themes, contained with a 10% margin
  * and no outline, then price, name and detail. Read as one item; the add and save buttons are
  * drawn small with a 44pt hit area and say which product they act on.
  */
-export function ProductTile({
-  name,
-  imageUrl,
-  price,
-  wasPrice,
-  detail,
-  deal,
-  soldOut,
-  closed,
-  onPress,
-  onAdd,
-  saved,
-  onToggleSave,
-}: Readonly<ProductTileProps>) {
+export function ProductTile(props: Readonly<ProductTileProps>) {
+  const { name, imageUrl, price, wasPrice, detail, deal, soldOut, closed, onPress, onAdd, saved, onToggleSave } = props
   const theme = useTheme()
   const button = theme.block.photoButton
   const slop = Math.max(0, (theme.hitArea - button) / 2)
-  const spokenPrice = wasPrice ? `was ${wasPrice}, now ${price}` : price
   const unavailable = soldOut || closed
-  const spoken = [name, spokenPrice, deal, detail, soldOut ? "sold out" : null, closed && !soldOut ? "shop closed" : null]
-    .filter(Boolean)
-    .join(", ")
 
   return (
-    <PressableSurface accessibilityRole="button" accessibilityLabel={spoken} onPress={onPress} style={{ gap: theme.space[1] }}>
+    <PressableSurface accessibilityRole="button" accessibilityLabel={spokenTile(props)} onPress={onPress} style={{ gap: theme.space[1] }}>
       <View style={[styles.photo, { backgroundColor: theme.colors.productTile, borderRadius: theme.radius.md }]}>
         {imageUrl ? (
           <Image source={{ uri: imageUrl }} contentFit="contain" style={[styles.image, unavailable && styles.unavailable]} />
         ) : (
           <Icon name="bag" color={lightTheme.colors.muted} />
         )}
-        {unavailable ? (
-          <View style={[styles.corner, { top: theme.space[2], left: theme.space[2] }]}>
-            {soldOut ? <StatusChip label="Sold out" tone="neutral" /> : <StatusChip label="Closed" tone="neutral" icon="clock" />}
-          </View>
-        ) : null}
-        {deal && !unavailable ? (
-          <View style={[styles.corner, { top: theme.space[2], left: theme.space[2], right: theme.space[2] }]}>
-            <DealBadge label={deal} />
-          </View>
-        ) : null}
+        <CornerBadge soldOut={soldOut} closed={closed} deal={deal} />
         {onToggleSave ? (
           <PressableSurface
             accessibilityRole="button"
