@@ -100,6 +100,9 @@ export const block = {
   codeBox: grid(48),
   /** A multi-line input's least height. */
   textArea: grid(84),
+  /** Above an empty or error state's emblem, and the state's side inset (the final `.empty` padding). */
+  stateTop: grid(56),
+  stateSide: grid(28),
 }
 
 /** A shop mark (logo or monogram) by where it sits: a row, a shop group's header, the shop page. */
@@ -213,11 +216,11 @@ export type Theme = {
     productTile: string
     /** Dividers, card edges. */
     line: string
+    /** The lighter rule between groups in a list: orders, shops in the cart, checkout and an order, reviews. */
+    divider: string
     /** Input and checkbox outlines (3:1). */
     control: string
     /** Text. */
-    /** The lighter rule between groups in a list: orders, shops in the cart, checkout and an order, reviews. */
-    divider: string
     ink: string
     /** Secondary text, placeholders. */
     muted: string
@@ -315,10 +318,10 @@ export const lightTheme: Theme = {
     tile: "#EEF0F7",
     productTile: white,
     line: "#DDE1EE",
+    divider: "#E4E6EE",
     control: "#80869E",
     ink: "#12162B",
     muted: "#494F66",
-    divider: "#E4E6EE",
     band: indigo,
     onBand: white,
     primary: indigo,
@@ -370,10 +373,10 @@ export const darkTheme: Theme = {
     tile: "#26262A",
     productTile: white,
     line: "#333338",
+    divider: "#2A2A2F",
     control: "#7A7A83",
     ink: "#F2F2F4",
     muted: "#B4B4BC",
-    divider: "#2A2A2F",
     band: indigo,
     onBand: white,
     primary: "#3D4DBB",
