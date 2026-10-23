@@ -24,6 +24,7 @@ import {
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -139,6 +140,8 @@ function problemMessage(refusal: Refusal | null, locked: boolean, now: Date, tim
 function Counter({ order }: Readonly<{ order: Order }>) {
   const theme = useTheme();
   const collect = useCollectOrder(order.id);
+  // The view measures itself below the header: without its height the keyboard covers the foot button.
+  const headerHeight = useHeaderHeight();
   const timeZone = useShopTimeZone();
   const now = useNow(5_000);
   const [collectedBy, setCollectedBy] = useState('');
@@ -169,7 +172,7 @@ function Counter({ order }: Readonly<{ order: Order }>) {
     );
 
   return (
-    <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
       <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }} keyboardShouldPersistTaps="handled">
         <Band>
           <Text variant="titleNamed" tone="onBand">

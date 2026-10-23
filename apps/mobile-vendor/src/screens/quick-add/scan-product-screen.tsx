@@ -3,7 +3,7 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Product barcodes; QR and other symbologies aren't on shop shelves. */
 const BARCODE_TYPES = ['ean13', 'ean8', 'upc_a', 'upc_e', 'itf14'] as const;
@@ -17,6 +17,7 @@ const BARCODE_TYPES = ['ean13', 'ean8', 'upc_a', 'upc_e', 'itf14'] as const;
 export function ScanProductScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [typed, setTyped] = useState('');
   const [torch, setTorch] = useState(false);
@@ -52,10 +53,12 @@ export function ScanProductScreen() {
     const askable = !permission || permission.canAskAgain;
     const emblem = theme.block.quietEmblem;
     return (
-      <SafeAreaView style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+      <View style={[styles.fill, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: theme.colors.bg }]}>
         <View style={[styles.row, { paddingHorizontal: theme.space[2], minHeight: theme.hitArea, gap: theme.space[1] }]}>
           <TopButton icon="x" label="Close" tint={theme.colors.ink} onPress={() => router.back()} />
-          <Text variant="titlePushed">Add a product</Text>
+          <Text variant="titleNamed" accessibilityRole="header">
+            Add a product
+          </Text>
         </View>
         <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={[styles.middle, { paddingTop: theme.block.stateTop, paddingHorizontal: theme.block.stateSide, gap: theme.space[2] }]}>
@@ -74,7 +77,7 @@ export function ScanProductScreen() {
           </View>
           <View style={{ padding: theme.space[4], paddingTop: theme.space[5] }}>{typeIt}</View>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -87,7 +90,7 @@ export function ScanProductScreen() {
         barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
         onBarcodeScanned={({ data }: BarcodeScanningResult) => open(data)}
       />
-      <SafeAreaView edges={['top']}>
+      <View style={{ paddingTop: insets.top }}>
         <View style={[styles.row, styles.between, { paddingHorizontal: theme.space[4], paddingTop: theme.space[2] }]}>
           <TopButton icon="x" label="Close" tint={onCamera.ink} fill={onCamera.wash} onPress={() => router.back()} />
           <Text variant="heading" style={{ color: onCamera.ink }}>
@@ -102,19 +105,19 @@ export function ScanProductScreen() {
             onPress={() => setTorch((on) => !on)}
           />
         </View>
-      </SafeAreaView>
+      </View>
       <View style={[styles.fill, styles.centre, { paddingHorizontal: theme.space[12] }]} pointerEvents="none">
         <View style={[styles.reticle, { borderRadius: theme.radius.xl, borderColor: onCamera.ink, borderWidth: theme.line.ring }]}>
           <View style={{ height: theme.line.ring, backgroundColor: theme.colors.sun, marginHorizontal: theme.space[2] }} />
         </View>
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingBottom: theme.space[2] }}>
+        <View style={{ paddingHorizontal: theme.space[3], paddingBottom: insets.bottom + theme.space[2] }}>
           <View style={{ backgroundColor: theme.colors.raised, borderRadius: theme.radius.sheet, padding: theme.space[4], gap: theme.space[3] }}>
             <Text weight="bold">{"Point the camera at the product's barcode."}</Text>
             {typeIt}
           </View>
-        </SafeAreaView>
+        </View>
       </KeyboardAvoidingView>
     </View>
   );

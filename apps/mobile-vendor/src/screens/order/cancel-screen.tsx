@@ -10,6 +10,7 @@ import {
 } from '@oja/domain';
 import { Band, Button, EmptyState, ErrorState, InlineNote, RadioOption, Skeleton, StatusChip, Text, TextField, useTheme } from '@oja/ui';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,6 +36,8 @@ export function CancelScreen() {
   const order = useOrder(id);
   const preview = useCancelPreview(id);
   const cancel = useCancelOrder(id);
+  // The view measures itself below the header: without its height the keyboard covers the foot button.
+  const headerHeight = useHeaderHeight();
   const [reason, setReason] = useState<CancelReason | null>(isReason(params.reason) ? params.reason : null);
   const [note, setNote] = useState('');
   const request = cancelRequest({ reason, note });
@@ -73,9 +76,11 @@ export function CancelScreen() {
     }
     const refund = formatMoney(preview.data.refund_amount, preview.data.currency_code);
     const buyer = order.data ? buyerShortName(order.data) : null;
+    // An order already refunded in full (or never paid) has nothing left to refund.
+    const refunds = preview.data.refund_amount > 0;
 
     return (
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
         <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }} keyboardShouldPersistTaps="handled">
           <CancelBand state={order.data?.fulfilment.state} />
           <View style={{ padding: theme.space[4], gap: theme.space[4] }}>
@@ -85,7 +90,7 @@ export function CancelScreen() {
               </Text>
               {CANCEL_REASONS.map((option) => (
                 <RadioOption key={option} selected={reason === option} onPress={() => setReason(option)}>
-                  <Text variant="strong">{CANCEL_REASON_CHOICES[option]}</Text>
+                  <Text>{CANCEL_REASON_CHOICES[option]}</Text>
                 </RadioOption>
               ))}
             </View>
@@ -102,8 +107,8 @@ export function CancelScreen() {
               />
             ) : null}
             <InlineNote>
-              <Text variant="meta" weight="bold">
-                {cancelRefundNote(buyer, refund)}
+              <Text variant="meta" weight="bold" style={{ color: theme.status.attention.foreground }}>
+                {refunds ? cancelRefundNote(buyer, refund) : 'Nothing is left to refund on the order.'}
               </Text>
               {" Stock goes back to your shelves. This can't be undone."}
             </InlineNote>
@@ -118,7 +123,7 @@ export function CancelScreen() {
             </InlineNote>
           ) : null}
           <Button
-            label={`Cancel and refund ${refund}`}
+            label={refunds ? `Cancel and refund ${refund}` : 'Cancel order'}
             variant="danger"
             size="main"
             disabled={!request}
@@ -133,7 +138,7 @@ export function CancelScreen() {
   return (
     <>
       {/* Once cancelled, the confirmation runs up under the status bar. */}
-      <Stack.Screen options={{ title, headerShown: !cancel.data }} />
+      <Stack.Screen options={{ title, headerShown: !cancel.data, headerBackButtonDisplayMode: 'minimal' }} />
       {content()}
     </>
   );

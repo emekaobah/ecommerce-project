@@ -72,6 +72,7 @@ export function CodeBoxes({ label, value, onChangeText, length = 6, error, disab
           autoComplete="one-time-code"
           maxLength={length}
           caretHidden
+          selectionColor="transparent"
           accessibilityLabel={label}
           // Read digit by digit ("4 8 2"), never as one number, and how many are left to type.
           accessibilityValue={{ text: spokenCode(value, length) }}
@@ -101,6 +102,7 @@ function boxOutline(theme: Theme, box: { error?: boolean; disabled?: boolean; ne
 const styles = StyleSheet.create({
   row: { flexDirection: "row" },
   box: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" },
-  // Invisible but still tappable, so a tap anywhere on the boxes focuses it.
-  input: { opacity: 0, color: "transparent" },
+  // Invisible but still tappable, so a tap anywhere on the boxes focuses it. Not by opacity:
+  // iOS doesn't deliver touches to a view under 1% alpha, so the boxes would ignore taps.
+  input: { color: "transparent", backgroundColor: "transparent" },
 })

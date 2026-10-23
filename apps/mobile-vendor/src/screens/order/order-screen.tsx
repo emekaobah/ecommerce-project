@@ -13,6 +13,7 @@ import {
   Band,
   Button,
   haptics,
+  Icon,
   ErrorState,
   ListRow,
   LoadingState,
@@ -253,7 +254,15 @@ function Handover({ orderId, order, formatTime }: Readonly<{ orderId: string; or
         <View style={{ padding: theme.space[4], gap: theme.space[6] }}>
           <Timeline steps={handoverSteps(fulfilment)} formatTime={formatTime} />
           <ApprovalNote fulfilment={fulfilment} currency={currency_code} />
-          <CourierLabel fulfilment={fulfilment} />
+          {/* The band names the waybill and the timeline the courier: only the tracking link is left. */}
+          {fulfilment.shipment ? (
+            <ListRow
+              title="Track shipment"
+              subtitle={fulfilment.shipment.switched_from ? `Instead of ${fulfilment.shipment.switched_from}` : undefined}
+              trailing={<Icon name="fwd" color={theme.colors.muted} />}
+              onPress={() => void Linking.openURL(fulfilment.shipment!.tracking_url)}
+            />
+          ) : null}
           <Lines order={order} />
         </View>
       </ScrollView>

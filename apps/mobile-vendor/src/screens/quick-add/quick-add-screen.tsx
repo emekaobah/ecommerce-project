@@ -2,6 +2,7 @@ import { formatMoney, quickAddForm, type QuickAddFormErrors } from '@oja/domain'
 import { Button, ErrorState, InlineNote, Skeleton, StatusChip, Text, TextField, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -141,6 +142,8 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
   const theme = useTheme();
   const router = useRouter();
   const quickAdd = useQuickAdd();
+  // The view measures itself below the header: without its height the keyboard covers the foot button.
+  const headerHeight = useHeaderHeight();
   const newProduct = !lookup.product;
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
@@ -148,6 +151,11 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
   const [photo, setPhoto] = useState<ProductPhoto | null>(null);
   const [capturing, setCapturing] = useState(false);
   const [errors, setErrors] = useState<QuickAddFormErrors>({});
+  // Editing a field clears what was wrong with it.
+  const edit = (field: keyof QuickAddFormErrors, set: (value: string) => void) => (value: string) => {
+    set(value);
+    setErrors(({ [field]: _, ...rest }) => rest);
+  };
 
   if (capturing) {
     return (
@@ -195,7 +203,7 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
       <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[4] }} keyboardShouldPersistTaps="handled">
         {lookup.product ? (
           <ProductHeader lookup={lookup} chip={<StatusChip label="Found in catalogue" tone="success" icon="check" />} />
@@ -222,7 +230,7 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
             />
             {errors.photo ? <InlineNote>{errors.photo}</InlineNote> : null}
             <View style={styles.stretch}>
-              <TextField testID="title" label="Product name" hint="As on the pack, with its size" value={title} onChangeText={setTitle} error={errors.title} />
+              <TextField testID="title" label="Product name" hint="As on the pack, with its size" value={title} onChangeText={edit('title', setTitle)} error={errors.title} />
             </View>
           </View>
         )}
@@ -232,7 +240,7 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
           placeholder={formatMoney(0, lookup.currency_code)}
           keyboardType="decimal-pad"
           value={price}
-          onChangeText={setPrice}
+          onChangeText={edit('price', setPrice)}
           error={errors.price}
         />
         <TextField
@@ -241,7 +249,7 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
           hint="Leave empty if you don't count it"
           keyboardType="number-pad"
           value={stock}
-          onChangeText={setStock}
+          onChangeText={edit('stock', setStock)}
           error={errors.stock}
         />
       </ScrollView>

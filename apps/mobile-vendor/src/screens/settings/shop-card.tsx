@@ -17,7 +17,8 @@ export function ShopCard({ sellerId, children }: Readonly<{ sellerId: string | u
   const theme = useTheme();
   const seller = useCurrentSeller(sellerId);
   const shop = useShopHours(sellerId);
-  const now = useNow();
+  // Re-rendered every half minute; the clock is read at render, so a pause that just began counts.
+  useNow();
   const hours = shopHoursOf(shop.data);
 
   const stateLine = () => {
@@ -31,20 +32,20 @@ export function ShopCard({ sellerId, children }: Readonly<{ sellerId: string | u
     }
     return (
       <Text variant="meta" tone="muted">
-        {settingsShopLine(hours, now, shop.data.new_orders)}
+        {settingsShopLine(hours, new Date(), shop.data.new_orders)}
       </Text>
     );
   };
 
   return (
     <View
+      // As the catalogue draws it: on the page, with a divider under the switches.
       style={{
-        borderWidth: theme.line.divider,
-        borderColor: theme.colors.line,
-        borderRadius: theme.radius.lg,
-        padding: theme.space[3],
+        marginTop: theme.space[4],
+        paddingBottom: theme.space[2],
         gap: theme.space[2],
-        backgroundColor: theme.colors.raised,
+        borderBottomWidth: theme.line.divider,
+        borderBottomColor: theme.colors.line,
       }}>
       <View style={[styles.row, { gap: theme.space[2] }]}>
         <ShopMark name={seller.data?.name ?? ''} logoUrl={seller.data?.logo} />

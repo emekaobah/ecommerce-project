@@ -88,7 +88,7 @@ export function PauseOrdersSheet() {
         {shop.data
           ? durations.map((duration) => (
               <RadioOption key={duration.key} selected={selected?.key === duration.key} onPress={() => setChosen(duration.key)}>
-                <Text variant="strong">{duration.label}</Text>
+                <Text>{duration.label}</Text>
               </RadioOption>
             ))
           : [0, 1, 2].map((row) => <Skeleton key={row} height={theme.hitArea} radius="md" />)}

@@ -17,13 +17,13 @@ export function TakingOrdersSetting({ sellerId }: Readonly<{ sellerId: string }>
   const hours = useShopHours(sellerId);
   const mayManage = useMayManageShop(sellerId);
   const resume = useResumeShop(sellerId);
-  const now = useNow();
+  useNow();
   const pause = hours.data?.pause ?? null;
 
   const description = () => {
     if (!pause) return 'Turn off to pause the shop now';
     const until = pause.ends_at
-      ? `Paused until ${openingLabel(pause.ends_at, now, hours.data!.time_zone)}.`
+      ? `Paused until ${openingLabel(pause.ends_at, new Date(), hours.data!.time_zone)}.`
       : 'Paused until you turn it back on.';
     return pause.note ? `${until} Buyers see: “${pause.note}”` : until;
   };
