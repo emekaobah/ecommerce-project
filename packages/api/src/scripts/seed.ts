@@ -65,7 +65,6 @@ import {
   SEED_SIZES,
   SEED_VAT,
   seedBankAccount,
-  seedImageUrl,
   seedShippingDefaults,
   type Department,
   type SeedSeller,
@@ -81,6 +80,7 @@ import { collectionPointsOf, PICKUP_OPTION_TYPE, setCollectionPoint } from "../l
 import { sellersWithHours, setWeeklyHours } from "../lib/shop-hours";
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account";
 import { errorMessage } from "../lib/errors";
+import { applyDemoImages } from "./demo-images";
 
 // Seeds Oja's demo world (see seed-data.ts). Every section looks up what already
 // exists and creates only what is missing, so the seed is safe to re-run.
@@ -178,6 +178,10 @@ export default async function seedDemoData({ container }: ExecArgs) {
 
   logger.info("Seeding offers...");
   const offerCount = await seedOffers(container, sellers, productsByHandle, shippingProfileId);
+
+  // Before publishing: the publish gate wants an image.
+  logger.info("Adding the demo photos, logos and banners...");
+  await applyDemoImages(container);
 
   logger.info("Publishing products...");
   await publishSeedProducts(container, [...productsByHandle.values()].map((p) => p.id));
@@ -537,8 +541,6 @@ async function seedSeller(
           email: config.owner.email,
           currency_code: SEED_REGION.currency_code,
           description: config.description,
-          logo: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(config.name)}`,
-          banner: `https://picsum.photos/seed/${toHandle(config.name)}/1200/320`,
         },
         // Coordinates stay on the seller's address only; staff never see them (ADR 0002).
         address: {
@@ -805,7 +807,6 @@ async function seedProducts(
   const products: CreateProductDTO[] = missing.map((item) => {
     const handle = toHandle(item.title);
     const sku = handle.toUpperCase();
-    const image = seedImageUrl(item.title);
     return {
       title: item.title,
       handle,
@@ -815,8 +816,6 @@ async function seedProducts(
       category_ids: [ctx.categoryIds.get(item.category)!],
       sales_channels: [{ id: ctx.salesChannelId }],
       weight: item.weight_grams,
-      thumbnail: image,
-      images: [{ url: image }],
       attributes: [
         ...(item.sized
           ? [{ id: ctx.sizeAttribute.id, value_ids: ctx.sizeAttribute.values.map((v) => v.id) }]

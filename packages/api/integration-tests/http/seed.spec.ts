@@ -1,17 +1,29 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules, SellerRole } from "@mercurjs/types"
-import { updateProductAttributesWorkflow } from "@mercurjs/core/workflows"
+import { updateProductAttributesWorkflow, updateSellersWorkflow } from "@mercurjs/core/workflows"
+import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import seedDemoData from "../../src/scripts/seed"
 import {
   SEED_CATEGORIES,
   SEED_CATEGORY_ATTRIBUTES,
   SEED_PASSWORD,
+  SEED_PRODUCTS,
   SEED_SELLERS,
 } from "../../src/scripts/seed-data"
+import {
+  applyDemoImages,
+  areStoredCopies,
+  isStoredCopy,
+  productPhotoFiles,
+  shopImageFiles,
+} from "../../src/scripts/demo-images"
 import { getProductsCompleteness } from "../../src/lib/product-completeness"
 
 jest.setTimeout(5 * 60 * 1000)
+
+const galleryOf = (product: { images: { url: string; rank: number }[] }) =>
+  [...product.images].sort((a, b) => a.rank - b.rank).map((i) => i.url)
 
 medusaIntegrationTestRunner({
   inApp: true,
@@ -153,19 +165,74 @@ medusaIntegrationTestRunner({
         expect(new Set(amounts).size).toBe(amounts.length)
       })
 
-      it("seeds a categorised catalogue with images and weights in grams", async () => {
+      it("seeds a categorised catalogue with its demo photos and weights in grams", async () => {
         const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
         const { data: products } = await query.graph({
           entity: "product",
-          fields: ["id", "thumbnail", "weight", "images.url", "categories.id"],
+          fields: ["id", "title", "thumbnail", "weight", "images.url", "images.rank", "categories.id"],
         })
-        expect(products.length).toBeGreaterThan(0)
+        expect(products).toHaveLength(SEED_PRODUCTS.length)
         for (const product of products as any[]) {
-          expect(product.thumbnail).toBeTruthy()
-          expect(product.images.length).toBeGreaterThan(0)
+          const files = productPhotoFiles(SEED_PRODUCTS.find((p) => p.title === product.title)!)
+          expect(isStoredCopy(product.thumbnail, files[0])).toBe(true)
+          expect(areStoredCopies(galleryOf(product), files)).toBe(true)
           expect(product.categories.length).toBeGreaterThan(0)
           expect(Number(product.weight)).toBeGreaterThan(0)
         }
+      })
+
+      it("gives every shop its demo logo and banner", async () => {
+        const { data: sellers } = await getContainer()
+          .resolve(ContainerRegistrationKeys.QUERY)
+          .graph({ entity: "seller", fields: ["name", "logo", "banner"] })
+        for (const seller of sellers as any[]) {
+          const { logo, banner } = shopImageFiles(seller.name)
+          expect([isStoredCopy(seller.logo, logo), isStoredCopy(seller.banner, banner)]).toEqual([true, true])
+        }
+      })
+
+      it("puts the demo photos back on an older database's products and shops, and only once", async () => {
+        const container = getContainer()
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const productOf = async (title: string) =>
+          (
+            await query.graph({
+              entity: "product",
+              fields: ["id", "thumbnail", "images.url", "images.rank", "variants.id", "variants.sku"],
+              filters: { title },
+            })
+          ).data[0] as any
+        const sellerOf = async (name: string) =>
+          (await query.graph({ entity: "seller", fields: ["id", "logo", "banner"], filters: { name } })).data[0] as any
+
+        // As an older seed left them: a placeholder pack shot and an avatar service's logo.
+        const rice = await productOf("Ofada Rice 5kg")
+        const placeholder = "https://placehold.co/800x800/png?text=Ofada+Rice"
+        await updateProductsWorkflow(container).run({
+          input: { selector: { id: rice.id }, update: { thumbnail: placeholder, images: [{ url: placeholder }] } },
+        })
+        const shop = await sellerOf("Adire House")
+        await updateSellersWorkflow(container).run({
+          input: { selector: { id: shop.id }, update: { logo: "https://api.dicebear.com/x.svg" } },
+        })
+
+        const applied = await applyDemoImages(container)
+        expect(applied.products).toEqual({ updated: 1, current: SEED_PRODUCTS.length - 1, missing: [] })
+        expect(applied.sellers).toEqual({ updated: 1, current: SEED_SELLERS.length - 1, missing: [] })
+
+        const fixed = await productOf("Ofada Rice 5kg")
+        const files = productPhotoFiles(SEED_PRODUCTS.find((p) => p.title === "Ofada Rice 5kg")!)
+        expect(isStoredCopy(fixed.thumbnail, files[0])).toBe(true)
+        expect(areStoredCopies(galleryOf(fixed), files)).toBe(true)
+        expect(fixed.variants).toEqual(rice.variants)
+        const fixedShop = await sellerOf("Adire House")
+        expect(isStoredCopy(fixedShop.logo, shopImageFiles("Adire House").logo)).toBe(true)
+        expect(isStoredCopy(fixedShop.banner, shopImageFiles("Adire House").banner)).toBe(true)
+
+        // A second run finds everything current and uploads nothing.
+        const again = await applyDemoImages(container)
+        expect(again.products.updated + again.sellers.updated).toBe(0)
+        expect(await productOf("Ofada Rice 5kg")).toEqual(fixed)
       })
 
       it("gives each department's categories its starter attributes and shipping defaults", async () => {
