@@ -36,21 +36,14 @@ export function PayScreen() {
     }
   };
 
+  const renderClose = () => <CloseButton onPress={() => leave('closed')} />;
   const header = (
     <Stack.Screen
       options={{
         title: checkout ? `Pay ${formatMoney(checkout.total, checkout.currency_code)}` : 'Pay',
         headerBackVisible: false,
-        headerLeft: () => (
-          <PressableSurface
-            accessibilityRole="button"
-            accessibilityLabel="Close the payment page"
-            onPress={() => leave('closed')}
-            style={[styles.centred, { minWidth: theme.hitArea, minHeight: theme.hitArea }]}>
-            <Icon name="x" />
-          </PressableSurface>
-        ),
-        headerRight: () => <StatusChip label="Secure" tone="success" icon="lock" />,
+        headerLeft: renderClose,
+        headerRight: SecureChip,
       }}
     />
   );
@@ -99,6 +92,24 @@ export function PayScreen() {
       </View>
     </>
   );
+}
+
+/** The header's close button: leaving the payment page without paying. */
+function CloseButton({ onPress }: Readonly<{ onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityLabel="Close the payment page"
+      onPress={onPress}
+      style={[styles.centred, { minWidth: theme.hitArea, minHeight: theme.hitArea }]}>
+      <Icon name="x" />
+    </PressableSurface>
+  );
+}
+
+function SecureChip() {
+  return <StatusChip label="Secure" tone="success" icon="lock" />;
 }
 
 const styles = StyleSheet.create({

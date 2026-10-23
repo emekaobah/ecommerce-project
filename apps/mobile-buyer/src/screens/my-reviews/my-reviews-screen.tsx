@@ -99,7 +99,7 @@ export function MyReviewsScreen() {
             {filter === 'shops' ? "You haven't reviewed a shop yet." : "You haven't reviewed a product yet."}
           </Text>
         }
-        ItemSeparatorComponent={() => <View style={{ height: theme.line.divider, backgroundColor: theme.colors.line }} />}
+        ItemSeparatorComponent={Divider}
         renderItem={({ item }) => <ReviewCard review={item} onMenu={() => setMenuFor(item)} />}
       />
 
@@ -140,6 +140,11 @@ export function MyReviewsScreen() {
 }
 
 /** All, Shops and Products with their counts; the selected one indigo. */
+function Divider() {
+  const theme = useTheme();
+  return <View style={{ height: theme.line.divider, backgroundColor: theme.colors.line }} />;
+}
+
 function Segments({
   options,
   selected,

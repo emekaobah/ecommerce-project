@@ -28,15 +28,7 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
     <Stack.Screen
       options={{
         title: name ?? '',
-        headerRight: () => (
-          <PressableSurface
-            accessibilityRole="button"
-            accessibilityLabel="Search products"
-            onPress={() => router.navigate('/search')}
-            style={[styles.center, { width: theme.hitArea, height: theme.hitArea }]}>
-            <Icon name="search" color={theme.colors.ink} />
-          </PressableSurface>
-        ),
+        headerRight: SearchButton,
       }}
     />
   );
@@ -99,6 +91,20 @@ export function CategoryScreen({ categoryId, name }: Readonly<{ categoryId: stri
 /** "Iya Bisi Foodstuff · 1 km": who sells it and how far, when the buyer has an address. */
 const shopDetail = (seller: Listing['seller']) =>
   seller.distance_km == null ? seller.name : `${seller.name} · ${distanceLabel(seller.distance_km)}`;
+
+/** The header's search button: Search, from any category. */
+function SearchButton() {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityLabel="Search products"
+      onPress={() => router.navigate('/search')}
+      style={[styles.center, { width: theme.hitArea, height: theme.hitArea }]}>
+      <Icon name="search" color={theme.colors.ink} />
+    </PressableSurface>
+  );
+}
 
 /** "All", then the category's own sub-categories from the category tree; none when it has none. */
 function SubCategoryChips({

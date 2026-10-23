@@ -103,7 +103,7 @@ export function ShopResults({
       ListHeaderComponent={groups.length ? header : undefined}
       ListEmptyComponent={empty}
       ListFooterComponent={footer}
-      ItemSeparatorComponent={() => <View style={{ height: theme.space[2], backgroundColor: theme.colors.tile }} />}
+      ItemSeparatorComponent={ShelfGap}
       contentContainerStyle={[{ paddingBottom: theme.space[8] }, !groups.length && styles.grow]}
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
@@ -112,6 +112,11 @@ export function ShopResults({
       )}
     />
   );
+}
+
+function ShelfGap() {
+  const theme = useTheme();
+  return <View style={{ height: theme.space[2], backgroundColor: theme.colors.tile }} />;
 }
 
 /** "2 shops · 5 products": what every page of results holds, not just those loaded. */

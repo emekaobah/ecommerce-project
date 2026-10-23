@@ -41,6 +41,9 @@ export function OrderGroupScreen() {
   const scroll = useRef<ScrollViewInstance>(null);
   const receiptAt = useRef(0);
 
+  const renderReceipt = () => (
+    <ReceiptButton onPress={() => scroll.current?.scrollTo({ y: receiptAt.current, animated: true })} />
+  );
   const header = (title: string, receipt: boolean) => (
     <Stack.Screen
       options={{
@@ -49,19 +52,7 @@ export function OrderGroupScreen() {
         headerTintColor: theme.colors.onBand,
         headerTitleStyle: { fontFamily: theme.type.titlePushed.fontFamily, color: theme.colors.onBand },
         headerShadowVisible: false,
-        headerRight: receipt
-          ? () => (
-              <PressableSurface
-                accessibilityRole="button"
-                accessibilityHint="Scrolls to what was paid"
-                onPress={() => scroll.current?.scrollTo({ y: receiptAt.current, animated: true })}
-                style={[styles.centre, { minHeight: theme.hitArea, paddingHorizontal: theme.space[2] }]}>
-                <Text weight="bold" tone="onBand">
-                  Receipt
-                </Text>
-              </PressableSurface>
-            )
-          : undefined,
+        headerRight: receipt ? renderReceipt : undefined,
       }}
     />
   );
@@ -119,6 +110,22 @@ export function OrderGroupScreen() {
         </View>
       </ScrollView>
     </>
+  );
+}
+
+/** The header's Receipt button: scrolls down to what was paid. */
+function ReceiptButton({ onPress }: Readonly<{ onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityHint="Scrolls to what was paid"
+      onPress={onPress}
+      style={[styles.centre, { minHeight: theme.hitArea, paddingHorizontal: theme.space[2] }]}>
+      <Text weight="bold" tone="onBand">
+        Receipt
+      </Text>
+    </PressableSurface>
   );
 }
 

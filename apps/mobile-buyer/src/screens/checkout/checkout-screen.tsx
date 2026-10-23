@@ -291,6 +291,7 @@ function CheckoutForm({
   const addressDone = everyCollected ? !editingDetails : step === 'chosen' && !pendingPickup;
 
   const back = () => (screenStep === 1 ? router.back() : setScreenStep((screenStep - 1) as CheckoutStep));
+  const renderBack = () => <BackButton step={screenStep} onPress={back} />;
 
   const content = () => {
     if (screenStep === 1) {
@@ -360,15 +361,7 @@ function CheckoutForm({
         options={{
           title: STEP_TITLES[screenStep],
           headerBackVisible: false,
-          headerLeft: () => (
-            <PressableSurface
-              accessibilityRole="button"
-              accessibilityLabel={screenStep === 1 ? 'Back to cart' : `Back to ${STEP_TITLES[(screenStep - 1) as CheckoutStep]}`}
-              onPress={back}
-              style={[styles.centred, { minWidth: theme.hitArea, minHeight: theme.hitArea }]}>
-              <Icon name="back" />
-            </PressableSurface>
-          ),
+          headerLeft: renderBack,
         }}
       />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -382,6 +375,20 @@ function CheckoutForm({
         {action()}
       </KeyboardAvoidingView>
     </>
+  );
+}
+
+/** The header's back button: to the cart from the first step, else to the step before. */
+function BackButton({ step, onPress }: Readonly<{ step: CheckoutStep; onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityLabel={step === 1 ? 'Back to cart' : `Back to ${STEP_TITLES[(step - 1) as CheckoutStep]}`}
+      onPress={onPress}
+      style={[styles.centred, { minWidth: theme.hitArea, minHeight: theme.hitArea }]}>
+      <Icon name="back" />
+    </PressableSurface>
   );
 }
 
