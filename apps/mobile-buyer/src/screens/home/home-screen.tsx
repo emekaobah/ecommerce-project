@@ -71,7 +71,7 @@ export function HomeScreen() {
       }
       ListEmptyComponent={loaded ? <NoShops /> : <Loading />}
       ListFooterComponent={list.length ? <Footer more={shops.hasNextPage} /> : undefined}
-      ItemSeparatorComponent={Divider}
+      ItemSeparatorComponent={ShelfGap}
       refreshing={refreshing}
       onRefresh={refresh}
       onEndReached={() => {
@@ -147,9 +147,10 @@ function NearYouHeading() {
   );
 }
 
-function Divider() {
+/** Shelves are separated by space alone, as the catalogue draws them. */
+function ShelfGap() {
   const theme = useTheme();
-  return <View style={{ height: theme.line.divider, backgroundColor: theme.colors.line, marginHorizontal: theme.space[4] }} />;
+  return <View style={{ height: theme.space[6] }} />;
 }
 
 function Loading() {
