@@ -1,9 +1,9 @@
-import { ClientError } from '@oja/api-client';
 import type { PinnedDeliveryAddress } from '@oja/domain';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { cartKeys } from './cart';
 import { storeClient } from './client';
+import { refusedWith } from './errors';
 
 export const checkoutKeys = {
   all: ['checkout'] as const,
@@ -30,7 +30,7 @@ async function fetchCheckout(cartId: string, addressId: string | null | undefine
  * any other failure, which the screen words itself (the error goes to Sentry, never on screen).
  */
 export function refusalMessage(error: unknown): string | null {
-  return error instanceof ClientError && (error.status === 400 || error.status === 422) ? error.message : null;
+  return refusedWith(error, [400, 422]);
 }
 
 export type Checkout = Awaited<ReturnType<typeof fetchCheckout>>;

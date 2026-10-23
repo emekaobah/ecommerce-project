@@ -1,5 +1,4 @@
 import { useAuth } from '@clerk/expo';
-import { ClientError } from '@oja/api-client';
 import { formatMoney, orderNumber, type StatusChipView } from '@oja/domain';
 import {
   Button,
@@ -21,7 +20,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { isNotFound } from '@/api/errors';
+import { isNotFound, refusedWith } from '@/api/errors';
 import {
   useRefund,
   useRefundBanks,
@@ -119,8 +118,7 @@ function Amount({ refund }: Readonly<{ refund: BuyerRefund }>) {
  */
 function problem(error: Error | null, fallback: string): string | null {
   if (!error) return null;
-  if (error instanceof ClientError && (error.status === 400 || error.status === 409)) return error.message;
-  return fallback;
+  return refusedWith(error, [400, 409]) ?? fallback;
 }
 
 function AccountForm({ refund }: Readonly<{ refund: BuyerRefund }>) {
