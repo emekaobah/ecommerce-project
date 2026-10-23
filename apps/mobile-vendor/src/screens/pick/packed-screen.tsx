@@ -51,7 +51,7 @@ export function PackedScreen() {
       title={title}
       chip={<StatusChip label="Packed" tone="info" icon="box" onBand />}
       headline="Packed. Book the courier."
-      foot={<BookCourier orderId={id} currency={order.data.currency_code} onBooked={() => router.back()} />}>
+      foot={<BookCourier orderId={id} currency={order.data.currency_code} onBooked={() => router.dismissTo({ pathname: '/orders/[id]', params: { id } })} />}>
       <BuyersCourier order={order.data} timeZone={timeZone} />
       <Parcel order={order.data} />
     </Frame>

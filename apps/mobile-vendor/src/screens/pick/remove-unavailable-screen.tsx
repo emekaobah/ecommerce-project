@@ -23,6 +23,8 @@ export function RemoveUnavailableScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const pickList = usePickList(id);
   const remove = useRemoveUnavailable(id);
+  // Back to the pick list it came from, or to a fresh one when the summary was opened on its own.
+  const toPicking = () => router.dismissTo({ pathname: '/orders/[id]/pick', params: { id } });
 
   if (remove.data) {
     const { refund, removed_amount, pick_list } = remove.data;
@@ -31,7 +33,7 @@ export function RemoveUnavailableScreen() {
       <Layout
         title="Items removed"
         done
-        foot={<Button label="Back to picking" size="main" onPress={() => router.back()} />}>
+        foot={<Button label="Back to picking" size="main" onPress={toPicking} />}>
         {refund ? (
           <>
             <StatusChip label="Refund on its way" tone="success" icon="check" />
@@ -97,7 +99,7 @@ export function RemoveUnavailableScreen() {
         loading={remove.isPending}
         onPress={() => remove.mutate()}
       />
-      <Button label="Keep picking" variant="secondary" size="main" disabled={remove.isPending} onPress={() => router.back()} />
+      <Button label="Keep picking" variant="secondary" size="main" disabled={remove.isPending} onPress={toPicking} />
     </>
   );
 

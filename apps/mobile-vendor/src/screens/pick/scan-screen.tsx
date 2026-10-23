@@ -17,7 +17,8 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useOrder, usePickList, useRecordPick, type PickListLine } from '@/api/orders';
 
@@ -34,6 +35,8 @@ const OUT_OF_VIEW_MS = 1000;
 const DIM = 'rgba(0, 0, 0, 0.5)';
 const GLASS = 'rgba(255, 255, 255, 0.18)';
 const ON_CAMERA = '#FFFFFF';
+/** Behind the camera's picture, in both themes (catalogue `.cam`). */
+const CAMERA_BACKDROP = '#0B0C10';
 /** The scanning window's height: the catalogue's 140 mockup px at the apps' 1.2 scale. */
 const RETICLE_HEIGHT = 168;
 
@@ -46,6 +49,7 @@ export function ScanScreen() {
   const theme = useTheme();
   const router = useRouter();
   const toast = useToast();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const order = useOrder(id);
@@ -109,7 +113,7 @@ export function ScanScreen() {
   const title = order.data ? `Scan items · #${order.data.display_id}` : 'Scan items';
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.colors.inverse }]}>
+    <View style={[styles.fill, { backgroundColor: CAMERA_BACKDROP }]}>
       <CameraView
         style={StyleSheet.absoluteFill}
         facing="back"
@@ -118,7 +122,8 @@ export function ScanScreen() {
         onBarcodeScanned={onScanned}
       />
       <Reticle />
-      <SafeAreaView style={styles.fill} pointerEvents="box-none">
+      {/* Padded by hand: a full-screen modal's SafeAreaView reports no top inset. */}
+      <View style={[styles.fill, { paddingTop: insets.top, paddingBottom: insets.bottom }]} pointerEvents="box-none">
         <View style={[styles.row, styles.spread, { paddingHorizontal: theme.space[3], paddingTop: theme.space[2] }]}>
           <CameraButton icon="x" label="Close" onPress={close} />
           <Text variant="strong" accessibilityRole="header" style={{ color: ON_CAMERA }}>
@@ -128,7 +133,7 @@ export function ScanScreen() {
         </View>
         <View style={styles.fill} pointerEvents="none" />
         <StillToPick lines={toPick} />
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
@@ -142,28 +147,64 @@ function scanToast(result: ScanResult, lines: PickListLine[]): ToastMessage {
   return { message: `${name} · ${result.picked} of ${line?.quantity ?? ''} picked` };
 }
 
-/** The scanning window: white-edged, the camera dimmed around it, a sun line across it. */
+/**
+ * The scanning window: white-edged with rounded corners, the camera dimmed around it (a hole cut
+ * out of the dim), a sun line across it. A third of the way down, as in the catalogue.
+ */
 function Reticle() {
   const theme = useTheme();
-  const dim = { backgroundColor: DIM };
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const side = theme.space[6];
+  const radius = theme.radius.lg;
+  const hole = size
+    ? { x: side, y: (size.height - RETICLE_HEIGHT) / 3, width: size.width - side * 2, height: RETICLE_HEIGHT }
+    : null;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <View style={[styles.fill, dim]} />
-      <View style={[styles.row, { height: RETICLE_HEIGHT }]}>
-        <View style={[dim, { width: theme.space[6], alignSelf: 'stretch' }]} />
-        <View
-          style={[
-            styles.fill,
-            styles.centre,
-            { alignSelf: 'stretch', borderWidth: 3, borderColor: ON_CAMERA, borderRadius: theme.radius.lg },
-          ]}>
-          <View style={{ height: 2, alignSelf: 'stretch', marginHorizontal: theme.space[2], backgroundColor: theme.colors.sun }} />
-        </View>
-        <View style={[dim, { width: theme.space[6], alignSelf: 'stretch' }]} />
-      </View>
-      <View style={[{ flex: 2 }, dim]} />
+    <View
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      onLayout={(event) => setSize(event.nativeEvent.layout)}>
+      {size && hole ? (
+        <>
+          <Svg width={size.width} height={size.height} style={StyleSheet.absoluteFill}>
+            <Path
+              fill={DIM}
+              fillRule="evenodd"
+              d={`M0 0H${size.width}V${size.height}H0Z ${roundedRect(hole, radius)}`}
+            />
+          </Svg>
+          <View
+            style={[
+              styles.centre,
+              {
+                position: 'absolute',
+                left: hole.x,
+                top: hole.y,
+                width: hole.width,
+                height: hole.height,
+                borderWidth: 3,
+                borderColor: ON_CAMERA,
+                borderRadius: radius,
+              },
+            ]}>
+            <View style={{ height: 2, alignSelf: 'stretch', marginHorizontal: theme.space[2], backgroundColor: theme.colors.sun }} />
+          </View>
+        </>
+      ) : null}
     </View>
   );
+}
+
+/** An SVG path for a rectangle with rounded corners. */
+function roundedRect({ x, y, width, height }: { x: number; y: number; width: number; height: number }, r: number) {
+  return [
+    `M${x + r} ${y}H${x + width - r}A${r} ${r} 0 0 1 ${x + width} ${y + r}`,
+    `V${y + height - r}A${r} ${r} 0 0 1 ${x + width - r} ${y + height}`,
+    `H${x + r}A${r} ${r} 0 0 1 ${x} ${y + height - r}`,
+    `V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`,
+  ].join('');
 }
 
 /** A 38pt glass button over the camera (its hit area 44pt): close, and the torch. */
