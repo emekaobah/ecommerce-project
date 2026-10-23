@@ -12,6 +12,7 @@ import {
   owedRefundStatus,
   reachedOnLabel,
   refundStatus,
+  type ProgressStep,
 } from "./order-history"
 
 const placed = { state: "new", rejected_by: null, reject_reason: null, cancellation: null } as const
@@ -291,8 +292,12 @@ describe("orderLineName", () => {
 })
 
 describe("orderProgress", () => {
-  const steps = (labels: string[], current: number) =>
-    labels.map((label, i) => ({ label, status: i < current ? "done" : i === current ? "current" : "upcoming" }))
+  // Written out: done before the current step, upcoming after it.
+  const steps = (labels: string[], current: number): ProgressStep[] =>
+    labels.map((label, i) => {
+      if (i === current) return { label, status: "current" }
+      return { label, status: i < current ? "done" : "upcoming" }
+    })
   const DELIVERY = ["Accepted", "Being prepared", "Packed", "On its way"]
   const PICKUP = ["Accepted", "Being prepared", "Ready for pickup", "Collected"]
 
