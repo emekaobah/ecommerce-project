@@ -4,7 +4,7 @@ import { fakeClerk } from "../helpers/clerk"
 import { fakeGoogle, PLACES } from "../helpers/google"
 import { fakePaystack } from "../helpers/paystack"
 import { fakeShipbubble } from "../helpers/shipbubble"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -54,7 +54,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start(), google.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), google.stop()]))
     beforeEach(async () => {

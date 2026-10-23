@@ -1,7 +1,7 @@
 import { Modules } from "@medusajs/framework/utils"
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { SHOP_BANK_ACCOUNT_MODULE, type ShopBankAccountModuleService } from "../../src/modules/shop-bank-account"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { adminHeaders } from "../helpers/auth"
 import { buyerCheckout, GADGETS, GROCERY, LANTERN, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
@@ -39,7 +39,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
       admin = await adminHeaders(getContainer(), api)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))

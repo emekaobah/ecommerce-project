@@ -2,13 +2,16 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules, SellerRole } from "@mercurjs/types"
 import { updateProductAttributesWorkflow, updateSellersWorkflow } from "@mercurjs/core/workflows"
-import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
+import { createCustomersWorkflow, updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import seedDemoData from "../../src/scripts/seed"
 import {
   SEED_CATEGORIES,
   SEED_CATEGORY_ATTRIBUTES,
   SEED_PASSWORD,
+  DEMO_BUYER_EMAIL,
   SEED_PRODUCTS,
+  SEED_REVIEWED_ORDERS,
+  SEED_REVIEWERS,
   SEED_SELLERS,
 } from "../../src/scripts/seed-data"
 import {
@@ -18,7 +21,10 @@ import {
   productPhotoFiles,
   shopImageFiles,
 } from "../../src/scripts/demo-images"
+import { applyDemoReviews, reviewsOn } from "../../src/scripts/demo-reviews"
 import { getProductsCompleteness } from "../../src/lib/product-completeness"
+import { buyerReviewCounts, buyerReviews } from "../../src/lib/reviews"
+import { fulfilmentService } from "../../src/lib/order-fulfilment"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -47,6 +53,9 @@ medusaIntegrationTestRunner({
           salesChannels: await count("sales_channel"),
           stockLocations: await count("stock_location"),
           shippingOptions: await count("shipping_option"),
+          customers: await count("customer"),
+          orders: await count("order"),
+          reviews: await count("review"),
         }
       }
 
@@ -348,6 +357,102 @@ medusaIntegrationTestRunner({
         const { data } = await api.get(`/store/products?region_id=${region.id}`, { headers })
         expect(data.products.length).toBeGreaterThan(0)
         expect(data.products[0].variants[0].calculated_price.currency_code).toBe("ngn")
+      })
+
+      /** The seed data's reviews, newest first, as other buyers see them: the demo buyer's wait until they sign in. */
+      const seededReviews = (buyers: (email: string) => boolean = (email) => email !== DEMO_BUYER_EMAIL) =>
+        SEED_REVIEWED_ORDERS.filter((order) => buyers(order.buyer))
+          .sort((a, b) => a.days_ago - b.days_ago)
+          .flatMap((order) => reviewsOn(order).map((named) => ({ ...named, buyer: order.buyer })))
+      const shown = (reviews: ReturnType<typeof seededReviews>) =>
+        reviews
+          .filter((r) => r.review.status === "published")
+          .map(({ buyer, review }) => {
+            const { first_name, last_name } = SEED_REVIEWERS.find((p) => p.email === buyer)!
+            return [`${first_name} ${last_name[0]}.`, review.rating, review.text ?? null, review.reply ?? null]
+          })
+      const average = (rows: unknown[][]) => (rows.length ? rows.reduce((sum, r) => sum + (r[1] as number), 0) / rows.length : null)
+      const storeHeaders = async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const { data: keys } = await query.graph({ entity: "api_key", fields: ["token"], filters: { type: "publishable" } })
+        return { "x-publishable-api-key": keys[0].token as string }
+      }
+
+      it("seeds demo buyers' reviews of the shops and products they received: the published ones show, with the shops' replies", async () => {
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const headers = await storeHeaders()
+        const reviews = seededReviews()
+
+        for (const shop of SEED_SELLERS) {
+          const { data: [seller] } = await query.graph({ entity: "seller", fields: ["id"], filters: { name: shop.name } })
+          const { data } = await api.get(`/store/sellers/${seller.id}/reviews?limit=50`, { headers })
+          const expected = shown(reviews.filter((r) => r.reference === "seller" && r.shop === shop.name))
+
+          expect(data.reviews.map((r: any) => [r.author, r.rating, r.customer_note, r.seller_note])).toEqual(expected)
+          expect([shop.name, data.count, data.average_rating]).toEqual([shop.name, expected.length, average(expected)])
+        }
+        for (const product of SEED_PRODUCTS) {
+          const { data: [row] } = await query.graph({ entity: "product", fields: ["id"], filters: { title: product.title } })
+          const { data } = await api.get(`/store/products/${row.id}/reviews?limit=50`, { headers })
+          const expected = shown(reviews.filter((r) => r.reference === "product" && r.product === product.title))
+
+          expect([product.title, data.reviews.map((r: any) => [r.author, r.rating, r.customer_note, r.seller_note])]).toEqual([
+            product.title,
+            expected,
+          ])
+        }
+        // Dated over the past weeks, as the buyers received their orders.
+        const { data: dates } = await query.graph({ entity: "review", fields: ["created_at"] })
+        const ages = (dates as { created_at: string }[]).map((r) => (Date.now() - Date.parse(r.created_at)) / 86_400_000)
+        expect(Math.max(...ages)).toBeGreaterThan(30)
+        expect(Math.min(...ages)).toBeGreaterThan(0)
+      })
+
+      it("writes each review on an order its buyer received, which stays out of their order history and is never paid out", async () => {
+        const container = getContainer()
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const rows = await fulfilmentService(container).listOrderFulfilments({})
+        const { data: links } = await query.graph({ entity: "order", fields: ["id", "seller.id", "customer_id"] })
+
+        expect(rows).toHaveLength(SEED_REVIEWED_ORDERS.filter((o) => o.buyer !== DEMO_BUYER_EMAIL).length)
+        for (const row of rows) {
+          expect(["delivered", "collected"]).toContain(row.state)
+          expect(row).toMatchObject({ phase: "past", order_group_id: null, payout_eligible_at: null })
+          const order = (links as any[]).find((o) => o.id === row.order_id)
+          expect([order.seller.id, order.customer_id]).toEqual([row.seller_id, row.customer_id])
+        }
+        const { data: customers } = await query.graph({ entity: "customer", fields: ["id"], filters: { email: SEED_REVIEWERS.map((r) => r.email) } })
+        for (const { id } of customers as { id: string }[]) {
+          expect((await buyerReviewCounts(container, id)).orders_to_review).toBe(0)
+        }
+      })
+
+      it("adds the demo buyer's reviews, in each moderation state, once they have signed in, and only once", async () => {
+        const container = getContainer()
+        const {
+          result: [buyer],
+        } = await createCustomersWorkflow(container).run({ input: { customersData: [{ email: DEMO_BUYER_EMAIL, has_account: true }] } })
+        const theirs = SEED_REVIEWED_ORDERS.filter((o) => o.buyer === DEMO_BUYER_EMAIL)
+        const written = theirs.flatMap(reviewsOn)
+
+        const applied = await applyDemoReviews(container)
+
+        expect(applied).toEqual({
+          orders: theirs.length,
+          reviews: written.length,
+          current: SEED_REVIEWED_ORDERS.length - theirs.length,
+          waiting: 0,
+          missing: [],
+        })
+        const mine = [...(await buyerReviews(container, buyer.id)).values()]
+        expect(mine.map((r) => [r.rating, r.customer_note, r.status]).sort()).toEqual(
+          written.map(({ review }) => [review.rating, review.text ?? null, review.status]).sort()
+        )
+        // The shop's reply shows its author only once their review is published.
+        for (const review of mine) if (review.status !== "published") expect(review.seller_note).toBeNull()
+        expect(await buyerReviewCounts(container, buyer.id)).toEqual({ reviews_written: written.length, orders_to_review: 0 })
+
+        expect(await applyDemoReviews(container)).toMatchObject({ orders: 0, reviews: 0, current: SEED_REVIEWED_ORDERS.length })
       })
 
       it("is idempotent on re-run", async () => {

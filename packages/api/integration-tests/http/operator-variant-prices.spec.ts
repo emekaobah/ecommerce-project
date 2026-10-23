@@ -1,6 +1,6 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { adminHeaders } from "../helpers/auth"
 
@@ -23,7 +23,7 @@ medusaIntegrationTestRunner({
     let variantId: string
 
     beforeAll(async () => {
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
 
     beforeEach(async () => {

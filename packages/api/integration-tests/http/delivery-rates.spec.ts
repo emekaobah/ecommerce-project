@@ -4,7 +4,7 @@ import { ADDRESS, buyerCheckout, GADGETS, GROCERY, LANTERN, PIN, RETURN_URL, RIC
 import { fakeClerk } from "../helpers/clerk"
 import { fakePaystack } from "../helpers/paystack"
 import { BEST_VALUE_FEE, COURIERS, categoryId, fakeShipbubble } from "../helpers/shipbubble"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_SELLERS } from "../../src/scripts/seed-data"
 
 jest.setTimeout(5 * 60 * 1000)
@@ -37,7 +37,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
     beforeEach(async () => {

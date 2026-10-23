@@ -81,6 +81,7 @@ import { sellersWithHours, setWeeklyHours } from "../lib/shop-hours";
 import { saveShopBankAccountWorkflow } from "../workflows/onboarding/save-shop-bank-account";
 import { errorMessage } from "../lib/errors";
 import { applyDemoImages } from "./demo-images";
+import { applyDemoReviews } from "./demo-reviews";
 
 // Seeds Oja's demo world (see seed-data.ts). Every section looks up what already
 // exists and creates only what is missing, so the seed is safe to re-run.
@@ -117,7 +118,23 @@ const addSeedStaffMemberWorkflow = createWorkflow(
   }
 );
 
-export default async function seedDemoData({ container }: ExecArgs) {
+/**
+ * Oja's demo data (`bun run seed`): the demo world, then demo buyers' reviews of it on orders they
+ * received (demo-reviews.ts).
+ */
+export default async function seedDemoData(args: ExecArgs) {
+  await seedDemoWorld(args);
+  const logger = args.container.resolve(ContainerRegistrationKeys.LOGGER);
+  logger.info("Seeding the demo buyers' orders and reviews...");
+  const { orders, reviews } = await applyDemoReviews(args.container);
+  logger.info(`Finished seeding reviews: ${reviews} reviews on ${orders} orders.`);
+}
+
+/**
+ * The demo world: the region, the shops and their staff, the catalogue and its offers, without
+ * any buyer's orders or reviews. The integration tests start from it.
+ */
+export async function seedDemoWorld({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER);
   const query = container.resolve(ContainerRegistrationKeys.QUERY);
 

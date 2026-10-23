@@ -2,7 +2,7 @@
 // people are invented. Amounts are NGN in major units (₦14,500 = 14500), weights
 // in grams. Every seeded account uses SEED_PASSWORD (documented in the README).
 
-import type { WeeklyHours } from "@oja/domain"
+import type { ReviewStatus, WeeklyHours } from "@oja/domain"
 import type { ShippingDefaults } from "../lib/shipping-defaults"
 
 export const SEED_PASSWORD = "supersecret"
@@ -276,4 +276,253 @@ export const SEED_PRODUCTS: SeedProduct[] = [
   { title: "6-Way Surge Protector", photos: 3, barcode: "2000000000145", department: "Electronics", category: "Phone Accessories", price: 11500, weight_grams: 900, description: "Surge-protected extension with two USB ports.", attributes: { voltage: "220-240V AC", warranty: "6 months" } },
   { title: "25W USB-C Fast Charger", photos: 1, barcode: "2000000000152", department: "Electronics", category: "Phone Accessories", price: 7500, also_at: [{ shop: "Iya Bisi Foodstuff", price: 7900 }], weight_grams: 120, description: "Wall charger with a 1m USB-C cable.", attributes: { voltage: "220-240V AC", warranty: "6 months" } },
   { title: "Wireless Earbuds", photos: 3, barcode: "2000000000169", department: "Electronics", category: "Audio", price: 18500, weight_grams: 80, description: "Bluetooth 5.3 earbuds with a charging case.", attributes: { voltage: "5V USB", warranty: "3 months" } },
+]
+
+/**
+ * Demo buyers' reviews of the seeded shops and products (#7), each written on an order the buyer
+ * received, as the API requires. Reviewers are invented customers; `DEMO_BUYER_EMAIL` is the
+ * simulator's signed-in buyer, whose orders are added only once they have signed in (see
+ * demo-reviews.ts). Every shop and product on an order is reviewed by its buyer, on that order
+ * or an earlier one, so none of the demo orders waits to be reviewed.
+ */
+export type SeedReview = {
+  rating: 1 | 2 | 3 | 4 | 5
+  /** The buyer's words; a rating alone has none. */
+  text?: string
+  status: ReviewStatus
+  /** The shop's reply, shown under a published review. */
+  reply?: string
+}
+
+export type SeedReviewer = SeedPerson & {
+  /** Where their orders went: a Lagos street, and its LGA in `city` (ADR 0002). */
+  address: { address_1: string; city: string }
+}
+
+/** The buyer the iOS simulator is signed in as (Clerk): My reviews shows their reviews. */
+export const DEMO_BUYER_EMAIL = "maestro-buyer+clerk_test@example.com"
+
+/** How the demo buyer is named on their orders, as Clerk gives them no name. */
+export const DEMO_BUYER: SeedReviewer = {
+  email: DEMO_BUYER_EMAIL,
+  first_name: "Maestro",
+  last_name: "Buyer",
+  address: { address_1: "9 Ozumba Mbadiwe Avenue, Victoria Island", city: "Eti-Osa" },
+}
+
+export const SEED_REVIEWERS: SeedReviewer[] = [
+  { email: "tunde.bakare@oja.test", first_name: "Tunde", last_name: "Bakare", address: { address_1: "12 Bode Thomas Street", city: "Surulere" } },
+  { email: "amaka.okonkwo@oja.test", first_name: "Amaka", last_name: "Okonkwo", address: { address_1: "8 Herbert Macaulay Way, Yaba", city: "Lagos Mainland" } },
+  { email: "funmi.alabi@oja.test", first_name: "Funmi", last_name: "Alabi", address: { address_1: "3 Fola Osibo Road, Lekki Phase 1", city: "Eti-Osa" } },
+  { email: "ibrahim.sani@oja.test", first_name: "Ibrahim", last_name: "Sani", address: { address_1: "21 Allen Avenue", city: "Ikeja" } },
+  { email: "kemi.oladipo@oja.test", first_name: "Kemi", last_name: "Oladipo", address: { address_1: "5 Ogunlana Drive", city: "Surulere" } },
+  { email: "obinna.chukwu@oja.test", first_name: "Obinna", last_name: "Chukwu", address: { address_1: "14 Awolowo Road, Ikoyi", city: "Eti-Osa" } },
+]
+
+export type SeedReviewedOrder = {
+  /** The buyer's email: a reviewer's, or `DEMO_BUYER_EMAIL`. */
+  buyer: string
+  shop: string
+  /** Delivered by courier, or collected in store (only where the shop has a collection point). */
+  method: "delivery" | "pickup"
+  /** How many days ago the buyer received it; their reviews are from that day. */
+  days_ago: number
+  /** The buyer's review of the shop, unless they reviewed it on an earlier order. */
+  shop_review?: SeedReview
+  /** What they bought, each at the shop's price, and their review of it (unless written earlier). */
+  lines: { product: string; size?: string; quantity?: number; review?: SeedReview }[]
+}
+
+const [GROCERY, FASHION, GADGETS] = SEED_SELLERS.map((s) => s.name)
+
+/** Oldest first, as each buyer received them. */
+export const SEED_REVIEWED_ORDERS: SeedReviewedOrder[] = [
+  {
+    buyer: "tunde.bakare@oja.test",
+    shop: GROCERY,
+    method: "delivery",
+    days_ago: 34,
+    shop_review: {
+      rating: 5,
+      text: "Everything came complete and the rider called before he reached.",
+      status: "published",
+      reply: "Thank you Tunde! We're always here when you need foodstuff.",
+    },
+    lines: [
+      { product: "Ofada Rice 5kg", review: { rating: 5, text: "Proper ofada, stone-free like they said. The aroma filled my kitchen.", status: "published" } },
+      { product: "Red Palm Oil 3L", review: { rating: 4, text: "Original palm oil, not mixed. The jerrycan was a bit oily outside sha.", status: "published" } },
+    ],
+  },
+  {
+    buyer: "funmi.alabi@oja.test",
+    shop: FASHION,
+    method: "pickup",
+    days_ago: 29,
+    shop_review: {
+      rating: 5,
+      text: "Tried it on at the shop before collecting and the fit was perfect. Very patient staff.",
+      status: "published",
+      reply: "Thank you Funmi, wear it well! New prints land next week.",
+    },
+    lines: [
+      { product: "Ankara Wrap Dress", size: "M", review: { rating: 5, text: "The colours didn't run after the first wash. I'm ordering another print.", status: "published" } },
+    ],
+  },
+  {
+    buyer: DEMO_BUYER_EMAIL,
+    shop: GROCERY,
+    method: "delivery",
+    days_ago: 26,
+    shop_review: {
+      rating: 5,
+      text: "My go-to for foodstuff now. Prices are fair.",
+      status: "published",
+      reply: "Thank you for always buying from us!",
+    },
+    lines: [
+      { product: "Ijebu Garri 4kg", review: { rating: 5, text: "Sharp and crisp, perfect for soaking.", status: "published" } },
+      { product: "Plantain Chips 150g", quantity: 3, review: { rating: 4, status: "published" } },
+    ],
+  },
+  {
+    buyer: "tunde.bakare@oja.test",
+    shop: GADGETS,
+    method: "delivery",
+    days_ago: 23,
+    shop_review: {
+      rating: 5,
+      text: "Original product and fast delivery from Computer Village.",
+      status: "published",
+      reply: "We only sell original. Thanks for buying, Tunde!",
+    },
+    lines: [
+      { product: "20,000mAh Power Bank", review: { rating: 5, text: "Charges my phone four times, true true. Not a fake one.", status: "published" } },
+    ],
+  },
+  {
+    buyer: "amaka.okonkwo@oja.test",
+    shop: GROCERY,
+    method: "delivery",
+    days_ago: 20,
+    shop_review: { rating: 4, text: "Good shop. Delivery took a bit long but everything was fresh.", status: "published" },
+    lines: [
+      { product: "Honey Beans (Oloyin) 2kg", review: { rating: 5, status: "published" } },
+      { product: "Ground Crayfish 500g", review: { rating: 4, text: "Clean crayfish, no sand at all.", status: "published" } },
+    ],
+  },
+  {
+    buyer: DEMO_BUYER_EMAIL,
+    shop: FASHION,
+    method: "pickup",
+    days_ago: 17,
+    shop_review: { rating: 4, text: "Lovely shop, but parking around Admiralty Way is hard.", status: "published" },
+    lines: [
+      // Contact details aren't allowed in a review.
+      { product: "Adire Kaftan", size: "L", review: { rating: 3, text: "Size L runs small. Call me on 08012345678 if you want to buy mine.", status: "rejected" } },
+    ],
+  },
+  {
+    buyer: "ibrahim.sani@oja.test",
+    shop: GADGETS,
+    method: "delivery",
+    days_ago: 16,
+    shop_review: {
+      rating: 3,
+      text: "The fan is fine but they took long to reply my message.",
+      status: "published",
+      reply: "Sorry for the delay, Ibrahim. We now answer messages within the hour.",
+    },
+    lines: [
+      {
+        product: "Rechargeable Standing Fan 16-inch",
+        review: { rating: 4, text: "Lasts about 6 hours on a full charge, not 8. Still a lifesaver when there's no light.", status: "published" },
+      },
+    ],
+  },
+  {
+    buyer: "kemi.oladipo@oja.test",
+    shop: FASHION,
+    method: "delivery",
+    days_ago: 13,
+    shop_review: { rating: 4, text: "Beautiful pieces. Took three days to reach Surulere, but worth it.", status: "published" },
+    lines: [
+      { product: "Aso Oke Fila Cap", review: { rating: 4, status: "published" } },
+      { product: "Ankara Tote Bag", review: { rating: 5, text: "Strong and roomy. My laptop fits inside.", status: "published" } },
+    ],
+  },
+  {
+    buyer: "obinna.chukwu@oja.test",
+    shop: GADGETS,
+    method: "delivery",
+    days_ago: 11,
+    // Abuse isn't allowed in a review.
+    shop_review: { rating: 1, text: "These people are thieves!!! Don't try them.", status: "rejected" },
+    lines: [{ product: "Plantain Chips 150g", quantity: 2, review: { rating: 4, text: "Crunchy and not too salty.", status: "published" } }],
+  },
+  {
+    buyer: "ibrahim.sani@oja.test",
+    shop: GROCERY,
+    method: "delivery",
+    days_ago: 9,
+    shop_review: {
+      rating: 2,
+      text: "Tomatoes came squashed. Customer care was polite about it, though.",
+      status: "published",
+      reply: "Sorry about that, Ibrahim. We now pack fresh produce in crates.",
+    },
+    lines: [{ product: "Fresh Tomatoes 1kg", quantity: 2, review: { rating: 2, text: "Half of them were too soft by the time they arrived.", status: "published" } }],
+  },
+  {
+    buyer: "amaka.okonkwo@oja.test",
+    shop: GADGETS,
+    method: "delivery",
+    days_ago: 7,
+    shop_review: { rating: 4, text: "Good prices and the charger is original.", status: "published" },
+    lines: [
+      { product: "Wireless Earbuds", review: { rating: 3, text: "Sound is clear but the bass is weak. The case charges fast.", status: "published" } },
+      { product: "25W USB-C Fast Charger", review: { rating: 5, status: "published" } },
+    ],
+  },
+  {
+    buyer: "obinna.chukwu@oja.test",
+    shop: FASHION,
+    method: "pickup",
+    days_ago: 5,
+    shop_review: { rating: 5, status: "published" },
+    lines: [
+      { product: "Adire Kaftan", size: "M", review: { rating: 5, text: "Wore it to my cousin's wedding and everybody asked where I got it.", status: "published" } },
+    ],
+  },
+  {
+    buyer: DEMO_BUYER_EMAIL,
+    shop: GADGETS,
+    method: "delivery",
+    days_ago: 4,
+    shop_review: { rating: 5, text: "Quick delivery and everything was well packed.", status: "pending" },
+    lines: [{ product: "6-Way Surge Protector", review: { rating: 4, text: "Working well with my fridge and TV so far.", status: "pending" } }],
+  },
+  {
+    buyer: "kemi.oladipo@oja.test",
+    shop: GADGETS,
+    method: "delivery",
+    days_ago: 3,
+    shop_review: { rating: 5, text: "Fast delivery to Surulere.", status: "pending" },
+    lines: [{ product: "Rechargeable LED Lantern", review: { rating: 5, text: "Bright light, and it lasts the whole night.", status: "pending" } }],
+  },
+  {
+    buyer: "obinna.chukwu@oja.test",
+    shop: GROCERY,
+    method: "delivery",
+    days_ago: 2,
+    shop_review: { rating: 4, text: "Rice is good. The rider came late, past 9pm, but he called first.", status: "published" },
+    lines: [{ product: "Long Grain Parboiled Rice 10kg", review: { rating: 4, status: "published" } }],
+  },
+  {
+    buyer: DEMO_BUYER_EMAIL,
+    shop: GROCERY,
+    method: "delivery",
+    days_ago: 1,
+    // The shop was reviewed on the first order from it.
+    lines: [{ product: "Frozen Whole Chicken 1.2kg", review: { rating: 2, text: "The chicken was already thawing when it arrived.", status: "pending" } }],
+  },
 ]

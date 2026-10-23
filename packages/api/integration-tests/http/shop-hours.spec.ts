@@ -1,5 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SHOP_HOURS_MODULE, type ShopHoursModuleService } from "../../src/modules/shop-hours"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { adminHeaders, vendorHeaders } from "../helpers/auth"
@@ -49,7 +49,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
 

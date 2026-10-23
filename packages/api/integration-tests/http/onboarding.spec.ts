@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
 import { approveSellerWorkflow } from "@mercurjs/core/workflows"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "../helpers/auth"
 import { accountName, fakePaystack } from "../helpers/paystack"
@@ -48,7 +48,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
 

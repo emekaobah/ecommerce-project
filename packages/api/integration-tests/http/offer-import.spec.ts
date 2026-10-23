@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
 import { updateMemberRoleWorkflow } from "@mercurjs/core/workflows"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { OFFER_IMPORT_MODULE, type OfferImportModuleService } from "../../src/modules/offer-import"
 import { PRODUCT_ENRICHMENT_MODULE } from "../../src/modules/product-enrichment"
 import type ProductEnrichmentModuleService from "../../src/modules/product-enrichment/service"
@@ -39,7 +39,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       const container = getContainer()
-      await seedDemoData({ container, args: [] } as any)
+      await seedDemoWorld({ container, args: [] } as any)
       const query = container.resolve(ContainerRegistrationKeys.QUERY)
       const products = container.resolve(Modules.PRODUCT)
       for (const [title, ean] of [

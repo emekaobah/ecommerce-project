@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { Modules } from "@medusajs/framework/utils"
 import { deleteOffersWorkflow } from "@mercurjs/core/workflows"
 import { updateOfferWorkflow } from "../../src/workflows/offer-prices/update-offer"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "../helpers/auth"
 import {
@@ -84,7 +84,7 @@ medusaIntegrationTestRunner({
     beforeAll(async () => {
       backendUrl = api.defaults.baseURL
       await Promise.all([paystack.start(), shipbubble.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop()]))
     beforeEach(() => buyer.load())

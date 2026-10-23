@@ -1,5 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { rejectOverdueOrders } from "../../src/lib/order-acceptance"
 import { ADDRESS, buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, ORDER_TOTALS, RICE, TOTAL, type Shop } from "../helpers/checkout"
 import { BEST_VALUE_FEE } from "../helpers/shipbubble"
@@ -44,7 +44,7 @@ medusaIntegrationTestRunner({
 
     beforeAll(async () => {
       await Promise.all([paystack.start(), shipbubble.start(), expo.start(), resend.start()])
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
       await keepShopsOpen(getContainer(), [GADGETS, GROCERY])
     })
     afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop(), resend.stop()]))

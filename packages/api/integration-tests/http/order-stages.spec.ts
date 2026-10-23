@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createOrderWorkflow } from "@medusajs/medusa/core-flows"
 import type { Fulfilment, FulfilmentState } from "@oja/domain"
-import seedDemoData from "../../src/scripts/seed"
+import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
 import { recordPlacedOrderWorkflow } from "../../src/workflows/order-fulfilment/workflows/record-placed-order"
@@ -45,7 +45,7 @@ medusaIntegrationTestRunner({
     const [grocery, fashion] = SEED_SELLERS
 
     beforeAll(async () => {
-      await seedDemoData({ container: getContainer(), args: [] } as any)
+      await seedDemoWorld({ container: getContainer(), args: [] } as any)
     })
 
     const sellerId = async (shop: (typeof SEED_SELLERS)[number]) => {
