@@ -39,7 +39,12 @@ export function OrdersScreen() {
           {query.trim() ? <SearchResults userId={userId} q={q} /> : <OrderSections userId={userId} />}
         </>
       ) : (
-        <SignInPrompt title="Your orders" message="Sign in to see and track your orders." />
+        <>
+          <Text variant="titleRoot" style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[2] }}>
+            Orders
+          </Text>
+          <SignInPrompt title="Your orders" message="Sign in to see and track your orders." />
+        </>
       )}
     </SafeAreaView>
   );
