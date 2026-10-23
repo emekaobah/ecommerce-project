@@ -8,9 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LightStatusBar } from '@/components/light-status-bar';
 
-/** What Clerk's first step needs: email, Continue, then Apple and Google. */
-const FORM_HEIGHT = 420;
-
 const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
 /**
@@ -32,10 +29,11 @@ export function SignInScreen() {
   return (
     <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       <LightStatusBar />
-      {/* The band takes the space Clerk's form leaves, its words pinned to the foot; the pattern
-          fades out above them, so the type sits on plain indigo. */}
-      <View style={[styles.band, { backgroundColor: theme.colors.band }]}>
-        <View style={styles.pattern}>
+      {/* The band runs to the top edge, its words at its foot; the pattern fades out above them, so
+          the type sits on plain indigo. Clerk's form keeps the rest: it scrolls itself clear of
+          the keyboard only within its own frame. */}
+      <View style={{ backgroundColor: theme.colors.band }}>
+        <View style={{ height: insets.top + theme.space[12] }}>
           <AdirePattern fade="top" opacity={0.55} />
         </View>
         <View style={{ paddingHorizontal: theme.space[6], paddingBottom: theme.space[6], gap: theme.space[2] }}>
@@ -50,7 +48,7 @@ export function SignInScreen() {
           </Text>
         </View>
       </View>
-      <View style={[styles.form, { minHeight: FORM_HEIGHT }]}>
+      <View style={styles.fill}>
         <AuthView onDismiss={close} isDismissible={false} logo={<View />} logoMaxHeight={1} />
       </View>
       <Text
@@ -68,10 +66,6 @@ export function SignInScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  band: { flex: 1, overflow: 'hidden', justifyContent: 'flex-end' },
-  // The pattern fills the band above its words and fades out before them.
-  pattern: { flex: 1 },
-  form: { flexShrink: 0 },
   subtitle: { opacity: 0.85 },
   centred: { textAlign: 'center' },
 });
