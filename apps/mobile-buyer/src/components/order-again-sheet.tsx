@@ -9,7 +9,7 @@ import {
   shopStatusChip,
   type OrderAgainLine,
 } from '@oja/domain';
-import { Button, haptics, Icon, InlineNote, PressableSurface, Skeleton, StatusChip, Text, useTheme, useToast } from '@oja/ui';
+import { Button, haptics, Icon, MAX_FONT_SCALE, InlineNote, PressableSurface, Skeleton, StatusChip, Text, useTheme, useToast } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -50,6 +50,9 @@ export function OrderAgainSheet({ visible, onClose, groupId, seller, currency }:
   );
 }
 
+/** The text size (as a scale of the default) from which a line's total goes under its name. */
+const LARGE_TEXT = 1.3;
+
 /** The sheet's lines take at most this share of the screen's height, then scroll. */
 const LINES_MAX_SHARE = 0.5;
 
@@ -73,7 +76,8 @@ function OrderAgainContent({ onClose, groupId, seller, currency }: Readonly<Omit
   return (
     <View
       style={{
-        paddingTop: theme.space[4],
+        // The catalogue's sheet sets the title 8 under the grabber, and everything 8 apart.
+        paddingTop: theme.space[2],
         paddingHorizontal: theme.space[4],
         paddingBottom: Math.max(insets.bottom, theme.space[4]),
         gap: theme.space[2],
@@ -191,6 +195,7 @@ function ShopLine({ preview }: Readonly<{ preview: OrderAgain }>) {
   const { region } = useRegion();
   const { address } = useDeliveringTo();
   const shop = useShop(region?.id, preview.seller.id);
+  const fontScale = Math.min(useWindowDimensions().fontScale, MAX_FONT_SCALE);
   const status = preview.shop_status;
   if (!status) return null;
   const km = shop.data?.distance_km;
@@ -213,8 +218,11 @@ function ShopLine({ preview }: Readonly<{ preview: OrderAgain }>) {
     <View
       accessible
       accessibilityLabel={[status.label, distance].filter(Boolean).join(', ')}
-      style={[styles.row, { gap: theme.space[1] }]}>
-      <View style={{ width: theme.space[2], height: theme.space[2], borderRadius: theme.radius.pill, backgroundColor: theme.colors.leafText }} />
+      style={[styles.top, { gap: theme.space[1] }]}>
+      {/* Centred on the first line, however the line wraps. */}
+      <View style={{ height: theme.type.meta.lineHeight * fontScale, justifyContent: 'center' }}>
+        <View style={{ width: theme.space[2], height: theme.space[2], borderRadius: theme.radius.pill, backgroundColor: theme.colors.leafText }} />
+      </View>
       <Text variant="meta" tone="muted" style={styles.shrink}>
         <Text variant="label" weight="extrabold" tone="leaf">
           Open
@@ -240,9 +248,16 @@ type LineProps = {
 function Line({ name, thumbnail, line, currency, ticked, onToggle, disabled }: Readonly<LineProps>) {
   const theme = useTheme();
   const thumb = theme.control.row;
+  // At the largest text sizes the total goes under the name, so the name keeps the width to wrap in.
+  const stacked = useWindowDimensions().fontScale >= LARGE_TEXT;
   const off = !line.addable;
   const total = line.total === null ? '—' : formatMoney(line.total, currency);
   const detail = line.addable ? `× ${line.quantity}` : line.note;
+  const totalText = (
+    <Text variant="heading" tabular style={{ fontSize: theme.type.body.fontSize }}>
+      {total}
+    </Text>
+  );
   const spoken = [name, line.addable ? `${line.quantity}` : null, line.note, line.total === null ? null : total].filter(Boolean).join(', ');
   return (
     <PressableSurface
@@ -267,10 +282,9 @@ function Line({ name, thumbnail, line, currency, ticked, onToggle, disabled }: R
             {line.note}
           </Text>
         ) : null}
+        {stacked ? totalText : null}
       </View>
-      <Text variant="heading" tabular style={{ fontSize: theme.type.body.fontSize }}>
-        {total}
-      </Text>
+      {stacked ? null : totalText}
     </PressableSurface>
   );
 }
@@ -286,7 +300,7 @@ function Checkbox({ ticked }: Readonly<{ ticked: boolean }>) {
         {
           width: size,
           height: size,
-          borderRadius: theme.radius.md,
+          borderRadius: theme.radius.sm,
           borderWidth: theme.line.input,
           borderColor: ticked ? theme.colors.primary : theme.colors.control,
           backgroundColor: ticked ? theme.colors.primary : 'transparent',
@@ -332,6 +346,7 @@ function LinesSkeleton() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
+  top: { flexDirection: 'row', alignItems: 'flex-start' },
   wrap: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   shrink: { flexShrink: 1 },
   centre: { alignItems: 'center', justifyContent: 'center' },
