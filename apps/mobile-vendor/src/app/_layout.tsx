@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { hydrateNewOrderAlertMode } from '@/alerts/new-order-alert-store';
 import { queryClient } from '@/api/query-client';
 import { env } from '@/config/env';
 import { createNewOrderChannel } from '@/push/new-order-channel';
@@ -15,6 +16,8 @@ initSentry(env.sentryDsn);
 
 // A new order's push rings on its own channel, which must exist before the first one arrives.
 void createNewOrderChannel();
+// Whether a new order takes over the screen on this phone, read before any push can arrive.
+void hydrateNewOrderAlertMode();
 
 // Keep the splash up until the stored session is read, so the first frame is already the right group.
 void SplashScreen.preventAutoHideAsync();

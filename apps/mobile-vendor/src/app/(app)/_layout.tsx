@@ -40,6 +40,8 @@ export default function AppLayout() {
         {/* Listed first: the first screen declared here is the one the stack opens on. Its title
             labels the back button on the screens pushed over it. */}
         <Stack.Screen name="index" options={{ headerShown: false, title: 'Orders' }} />
+        {/* A new order arriving while the app is open fills the screen until it is answered (#83). */}
+        <Stack.Screen name="new-order/[id]" options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="orders/[id]/index" options={{ title: 'Order' }} />
         {/* The reject reason sheet slides up over the order. */}
         <Stack.Screen

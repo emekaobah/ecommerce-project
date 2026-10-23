@@ -272,6 +272,10 @@ export type Theme = {
     clockTrack: string
     clockRing: string
     clockRingUrgent: string
+    /** The new-order takeover, on the band in both themes: secondary text, View order's fill and the alarm ring's track. */
+    onBandSoft: string
+    onBandAction: string
+    onBandTrack: string
   }
   /** Chip text and background per tone, each at 7:1 or more (catalogue Accessibility). */
   status: Record<StatusTone, { foreground: string; background: string }>
@@ -354,6 +358,9 @@ export const lightTheme: Theme = {
     clockTrack: "rgba(18, 22, 43, 0.08)",
     clockRing: "#C98A1A",
     clockRingUrgent: ember,
+    onBandSoft: "rgba(255, 255, 255, 0.85)",
+    onBandAction: "rgba(255, 255, 255, 0.14)",
+    onBandTrack: "rgba(255, 255, 255, 0.2)",
   },
   status: {
     neutral: { foreground: "#494F66", background: "#F0F1F4" },
@@ -410,6 +417,9 @@ export const darkTheme: Theme = {
     clockTrack: "rgba(255, 255, 255, 0.1)",
     clockRing: "#F2C76B",
     clockRingUrgent: "#F0A474",
+    onBandSoft: "rgba(255, 255, 255, 0.85)",
+    onBandAction: "rgba(255, 255, 255, 0.14)",
+    onBandTrack: "rgba(255, 255, 255, 0.2)",
   },
   status: {
     neutral: { foreground: "#B4B4BC", background: "#26262A" },

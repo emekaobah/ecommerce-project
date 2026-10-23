@@ -5,10 +5,10 @@ import { useEffect } from 'react';
 
 import { orderKeys } from '@/api/orders';
 import { queryClient } from '@/api/query-client';
-import { fetchMemberships, sellerKeys } from '@/api/sellers';
-import { vendorClient } from '@/api/client';
-import { selectShop } from '@/session/select-shop';
 import { getSession } from '@/session/session-store';
+
+import { actForShop } from './act-for-shop';
+import { openTakeover, takeoverFor } from './new-order-takeover';
 
 /** Opens the order a tapped push is about, acting for its shop first when the member is in several. */
 async function open(response: Notifications.NotificationResponse) {
@@ -19,33 +19,31 @@ async function open(response: Notifications.NotificationResponse) {
   Notifications.clearLastNotificationResponse();
   const target = pushTarget(response.notification.request.content.data);
   if (!target) return;
-  if (target.sellerId && target.sellerId !== session.sellerId) {
-    const memberships = await queryClient.fetchQuery({
-      queryKey: sellerKeys.memberships(),
-      queryFn: () => fetchMemberships(vendorClient),
-    });
-    // A shop they've since left: nothing to open.
-    if (!memberships.some((m) => m.seller_id === target.sellerId)) return;
-    await selectShop(target.sellerId);
-  }
+  if (!(await actForShop(target.sellerId))) return;
   router.push(target.path as Href);
+}
+
+/** Refreshes the orders for a push arriving while the app is open; a new order may take over the screen. */
+function received(notification: Notifications.Notification) {
+  void queryClient.invalidateQueries({ queryKey: orderKeys.all });
+  const takeover = takeoverFor(notification.request.content.data);
+  if (takeover) void openTakeover(takeover);
 }
 
 /**
  * Tapping a push opens its order (#27), whether the app was running or the tap launched it. A
- * push arriving while the app is open refreshes the orders, so a new order shows at once.
+ * push arriving while the app is open refreshes the orders, so a new order shows at once, and a
+ * new order's push opens the full-screen takeover unless this phone is set to banners (#83).
  */
 export function useOpenTappedPush(): void {
   useEffect(() => {
     const launchedBy = Notifications.getLastNotificationResponse();
     if (launchedBy) void open(launchedBy);
     const tapped = Notifications.addNotificationResponseReceivedListener((response) => void open(response));
-    const received = Notifications.addNotificationReceivedListener(
-      () => void queryClient.invalidateQueries({ queryKey: orderKeys.all })
-    );
+    const arrived = Notifications.addNotificationReceivedListener(received);
     return () => {
       tapped.remove();
-      received.remove();
+      arrived.remove();
     };
   }, []);
 }

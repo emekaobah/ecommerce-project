@@ -188,8 +188,8 @@ export {
 } from "./delivery"
 export type { DeliveryChoice, DeliveryRate, DeliveryTag, OrderDelivery } from "./delivery"
 export { arrivesByEndOfNextDay, isPerishable, PERISHABLE_DELIVERY_RULE } from "./perishable"
-export { pushTarget } from "./push"
-export type { PushTarget } from "./push"
+export { newOrderPush, newOrderTakeover, pushTarget } from "./push"
+export type { NewOrderPush, PushTarget, TakeoverState } from "./push"
 export {
   buyerStatusPush,
   courierChangedPush,
