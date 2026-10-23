@@ -73,7 +73,9 @@ export function UnavailableSheet() {
       <Text variant="titlePushed">{"How many can't you supply?"}</Text>
 
       {most === 0 ? (
-        <Text tone="muted">{`All ${line.quantity} are picked: none are left to mark not available.`}</Text>
+        <Text tone="muted">
+          {line.quantity === 1 ? "It's picked, so there's none left to mark." : `All ${line.quantity} are picked, so there are none left to mark.`}
+        </Text>
       ) : (
         <View style={[styles.row, styles.centre, { gap: theme.space[6], paddingVertical: theme.space[2] }]}>
           <Step icon="minus" label="One fewer" disabled={quantity <= 0} onPress={() => setCount(Math.max(quantity - 1, 0))} />
@@ -100,7 +102,7 @@ export function UnavailableSheet() {
       ) : null}
       {failure ? <InlineNote>{failure}</InlineNote> : null}
       <Button
-        label={quantity === 0 ? 'Clear unavailable' : `Mark ${quantity} not available`}
+        label={most === 0 ? 'Mark not available' : quantity === 0 ? 'Clear unavailable' : `Mark ${quantity} not available`}
         size="main"
         loading={mark.isPending}
         disabled={most === 0 || quantity === line.unavailable}
