@@ -58,6 +58,8 @@ env:
     index: 1
 - eraseText
 - inputText: "Obi"
+# Return puts the keyboard away, which would otherwise hide the button.
+- pressKey: Enter
 - scrollUntilVisible:
     element: "Continue to the map"
 - tapOn: "Continue to the map"
