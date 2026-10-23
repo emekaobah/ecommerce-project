@@ -274,7 +274,7 @@ function ShopCard({
             </Text>
           </View>
           <View style={[styles.row, { gap: theme.space[3] }]}>
-            <Text variant="meta" tone="muted" numberOfLines={1} style={styles.fill}>{`${itemsWord(itemCount(group))} + delivery`}</Text>
+            <Text variant="meta" tone="muted" style={styles.fill}>{`${itemsWord(itemCount(group))} + delivery`}</Text>
             {checkoutShop ? (
               <Button
                 label="Checkout this shop"

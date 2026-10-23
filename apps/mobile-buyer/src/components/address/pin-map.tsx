@@ -82,6 +82,8 @@ export function PinMap({
   const span = request ? SPAN[request.zoom] : SPAN.country;
   const round = theme.control.row;
   const mapStyle = useMemo(() => quietMap(theme), [theme]);
+  // The map's foot under the sheet's rounded top, and a little above it for Google's logo.
+  const mapFoot = theme.radius.sheet + theme.space[3];
 
   const locate = async () => {
     const here = await onLocate().catch(() => null);
@@ -104,6 +106,8 @@ export function PinMap({
                 provider={PROVIDER_GOOGLE}
                 initialRegion={{ ...request.at, latitudeDelta: span, longitudeDelta: span }}
                 customMapStyle={mapStyle}
+                // The sheet laps over the map's foot: keep Google's logo, and the map's centre, above it.
+                mapPadding={{ top: 0, right: 0, bottom: mapFoot, left: 0 }}
                 showsPointsOfInterests={false}
                 showsUserLocation
                 onRegionChangeComplete={(region, details) => {
@@ -137,7 +141,7 @@ export function PinMap({
                 ) : null}
               </SafeAreaView>
               {/* Lifted by half its height, so the pin's point is on the map's centre. */}
-              <View pointerEvents="none" style={styles.pinLayer}>
+              <View pointerEvents="none" style={[styles.pinLayer, { bottom: mapFoot }]}>
                 <View style={[styles.pin, { gap: theme.space[2] }]}>
                   <View style={{ backgroundColor: theme.colors.inverse, borderRadius: theme.radius.md, padding: theme.space[2] }}>
                     <Text variant="meta" weight="bold" style={{ color: theme.colors.onInverse }}>
