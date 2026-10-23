@@ -117,7 +117,8 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
   return (
     <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       {hideHeader}
-      <ScrollView contentContainerStyle={{ paddingBottom: theme.space[8] }}>
+      {/* The photo runs under the status bar and pads itself. */}
+      <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={{ paddingBottom: theme.space[8] }}>
         <Gallery
           images={product.images}
           dimmed={soldOut}

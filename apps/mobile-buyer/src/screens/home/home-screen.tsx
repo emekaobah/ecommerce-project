@@ -8,10 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCategories } from '@/api/categories';
 import { useShops, type NearbyShop } from '@/api/shops';
+import { LightStatusBar } from '@/components/light-status-bar';
 import { DeliveringToPicker } from '@/components/delivering-to-picker';
 import { ShopShelf, ShopShelfSkeleton } from '@/components/shop-results';
 import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
-import { useLightStatusBar } from '@/hooks/use-light-status-bar';
 import { useListRefresh } from '@/hooks/use-list-refresh';
 import { useRegion } from '@/region/region-provider';
 
@@ -26,9 +26,9 @@ const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 export function HomeScreen() {
   const theme = useTheme();
   const region = useRegion();
+  const insets = useSafeAreaInsets();
   const [department, setDepartment] = useState(ALL);
   const shops = useShops(region.region?.id, department === ALL ? null : department);
-  useLightStatusBar();
 
   const { refreshing, refresh } = useListRefresh(shops.refetch);
 
@@ -56,7 +56,10 @@ export function HomeScreen() {
       data={list}
       keyExtractor={(shop) => shop.id}
       style={{ backgroundColor: theme.colors.bg }}
-      contentContainerStyle={styles.grow}
+      // The band runs under the status bar, and the end of the list clears the tab bar (Home
+      // turns off the tabs' automatic insets).
+      contentInsetAdjustmentBehavior="never"
+      contentContainerStyle={[styles.grow, { paddingBottom: insets.bottom + theme.control.main + theme.space[4] }]}
       ListHeaderComponent={
         <>
           <HomeBand search />
@@ -89,6 +92,7 @@ function HomeBand({ search }: Readonly<{ search: boolean }>) {
   const { user } = useUser();
   return (
     <Band style={{ paddingTop: insets.top + theme.space[1] }}>
+      <LightStatusBar />
       <DeliveringToPicker />
       <Text variant="titleNamed" tone="onBand">
         {`${greeting(new Date(), user?.firstName ?? null, deviceTimeZone)}\nWhat are we buying?`}
@@ -113,7 +117,7 @@ function DepartmentChips({ selected, onSelect }: Readonly<{ selected: string; on
   if (!categories.data) {
     return (
       <View style={[styles.row, { gap: theme.space[2], paddingHorizontal: theme.space[4] }]}>
-        {[0.45, 0.85, 0.85, 0.7].map((width) => (
+        {[0.45, 0.85, 0.8, 0.7].map((width) => (
           <Skeleton key={width} width={theme.block.railTile * width} height={theme.space[8]} radius="md" />
         ))}
       </View>

@@ -43,6 +43,8 @@ export function ListingGrid({
       // An odd last tile keeps its column's width.
       data={data.length % columns ? [...data, null] : data}
       keyExtractor={(l) => (l ? `${l.seller.id}:${l.product.id}` : 'filler')}
+      // Screens without a header run their banner under the status bar and pad it themselves.
+      contentInsetAdjustmentBehavior="never"
       contentContainerStyle={[{ paddingBottom: theme.space[8], gap: theme.space[4] }, styles.grow]}
       columnWrapperStyle={columns > 1 ? { gap: theme.space[3], paddingHorizontal: theme.space[4] } : undefined}
       refreshing={refreshing}

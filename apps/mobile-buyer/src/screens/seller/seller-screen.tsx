@@ -7,13 +7,13 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { isNotFound } from '@/api/errors';
 import { useListingResults } from '@/api/listings';
 import { useShop, type Shop } from '@/api/shops';
+import { LightStatusBar } from '@/components/light-status-bar';
 import { ListingGrid } from '@/components/listing-grid';
 import { ReviewsPreview } from '@/components/reviews';
 import { RoundButton } from '@/components/round-button';
 import { shopPlace, ShopStars } from '@/components/shop-facts';
 import { ShopStatusNote } from '@/components/shop-status';
 import { useListRefresh } from '@/hooks/use-list-refresh';
-import { useLightStatusBar } from '@/hooks/use-light-status-bar';
 import { useRegion } from '@/region/region-provider';
 
 type Tab = 'products' | 'reviews';
@@ -32,7 +32,6 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
     const [s, l] = await Promise.all([shop.refetch(), listings.refetch()]);
     return { error: s.error ?? l.error, data: s.data };
   });
-  useLightStatusBar();
 
   if (region.error) {
     return (
@@ -69,6 +68,7 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
   const top = (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      <LightStatusBar />
       {shop.data ? <Header shop={shop.data} /> : <HeaderSkeleton />}
       <ShopTabs tab={tab} onChange={setTab} />
     </>
@@ -76,7 +76,9 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
 
   if (tab === 'reviews' && shop.data) {
     return (
-      <ScrollView style={{ backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingBottom: theme.space[8] }}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="never"
+        style={{ backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingBottom: theme.space[8] }}>
         {top}
         <View style={{ padding: theme.space[4] }}>
           <ReviewsPreview kind="seller" id={shop.data.id} title={shop.data.name} />

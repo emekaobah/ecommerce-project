@@ -20,7 +20,8 @@ export default function TabsLayout() {
       badgeBackgroundColor={theme.colors.accent}
       iconColor={{ default: theme.colors.tabInactive, selected: theme.colors.accent }}
       labelStyle={{ default: { color: theme.colors.tabInactive }, selected: { color: theme.colors.accent } }}>
-      <NativeTabs.Trigger name="index">
+      {/* Home's band runs under the status bar, so Home pads its own insets. */}
+      <NativeTabs.Trigger name="index" disableAutomaticContentInsets>
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
       </NativeTabs.Trigger>
