@@ -22,8 +22,16 @@ export type OrderRowProps = {
   thumbnails?: readonly string[]
   /** Replaces the price at the right, e.g. a delivered order's Order again (#86). */
   trailing?: ReactNode
+  /**
+   * What `trailing` offers besides opening the order, for VoiceOver and TalkBack: the row is one
+   * button, which hides a control inside it from screen readers, so each becomes an action on it.
+   */
+  actions?: readonly OrderRowAction[]
   onPress: () => void
 }
+
+/** "Order again": an action on the row, as its `trailing` control does on screen. */
+type OrderRowAction = { label: string; onPress: () => void }
 
 /** How many photos a row shows before "+N". */
 const MAX_THUMBNAILS = 4
@@ -33,7 +41,7 @@ const MAX_THUMBNAILS = 4
  * price, the first items' photos, and each shop's state as chips; the list puts a `Divider`
  * between rows. The whole row opens the order.
  */
-export function OrderRow({ title, meta, price, shops, thumbnails = [], trailing, onPress }: Readonly<OrderRowProps>) {
+export function OrderRow({ title, meta, price, shops, thumbnails = [], trailing, actions = [], onPress }: Readonly<OrderRowProps>) {
   const theme = useTheme()
   // The catalogue's 44px photo comes to a row control's height.
   const thumb = theme.control.row
@@ -52,6 +60,8 @@ export function OrderRow({ title, meta, price, shops, thumbnails = [], trailing,
     <PressableSurface
       accessibilityRole="button"
       accessibilityLabel={spoken}
+      accessibilityActions={actions.length ? actions.map((action) => ({ name: action.label, label: action.label })) : undefined}
+      onAccessibilityAction={(event) => actions.find((action) => action.label === event.nativeEvent.actionName)?.onPress()}
       onPress={onPress}
       style={{ gap: theme.space[2], paddingTop: theme.space[5], paddingBottom: theme.space[6] }}
     >

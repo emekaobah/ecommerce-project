@@ -1,6 +1,7 @@
 import {
   deliveryDay,
   distanceLabel,
+  itemsLabel,
   PERISHABLE_HOLD_OPEN_DAYS,
   PICKUP_HOLD_OPEN_DAYS,
   preparedWhenOpens,
@@ -9,7 +10,8 @@ import {
 import { Group, GroupList, InlineNote, RadioOption, ShopMark, Text, useTheme } from '@oja/ui';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { refusalMessage, useChooseDelivery, type Checkout, type CheckoutSellerGroup } from '@/api/checkout';
+import { useChooseDelivery, type Checkout, type CheckoutSellerGroup } from '@/api/checkout';
+import { useFailureMessage } from '@/api/errors';
 import { SumRow } from '@/components/cart/summary';
 import { PerishableRule } from '@/components/perishable';
 import { PickupDetails } from '@/components/pickup';
@@ -56,10 +58,7 @@ function deliveryLabel(shops: number): string {
   return `Delivery, ${shops} ${shops === 1 ? 'shop' : 'shops'}`;
 }
 
-const itemsWord = (group: CheckoutSellerGroup) => {
-  const count = group.items.reduce((sum, item) => sum + item.quantity, 0);
-  return `${count} ${count === 1 ? 'item' : 'items'}`;
-};
+const itemsWord = (group: CheckoutSellerGroup) => itemsLabel(group.items.reduce((sum, item) => sum + item.quantity, 0));
 
 /** "Surulere · 1 km · collect within 5 open days"; fresh items are held one open day. */
 function pickupLine(group: CheckoutSellerGroup & { pickup: NonNullable<CheckoutSellerGroup['pickup']> }): string {
@@ -89,6 +88,9 @@ function ShopDelivery({
 }>) {
   const theme = useTheme();
   const choose = useChooseDelivery(cartId);
+  const failure = useFailureMessage(choose.error, "Couldn't change the delivery. Check your connection and try again.", {
+    400: "That delivery can't be chosen now. Check the address, then choose again.",
+  });
   const { seller } = group;
   const sellerId = seller?.id;
   const busy = choose.isPending || choosingMethod;
@@ -145,9 +147,7 @@ function ShopDelivery({
           <PickupDetails place={group.pickup} />
         </View>
       ) : null}
-      {choose.error ? (
-        <InlineNote>{refusalMessage(choose.error) ?? "Couldn't change the delivery. Check your connection and try again."}</InlineNote>
-      ) : null}
+      {failure ? <InlineNote>{failure}</InlineNote> : null}
     </Group>
   );
 }

@@ -34,3 +34,18 @@ export function useSentryNavigation(): void {
     if (container.current) navigation.registerNavigationContainer(container);
   }, [container]);
 }
+
+/**
+ * Sends a failure the screen words itself to Sentry: never shown, but seen. `where` names it
+ * ("Couldn't book the courier"), as `ErrorState` names its own by title.
+ */
+export function reportError(error: unknown, where: string): void {
+  Sentry.captureException(error, { tags: { action_error: where } });
+}
+
+/** Reports `error` once each time it changes, as `ErrorState` does; null or undefined reports nothing. */
+export function useReportError(error: unknown, where: string): void {
+  useEffect(() => {
+    if (error) reportError(error, where);
+  }, [error, where]);
+}

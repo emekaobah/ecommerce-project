@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { orderBuyerLine, type BuyerLineOrder } from "./order-buyer-line"
+import { buyerCourierQuote, buyerShortName, orderBuyerLine, type BuyerLineOrder } from "./order-buyer-line"
 
 const LAGOS = "Africa/Lagos"
 
@@ -41,5 +41,20 @@ describe("orderBuyerLine", () => {
     // 23:30 UTC on Wednesday is already Thursday in Lagos.
     const late = [{ data: { quote: { courier_name: "GIG", delivery_eta_time: "2026-10-21T23:30:00Z" } } }]
     expect(orderBuyerLine(order({ shipping_methods: late }), LAGOS)).toEndWith("arriving Thu")
+  })
+})
+
+describe("buyerShortName", () => {
+  test("is the buyer's first name and initial, or null without a first name", () => {
+    expect(buyerShortName({ billing_address: { first_name: "Tolu", last_name: "Adeyemi" } })).toBe("Tolu A.")
+    expect(buyerShortName({ billing_address: { first_name: "  ", last_name: "Adeyemi" } })).toBeNull()
+  })
+})
+
+describe("buyerCourierQuote", () => {
+  test("is the first full quote among the shipping methods, or null when there is none", () => {
+    const methods = [null, { data: { quote: { courier_name: "Kwik" } } }, { data: { quote: { courier_name: "GIG", delivery_eta_time: "2026-10-26T09:00:00Z" } } }]
+    expect(buyerCourierQuote({ shipping_methods: methods })).toEqual({ courier_name: "GIG", delivery_eta_time: "2026-10-26T09:00:00Z" })
+    expect(buyerCourierQuote({ shipping_methods: [{ data: { quote: { courier_name: "Kwik" } } }] })).toBeNull()
   })
 })

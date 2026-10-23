@@ -7,6 +7,8 @@
  * picked, and are removed from the order, with the buyer refunded for them, before it is packed.
  */
 
+import { formatWeight } from "./listing"
+
 /**
  * One order line on the checklist. `codes` are the barcodes its variant carries (barcode, EAN,
  * UPC). `unavailable` units are marked as not in stock, waiting to be removed from the order.
@@ -71,4 +73,78 @@ function normalise(code: string) {
   const trimmed = code.trim()
   if (/^\d{8,14}$/.test(trimmed)) return trimmed.padStart(14, "0")
   return trimmed.toUpperCase()
+}
+
+/** The pick list's band: "Picking · 3 of 5" units, and how far along that is (0 to 1) for its progress bar. */
+export function pickBand(progress: Pick<PickProgress, "picked" | "total">): { label: string; fraction: number } {
+  return {
+    label: `Picking · ${progress.picked} of ${progress.total}`,
+    fraction: progress.total > 0 ? Math.min(progress.picked / progress.total, 1) : 0,
+  }
+}
+
+/** How a pick list line reads: its quantity pill, the note under its name, and what a screen reader says. */
+export type PickLineView = {
+  pill: { label: string; tone: "neutral" | "picked" | "short" }
+  note: string
+  noteTone: "muted" | "ember"
+  spoken: string
+}
+
+/**
+ * A pick list line as staff see it: the pill "2/2" turns leaf once picked in full and ember while
+ * units are marked short; the note says "Picked", how many are short, or how to tick it (a line
+ * with no barcode is ticked by hand). Perishable lines say so until they are picked.
+ */
+export function pickLineView(line: PickLine & { perishable: boolean }): PickLineView {
+  const count = `${line.picked}/${line.quantity}`
+  const picked = `${line.picked} of ${line.quantity} picked`
+  if (line.picked >= line.quantity) {
+    return { pill: { label: count, tone: "picked" }, note: "Picked", noteTone: "muted", spoken: picked }
+  }
+  const perishable = line.perishable ? "Perishable" : null
+  const short = line.unavailable > 0 ? `${line.unavailable} not available` : null
+  const join = (parts: (string | null)[], separator: string) => parts.filter(Boolean).join(separator)
+  const spoken = join([perishable, picked, short], ", ")
+  if (short) return { pill: { label: count, tone: "short" }, note: join([perishable, short], " · "), noteTone: "ember", spoken }
+  const byHand = line.codes.length ? null : "No barcode: tick by hand"
+  let progress: string | null = null
+  if (line.picked > 0) progress = picked
+  else if (!byHand) progress = "Tap to tick"
+  return {
+    pill: { label: count, tone: "neutral" },
+    note: join([perishable, progress, byHand], " · "),
+    noteTone: "muted",
+    spoken,
+  }
+}
+
+type WeighedItem = {
+  quantity: number | string
+  variant?: { weight?: number | string | null; product?: { weight?: number | string | null } | null } | null
+}
+
+/**
+ * The parcel's weight from the catalogue, for booking its courier: each line's variant weight
+ * (else its product's), in grams, times its quantity, "about 16 kg" to a tenth of a kilo. Null
+ * when no line has a weight.
+ */
+export function parcelWeightLabel(items: WeighedItem[]): string | null {
+  const weights = items.flatMap((item) => {
+    const grams = Number(item.variant?.weight ?? item.variant?.product?.weight ?? 0)
+    return grams > 0 ? [grams * Number(item.quantity)] : []
+  })
+  if (!weights.length) return null
+  const grams = weights.reduce((total, weight) => total + weight, 0)
+  return `about ${formatWeight(grams < 1000 ? Math.round(grams) : Math.round(grams / 100) * 100)}`
+}
+
+/**
+ * The Not available counter for a line (#22): from none up to the units not yet picked
+ * (`most`), starting at what is marked already, else one, and never above `most`; a line picked
+ * in full has none left to mark.
+ */
+export function unavailableCounter(line: Pick<PickLine, "quantity" | "picked" | "unavailable">): { most: number; start: number } {
+  const most = Math.max(line.quantity - line.picked, 0)
+  return { most, start: Math.min(Math.max(line.unavailable, 1), most) }
 }

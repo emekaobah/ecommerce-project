@@ -2,8 +2,11 @@ import { StyleSheet, View } from "react-native"
 import { useTheme } from "../theme"
 import { Text } from "./text"
 
-/** One step of a timeline: done, where things are now, or still to come; `at` when it was reached. */
-export type TimelineStepProps = { label: string; status: "done" | "current" | "upcoming"; at: string | null }
+/**
+ * One step of a timeline: done, where things are now, or still to come; `at` when it was reached;
+ * `detail` a line under its label ("Tap when the rider takes the parcel").
+ */
+export type TimelineStepProps = { label: string; status: "done" | "current" | "upcoming"; at: string | null; detail?: string | null }
 
 export type TimelineProps = {
   steps: readonly TimelineStepProps[]
@@ -16,9 +19,9 @@ const SPOKEN = { done: "done", current: "now", upcoming: "to come" } as const
 const defaultTime = (at: string) => new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
 
 /**
- * Steps in order down a line, each with its label (never colour alone): a filled leaf dot when
- * done, a leaf ring where things are now, a grey dot for what is to come. The line is leaf as far
- * as things have got.
+ * Steps in order down a line, each with its label (never colour alone) and any detail under it,
+ * and when it was reached at the row's end: a filled leaf dot when done, a leaf ring where things
+ * are now, a grey dot for what is to come. The line is leaf as far as things have got.
  */
 export function Timeline({ steps, formatTime = defaultTime }: Readonly<TimelineProps>) {
   const theme = useTheme()
@@ -32,7 +35,7 @@ export function Timeline({ steps, formatTime = defaultTime }: Readonly<TimelineP
           <View
             key={step.label}
             accessible
-            accessibilityLabel={[step.label, SPOKEN[step.status], time].filter(Boolean).join(", ")}
+            accessibilityLabel={[step.label, SPOKEN[step.status], step.detail, time].filter(Boolean).join(", ")}
             style={[styles.row, { gap: theme.space[3] }]}
           >
             <View style={[styles.rail, { width: dot }]}>
@@ -65,16 +68,21 @@ export function Timeline({ steps, formatTime = defaultTime }: Readonly<TimelineP
                 />
               )}
             </View>
-            <View style={[styles.fill, { gap: theme.space[1], paddingBottom: last ? 0 : theme.space[6] }]}>
+            <View style={[styles.fill, { gap: theme.space[1], paddingBottom: last ? 0 : theme.space[4] }]}>
               <Text weight="bold" tone={step.status === "upcoming" ? "muted" : "default"}>
                 {step.label}
               </Text>
-              {time ? (
+              {step.detail ? (
                 <Text variant="meta" tone="muted">
-                  {time}
+                  {step.detail}
                 </Text>
               ) : null}
             </View>
+            {time ? (
+              <Text variant="meta" tone="muted" tabular style={styles.time}>
+                {time}
+              </Text>
+            ) : null}
           </View>
         )
       })}
@@ -88,4 +96,5 @@ const styles = StyleSheet.create({
   dot: { alignItems: "center", justifyContent: "center" },
   connector: { flex: 1 },
   fill: { flex: 1 },
+  time: { flexShrink: 0 },
 })

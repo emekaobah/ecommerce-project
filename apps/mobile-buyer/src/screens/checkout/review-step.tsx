@@ -3,6 +3,7 @@ import {
   deliveryDay,
   notPlacedChangeMessage,
   notPlacedMessage,
+  paymentRefusal,
   priceChangeMessage,
   type NotPlacedChange,
   type PaymentReturn,
@@ -16,13 +17,12 @@ import { StyleSheet, View } from 'react-native';
 
 import {
   checkoutKeys,
-  refusalMessage,
   useStartPayment,
   type Checkout,
   type CheckoutSellerGroup,
   type usePrepareCheckout,
 } from '@/api/checkout';
-import { isAlreadyPaid } from '@/api/errors';
+import { isAlreadyPaid, useFailureMessage } from '@/api/errors';
 import { SumRow } from '@/components/cart/summary';
 import { env } from '@/config/env';
 
@@ -158,8 +158,8 @@ function addressPriceChanges(prepare: Repricing, startPayment: Repricing): Price
 }
 
 /** What to tell the buyer above the Pay button: why starting a payment failed, or how they left Paystack. */
-function paymentNotice(error: Error | null, returned: PaymentLeft | undefined): ReactNode {
-  if (error && !isAlreadyPaid(error)) return refusalMessage(error) ?? "Couldn't start the payment. You haven't been charged. Try again.";
+function paymentNotice(failure: string | null, returned: PaymentLeft | undefined): ReactNode {
+  if (failure) return failure;
   if (returned === 'cancelled') {
     return (
       <>
@@ -237,9 +237,17 @@ export function PayBar({
       // The last payment went through: wait for Paystack's confirmation rather than pay twice.
       onError: (error) => {
         if (isAlreadyPaid(error)) router.push({ pathname: '/checkout/confirmation', params: { cartId } });
+        // Refused: the checkout as it stands now says which shop holds it up (paymentRefusal).
+        else void queryClient.refetchQueries({ queryKey: checkoutKeys.detail(cartId), exact: true });
       },
     });
-  const notice = paymentNotice(startPayment.error, returned);
+  const failure = useFailureMessage(
+    startPayment.error && !isAlreadyPaid(startPayment.error) ? startPayment.error : null,
+    "Couldn't start the payment. You haven't been charged. Try again.",
+    // The API's 400s here carry no code: the checkout shows which shop holds it up.
+    { 400: paymentRefusal(checkout) ?? "Something in your order needs a change before paying. You haven't been charged." }
+  );
+  const notice = paymentNotice(failure, returned);
 
   return (
     <View style={{ backgroundColor: theme.colors.bg }}>

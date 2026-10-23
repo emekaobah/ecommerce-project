@@ -3,7 +3,8 @@ import { Button, focusRing, Icon, InlineNote, MAX_FONT_SCALE, StatusChip, Text, 
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
-import { refusalMessage, useApplyPromoCode, useRemovePromoCode, type Checkout, type CheckoutPromotion } from '@/api/checkout';
+import { useApplyPromoCode, useRemovePromoCode, type Checkout, type CheckoutPromotion } from '@/api/checkout';
+import { useFailureMessage } from '@/api/errors';
 
 /**
  * Promo codes at checkout (#6): each code on the cart with what it takes off and whose it is,
@@ -19,7 +20,9 @@ export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; chec
     if (!code.trim()) return;
     apply.mutate(code.trim(), { onSuccess: () => setCode('') });
   };
-  const applyProblem = apply.error ? (refusalMessage(apply.error) ?? "Couldn't apply the code. Check your connection and try again.") : null;
+  const applyProblem = useFailureMessage(apply.error, "Couldn't apply the code. Check your connection and try again.", {
+    400: "That code can't be used on this order. Check it, or try another.",
+  });
 
   return (
     <View style={{ gap: theme.space[2] }}>

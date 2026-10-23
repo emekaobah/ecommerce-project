@@ -1,4 +1,5 @@
-import { ClientError } from '@oja/api-client';
+import { ClientError, failureMessage, isRefusal } from '@oja/api-client';
+import { useReportError } from '@oja/expo-sentry';
 
 /** The store answered "not found": an answer (it's gone), not a failure worth retrying. */
 export const isNotFound = (error: unknown) => error instanceof ClientError && error.status === 404;
@@ -7,9 +8,11 @@ export const isNotFound = (error: unknown) => error instanceof ClientError && er
 export const isAlreadyPaid = (error: unknown) => error instanceof ClientError && error.status === 409;
 
 /**
- * The API's own words when it refused a request with one of `statuses`: those answers are
- * written for the buyer. Null for any other failure, which the screen words itself (the error
- * goes to Sentry, never on screen).
+ * What to say of a failed request, just above the button it came from (`failureMessage`): the
+ * API's words for a 409 refusal, else the screen's own for the status (`byStatus`) or
+ * `fallback`; anything but a 409 goes to Sentry. Null while nothing has failed.
  */
-export const refusedWith = (error: unknown, statuses: readonly number[]): string | null =>
-  error instanceof ClientError && error.status !== undefined && statuses.includes(error.status) ? error.message : null;
+export function useFailureMessage(error: unknown, fallback: string, byStatus?: Readonly<Partial<Record<number, string>>>): string | null {
+  useReportError(isRefusal(error) ? null : error, fallback);
+  return error ? failureMessage(error, fallback, byStatus) : null;
+}

@@ -1,5 +1,5 @@
 import type { OrderPhase } from '@oja/domain';
-import { skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { skipToken, useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 
 import { storeClient } from './client';
 
@@ -9,6 +9,8 @@ export const orderKeys = {
   phase: (userId: string, phase: OrderPhase) => [...orderKeys.all, 'phase', { userId, phase }] as const,
   search: (userId: string, q: string) => [...orderKeys.all, 'search', { userId, q }] as const,
   group: (userId: string, groupId: string) => [...orderKeys.all, 'group', { userId, groupId }] as const,
+  orderAgain: (userId: string, groupId: string, sellerId: string) =>
+    [...orderKeys.all, 'order-again', { userId, groupId, sellerId }] as const,
 };
 
 /** How many past or found checkouts load at a time as the buyer scrolls. */
@@ -84,5 +86,36 @@ export function useOrderGroup(userId: string | null | undefined, groupId: string
     queryKey: orderKeys.group(userId ?? '', groupId),
     queryFn: userId ? () => fetchOrderGroup(groupId) : skipToken,
     refetchInterval: REFETCH_MS,
+  });
+}
+
+async function fetchOrderAgain(groupId: string, sellerId: string) {
+  const { order_again } = await storeClient.store.orderHistory.$id.orderAgain.query({ $id: groupId, seller_id: sellerId });
+  return order_again;
+}
+
+/** Order again's preview of one shop's part of a received order: each line at today's price and stock, and whether the shop takes orders. */
+export type OrderAgain = Awaited<ReturnType<typeof fetchOrderAgain>>;
+
+/**
+ * Order again (#86): what reordering each shop's part of a checkout the buyer received would add,
+ * one preview per shop, fetched while the sheet is open and fresh each time it opens. `data`
+ * holds every shop's preview once all have come; `error` is the first failure.
+ */
+export function useOrderAgain(userId: string | null | undefined, groupId: string, sellerIds: readonly string[]) {
+  return useQueries({
+    queries: sellerIds.map((sellerId) => ({
+      queryKey: orderKeys.orderAgain(userId ?? '', groupId, sellerId),
+      queryFn: userId ? () => fetchOrderAgain(groupId, sellerId) : skipToken,
+      staleTime: 0,
+    })),
+    combine: (results) => {
+      const data = results.flatMap((result) => (result.data ? [result.data] : []));
+      return {
+        data: data.length === results.length ? data : undefined,
+        error: results.find((result) => result.error)?.error ?? null,
+        refetch: () => results.forEach((result) => void result.refetch()),
+      };
+    },
   });
 }

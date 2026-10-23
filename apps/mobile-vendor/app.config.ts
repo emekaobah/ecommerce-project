@@ -26,6 +26,8 @@ const config: ExpoConfig = {
   android: {
     package: bundleId,
     predictiveBackGestureEnabled: false,
+    // Lets the member allow the new-order alarm through Do Not Disturb from Settings (#83).
+    permissions: ['android.permission.ACCESS_NOTIFICATION_POLICY'],
     adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#0B5CFF' },
   },
   plugins: [
@@ -55,6 +57,12 @@ const config: ExpoConfig = {
     // Pushes for new orders, the accept deadline and courier pickups (#27). A new order rings
     // Oja's alarm, bundled here (#71).
     ['expo-notifications', { sounds: [NEW_ORDER_ALARM.soundAsset] }],
+    // The new-order takeover loops the alarm while the app is open (#83). Playback only, in the
+    // foreground: no microphone, no background audio.
+    [
+      'expo-audio',
+      { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false },
+    ],
     // Crash reporting (#19). Release builds upload source maps and debug symbols when
     // SENTRY_AUTH_TOKEN is set, and skip the upload otherwise.
     [

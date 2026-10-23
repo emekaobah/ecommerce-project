@@ -22,9 +22,9 @@ import {
   usePlaceAddress,
   type LookupFor,
 } from '@/api/address-lookup';
+import { useFailureMessage } from '@/api/errors';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
-import { refusalMessage } from '@/api/checkout';
 
 import { AddressForm } from './address-form';
 import { PinMap, type PinRequest } from './pin-map';
@@ -91,6 +91,9 @@ export function AddressEntry({
   children?: ReactNode;
 }>) {
   const theme = useTheme();
+  const saveProblem = useFailureMessage(saveError, "Couldn't save the address. Check your connection and try again.", {
+    400: "That address couldn't be saved. Check it and try again.",
+  });
   const [mode, setMode] = useState<'search' | 'form'>(values.address_1 ? 'form' : 'search');
   const [pinRequest, setPinRequest] = useState<PinRequest | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -235,7 +238,7 @@ export function AddressEntry({
         stepLabel={stepLabel}
         confirmLabel={saveLabel}
         saving={saving}
-        problem={saveError ? (refusalMessage(saveError) ?? "Couldn't save the address. Check your connection and try again.") : null}
+        problem={saveProblem}
         onLocate={currentPosition}
         onConfirm={confirmPin}
         onCancel={() => setPinRequest(null)}

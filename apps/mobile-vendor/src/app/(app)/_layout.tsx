@@ -40,6 +40,8 @@ export default function AppLayout() {
         {/* Listed first: the first screen declared here is the one the stack opens on. Its title
             labels the back button on the screens pushed over it. */}
         <Stack.Screen name="index" options={{ headerShown: false, title: 'Orders' }} />
+        {/* A new order arriving while the app is open fills the screen until it is answered (#83). */}
+        <Stack.Screen name="new-order/[id]" options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="orders/[id]/index" options={{ title: 'Order' }} />
         {/* The reject reason sheet slides up over the order. */}
         <Stack.Screen
@@ -58,14 +60,16 @@ export default function AppLayout() {
           options={formSheet}
         />
         <Stack.Screen name="orders/[id]/remove-unavailable" options={{ title: 'Remove unavailable items' }} />
-        <Stack.Screen name="orders/[id]/packed" options={{ headerBackVisible: false }} />
+        <Stack.Screen name="orders/[id]/packed" options={{ title: 'Order', headerBackVisible: false }} />
         {/* In-store pickup (#12): scan or type the buyer's code, then hand the order over. */}
         <Stack.Screen name="orders/[id]/collect" />
+        <Stack.Screen name="orders/[id]/hand-over" options={formSheet} />
         {/* Quick-add (#38): the scanner fills the screen, then the product's form and its confirmation. */}
         <Stack.Screen name="quick-add/index" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="quick-add/[barcode]" />
         <Stack.Screen name="quick-add/done" options={{ headerBackVisible: false }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="pause-orders" options={formSheet} />
         {/* "Which shop today?" titles the page; the bar keeps only a bare back chevron. */}
         <Stack.Screen name="switch-shop" options={{ title: '', headerBackButtonDisplayMode: 'minimal' }} />
       </Stack>

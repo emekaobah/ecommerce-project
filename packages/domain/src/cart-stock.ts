@@ -1,3 +1,5 @@
+import { itemsLabel } from "./items-label"
+
 /**
  * What the cart says about lines the shop can't fill as they stand (catalogue Cart): sold-out
  * lines block checkout until they're dealt with, and a short line offers what's left.
@@ -5,7 +7,7 @@
 
 /** The cart's main button while sold-out lines remain: "Remove 1 sold-out item". */
 export function soldOutButtonLabel(count: number): string {
-  return `Remove ${count} sold-out ${count === 1 ? "item" : "items"}`
+  return `Remove ${itemsLabel(count, "sold-out")}`
 }
 
 /**

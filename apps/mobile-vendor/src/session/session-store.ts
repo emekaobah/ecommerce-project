@@ -1,6 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { useSyncExternalStore } from 'react';
 
+import { hydrateShopSnapshot } from './shop-snapshot';
+
 export type Session = {
   /** Member JWT from `loginMember`. */
   token: string;
@@ -48,9 +50,11 @@ export function getToken(): string | undefined {
 /** Restores the persisted session. The root layout holds the splash screen until this settles. */
 export async function hydrateSession(): Promise<void> {
   try {
+    // The shop's name and hours from the last visit come back with the session, before the splash goes.
     const [token, sellerId] = await Promise.all([
       SecureStore.getItemAsync(TOKEN_KEY),
       SecureStore.getItemAsync(SELLER_KEY),
+      hydrateShopSnapshot(),
     ]);
     if (!token) setState({ status: 'signedOut' });
     // Closed before picking a shop: back to the shop picker.

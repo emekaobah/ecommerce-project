@@ -1,11 +1,11 @@
-import { formatMoney } from '@oja/domain';
+import { formatMoney, paymentRefusal } from '@oja/domain';
 import { ChangesSheet, InlineNote, useTheme, type ChangesSheetChange } from '@oja/ui';
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
-import { checkoutKeys, refusalMessage, useCheckout, useStartPayment } from '@/api/checkout';
-import { isAlreadyPaid } from '@/api/errors';
+import { checkoutKeys, useCheckout, useStartPayment } from '@/api/checkout';
+import { isAlreadyPaid, useFailureMessage } from '@/api/errors';
 import { useDeliveringToId } from '@/delivering-to/delivering-to-provider';
 
 import { PAYMENT_RETURN_URL } from './review-step';
@@ -40,16 +40,23 @@ export function ChangesScreen() {
       },
       onError: (error) => {
         if (isAlreadyPaid(error)) router.replace({ pathname: '/checkout/confirmation', params: { cartId } });
+        // Refused: the checkout as it stands now says which shop holds it up (paymentRefusal).
+        else void queryClient.refetchQueries({ queryKey: checkoutKeys.detail(cartId), exact: true });
       },
     });
 
+  const failure = useFailureMessage(
+    startPayment.error && !isAlreadyPaid(startPayment.error) ? startPayment.error : null,
+    "Couldn't start the payment. You haven't been charged. Try again.",
+    // The API's 400s here carry no code: the checkout shows which shop holds it up.
+    { 400: (checkout.data && paymentRefusal(checkout.data)) ?? "Something in your order needs a change before paying. You haven't been charged." }
+  );
+
   return (
     <View>
-      {startPayment.error && !isAlreadyPaid(startPayment.error) ? (
+      {failure ? (
         <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[4], backgroundColor: theme.colors.raised }}>
-          <InlineNote>
-            {refusalMessage(startPayment.error) ?? "Couldn't start the payment. You haven't been charged. Try again."}
-          </InlineNote>
+          <InlineNote>{failure}</InlineNote>
         </View>
       ) : null}
       <ChangesSheet

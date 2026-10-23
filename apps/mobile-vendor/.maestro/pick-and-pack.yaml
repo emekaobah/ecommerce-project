@@ -24,24 +24,27 @@ env:
 - tapOn: "Accept order"
 - tapOn: "Continue picking"
 - extendedWaitUntil:
-    visible: "0 of .* picked"
+    visible: "Picking · 0 of .*"
     timeout: 10000
 # Tick the first line, leave the checklist, and come back to it: the tick is still there.
-- tapOn: ".*, To pick"
-- assertVisible: ".*, Picked"
-# The header's back button (Maestro's `back` is Android's).
-- tapOn: "Order #.*"
+# A line reads "<name>, 0 of 2 picked" until ticked, "<name>, 2 of 2 picked" once it is.
+- tapOn: ".*, 0 of .* picked"
+- assertVisible: ".*, (\\d+) of \\1 picked"
+# The header's back button (Maestro's `back` is Android's). By id: its label, "Order #N", is
+# also the title's.
+- tapOn:
+    id: "BackButton"
 - tapOn: "Continue picking"
-- assertVisible: ".*, Picked"
+- assertVisible: ".*, (\\d+) of \\1 picked"
 # Packing waits for every line.
 - assertVisible:
-    text: "Pick every item to pack the order."
+    text: "Packed"
+    enabled: false
 - repeat:
     while:
-      visible: ".*, To pick"
+      visible: ".*, 0 of .* picked"
     commands:
-      - tapOn: ".*, To pick"
-- tapOn: "Mark packed"
-- assertVisible: "Order #.* is packed"
-- tapOn: "Back to orders"
-- assertVisible: ".*, Packed"
+      - tapOn: ".*, 0 of .* picked"
+- tapOn: "Packed"
+- assertVisible: "Packed. Book the courier."
+- assertVisible: "Book courier label"

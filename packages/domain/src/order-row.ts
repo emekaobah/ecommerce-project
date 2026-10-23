@@ -1,4 +1,5 @@
 import { dateLabel } from "./date-label"
+import { itemsLabel } from "./items-label"
 import { orderNumber } from "./order-number"
 
 /** What an order row's meta line reads from its checkout. */
@@ -33,6 +34,5 @@ function placedOn(placed: Date, now: Date, timeZone: string) {
 
 /** An order row's meta line: "Today · 4 items · OJ-2410". */
 export function orderRowMeta({ createdAt, itemCount, displayId }: OrderRowFacts, now: Date, timeZone: string): string {
-  const items = `${itemCount} ${itemCount === 1 ? "item" : "items"}`
-  return [placedOn(new Date(createdAt), now, timeZone), items, orderNumber(displayId)].join(" · ")
+  return [placedOn(new Date(createdAt), now, timeZone), itemsLabel(itemCount), orderNumber(displayId)].join(" · ")
 }

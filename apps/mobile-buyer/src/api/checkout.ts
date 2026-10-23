@@ -3,7 +3,6 @@ import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/reac
 
 import { cartKeys } from './cart';
 import { storeClient } from './client';
-import { refusedWith } from './errors';
 
 export const checkoutKeys = {
   all: ['checkout'] as const,
@@ -22,15 +21,6 @@ async function fetchCheckout(cartId: string, addressId: string | null | undefine
     ...(addressId ? { address_id: addressId } : {}),
   });
   return checkout;
-}
-
-/**
- * Why the store refused a checkout step, in its own words, which are written for the buyer (a
- * code that expired, a shop that doesn't offer pickup, an address no courier reaches). Null for
- * any other failure, which the screen words itself (the error goes to Sentry, never on screen).
- */
-export function refusalMessage(error: unknown): string | null {
-  return refusedWith(error, [400, 422]);
 }
 
 export type Checkout = Awaited<ReturnType<typeof fetchCheckout>>;

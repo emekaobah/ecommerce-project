@@ -1,126 +1,218 @@
-import { CANCEL_REASON_LABELS, CANCEL_REASONS, cancelRequest, formatMoney, type CancelReason } from '@oja/domain';
-import { Button, EmptyState, ErrorState, line, LoadingState, MAX_FONT_SCALE, RadioOption, StatusChip, Text, useTheme } from '@oja/ui';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  buyerShortName,
+  CANCEL_REASON_CHOICES,
+  CANCEL_REASONS,
+  cancelRefundNote,
+  cancelRequest,
+  formatMoney,
+  staffStatus,
+  type CancelReason,
+} from '@oja/domain';
+import { Band, Button, EmptyState, ErrorState, InlineNote, RadioOption, Skeleton, StatusChip, Text, TextField, useTheme } from '@oja/ui';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useCancelOrder, useCancelPreview } from '@/api/orders';
+import { useFailureMessage } from '@/api/errors';
+import { useCancelOrder, useCancelPreview, useOrder } from '@/api/orders';
+
+import { ConfirmationHero } from '../collect/confirmation-hero';
 
 const isReason = (value: string | undefined): value is CancelReason => (CANCEL_REASONS as readonly (string | undefined)[]).includes(value);
 
 /**
- * Cancels an accepted order (#17), for owners and managers: why (the buyer is told), then the
- * refund it makes, which is all that is left of what the buyer paid for it. Opened with a
- * `reason` to start from it, as the pick list does once every item is unavailable.
+ * Cancels an accepted order (#17, catalogue v-shop #7), for owners and managers: one of four
+ * reasons the buyer reads, a note (required for Other, optional otherwise), and the refund it
+ * makes, all that is left of what the buyer paid, said before the button and in it. Opened with
+ * a `reason` to start from it, as the pick list does once every item is unavailable.
  */
 export function CancelScreen() {
   const theme = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; reason?: string }>();
   const { id } = params;
+  const order = useOrder(id);
   const preview = useCancelPreview(id);
   const cancel = useCancelOrder(id);
+  const failure = useFailureMessage(
+    cancel.error,
+    "Couldn't cancel the order. Check your connection and try again; nothing has changed.",
+    { 403: 'Only the owner or a manager can cancel an accepted order.' }
+  );
+  // The view measures itself below the header: without its height the keyboard covers the foot button.
+  const headerHeight = useHeaderHeight();
   const [reason, setReason] = useState<CancelReason | null>(isReason(params.reason) ? params.reason : null);
   const [note, setNote] = useState('');
   const request = cancelRequest({ reason, note });
+  const title = order.data ? `Order #${order.data.display_id}` : 'Cancel order';
 
-  if (cancel.data) {
-    const { refund, refund_amount } = cancel.data;
-    const currency = preview.data?.currency_code ?? '';
-    return (
-      <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }}>
-        <StatusChip label="Cancelled" tone="danger" />
-        <Text variant="titlePushed">Order cancelled</Text>
-        <RefundOutcome amount={formatMoney(refund_amount, currency)} refunded={refund !== null} nothingLeft={refund_amount === 0} />
-        <Button label="Back to orders" onPress={() => router.dismissTo('/')} />
-      </ScrollView>
-    );
-  }
+  const content = () => {
+    if (cancel.data) {
+      const { refund, refund_amount } = cancel.data;
+      return (
+        <Cancelled
+          amount={formatMoney(refund_amount, preview.data?.currency_code ?? '')}
+          refunded={refund !== null}
+          nothingLeft={refund_amount === 0}
+          onDone={() => router.dismissTo('/')}
+        />
+      );
+    }
+    if (preview.error && !preview.data) {
+      return (
+        <ErrorState
+          title="Couldn't load the order"
+          body="Check your connection and try again. Nothing has been cancelled."
+          error={preview.error}
+          onRetry={() => void preview.refetch()}
+        />
+      );
+    }
+    if (!preview.data) return <CancelSkeleton />;
+    if (!preview.data.allowed) {
+      return (
+        <EmptyState
+          title="This order can't be cancelled now"
+          body="Only an accepted order can be cancelled, up until its courier label is booked."
+        />
+      );
+    }
+    const refund = formatMoney(preview.data.refund_amount, preview.data.currency_code);
+    const buyer = order.data ? buyerShortName(order.data) : null;
+    // An order already refunded in full (or never paid) has nothing left to refund.
+    const refunds = preview.data.refund_amount > 0;
 
-  if (preview.error && !preview.data) {
-    return <ErrorState title="Couldn't load the order" body="Check your connection and try again." error={preview.error} onRetry={() => void preview.refetch()} />;
-  }
-  if (!preview.data) return <LoadingState />;
-  if (!preview.data.allowed) {
     return (
-      <EmptyState
-        title="This order can't be cancelled now"
-        body="Only an accepted order can be cancelled, up until its courier label is booked."
-      />
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
+        <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }} keyboardShouldPersistTaps="handled">
+          <CancelBand state={order.data?.fulfilment.state} />
+          <View style={{ padding: theme.space[4], gap: theme.space[4] }}>
+            <View accessibilityRole="radiogroup" accessibilityLabel="Reason the buyer will see" style={{ gap: theme.space[2] }}>
+              <Text variant="meta" weight="bold" tone="muted">
+                Reason the buyer will see
+              </Text>
+              {CANCEL_REASONS.map((option) => (
+                <RadioOption key={option} selected={reason === option} onPress={() => setReason(option)}>
+                  <Text weight="semibold">{CANCEL_REASON_CHOICES[option]}</Text>
+                </RadioOption>
+              ))}
+            </View>
+            {reason ? (
+              <TextField
+                label={reason === 'other' ? 'Why are you cancelling?' : 'Note for the buyer'}
+                optional={reason !== 'other'}
+                hint={reason === 'other' ? 'The buyer reads this.' : null}
+                testID="cancel-note"
+                multiline
+                maxLength={500}
+                value={note}
+                onChangeText={setNote}
+              />
+            ) : null}
+            <InlineNote>
+              <Text variant="meta" weight="bold" style={{ color: theme.status.attention.foreground }}>
+                {refunds ? cancelRefundNote(buyer, refund) : 'Nothing is left to refund on the order.'}
+              </Text>
+              {" Stock goes back to your shelves. This can't be undone."}
+            </InlineNote>
+          </View>
+        </ScrollView>
+        <SafeAreaView
+          edges={['bottom']}
+          style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2], gap: theme.space[2], backgroundColor: theme.colors.bg }}>
+          {failure ? <InlineNote>{failure}</InlineNote> : null}
+          <Button
+            label={refunds ? `Cancel and refund ${refund}` : 'Cancel order'}
+            variant="danger"
+            size="main"
+            disabled={!request}
+            loading={cancel.isPending}
+            onPress={() => request && cancel.mutate(request)}
+          />
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     );
-  }
-  const refund = formatMoney(preview.data.refund_amount, preview.data.currency_code);
+  };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: theme.space[4], gap: theme.space[6] }} keyboardShouldPersistTaps="handled">
-      <Text tone="muted">The buyer is told why, and refunded all they paid for this order.</Text>
-      <View accessibilityRole="radiogroup" style={{ gap: theme.space[2] }}>
-        {CANCEL_REASONS.map((option) => (
-          <RadioOption key={option} selected={reason === option} onPress={() => setReason(option)}>
-            <Text variant="strong">{CANCEL_REASON_LABELS[option]}</Text>
-          </RadioOption>
-        ))}
-      </View>
-      {reason ? (
-        <View style={{ gap: theme.space[1] }}>
-          <Text variant="strong">{reason === 'other' ? 'Why are you cancelling?' : 'Add a note for the buyer (optional)'}</Text>
-          <TextInput
-            maxFontSizeMultiplier={MAX_FONT_SCALE}
-            testID="cancel-note"
-            style={[
-              styles.input,
-              theme.type.body,
-              {
-                color: theme.colors.ink,
-                borderColor: theme.colors.control,
-                borderRadius: theme.radius.md,
-                minHeight: theme.hitArea * 2,
-                padding: theme.space[4],
-              },
-            ]}
-            placeholder={reason === 'other' ? 'Required: the buyer reads this' : 'Note'}
-            placeholderTextColor={theme.colors.muted}
-            multiline
-            maxLength={500}
-            value={note}
-            onChangeText={setNote}
-          />
-        </View>
-      ) : null}
-      <View style={styles.spread}>
-        <Text variant="strong">Refund to the buyer</Text>
-        <Text variant="strong">{refund}</Text>
-      </View>
-      {cancel.error ? <Text tone="danger">{cancel.error.message}</Text> : null}
-      <Button
-        label="Cancel and refund"
-        detail={refund}
-        disabled={!request}
-        loading={cancel.isPending}
-        onPress={() => request && cancel.mutate(request)}
-      />
-      <Button label="Keep the order" variant="secondary" disabled={cancel.isPending} onPress={() => router.back()} />
-    </ScrollView>
+    <>
+      {/* Once cancelled, the confirmation runs up under the status bar. */}
+      <Stack.Screen options={{ title, headerShown: !cancel.data, headerBackButtonDisplayMode: 'minimal' }} />
+      {content()}
+    </>
   );
 }
 
-/** Where the cancelled order's refund is. One Paystack turned down is still owed, and retried: pending, not failed. */
-function RefundOutcome({ amount, refunded, nothingLeft }: Readonly<{ amount: string; refunded: boolean; nothingLeft: boolean }>) {
+/** The band: where the order is now, and what this screen does. */
+function CancelBand({ state }: Readonly<{ state: Parameters<typeof staffStatus>[0] | undefined }>) {
   const theme = useTheme();
-  if (nothingLeft) return <Text>The buyer had already been refunded in full.</Text>;
   return (
-    <View style={{ gap: theme.space[1] }}>
-      <StatusChip label={refunded ? 'Refund on its way' : 'Refund pending'} tone={refunded ? 'success' : 'new'} icon={refunded ? 'check' : 'clock'} />
-      <Text>
-        {refunded
-          ? `${amount} is being refunded to the buyer.`
-          : `The refund of ${amount} didn't go through yet. Oja keeps trying it, and the buyer is told.`}
+    <Band style={{ gap: theme.space[2] }}>
+      {state ? (
+        <View style={styles.start}>
+          <StatusChip {...staffStatus(state)} onBand />
+        </View>
+      ) : null}
+      <Text variant="titleNamed" tone="onBand">
+        Cancel this order
       </Text>
+    </Band>
+  );
+}
+
+/** The band and the four reasons while the preview loads. */
+function CancelSkeleton() {
+  const theme = useTheme();
+  return (
+    <View>
+      <CancelBand state={undefined} />
+      <View style={{ padding: theme.space[4], gap: theme.space[2] }}>
+        {CANCEL_REASONS.map((reason) => (
+          <Skeleton key={reason} height={theme.hitArea} radius="md" />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Cancelled: the indigo confirmation and where its refund is. One Paystack turned down is still
+ * owed, and retried: pending, not failed.
+ */
+function Cancelled({
+  amount,
+  refunded,
+  nothingLeft,
+  onDone,
+}: Readonly<{ amount: string; refunded: boolean; nothingLeft: boolean; onDone: () => void }>) {
+  const theme = useTheme();
+  let line = `The refund of ${amount} didn't go through yet. Oja keeps trying it, and the buyer is told.`;
+  if (nothingLeft) line = 'The buyer had already been refunded in full.';
+  else if (refunded) line = `${amount} is being refunded to the buyer.`;
+  return (
+    <View style={styles.fill}>
+      <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+        <ConfirmationHero title="Order cancelled" line={line} />
+        {nothingLeft ? null : (
+          <View style={[styles.start, { padding: theme.space[4] }]}>
+            <StatusChip
+              label={refunded ? 'Refund on its way' : 'Refund pending'}
+              tone={refunded ? 'success' : 'new'}
+              icon={refunded ? 'check' : 'clock'}
+            />
+          </View>
+        )}
+      </ScrollView>
+      <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2] }}>
+        <Button label="Back to orders" size="main" onPress={onDone} />
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  input: { borderWidth: line.input, textAlignVertical: 'top' },
-  spread: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  fill: { flex: 1 },
+  start: { alignItems: 'flex-start' },
 });

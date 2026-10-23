@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { pickProgress, scanBarcode, type PickLine } from "./picking"
+import { parcelWeightLabel, pickBand, pickLineView, pickProgress, scanBarcode, unavailableCounter, type PickLine } from "./picking"
 
 const rice: PickLine = { id: "item_rice", quantity: 2, picked: 0, unavailable: 0, codes: ["5901234123457"] }
 const lantern: PickLine = { id: "item_lantern", quantity: 1, picked: 0, unavailable: 0, codes: ["036000291452"] }
@@ -94,5 +94,95 @@ describe("pickProgress", () => {
 
   test("an order with no lines is not done", () => {
     expect(pickProgress([]).done).toBe(false)
+  })
+})
+
+describe("pickBand", () => {
+  test("counts the units picked out of those ordered, as words and as a fraction", () => {
+    const progress = pickProgress([{ ...rice, picked: 2 }, { ...lantern, picked: 1 }, { ...cap, quantity: 2 }])
+    expect(pickBand(progress)).toEqual({ label: "Picking · 3 of 5", fraction: 0.6 })
+  })
+
+  test("an order with nothing to pick has nothing done", () => {
+    expect(pickBand(pickProgress([]))).toEqual({ label: "Picking · 0 of 0", fraction: 0 })
+  })
+})
+
+describe("pickLineView", () => {
+  test("a line picked in full turns its pill leaf", () => {
+    expect(pickLineView({ ...rice, picked: 2, perishable: false })).toEqual({
+      pill: { label: "2/2", tone: "picked" },
+      note: "Picked",
+      noteTone: "muted",
+      spoken: "2 of 2 picked",
+    })
+  })
+
+  test("a line with units marked short turns ember, saying so", () => {
+    expect(pickLineView({ ...rice, unavailable: 1, perishable: true })).toEqual({
+      pill: { label: "0/2", tone: "short" },
+      note: "Perishable · 1 not available",
+      noteTone: "ember",
+      spoken: "Perishable, 0 of 2 picked, 1 not available",
+    })
+  })
+
+  test("a line not yet touched asks for a tap", () => {
+    expect(pickLineView({ ...lantern, perishable: false })).toEqual({
+      pill: { label: "0/1", tone: "neutral" },
+      note: "Tap to tick",
+      noteTone: "muted",
+      spoken: "0 of 1 picked",
+    })
+  })
+
+  test("a line part picked says how many are picked", () => {
+    expect(pickLineView({ ...rice, picked: 1, perishable: true })).toMatchObject({
+      pill: { label: "1/2", tone: "neutral" },
+      note: "Perishable · 1 of 2 picked",
+      spoken: "Perishable, 1 of 2 picked",
+    })
+  })
+
+  test("a line with no barcode is ticked by hand", () => {
+    expect(pickLineView({ ...cap, perishable: false }).note).toBe("No barcode: tick by hand")
+    expect(pickLineView({ ...cap, quantity: 2, picked: 1, perishable: false }).note).toBe("1 of 2 picked · No barcode: tick by hand")
+  })
+})
+
+describe("parcelWeightLabel", () => {
+  test("adds up each line's weight in grams times its quantity", () => {
+    const items = [
+      { quantity: 2, variant: { weight: 5000, product: { weight: 4000 } } },
+      { quantity: "1", variant: { weight: "6000", product: null } },
+    ]
+    expect(parcelWeightLabel(items)).toBe("about 16 kg")
+  })
+
+  test("takes the product's weight when the variant has none", () => {
+    expect(parcelWeightLabel([{ quantity: 3, variant: { weight: null, product: { weight: 250 } } }])).toBe("about 750 g")
+  })
+
+  test("rounds to a tenth of a kilo", () => {
+    expect(parcelWeightLabel([{ quantity: 1, variant: { weight: 15_740 } }])).toBe("about 15.7 kg")
+  })
+
+  test("says nothing when no line has a weight", () => {
+    expect(parcelWeightLabel([{ quantity: 1, variant: { weight: null, product: { weight: null } } }, { quantity: 1, variant: null }])).toBeNull()
+    expect(parcelWeightLabel([])).toBeNull()
+  })
+})
+
+describe("unavailableCounter", () => {
+  test("counts up to the units not yet picked, starting at one", () => {
+    expect(unavailableCounter({ quantity: 3, picked: 1, unavailable: 0 })).toEqual({ most: 2, start: 1 })
+  })
+
+  test("starts at what is already marked", () => {
+    expect(unavailableCounter({ quantity: 3, picked: 0, unavailable: 2 })).toEqual({ most: 3, start: 2 })
+  })
+
+  test("a line picked in full has nothing left to mark: no count is offered", () => {
+    expect(unavailableCounter({ quantity: 2, picked: 2, unavailable: 0 })).toEqual({ most: 0, start: 0 })
   })
 })

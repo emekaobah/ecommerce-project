@@ -3,7 +3,7 @@
  * counter checks it, and what the buyer is told at checkout.
  */
 
-import { WEEKDAYS, type DayHours, type OpenPeriod, type Weekday, type WeeklyHours } from "./shop-hours"
+import { openingLabel, WEEKDAYS, type DayHours, type OpenPeriod, type Weekday, type WeeklyHours } from "./shop-hours"
 
 /** A pickup code is this many digits, shown in the buyer's order and as a QR code of them. */
 export const PICKUP_CODE_LENGTH = 6
@@ -101,4 +101,33 @@ export function todayHoursLabel(today: DayHours | null): string | null {
   if (periods.length === 1 && periods[0]!.opens === "00:00" && periods[0]!.closes === "24:00") return "Open 24 hours today"
   const ranges = periods.map((p) => `${clockLabel(p.opens)}–${clockLabel(p.closes)}`).join(", ")
   return `Open today ${ranges}`
+}
+
+/** What the counter is told when the code entered isn't the order's: nothing was handed over. */
+export const PICKUP_WRONG_CODE_MESSAGE = "That code doesn't match this order. Check it with the buyer."
+
+/**
+ * "Too many wrong codes. Try again at 3:15pm.": the counter locked out after too many wrong
+ * codes, with when it may try again (`retryAt`, ISO 8601, the API's `retry_at`) in the shop's
+ * time, and the day when that isn't today ("at 12:10am Sat").
+ */
+export function pickupLockoutMessage(retryAt: string, now: Date, timeZone: string): string {
+  return `Too many wrong codes. Try again at ${openingLabel(retryAt, now, timeZone)}.`
+}
+
+/**
+ * Why the counter's Hand over order was refused (`POST /vendor/orders/:id/collect`): a wrong
+ * code (400 `invalid_data`; the counter sends only a code of the right shape and a name, so the
+ * API's own checks of those never answer it), too many lately (429 with `retry_at`), an order
+ * that can't be handed over now (400 `not_allowed`: collected, not ready, or a delivery), or
+ * none of these, a failure to retry.
+ */
+export type PickupRefusal = { kind: "wrong_code" } | { kind: "locked"; retryAt: string } | { kind: "not_allowed" } | { kind: "failed" }
+
+export function pickupRefusal(status: number | undefined, body: unknown): PickupRefusal {
+  const { type, retry_at: retryAt } = body && typeof body === "object" ? (body as Record<string, unknown>) : {}
+  if (status === 429 && typeof retryAt === "string") return { kind: "locked", retryAt }
+  if (status === 400 && type === "invalid_data") return { kind: "wrong_code" }
+  if (status === 400 && type === "not_allowed") return { kind: "not_allowed" }
+  return { kind: "failed" }
 }
