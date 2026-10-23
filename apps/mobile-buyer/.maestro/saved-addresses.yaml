@@ -82,8 +82,8 @@ env:
     timeout: 15000
 - assertVisible: "Default"
 
-# Edit: the pin is kept, so only the landmark changes.
-- tapOn: "Edit"
+# Edit: the pin is kept, so only the landmark changes. The pen is labelled with the street.
+- tapOn: "Edit .*"
 - scrollUntilVisible:
     element: "Save address"
 - assertVisible: "Delivery pin placed on the map."
@@ -105,7 +105,7 @@ env:
 - back
 - tapOn: "Home"
 - tapOn: "Ofada Rice 5kg.*"
-- tapOn: "Add to cart.*"
+- tapOn: "Add"
 - tapOn: "View cart"
 - tapOn: "Checkout.*"
 - extendedWaitUntil:
@@ -118,7 +118,11 @@ env:
 - tapOn: "Account"
 - tapOn: "Addresses"
 - tapOn: "Delete"
-# The alert's Delete, not the link under it.
+# The sheet names the address; its red Delete, not the link on the card behind it.
+- extendedWaitUntil:
+    visible: "Delete this address?"
+    timeout: 5000
+- assertVisible: "Akin Adesola Street.*"
 - tapOn:
     text: "Delete"
     index: 1
