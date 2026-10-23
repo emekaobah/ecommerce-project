@@ -42,6 +42,7 @@ export function RejectSheet() {
       }>
       <TextField
         label="Reason"
+        labelHidden
         testID="reject-reason"
         multiline
         maxLength={500}
