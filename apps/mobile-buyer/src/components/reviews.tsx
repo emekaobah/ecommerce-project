@@ -1,8 +1,8 @@
-import { dateLabel, ratingSummary, type Rating, type ReviewKind } from '@oja/domain';
-import { Button, Icon, PressableSurface, ShopMark, Skeleton, Text, useTheme } from '@oja/ui';
+import { dateLabel, ratingSummary, shopInitials, type Rating, type ReviewKind } from '@oja/domain';
+import { Button, GroupList, Icon, PressableSurface, Skeleton, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
-import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { REVIEW_PREVIEW_COUNT, useReviewPreview, type PublishedReview } from '@/api/reviews';
 import { openReviews } from '@/navigation';
@@ -27,7 +27,7 @@ export function Stars({ rating }: Readonly<{ rating: number }>) {
       accessibilityLabel={`${rating.toFixed(1)} out of ${MAX_STARS} stars`}
       style={[styles.row, { gap: theme.space[1] / 2 }]}>
       {Array.from({ length: MAX_STARS }, (_, i) => (
-        <Icon key={i} name="star" use="chip" color={i < filled ? theme.colors.accent : theme.colors.line} filled />
+        <Icon key={i} name="star" use="chip" color={i < filled ? theme.colors.accent : theme.colors.line} solid />
       ))}
     </View>
   );
@@ -79,18 +79,13 @@ export function StarInput({
 
 /**
  * A published review: who wrote it and when, its stars, what they said, and the shop's reply
- * under it. `shop` names the replying shop on the shop's own page.
+ * under it. `shop` names the replying shop on the shop's own page. Lists put a `Divider` between
+ * reviews, never above the first.
  */
 export function ReviewItem({ review, shop }: Readonly<{ review: PublishedReview; shop?: string }>) {
   const theme = useTheme();
   return (
-    <View
-      style={{
-        gap: theme.space[2],
-        paddingVertical: theme.space[3],
-        borderTopWidth: theme.line.divider,
-        borderTopColor: theme.colors.divider,
-      }}>
+    <View style={{ gap: theme.space[2], paddingVertical: theme.space[4] }}>
       <View style={[styles.row, styles.between, { gap: theme.space[2] }]}>
         <Text variant="meta" weight="bold" style={styles.shrink}>
           {review.author}
@@ -110,17 +105,8 @@ export function ReviewItem({ review, shop }: Readonly<{ review: PublishedReview;
 export function ShopReply({ note, shop }: Readonly<{ note: string; shop?: string }>) {
   const theme = useTheme();
   return (
-    <View
-      style={{
-        marginLeft: theme.space[2],
-        padding: theme.space[2],
-        borderLeftWidth: theme.line.tab,
-        borderLeftColor: theme.colors.accent,
-        borderTopRightRadius: theme.radius.md,
-        borderBottomRightRadius: theme.radius.md,
-        backgroundColor: theme.colors.tile,
-      }}>
-      <Text variant="meta" tone="muted">
+    <View style={{ marginLeft: theme.space[3], padding: theme.space[3], borderRadius: theme.radius.md, backgroundColor: theme.colors.tile }}>
+      <Text variant="meta" tone="muted" style={{ lineHeight: theme.type.meta.fontSize * 1.5 }}>
         <Text variant="meta" weight="bold">{`${shop ?? 'The shop'} replied:`}</Text> {note}
       </Text>
     </View>
@@ -146,19 +132,13 @@ export function ReviewSubjectLine({
 }>) {
   const theme = useTheme();
   const size = theme.shopMark.sm.size * (36 / 32);
+  const box = { width: size, height: size, borderRadius: theme.radius.md, overflow: 'hidden' as const };
   return (
     <View style={[styles.row, { gap: theme.space[2] }]}>
       {shop ? (
-        <ShopMark name={shop.name} logoUrl={shop.logo} size="sm" />
+        <SubjectMonogram shop={shop} style={box} />
       ) : (
-        <View
-          style={{
-            width: size,
-            height: size,
-            borderRadius: theme.radius.md,
-            overflow: 'hidden',
-            backgroundColor: theme.colors.productTile,
-          }}>
+        <View style={[box, { backgroundColor: theme.colors.productTile }]}>
           {thumbnail ? <Image source={thumbnail} contentFit="contain" style={styles.fill} accessibilityIgnoresInvertColors /> : null}
         </View>
       )}
@@ -177,25 +157,52 @@ export function ReviewSubjectLine({
   );
 }
 
+/**
+ * A reviewed shop beside its review, the same size as a product's photo: its logo, or its
+ * initials on plain indigo (the catalogue's `.mono`, no pattern at this size).
+ */
+function SubjectMonogram({ shop, style }: Readonly<{ shop: { name: string; logo?: string | null }; style: ViewStyle }>) {
+  const theme = useTheme();
+  const [failed, setFailed] = useState(false);
+  if (shop.logo && !failed) {
+    return (
+      <View style={[style, { backgroundColor: theme.colors.productTile }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Image source={{ uri: shop.logo }} contentFit="cover" style={styles.fill} onError={() => setFailed(true)} />
+      </View>
+    );
+  }
+  return (
+    <View
+      style={[style, styles.star, { backgroundColor: theme.colors.band }]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants">
+      {/* Bricolage at the meta size, sized by its box so it doesn't grow with the text setting. */}
+      <Text
+        variant="heading"
+        weight="extrabold"
+        tone="onBand"
+        maxFontSizeMultiplier={1}
+        style={{ fontSize: theme.type.meta.fontSize, lineHeight: theme.type.meta.lineHeight }}>
+        {shopInitials(shop.name)}
+      </Text>
+    </View>
+  );
+}
+
 /** The shape of a few reviews while they load. */
 export function ReviewsSkeleton({ count = 3 }: Readonly<{ count?: number }>) {
   const theme = useTheme();
   return (
     <View accessible accessibilityLabel="Loading reviews">
-      {Array.from({ length: count }, (_, i) => (
-        <View
-          key={i}
-          style={{
-            gap: theme.space[2],
-            paddingVertical: theme.space[3],
-            borderTopWidth: theme.line.divider,
-            borderTopColor: theme.colors.divider,
-          }}>
-          <Skeleton width="40%" height={theme.type.meta.lineHeight} />
-          <Skeleton width="25%" height={theme.type.meta.lineHeight} />
-          <Skeleton width="90%" height={theme.type.body.lineHeight} />
-        </View>
-      ))}
+      <GroupList>
+        {Array.from({ length: count }, (_, i) => (
+          <View key={i} style={{ gap: theme.space[2], paddingVertical: theme.space[4] }}>
+            <Skeleton width="40%" height={theme.type.meta.lineHeight} />
+            <Skeleton width="25%" height={theme.type.meta.lineHeight} />
+            <Skeleton width="90%" height={theme.type.body.lineHeight} />
+          </View>
+        ))}
+      </GroupList>
     </View>
   );
 }
@@ -222,9 +229,11 @@ export function ReviewsPreview({ kind, id, title }: Readonly<{ kind: ReviewKind;
     return (
       <>
         <RatingLine rating={{ average: average_rating, count }} />
-        {reviews.map((review) => (
-          <ReviewItem key={review.id} review={review} shop={kind === 'seller' ? title : undefined} />
-        ))}
+        <GroupList>
+          {reviews.map((review) => (
+            <ReviewItem key={review.id} review={review} shop={kind === 'seller' ? title : undefined} />
+          ))}
+        </GroupList>
         {count > REVIEW_PREVIEW_COUNT ? (
           <Button
             label={`See all ${count} reviews`}

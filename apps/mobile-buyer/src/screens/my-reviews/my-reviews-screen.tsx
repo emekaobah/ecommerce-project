@@ -127,7 +127,7 @@ export function MyReviewsScreen() {
                     setMenuFor(null);
                   }}
                 />
-                <Button label="Cancel" variant="link" onPress={() => setMenuFor(null)} />
+                <Button label="Cancel" variant="secondary" onPress={() => setMenuFor(null)} />
               </>
             }
           />

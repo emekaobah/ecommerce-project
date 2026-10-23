@@ -1,5 +1,5 @@
 import type { ReviewKind } from '@oja/domain';
-import { EmptyState, ErrorState, Skeleton, Text, useTheme, useToast } from '@oja/ui';
+import { Divider, EmptyState, ErrorState, Skeleton, Text, useTheme, useToast } from '@oja/ui';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import { useReviewPages, type PublishedReviews } from '@/api/reviews';
@@ -51,13 +51,21 @@ export function ReviewsScreen({ kind, id, title }: Readonly<{ kind: ReviewKind; 
           <ReviewsSkeleton />
         )
       }
-      ListFooterComponent={pages.isFetchingNextPage ? <ReviewsSkeleton count={1} /> : undefined}
+      ItemSeparatorComponent={Divider}
+      ListFooterComponent={
+        pages.isFetchingNextPage ? (
+          <>
+            <Divider />
+            <ReviewsSkeleton count={1} />
+          </>
+        ) : undefined
+      }
       renderItem={({ item }) => <ReviewItem review={item} shop={kind === 'seller' ? title : undefined} />}
     />
   );
 }
 
-/** The big average, its stars and how many reviews it's of: "4.7 ★★★★★ 38 reviews". */
+/** The big average, then its stars and how many reviews it's of, stacked: "4.7 / ★★★★★ / 38 reviews". */
 function RatingSummary({ rating, title }: Readonly<{ rating: PublishedReviews; title: string }>) {
   const theme = useTheme();
   if (rating.average_rating == null || !rating.count) return null;
@@ -66,14 +74,12 @@ function RatingSummary({ rating, title }: Readonly<{ rating: PublishedReviews; t
     <View
       accessible
       accessibilityLabel={`${title}: ${rating.average_rating.toFixed(1)} out of 5 stars, ${count}`}
-      style={[styles.summary, { gap: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[3] }]}>
+      style={[styles.summary, { gap: theme.space[1], paddingTop: theme.space[2], paddingBottom: theme.space[4] }]}>
       <Text variant="displayXxl">{rating.average_rating.toFixed(1)}</Text>
-      <View style={{ gap: theme.space[1] }}>
-        <Stars rating={rating.average_rating} />
-        <Text variant="meta" tone="muted">
-          {count}
-        </Text>
-      </View>
+      <Stars rating={rating.average_rating} />
+      <Text variant="meta" tone="muted">
+        {count}
+      </Text>
     </View>
   );
 }
@@ -81,16 +87,14 @@ function RatingSummary({ rating, title }: Readonly<{ rating: PublishedReviews; t
 function SummarySkeleton() {
   const theme = useTheme();
   return (
-    <View style={[styles.summary, { gap: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[3] }]}>
+    <View style={[styles.summary, { gap: theme.space[1], paddingTop: theme.space[2], paddingBottom: theme.space[4] }]}>
       <Skeleton width={theme.type.displayXxl.fontSize * 1.6} height={theme.type.displayXxl.lineHeight} />
-      <View style={{ gap: theme.space[1], flex: 1 }}>
-        <Skeleton width="40%" height={theme.type.meta.lineHeight} />
-        <Skeleton width="30%" height={theme.type.meta.lineHeight} />
-      </View>
+      <Skeleton width="30%" height={theme.type.meta.lineHeight} />
+      <Skeleton width="25%" height={theme.type.meta.lineHeight} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  summary: { flexDirection: 'row', alignItems: 'center' },
+  summary: { alignItems: 'flex-start' },
 });

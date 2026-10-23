@@ -81,6 +81,10 @@ const ICONS = {
 
 export type IconName = keyof typeof ICONS
 
+/** Glyphs the catalogue draws facing the other way from Lucide's: sign out's arrow leaves the door to the left. */
+const MIRRORED: ReadonlySet<IconName> = new Set<IconName>(["logout"])
+const MIRROR = { transform: [{ scaleX: -1 }] }
+
 /** Where the icon sits: each place has its size and stroke. */
 export type IconUse = keyof typeof icon.size
 
@@ -91,6 +95,8 @@ export type IconProps = {
   color?: string
   /** Filled states, such as a saved heart or a rating star, fill with the same colour. */
   filled?: boolean
+  /** Filled with no outline, as rating stars are drawn: the glyph reads smaller and lighter. */
+  solid?: boolean
   /**
    * Spoken when the icon carries meaning of its own; otherwise the icon is hidden from screen
    * readers. An icon-only button carries its label on the button instead.
@@ -98,16 +104,17 @@ export type IconProps = {
   label?: string
 }
 
-export function Icon({ name, use = "default", color, filled, label }: Readonly<IconProps>) {
+export function Icon({ name, use = "default", color, filled, solid, label }: Readonly<IconProps>) {
   const theme = useTheme()
   const Glyph = ICONS[name]
   const colour = color ?? theme.colors.ink
   return (
     <Glyph
       size={theme.icon.size[use]}
-      strokeWidth={theme.icon.stroke[use]}
+      strokeWidth={solid ? 0 : theme.icon.stroke[use]}
       color={colour}
-      fill={filled ? colour : "none"}
+      fill={filled || solid ? colour : "none"}
+      style={MIRRORED.has(name) ? MIRROR : undefined}
       accessible={Boolean(label)}
       accessibilityLabel={label}
       accessibilityRole={label ? "image" : undefined}
