@@ -1,4 +1,12 @@
-import { acceptClockFraction, acceptClockTime, acceptTimeLeft, formatMoney, type ShopHours } from '@oja/domain';
+import {
+  acceptClockFraction,
+  acceptTimeLeft,
+  acceptWithinLabel,
+  formatMoney,
+  itemsLabel,
+  takeoverAnnouncement,
+  type ShopHours,
+} from '@oja/domain';
 import {
   AdirePattern,
   ErrorState,
@@ -12,11 +20,11 @@ import {
 } from '@oja/ui';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { refusedWith } from '@/api/errors';
+import { useFailureMessage } from '@/api/errors';
 import { orderValue, useAcceptOrder, useOrder, type Order } from '@/api/orders';
 import { useShopHours } from '@/api/shop-hours';
 import { shopHoursOf } from '@/orders/shop-state';
@@ -28,7 +36,6 @@ import { AlarmRing } from './alarm-ring';
 import { useAlarm } from './use-alarm';
 
 const itemCount = (order: Order) => (order.items ?? []).reduce((sum, item) => sum + Number(item.quantity), 0);
-const itemsLabel = (count: number) => `${count} ${count === 1 ? 'item' : 'items'}`;
 
 /**
  * A new order arriving while the app is open (#83, catalogue v-triage #2): the whole screen in
@@ -53,6 +60,11 @@ export function NewOrderScreen() {
   // Only what the server says now counts: a cached copy may still say New after someone accepted it.
   const data = order.isFetchedAfterMount ? order.data : undefined;
   const isNew = data?.fulfilment.state === 'new';
+  const failed = useFailureMessage(
+    accept.error,
+    [400, 409],
+    `Couldn't accept order #${data?.display_id ?? ''}. Check your connection and try again.`
+  );
   useAlarm(!answered && (isNew || (Boolean(order.error) && !data)));
 
   useEffect(() => {
@@ -60,28 +72,43 @@ export function NewOrderScreen() {
     return () => takeoverClosed(id);
   }, [id]);
 
-  const openOrder = () => router.replace({ pathname: '/orders/[id]', params: { id } });
+  const openOrder = useCallback(() => router.replace({ pathname: '/orders/[id]', params: { id } }), [id, router]);
 
   // Accepted: the order opens in Picking, where the pick list starts.
   useEffect(() => {
     if (!accept.isSuccess) return;
     haptics.success();
-    router.replace({ pathname: '/orders/[id]', params: { id } });
-  }, [accept.isSuccess, id, router]);
+    openOrder();
+  }, [accept.isSuccess, openOrder]);
 
-  // No longer New: unseen, it just closes; refused on Accept (someone or the deadline moved it
-  // on), the order opens where it is now.
+  // No longer New: unseen, it just closes (to Orders when it was the first screen); refused on
+  // Accept (someone or the deadline moved it on), the order opens where it is now.
   useEffect(() => {
     if (!data || isNew || accept.isPending || accept.isSuccess) return;
-    if (accept.isError) router.replace({ pathname: '/orders/[id]', params: { id } });
-    else if (!answered && router.canGoBack()) router.back();
-  }, [data, isNew, accept.isPending, accept.isSuccess, accept.isError, answered, id, router]);
+    if (accept.isError) openOrder();
+    else if (!answered) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/');
+    }
+  }, [data, isNew, accept.isPending, accept.isSuccess, accept.isError, answered, openOrder, router]);
 
   const announced = useRef(false);
   useEffect(() => {
     if (!isNew || !data || announced.current) return;
     announced.current = true;
-    AccessibilityInfo.announceForAccessibility(announcement(data, now, hours));
+    AccessibilityInfo.announceForAccessibility(
+      takeoverAnnouncement(
+        {
+          displayId: data.display_id,
+          method: data.fulfilment.method,
+          itemCount: itemCount(data),
+          total: formatMoney(orderValue(data), data.currency_code),
+          acceptBy: data.fulfilment.accept_by,
+        },
+        now,
+        hours
+      )
+    );
   }, [isNew, data, now, hours]);
 
   const answer = () => {
@@ -117,10 +144,6 @@ export function NewOrderScreen() {
 
   const acceptBy = isNew ? data.fulfilment.accept_by : null;
   const fraction = acceptBy ? acceptClockFraction(acceptBy, now, hours) : 1;
-  const failed = accept.isError
-    ? (refusedWith(accept.error, [400, 409]) ??
-      `Couldn't accept order #${data?.display_id ?? ''}. Check your connection and try again.`)
-    : null;
 
   return (
     <View accessibilityViewIsModal style={[styles.fill, { backgroundColor: theme.colors.band }]}>
@@ -153,7 +176,7 @@ export function NewOrderScreen() {
           {failed ? <InlineNote>{failed}</InlineNote> : null}
           <PressableSurface
             accessibilityRole="button"
-            accessibilityLabel={failed ? 'Try again' : 'Accept order'}
+            accessibilityLabel={failed ? `Try again to accept order #${data?.display_id ?? ''}` : 'Accept order'}
             accessibilityState={{ disabled: !isNew || accept.isPending, busy: accept.isPending }}
             disabled={!isNew || accept.isPending}
             onPress={acceptOrder}
@@ -170,6 +193,7 @@ export function NewOrderScreen() {
             accessibilityRole="button"
             accessibilityLabel="View order"
             accessibilityHint="Opens the order to check its lines or reject it"
+            accessibilityState={{ disabled: accept.isPending }}
             disabled={accept.isPending}
             onPress={viewOrder}
             style={[styles.centre, { minHeight: theme.control.md, borderRadius: theme.radius.lg, backgroundColor: theme.colors.onBandAction }]}>
@@ -247,7 +271,6 @@ function OrderSummary({ order, now, hours }: SummaryProps) {
 function AcceptWithin({ acceptBy, now, hours }: Readonly<{ acceptBy: string; now: Date; hours: ShopHours | null }>) {
   const theme = useTheme();
   const left = acceptTimeLeft(acceptBy, now, hours);
-  const time = acceptClockTime(acceptBy, now, hours);
   return (
     <View
       accessible
@@ -256,17 +279,10 @@ function AcceptWithin({ acceptBy, now, hours }: Readonly<{ acceptBy: string; now
       style={[styles.row, { marginTop: theme.space[4], gap: theme.space[2] }]}>
       <Icon name="clock" use="step" color={theme.colors.onBand} />
       <Text variant="meta" weight="bold" tone="onBand" tabular style={styles.fill}>
-        {time === 'Overdue' ? 'Overdue to accept' : `Accept within ${time}`}
+        {acceptWithinLabel(acceptBy, now, hours)}
       </Text>
     </View>
   );
-}
-
-/** What VoiceOver and TalkBack say as the takeover opens: "New order #1044, delivery, 3 items, ₦32,500.00. 23h 58m left to accept." */
-function announcement(order: Order, now: Date, hours: ShopHours | null) {
-  const { fulfilment } = order;
-  const summary = `New order #${order.display_id}, ${fulfilment.method}, ${itemsLabel(itemCount(order))}, ${formatMoney(orderValue(order), order.currency_code)}.`;
-  return fulfilment.accept_by ? `${summary} ${acceptTimeLeft(fulfilment.accept_by, now, hours).accessibilityLabel}.` : summary;
 }
 
 const styles = StyleSheet.create({
