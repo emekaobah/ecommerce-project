@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { isNotFound } from '@/api/errors';
 import { useOrderGroup, type SellerOrder } from '@/api/orders';
 import { PickupCode, usePickupQrSide } from '@/components/pickup';
 
@@ -28,7 +29,9 @@ export function PickupCodeScreen({ groupId, orderId }: Readonly<{ groupId: strin
   const order = group.data?.orders.find((o) => o.id === orderId) ?? null;
 
   let content: ReactNode;
-  if (group.error && !group.data) {
+  if (group.error && !group.data && isNotFound(group.error)) {
+    content = <NoCode order={null} groupId={groupId} />;
+  } else if (group.error && !group.data) {
     content = (
       <ErrorState
         title="Couldn't load your pickup code"
@@ -162,7 +165,10 @@ function NoCode({ order, groupId }: Readonly<{ order: SellerOrder | null; groupI
   const state = order?.fulfilment.state;
   let title = 'No pickup code right now';
   let body = 'Your code appears here when the shop has your order ready.';
-  if (state === 'collected') {
+  if (!order) {
+    title = 'Order not found';
+    body = "This order isn't one of yours.";
+  } else if (state === 'collected') {
     title = 'Already collected';
     body = 'You collected this order, so its code is no longer needed.';
   } else if (state === 'not_collected') {
@@ -174,7 +180,16 @@ function NoCode({ order, groupId }: Readonly<{ order: SellerOrder | null; groupI
       <Band style={{ paddingTop: insets.top + theme.space[2] }}>
         <TopRow label={order ? orderNumber(order.display_id) : 'Order'} groupId={groupId} />
       </Band>
-      <EmptyState title={title} body={body} icon="store" action={{ label: 'Back to the order', onPress: () => close(groupId) }} />
+      <EmptyState
+        title={title}
+        body={body}
+        icon="store"
+        action={
+          order
+            ? { label: 'Back to the order', onPress: () => close(groupId) }
+            : { label: 'See your orders', onPress: () => router.replace('/(tabs)/orders') }
+        }
+      />
     </View>
   );
 }
