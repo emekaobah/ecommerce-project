@@ -44,7 +44,7 @@ export function shopImageFiles(shopName: string): { logo: string; banner: string
 
 // ULIDs in Crockford base32, as the S3 provider appends them.
 const ULID = "[0-9A-HJKMNP-TV-Z]{26}"
-const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
 
 /**
  * Whether a stored file's URL is an upload of `filename`. The file providers keep the name in
@@ -59,7 +59,7 @@ export function isStoredCopy(url: string | null | undefined, filename: string): 
     return false
   }
   const { name, ext } = path.parse(filename)
-  const pattern = new RegExp(`^(?:\\d+-${escapeRegExp(name)}|${escapeRegExp(name)}-${ULID})${escapeRegExp(ext)}$`)
+  const pattern = new RegExp(String.raw`^(?:\d+-${escapeRegExp(name)}|${escapeRegExp(name)}-${ULID})${escapeRegExp(ext)}$`)
   return pattern.test(base)
 }
 
@@ -93,7 +93,7 @@ async function applyProductPhotos(container: MedusaContainer): Promise<Tally> {
   const byHandle = new Map(rows.map((p) => [p.handle, p]))
 
   const tally: Tally = { updated: 0, current: 0, missing: [] }
-  const updates: { id: string; thumbnail: string; images: { url: string }[] }[] = []
+  const stale: { id: string; files: string[] }[] = []
   for (const item of SEED_PRODUCTS) {
     const product = byHandle.get(toHandle(item.title))
     if (!product) {
@@ -106,12 +106,18 @@ async function applyProductPhotos(container: MedusaContainer): Promise<Tally> {
       tally.current++
       continue
     }
-    const urls = await upload(container, files.map((file) => path.join("products", file)))
-    updates.push({ id: product.id, thumbnail: urls[0], images: urls.map((url) => ({ url })) })
+    stale.push({ id: product.id, files: files.map((file) => path.join("products", file)) })
   }
+  if (!stale.length) return tally
+
+  const urls = await upload(container, stale.flatMap((p) => p.files))
+  const updates = stale.map(({ id, files }) => {
+    const gallery = urls.splice(0, files.length)
+    return { id, thumbnail: gallery[0], images: gallery.map((url) => ({ url })) }
+  })
 
   // As the operator, whose product edits apply directly (Mercur's admin product route does the same).
-  if (updates.length) await updateProductsWorkflow(container).run({ input: { products: updates } })
+  await updateProductsWorkflow(container).run({ input: { products: updates } })
   tally.updated = updates.length
   return tally
 }
@@ -127,6 +133,7 @@ async function applyShopImages(container: MedusaContainer): Promise<Tally> {
   const byHandle = new Map(rows.map((s) => [s.handle, s]))
 
   const tally: Tally = { updated: 0, current: 0, missing: [] }
+  const stale: { id: string; logo: string; banner: string }[] = []
   for (const shop of SEED_SELLERS) {
     const seller = byHandle.get(toHandle(shop.name))
     if (!seller) {
@@ -138,12 +145,26 @@ async function applyShopImages(container: MedusaContainer): Promise<Tally> {
       tally.current++
       continue
     }
-    const [logoUrl, bannerUrl] = await upload(container, [path.join("shops", logo), path.join("shops", banner)])
-    await updateSellersWorkflow(container).run({
-      input: { selector: { id: seller.id }, update: { logo: logoUrl, banner: bannerUrl } },
-    })
-    tally.updated++
+    stale.push({ id: seller.id, logo: path.join("shops", logo), banner: path.join("shops", banner) })
   }
+  if (!stale.length) return tally
+
+  const urls = await upload(container, stale.flatMap((s) => [s.logo, s.banner]))
+  // One shop at a time, in seed order, stopping at the first failure: each update is its own
+  // workflow run, and the tally counts only the shops that were actually updated.
+  await stale.reduce<Promise<void>>(
+    (updated, { id }, i) =>
+      updated
+        .then(() =>
+          updateSellersWorkflow(container).run({
+            input: { selector: { id }, update: { logo: urls[2 * i], banner: urls[2 * i + 1] } },
+          })
+        )
+        .then(() => {
+          tally.updated++
+        }),
+    Promise.resolve()
+  )
   return tally
 }
 
