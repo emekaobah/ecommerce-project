@@ -114,3 +114,20 @@ export const PICKUP_WRONG_CODE_MESSAGE = "That code doesn't match this order. Ch
 export function pickupLockoutMessage(retryAt: string, now: Date, timeZone: string): string {
   return `Too many wrong codes. Try again at ${openingLabel(retryAt, now, timeZone)}.`
 }
+
+/**
+ * Why the counter's Hand over order was refused (`POST /vendor/orders/:id/collect`): a wrong
+ * code (400 `invalid_data`; the counter sends only a code of the right shape and a name, so the
+ * API's own checks of those never answer it), too many lately (429 with `retry_at`), an order
+ * that can't be handed over now (400 `not_allowed`: collected, not ready, or a delivery), or
+ * none of these, a failure to retry.
+ */
+export type PickupRefusal = { kind: "wrong_code" } | { kind: "locked"; retryAt: string } | { kind: "not_allowed" } | { kind: "failed" }
+
+export function pickupRefusal(status: number | undefined, body: unknown): PickupRefusal {
+  const { type, retry_at: retryAt } = body && typeof body === "object" ? (body as Record<string, unknown>) : {}
+  if (status === 429 && typeof retryAt === "string") return { kind: "locked", retryAt }
+  if (status === 400 && type === "invalid_data") return { kind: "wrong_code" }
+  if (status === 400 && type === "not_allowed") return { kind: "not_allowed" }
+  return { kind: "failed" }
+}

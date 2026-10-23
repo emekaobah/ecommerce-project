@@ -89,9 +89,10 @@ export {
   PICKUP_HOLD_NOTICE,
   PICKUP_WRONG_CODE_MESSAGE,
   pickupLockoutMessage,
+  pickupRefusal,
   todayHoursLabel,
 } from "./pickup"
-export type { PickupCodeCheck, PickupCodeState } from "./pickup"
+export type { PickupCodeCheck, PickupCodeState, PickupRefusal } from "./pickup"
 export {
   collectBy,
   collectByLabel,

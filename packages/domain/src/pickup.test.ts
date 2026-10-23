@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   checkPickupCode,
+  pickupRefusal,
   isPickupCodeFormat,
   openingHoursLines,
   PICKUP_WRONG_CODE_MESSAGE,
@@ -156,5 +157,25 @@ describe("pickupLockoutMessage", () => {
 describe("PICKUP_WRONG_CODE_MESSAGE", () => {
   test("tells staff to check the code with the buyer", () => {
     expect(PICKUP_WRONG_CODE_MESSAGE).toBe("That code doesn't match this order. Check it with the buyer.")
+  })
+})
+
+describe("pickupRefusal", () => {
+  test("the API's wrong-code refusal is a wrong code", () => {
+    expect(pickupRefusal(400, { type: "invalid_data", message: "That code doesn't match this order." })).toEqual({ kind: "wrong_code" })
+  })
+
+  test("too many wrong codes waits until the API's retry_at", () => {
+    const body = { type: "too_many_attempts", message: "Too many wrong codes.", retry_at: "2026-10-23T14:15:00.000Z" }
+    expect(pickupRefusal(429, body)).toEqual({ kind: "locked", retryAt: "2026-10-23T14:15:00.000Z" })
+  })
+
+  test("an order that can't be handed over at the counter now isn't a wrong code", () => {
+    expect(pickupRefusal(400, { type: "not_allowed", message: "Order order_1 is collected: no pickup code is taken" })).toEqual({ kind: "not_allowed" })
+  })
+
+  test("anything else is a failure to retry", () => {
+    expect(pickupRefusal(500, { type: "unknown_error", message: "An unknown error occurred." })).toEqual({ kind: "failed" })
+    expect(pickupRefusal(undefined, null)).toEqual({ kind: "failed" })
   })
 })

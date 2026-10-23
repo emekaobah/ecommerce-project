@@ -6,7 +6,10 @@ import {
   PICKUP_CODE_LENGTH,
   PICKUP_WRONG_CODE_MESSAGE,
   pickupLockoutMessage,
+  pickupRefusal,
+  type PickupRefusal,
 } from '@oja/domain';
+import { reportError } from '@oja/expo-sentry';
 import {
   Band,
   Button,
@@ -26,7 +29,7 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCollectOrder, useOrder, type Order } from '@/api/orders';
@@ -36,16 +39,9 @@ import { useSession } from '@/session/session-store';
 
 import { ConfirmationHero } from './confirmation-hero';
 
-/** Why the last Hand over was refused: a wrong code, too many lately (until `retryAt`), or neither (the connection). */
-type Refusal = { kind: 'wrong_code' } | { kind: 'locked'; retryAt: string } | { kind: 'failed' };
-
-function refusalOf(error: unknown): Refusal {
-  if (error instanceof ApiError && error.status === 429 && typeof error.body.retry_at === 'string') {
-    return { kind: 'locked', retryAt: error.body.retry_at };
-  }
-  if (error instanceof ApiError && error.status === 400) return { kind: 'wrong_code' };
-  return { kind: 'failed' };
-}
+/** Why the last Hand over was refused, from the API's answer; a failure without one is the connection's. */
+const refusalOf = (error: unknown): PickupRefusal =>
+  error instanceof ApiError ? pickupRefusal(error.status, error.body) : { kind: 'failed' };
 
 /** The shop's time zone, for the times the counter reads; the phone's until the shop's hours load. */
 function useShopTimeZone() {
@@ -131,7 +127,7 @@ function Line({ item, trailing, spoken }: Readonly<{ item: Item; trailing?: Reac
 }
 
 /** The code's problem in words: the lockout with when to try again, or a wrong code. */
-function problemMessage(refusal: Refusal | null, locked: boolean, now: Date, timeZone: string): string | null {
+function problemMessage(refusal: PickupRefusal | null, locked: boolean, now: Date, timeZone: string): string | null {
   if (locked && refusal?.kind === 'locked') return pickupLockoutMessage(refusal.retryAt, now, timeZone);
   if (refusal?.kind === 'wrong_code') return PICKUP_WRONG_CODE_MESSAGE;
   return null;
@@ -147,15 +143,19 @@ function Counter({ order }: Readonly<{ order: Order }>) {
   const [collectedBy, setCollectedBy] = useState('');
   const [code, setCode] = useState('');
   const [scanning, setScanning] = useState(false);
-  const [refusal, setRefusal] = useState<Refusal | null>(null);
+  const [refusal, setRefusal] = useState<PickupRefusal | null>(null);
 
   const locked = refusal?.kind === 'locked' && now.getTime() < Date.parse(refusal.retryAt);
   const message = problemMessage(refusal, locked, now, timeZone);
   const ready = collectedBy.trim() !== '' && isPickupCodeFormat(code) && !locked;
 
-  // iOS has no live regions: the code's problem is announced as it appears.
+  // iOS has no live regions: the code's problem is announced as it appears. It sits under the
+  // code, last but for the QR button: scrolled to, so the keyboard never hides it at large text.
+  const scroll = useRef<ScrollViewInstance>(null);
   useEffect(() => {
-    if (Platform.OS === 'ios' && message) AccessibilityInfo.announceForAccessibility(message);
+    if (!message) return;
+    scroll.current?.scrollToEnd({ animated: true });
+    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(message);
   }, [message]);
 
   const handOver = () =>
@@ -165,7 +165,8 @@ function Counter({ order }: Readonly<{ order: Order }>) {
         onSuccess: () => haptics.success(),
         onError: (error) => {
           const next = refusalOf(error);
-          if (next.kind !== 'failed') haptics.warning();
+          if (next.kind === 'failed') reportError(error, "Couldn't hand the order over");
+          else haptics.warning();
           setRefusal(next);
         },
       },
@@ -173,7 +174,7 @@ function Counter({ order }: Readonly<{ order: Order }>) {
 
   return (
     <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={headerHeight}>
-      <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }} keyboardShouldPersistTaps="handled">
         <Band>
           <Text variant="titleNamed" tone="onBand">
             Hand over this order
@@ -221,6 +222,9 @@ function Counter({ order }: Readonly<{ order: Order }>) {
         style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2], gap: theme.space[2], backgroundColor: theme.colors.bg }}>
         {refusal?.kind === 'failed' ? (
           <InlineNote>{"Couldn't hand the order over. Check your connection and try again; nothing was handed over."}</InlineNote>
+        ) : null}
+        {refusal?.kind === 'not_allowed' ? (
+          <InlineNote>{"This order can't be handed over at the counter now. Go back to the order to see where it is."}</InlineNote>
         ) : null}
         <Button label="Hand over order" size="main" disabled={!ready} loading={collect.isPending} onPress={handOver} />
       </SafeAreaView>
