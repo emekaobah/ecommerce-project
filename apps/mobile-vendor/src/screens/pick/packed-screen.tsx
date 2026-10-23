@@ -22,13 +22,18 @@ export function PackedScreen() {
   const timeZone = useShopHours(useSession()?.sellerId).data?.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   if (order.error && !order.data) {
+    // Opened from a link, there may be nothing under it to go back to: Back to orders always is.
     return (
-      <ErrorState
-        title="Couldn't load the order"
-        body="Check your connection and try again. The order is packed either way."
-        error={order.error}
-        onRetry={() => void order.refetch()}
-      />
+      <>
+        <Stack.Screen options={{ headerBackVisible: true }} />
+        <ErrorState
+          title="Couldn't load the order"
+          body="Check your connection and try again. The order is packed either way."
+          error={order.error}
+          onRetry={() => void order.refetch()}
+          secondaryAction={{ label: 'Back to orders', onPress: () => router.dismissTo('/') }}
+        />
+      </>
     );
   }
   if (!order.data) return <LoadingState />;
