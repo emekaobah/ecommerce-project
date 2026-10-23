@@ -176,7 +176,7 @@ function SavedAddressPicker({
         return (
           <RadioOption key={saved.id} selected={selected} disabled={busy} onPress={() => (address ? onChoose(address) : onPin(saved))}>
             <View style={{ gap: theme.space[2] }}>
-              <AddressCard address={saved} badge={saved.is_default_shipping ? <StatusChip label="Default" tone="info" /> : null} />
+              <AddressCard address={saved} badge={saved.is_default_shipping ? <StatusChip label="Default" tone="info" icon={null} /> : null} />
               {address ? null : <Text tone="accent">Place its pin on the map to deliver here</Text>}
             </View>
           </RadioOption>
