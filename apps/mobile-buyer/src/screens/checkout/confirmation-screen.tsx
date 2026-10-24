@@ -1,6 +1,6 @@
 import { useAuth, useUser } from '@clerk/expo';
 import { formatMoney, orderNumber, orderPlacedSteps, type PlacedStep } from '@oja/domain';
-import { AdirePattern, ErrorState, Icon, Skeleton, StickyAction, Text, useTheme } from '@oja/ui';
+import { AdirePattern, ErrorState, Icon, PressableSurface, Skeleton, StickyAction, Text, useTheme } from '@oja/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -92,6 +92,12 @@ function OrderPlaced({ orderGroupId, email }: Readonly<{ orderGroupId: string; e
     router.dismissAll();
     router.push({ pathname: '/order/[id]', params: { id: orderGroupId } });
   };
+  // The way out of checkout for a buyer who doesn't want to track yet: Home, not back to Paystack.
+  const done = () => {
+    router.dismissAll();
+    router.navigate('/');
+  };
+  const renderDone = () => <DoneButton onPress={done} />;
 
   return (
     <>
@@ -101,6 +107,9 @@ function OrderPlaced({ orderGroupId, email }: Readonly<{ orderGroupId: string; e
           headerBackVisible: false,
           headerStyle: { backgroundColor: theme.colors.band },
           headerShadowVisible: false,
+          headerRight: renderDone,
+          // iOS: the word Done on the band, not set in the bar's glass button background.
+          unstable_headerRightItems: () => [{ type: 'custom', element: renderDone(), hidesSharedBackground: true }],
         }}
       />
       <ScrollView style={{ backgroundColor: theme.colors.raised }} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
@@ -127,6 +136,22 @@ function OrderPlaced({ orderGroupId, email }: Readonly<{ orderGroupId: string; e
       </ScrollView>
       <StickyAction label="Track order" trailingIcon="fwd" onPress={track} />
     </>
+  );
+}
+
+/** The header's Done: closes checkout and goes Home. Track order stays the screen's one primary action. */
+function DoneButton({ onPress }: Readonly<{ onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityLabel="Done, back to shopping"
+      onPress={onPress}
+      style={[styles.centred, { minWidth: theme.hitArea, minHeight: theme.hitArea, paddingHorizontal: theme.space[2] }]}>
+      <Text variant="meta" weight="bold" tone="onBand">
+        Done
+      </Text>
+    </PressableSurface>
   );
 }
 
