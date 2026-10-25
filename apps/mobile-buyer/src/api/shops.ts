@@ -1,7 +1,7 @@
 import { measuredFrom, type MeasuredFrom } from '@oja/domain';
 import { skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { useMeasuredFrom } from '@/delivering-to/delivering-to-provider';
+import { NOWHERE, useMeasuredFrom } from '@/delivering-to/delivering-to-provider';
 
 import { storeClient } from './client';
 import { isNotFound } from './errors';
@@ -16,9 +16,6 @@ export const shopKeys = {
   detail: (regionId: string, sellerId: string, { addressId, near }: MeasuredFrom) =>
     [...shopKeys.all, 'detail', { regionId, sellerId, addressId, near }] as const,
 };
-
-/** Measured from nowhere: the key of a query still waiting to know where. */
-const NOWHERE: MeasuredFrom = { addressId: null, near: null };
 
 async function fetchShop(regionId: string, sellerId: string, from: MeasuredFrom) {
   const { shop } = await storeClient.store.shops.$sellerId.query({

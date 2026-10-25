@@ -29,7 +29,7 @@ describe("addressPromptShown", () => {
   })
 
   test("stays hidden for a guest who put it off, until the next launch", () => {
-    const choice = { by: "guest", shown: false }
+    const choice = { by: null, shown: false }
     expect(addressPromptShown({ userId: null, saved: undefined, spot: null, choice })).toBe(false)
   })
 
@@ -40,12 +40,12 @@ describe("addressPromptShown", () => {
   })
 
   test("shows when the band asks again, even for a guest with a spot", () => {
-    const choice = { by: "guest", shown: true }
+    const choice = { by: null, shown: true }
     expect(addressPromptShown({ userId: null, saved: undefined, spot, choice })).toBe(true)
   })
 
   test("a guest who put it off and then signs in is asked as a buyer", () => {
-    const choice = { by: "guest", shown: false }
+    const choice = { by: null, shown: false }
     expect(addressPromptShown({ userId: "user_tolu", saved: [], spot: null, choice })).toBe(true)
   })
 })

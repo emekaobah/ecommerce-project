@@ -16,9 +16,9 @@ import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
  */
 export function DeliveringToPicker() {
   const theme = useTheme();
-  const { address, saved, signedIn, error, retry, near } = useDeliveringTo();
+  const { address, saved, signedIn, error, retry, spot } = useDeliveringTo();
   const prompt = useAddressPrompt();
-  const band = deliveringToBand({ address, saved, signedIn, error: !!error, spot: near });
+  const band = deliveringToBand({ address, saved, signedIn, error: !!error, spot });
 
   const actions: Record<DeliveringToAction, (() => void) | undefined> = {
     none: undefined,

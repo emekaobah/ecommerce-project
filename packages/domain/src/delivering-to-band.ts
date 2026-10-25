@@ -40,14 +40,16 @@ export function deliveringToBand({ address, signedIn, saved, error, spot }: Deli
   if (address === undefined || (!signedIn && spot === undefined)) {
     return { label: "Finding your address…", action: "none", muted: true, chooses: false }
   }
-  if (!signedIn && spot) {
-    const label = spot.name ? `Near ${spot.name}` : "Your current location"
-    return { label, action: "guestSpot", muted: false, chooses: true }
-  }
+  if (!signedIn && spot) return { label: guestSpotLabel(spot), action: "guestSpot", muted: false, chooses: true }
   if (!signedIn) return { label: "Sign in to see shops near you", action: "signIn", muted: false, chooses: false }
   if (error || !saved) return { label: "Couldn't load your addresses. Tap to retry", action: "retry", muted: false, chooses: false }
   if (!saved.length) return { label: "Add a delivery address", action: "addAddress", muted: false, chooses: true }
   return { label: "Choose a delivery address", action: "choose", muted: false, chooses: true }
+}
+
+/** What a guest's spot is called on the band and its sheet: "Near <area>", else "Your current location". */
+export function guestSpotLabel({ name }: GuestSpot): string {
+  return name ? `Near ${name}` : "Your current location"
 }
 
 /**

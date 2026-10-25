@@ -25,7 +25,7 @@ export function AddressEditScreen() {
   const { userId } = useAuth();
   const addresses = useSavedAddresses(userId);
   const { region } = useRegion();
-  const { near } = useDeliveringTo();
+  const { spot } = useDeliveringTo();
 
   if (addresses.error && !addresses.data) {
     return (
@@ -56,7 +56,7 @@ export function AddressEditScreen() {
       isFirstAddress={isFirstAddress}
       regionId={region.id}
       countryCode={countryCode}
-      start={addressEntryStart({ way, firstAddress: !id && isFirstAddress, spot: near })}
+      start={addressEntryStart({ way, firstAddress: !id && isFirstAddress, spot })}
     />
   );
 }

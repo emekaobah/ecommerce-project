@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { deliveringTo, type GuestSpot, type MeasuredFrom } from '@oja/domain';
+import { deliveringTo, spotPin, type GuestSpot, type MeasuredFrom } from '@oja/domain';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
@@ -29,7 +29,7 @@ type DeliveringToState = {
    * measured from while there's no saved address. Undefined while it is read from the device;
    * null when there is none, and once the buyer has a saved address, which replaces it.
    */
-  near: GuestSpot | null | undefined;
+  spot: GuestSpot | null | undefined;
   /** Finds where the phone is and keeps it as the spot; says why when it can't. */
   locate: () => Promise<Located>;
 };
@@ -69,11 +69,12 @@ export function DeliveringToProvider({ children }: Readonly<{ children: ReactNod
     [userId]
   );
 
-  const [spot, setSpot] = useState<GuestSpot | null | undefined>(undefined);
+  /** The spot as last read or located: undefined until read from the device, null for none. */
+  const [kept, setKept] = useState<GuestSpot | null | undefined>(undefined);
   useEffect(() => {
     let cancelled = false;
     void readGuestSpot().then((read) => {
-      if (!cancelled) setSpot((current) => (current === undefined ? read : current));
+      if (!cancelled) setKept((current) => (current === undefined ? read : current));
     });
     return () => {
       cancelled = true;
@@ -83,19 +84,21 @@ export function DeliveringToProvider({ children }: Readonly<{ children: ReactNod
   const locate = useCallback(async () => {
     const located = await locateSpot();
     if ('spot' in located) {
-      setSpot(located.spot);
+      setKept(located.spot);
       void saveGuestSpot(located.spot);
     }
     return located;
   }, []);
 
-  // A saved address replaces the spot for good, on the device too.
+  // A saved address replaces the spot for good. `spot` hides it at once; forgetting it in memory
+  // too (adjusted during render, as React advises over an effect) keeps it from coming back if
+  // the buyer then deletes every address or signs out; the effect forgets it on the device.
   const hasSaved = !!userId && !!addresses.data?.length;
-  if (hasSaved && spot) setSpot(null);
+  if (hasSaved && kept) setKept(null);
   useEffect(() => {
     if (hasSaved) void saveGuestSpot(null);
   }, [hasSaved]);
-  const near = hasSaved ? null : spot;
+  const spot = hasSaved ? null : kept;
 
   const pickedId = picked?.userId === userId ? picked?.id : undefined;
   const address = useMemo(() => {
@@ -117,10 +120,10 @@ export function DeliveringToProvider({ children }: Readonly<{ children: ReactNod
       error,
       retry,
       pick,
-      near,
+      spot,
       locate,
     }),
-    [address, userId, isLoaded, addresses.data, error, retry, pick, near, locate]
+    [address, userId, isLoaded, addresses.data, error, retry, pick, spot, locate]
   );
   return <DeliveringToContext.Provider value={value}>{children}</DeliveringToContext.Provider>;
 }
@@ -137,14 +140,17 @@ export function useDeliveringToId(): string | null | undefined {
   return address === undefined ? undefined : (address?.id ?? null);
 }
 
+/** Measured from nowhere: no saved address or spot, or the key of a query still waiting to know where. */
+export const NOWHERE: MeasuredFrom = { addressId: null, near: null };
+
 /**
  * Where listings and shops are measured from: the saved address, else the guest's spot, else
  * nowhere; undefined while either is worked out, so a query waits rather than loading twice.
  */
 export function useMeasuredFrom(): MeasuredFrom | undefined {
-  const { address, near } = useDeliveringTo();
+  const { address, spot } = useDeliveringTo();
   if (address === undefined) return undefined;
-  if (address) return { addressId: address.id, near: null };
-  if (near === undefined) return undefined;
-  return { addressId: null, near: near && { latitude: near.latitude, longitude: near.longitude } };
+  if (address) return { ...NOWHERE, addressId: address.id };
+  if (spot === undefined) return undefined;
+  return spot ? { ...NOWHERE, near: spotPin(spot) } : NOWHERE;
 }

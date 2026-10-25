@@ -1,7 +1,7 @@
 import { measuredFrom, type MeasuredFrom } from '@oja/domain';
 import { skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { useDeliveringToId, useMeasuredFrom } from '@/delivering-to/delivering-to-provider';
+import { NOWHERE, useDeliveringToId, useMeasuredFrom } from '@/delivering-to/delivering-to-provider';
 
 import { storeClient } from './client';
 import { isNotFound } from './errors';
@@ -66,7 +66,7 @@ export type ListingDetail = Awaited<ReturnType<typeof fetchListing>>;
  */
 export function useListings(regionId: string | undefined, filters: ListFilters = {}) {
   const from = useMeasuredFrom();
-  const measured = { ...filters, addressId: null, near: null, ...from };
+  const measured = { ...filters, ...NOWHERE, ...from };
   return useQuery({
     queryKey: listingKeys.list(regionId ?? '', measured),
     queryFn: regionId && from ? async () => (await fetchListings(regionId, measured)).listings : skipToken,
@@ -80,7 +80,7 @@ export function useListings(regionId: string | undefined, filters: ListFilters =
  */
 export function useListingResults(regionId: string | undefined, filters: Omit<ListFilters, 'limit'>) {
   const from = useMeasuredFrom();
-  const measured = { ...filters, limit: PAGE_SIZE, addressId: null, near: null, ...from };
+  const measured = { ...filters, limit: PAGE_SIZE, ...NOWHERE, ...from };
   return useInfiniteQuery({
     queryKey: listingKeys.pages(regionId ?? '', measured),
     queryFn: regionId && from ? ({ pageParam }) => fetchListings(regionId, measured, pageParam) : skipToken,
@@ -133,7 +133,7 @@ export function useDeliveryEstimate(
 export function useListing(regionId: string | undefined, sellerId: string, productId: string) {
   const from = useMeasuredFrom();
   return useQuery({
-    queryKey: listingKeys.detail(regionId ?? '', sellerId, productId, from ?? { addressId: null, near: null }),
+    queryKey: listingKeys.detail(regionId ?? '', sellerId, productId, from ?? NOWHERE),
     queryFn: regionId && from ? () => fetchListing(regionId, sellerId, productId, from) : skipToken,
     // The shop stopped selling it.
     retry: (failures, error) => !isNotFound(error) && failures < 1,

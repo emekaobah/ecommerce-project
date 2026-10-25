@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { addressPromptShown, promptViewer } from '@oja/domain';
+import { addressPromptShown, type AddressPromptChoice } from '@oja/domain';
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 import { useDeliveringTo } from './delivering-to-provider';
@@ -25,13 +25,13 @@ const AddressPromptContext = createContext<AddressPromptState | null>(null);
  */
 export function AddressPromptProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { isLoaded, userId } = useAuth();
-  const { saved, near } = useDeliveringTo();
-  const [choice, setChoice] = useState<{ by: string; shown: boolean } | null>(null);
+  const { saved, spot } = useDeliveringTo();
+  const [choice, setChoice] = useState<AddressPromptChoice | null>(null);
 
-  const viewer = promptViewer(userId ?? null);
-  const dismiss = useCallback(() => setChoice({ by: viewer, shown: false }), [viewer]);
-  const open = useCallback(() => setChoice({ by: viewer, shown: true }), [viewer]);
-  const shown = addressPromptShown({ userId: isLoaded ? (userId ?? null) : undefined, saved, spot: near, choice });
+  const by = userId ?? null;
+  const dismiss = useCallback(() => setChoice({ by, shown: false }), [by]);
+  const open = useCallback(() => setChoice({ by, shown: true }), [by]);
+  const shown = addressPromptShown({ userId: isLoaded ? by : undefined, saved, spot, choice });
 
   const value = useMemo(() => ({ shown, dismiss, open }), [shown, dismiss, open]);
   return <AddressPromptContext.Provider value={value}>{children}</AddressPromptContext.Provider>;

@@ -1,8 +1,12 @@
 import type { GuestSpot } from "./guest-spot"
 import type { SavedAddress } from "./saved-address"
 
-/** Who the prompt is for: the signed-in buyer's id, or `"guest"`. */
-export const promptViewer = (userId: string | null): string => userId ?? "guest"
+/**
+ * What a viewer chose since the app started: put it off ("Enter it later", "Not now", or a way on
+ * was chosen), or asked for it again from the band or Home's empty state. `by` is the signed-in
+ * buyer's id, or null for a guest.
+ */
+export type AddressPromptChoice = { by: string | null; shown: boolean }
 
 export type AddressPromptState = {
   /** The signed-in buyer; null for a guest; undefined until Clerk has loaded. */
@@ -11,11 +15,8 @@ export type AddressPromptState = {
   saved: readonly SavedAddress[] | undefined
   /** The guest's spot (ADR 0015): undefined while it is read from the device, null when there is none. */
   spot: GuestSpot | null | undefined
-  /**
-   * What a viewer chose since the app started (`promptViewer`): put it off ("Enter it later",
-   * "Not now", or a way on was chosen), or asked for it again from the band or Home's empty state.
-   */
-  choice: { by: string; shown: boolean } | null
+  /** What the last viewer chose since the app started; it counts only for that viewer. */
+  choice: AddressPromptChoice | null
 }
 
 /**
@@ -25,6 +26,6 @@ export type AddressPromptState = {
  */
 export function addressPromptShown({ userId, saved, spot, choice }: AddressPromptState): boolean {
   if (userId === undefined) return false
-  if (choice?.by === promptViewer(userId)) return choice.shown
+  if (choice && choice.by === userId) return choice.shown
   return userId ? saved?.length === 0 : spot === null
 }

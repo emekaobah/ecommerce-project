@@ -1,3 +1,4 @@
+import { guestSpotLabel } from '@oja/domain';
 import { Button, Icon, InlineNote, PressableSurface, Sheet, Text, useTheme } from '@oja/ui';
 import { router, useIsFocused } from 'expo-router';
 import { useState } from 'react';
@@ -62,7 +63,7 @@ function BuyerPrompt({ visible }: Readonly<{ visible: boolean }>) {
  */
 function GuestPrompt({ visible }: Readonly<{ visible: boolean }>) {
   const { dismiss } = useAddressPrompt();
-  const { near, locate } = useDeliveringTo();
+  const { spot, locate } = useDeliveringTo();
   const [locating, setLocating] = useState(false);
   const [problem, setProblem] = useState<'refused' | 'unavailable' | null>(null);
 
@@ -87,10 +88,10 @@ function GuestPrompt({ visible }: Readonly<{ visible: boolean }>) {
   };
 
   const refused = problem === 'refused';
-  const title = near ? (near.name ? `Near ${near.name}` : 'Your current location') : 'Where should we deliver?';
+  const title = spot ? guestSpotLabel(spot) : 'Where should we deliver?';
   const message = refused
     ? "Location is off, so we can't find shops near you. Sign in to search for your address, or turn location on in Settings."
-    : near
+    : spot
       ? 'Shops are measured from where you were when you shared your location.'
       : "We'll show the shops nearest to you first.";
   return (
@@ -102,7 +103,7 @@ function GuestPrompt({ visible }: Readonly<{ visible: boolean }>) {
           <>
             {refused ? null : (
               <Button
-                label={near ? 'Use my current location again' : 'Use my current location'}
+                label={spot ? 'Use my current location again' : 'Use my current location'}
                 icon="locate"
                 size="main"
                 loading={locating}
@@ -110,7 +111,7 @@ function GuestPrompt({ visible }: Readonly<{ visible: boolean }>) {
               />
             )}
             <Button
-              label={near ? 'Sign in to save an address' : 'Sign in to search an address'}
+              label={spot ? 'Sign in to save an address' : 'Sign in to search an address'}
               variant={refused ? 'primary' : 'secondary'}
               size={refused ? 'main' : undefined}
               onPress={signIn}
