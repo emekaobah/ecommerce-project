@@ -79,10 +79,10 @@ export function StarInput({
 
 /**
  * A published review: who wrote it and when, its stars, what they said, and the reply of the shop
- * it was bought from under it, named (#96). Lists put a `Divider` between reviews, never above the
- * first.
+ * it was bought from under it, named (#96). On a shop's own page `shop` names the page's shop, for a
+ * review whose order can't be read. Lists put a `Divider` between reviews, never above the first.
  */
-export function ReviewItem({ review }: Readonly<{ review: PublishedReview }>) {
+export function ReviewItem({ review, shop }: Readonly<{ review: PublishedReview; shop?: string }>) {
   const theme = useTheme();
   return (
     <View style={{ gap: theme.space[2], paddingVertical: theme.space[4] }}>
@@ -96,7 +96,7 @@ export function ReviewItem({ review }: Readonly<{ review: PublishedReview }>) {
       </View>
       <Stars rating={review.rating} />
       {review.customer_note ? <Text>{review.customer_note}</Text> : null}
-      {review.seller_note ? <ShopReply note={review.seller_note} shop={review.shop?.name} /> : null}
+      {review.seller_note ? <ShopReply note={review.seller_note} shop={review.shop?.name ?? shop} /> : null}
     </View>
   );
 }
@@ -234,7 +234,7 @@ export function ReviewsPreview({ kind, id, title }: Readonly<{ kind: ReviewKind;
         <RatingLine rating={{ average: average_rating, count }} />
         <GroupList>
           {reviews.map((review) => (
-            <ReviewItem key={review.id} review={review} />
+            <ReviewItem key={review.id} review={review} shop={kind === 'seller' ? title : undefined} />
           ))}
         </GroupList>
         {count > REVIEW_PREVIEW_COUNT ? (
