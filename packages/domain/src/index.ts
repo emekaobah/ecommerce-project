@@ -136,6 +136,7 @@ export {
   orderStatus,
   owedRefundStatus,
   reachedOnLabel,
+  refundForNote,
   refundStatus,
 } from "./order-history"
 export type {
@@ -147,6 +148,7 @@ export type {
   OwedRefundState,
   OwedRefundView,
   ProgressStep,
+  RefundForOrder,
   RefundStatus,
   SummaryOrder,
 } from "./order-history"
@@ -218,6 +220,10 @@ export { canReview, isReceived, myReviewSubject, ratingSummary, reviewAction, re
 export type { MyReviewOf, MyReviewSubject, OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
 export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAddFormValue } from "./quick-add"
 export { DISTANCE_BANDS_KM, deliveringTo, distanceBand, distanceKm, distanceLabel, roundedDistanceKm } from "./distance"
+export { deliveringToBand } from "./delivering-to-band"
+export type { DeliveringToAction, DeliveringToBand, DeliveringToBandState } from "./delivering-to-band"
+export { addressPromptShown } from "./address-prompt"
+export type { AddressPromptState } from "./address-prompt"
 export { orderAgainBasket, orderAgainClosedNote, orderAgainLines, orderAgainSummary, orderAgainTicked } from "./order-again"
 export type { OrderAgainItemInput, OrderAgainLine, OrderAgainShopLines } from "./order-again"
 export { itemsLabel } from "./items-label"
