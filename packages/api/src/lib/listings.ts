@@ -646,14 +646,18 @@ export async function retrieveShop(
 }
 
 /**
- * The pin of the signed-in buyer's saved address that listings measure from (ADR 0011). Null
- * for a guest, without an address, or for an address that isn't the buyer's, which is ignored
- * rather than refused so listings still load.
+ * The pin listings measure from: the signed-in buyer's saved address (ADR 0011), else the phone's
+ * location sent as `near` (ADR 0015). An address that isn't the buyer's, or has no pin, is ignored
+ * rather than refused so listings still load; so is a malformed `near`. Null without either.
  */
 export async function deliveringToPin(
   scope: MedusaContainer,
-  { customerId, addressId }: { customerId: string | null | undefined; addressId: string | undefined }
+  { customerId, addressId, near }: { customerId: string | null | undefined; addressId: string | undefined; near?: string }
 ): Promise<Pin | null> {
+  return (await savedAddressPin(scope, customerId, addressId)) ?? nearPin(near)
+}
+
+async function savedAddressPin(scope: MedusaContainer, customerId: string | null | undefined, addressId: string | undefined) {
   if (!customerId || !addressId) return null
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
@@ -662,4 +666,21 @@ export async function deliveringToPin(
     filters: { id: addressId, customer_id: customerId },
   })
   return pinOf(data[0] as unknown as { metadata?: Record<string, unknown> | null } | undefined)
+}
+
+/** Two decimal places is a grid of about 1.1 km. */
+const toCentiDegrees = (degrees: number) => Math.round(degrees * 100) / 100
+
+/**
+ * The phone's location sent as `near` ("lat,lng"), snapped to the centre of its grid cell, so
+ * every point in a cell measures alike and a searcher can't walk a distance boundary (ADR 0015).
+ * Null when it isn't two numbers within a latitude's and a longitude's range.
+ */
+function nearPin(near: string | undefined): Pin | null {
+  const parts = near?.split(",") ?? []
+  if (parts.length !== 2 || parts.some((part) => part.trim() === "")) return null
+  const [latitude, longitude] = parts.map(Number)
+  // NaN fails both comparisons.
+  if (!(Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180)) return null
+  return { latitude: toCentiDegrees(latitude), longitude: toCentiDegrees(longitude) }
 }

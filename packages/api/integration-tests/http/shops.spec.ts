@@ -170,6 +170,27 @@ medusaIntegrationTestRunner({
         expect(data.shops.every((s: any) => s.distance_km === null)).toBe(true)
       })
 
+      it("ranks a guest's shops nearest first from the phone's location, with rounded distances and no coordinates", async () => {
+        await shipsIn("Adire House", 0)
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+
+        // Snaps to 6.59,3.35 (ADR 0015).
+        const { data } = await shops(guest(), { near: "6.5946,3.3454" })
+
+        expect(data.shops.map((s: any) => [s.name, s.distance_km])).toEqual([
+          ["Ikeja Gadget Hub", 1],
+          ["Iya Bisi Foodstuff", 11],
+          ["Adire House", 21],
+        ])
+        const body = JSON.stringify(data)
+        for (const { pickup } of SEED_SELLERS) {
+          expect(body).not.toContain(String(pickup.latitude))
+          expect(body).not.toContain(String(pickup.longitude))
+          expect(body).not.toContain(pickup.address_1)
+        }
+      })
+
       it("in a category, lists only the shops selling in it, with only those listings counted", async () => {
         const category = await categoryId("Power & Lighting")
         const inCategory = (await listings(guest(), { category_id: category })).data.listings

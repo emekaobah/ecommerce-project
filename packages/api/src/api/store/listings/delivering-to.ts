@@ -7,8 +7,9 @@ export const customerIdOf = (req: { auth_context?: AuthContext }) =>
 
 /**
  * The pin a listing route measures shops from: the signed-in buyer's `address_id`, when it is
- * theirs (ADR 0011). The app never sends coordinates.
+ * theirs (ADR 0011), else the phone's location sent as `near`, snapped to a grid (ADR 0015).
  */
-export function deliveringToOf(req: MedusaStoreRequest<unknown, { address_id?: string }>) {
-  return deliveringToPin(req.scope, { customerId: customerIdOf(req), addressId: req.validatedQuery.address_id })
+export function deliveringToOf(req: MedusaStoreRequest<unknown, { address_id?: string; near?: string }>) {
+  const { address_id, near } = req.validatedQuery
+  return deliveringToPin(req.scope, { customerId: customerIdOf(req), addressId: address_id, near })
 }
