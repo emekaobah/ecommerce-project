@@ -55,7 +55,7 @@ type RefusalBody = { code?: unknown; seller?: { name?: unknown } | null; offers_
 export function checkoutRefusalMessage(body: unknown): string | null {
   const { code, seller, offers_pickup }: RefusalBody = body && typeof body === "object" ? body : {}
   if (typeof code !== "string") return null
-  if (Object.prototype.hasOwnProperty.call(PROMO_CODE_WORDS, code)) return PROMO_CODE_WORDS[code as keyof typeof PROMO_CODE_WORDS]
+  if (Object.hasOwn(PROMO_CODE_WORDS, code)) return PROMO_CODE_WORDS[code as keyof typeof PROMO_CODE_WORDS]
   const shop = seller && typeof seller === "object" ? seller.name : undefined
   if (typeof shop !== "string") return null
   if (code === PROMO_CODE_REFUSALS.otherShop) {
