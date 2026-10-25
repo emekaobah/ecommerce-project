@@ -43,7 +43,8 @@ const config: ExpoConfig = {
       'expo-splash-screen',
       {
         backgroundColor: '#FFFFFF',
-        dark: { backgroundColor: '#111113' },
+        // The light wordmark on the dark page, in the dark theme's text colour (docs/design.md).
+        dark: { backgroundColor: '#111113', image: './assets/splash-icon-dark.png' },
         image: './assets/splash-icon.png',
         imageWidth: 120,
       },
