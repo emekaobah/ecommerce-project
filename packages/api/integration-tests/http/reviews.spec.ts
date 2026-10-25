@@ -364,6 +364,16 @@ medusaIntegrationTestRunner({
         expect(shopOf(shopReview.id)).toMatchObject({ name: GROCERY.name })
         expect(one.review.shop).toMatchObject({ name: GROCERY.name })
       })
+
+      it("name the shop without showing the order it was read through, which the store never serves (#96)", async () => {
+        const { grocery } = await deliveredGrocery()
+        const review = await reviewProduct(grocery, RICE.title, 5)
+
+        const { data } = await api.get(`/store/reviews/${review.id}`, { ...buyer.ada(), params: { fields: "+shop.name,+order.id" } })
+
+        expect(data.review.shop).toMatchObject({ name: GROCERY.name })
+        expect(data.review).not.toHaveProperty("order")
+      })
     })
 
     describe("moderation", () => {

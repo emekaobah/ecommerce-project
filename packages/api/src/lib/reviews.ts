@@ -99,6 +99,8 @@ const SHOP_FIELD = "shop."
  * Status is always read, since it decides whether the reply shows. `shop.*` fields name the shop
  * the review's order was bought from (#96), read through Mercur's link of a review to its order:
  * a product review has no link to a shop of its own, and the store may not expand the order.
+ * Medusa restricts `order` fields on store routes, so no client field asks for one: the order
+ * read here is only the shop lookup's, and is dropped from every row.
  */
 export async function authorReviews(
   scope: Scope,
