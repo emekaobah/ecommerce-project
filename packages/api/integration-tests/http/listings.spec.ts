@@ -6,6 +6,7 @@ import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { ADDRESS } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
+import { pickupDetailsIn } from "../helpers/pickup-privacy"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -307,11 +308,7 @@ medusaIntegrationTestRunner({
 
         const distances = Object.fromEntries(data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
         expect(distances).toEqual({ "Ikeja Gadget Hub": 0, "Iya Bisi Foodstuff": 11, "Adire House": 21 })
-        const body = JSON.stringify(data)
-        for (const { pickup } of SEED_SELLERS) {
-          expect(body).not.toContain(String(pickup.latitude))
-          expect(body).not.toContain(String(pickup.longitude))
-        }
+        expect(pickupDetailsIn(data)).toEqual([])
       })
 
       it("tells the shop page and the product page the shop's distance too", async () => {
@@ -328,7 +325,7 @@ medusaIntegrationTestRunner({
 
         expect(shop.shop.distance_km).toBe(11)
         expect(product.listing.seller.distance_km).toBe(11)
-        expect(JSON.stringify([shop, product])).not.toContain(String(SEED_SELLERS[0].pickup.latitude))
+        expect(pickupDetailsIn([shop, product])).toEqual([])
       })
 
       it("pages through every band in one stable order, each listing once", async () => {
@@ -400,6 +397,92 @@ medusaIntegrationTestRunner({
           expect(data.listings.every((l: any) => l.seller.distance_km === null)).toBe(true)
         }
         expect(shop.distance_km).toBeNull()
+      })
+
+      // Without a usable saved address, the phone's location (`near`), snapped to a 2-decimal grid (ADR 0015).
+      describe("from the phone's location", () => {
+        it("ranks a guest's listings nearest first, with each shop's rounded distance", async () => {
+          await shipsIn("Adire House", 0)
+          await shipsIn("Iya Bisi Foodstuff", 1)
+          await shipsIn("Ikeja Gadget Hub", 3)
+
+          const { data } = await listAs({ headers }, { near: "6.59,3.35" })
+
+          expect(shopOrder(data.listings)).toEqual(["Ikeja Gadget Hub", "Iya Bisi Foodstuff", "Adire House"])
+          const distances = Object.fromEntries(data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
+          expect(distances).toEqual({ "Ikeja Gadget Hub": 1, "Iya Bisi Foodstuff": 11, "Adire House": 21 })
+        })
+
+        it("measures from the centre of the location's 2-decimal grid cell, so two points in one cell get the same answer", async () => {
+          // Both snap to 6.59,3.35. Measured as sent, they'd read Ikeja Gadget Hub 0 km and Adire House 22 km,
+          // and Ikeja Gadget Hub 2 km and Adire House 20 km.
+          const north = await listAs({ headers }, { near: "6.5946,3.3454" })
+          const south = await listAs({ headers }, { near: "6.5854,3.3546" })
+
+          expect(north.data).toEqual(south.data)
+          const distances = Object.fromEntries(north.data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
+          expect(distances).toEqual({ "Ikeja Gadget Hub": 1, "Iya Bisi Foodstuff": 11, "Adire House": 21 })
+        })
+
+        it("measures from the buyer's saved address over the phone's location", async () => {
+          const ada = buyer("ada-saved-and-near@oja.test")
+          const addressId = await savedAddress(ada, OFF_LEKKI)
+
+          const { data } = await listAs(ada, { address_id: addressId, near: "6.59,3.35" })
+
+          const distances = Object.fromEntries(data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
+          expect(distances).toEqual({ "Adire House": 7, "Iya Bisi Foodstuff": 8, "Ikeja Gadget Hub": 14 })
+        })
+
+        it("uses the phone's location when the buyer's saved address has no pin", async () => {
+          const bola = buyer("bola-unpinned@oja.test")
+          const { data: me } = await api.get("/store/customers/me", bola)
+          const { latitude, longitude, ...unpinned } = ADDRESS.metadata
+          const [address] = await getContainer()
+            .resolve(Modules.CUSTOMER)
+            .createCustomerAddresses([{ ...ADDRESS, customer_id: me.customer.id, metadata: unpinned }])
+
+          const { data } = await listAs(bola, { address_id: address.id, near: "6.59,3.35" })
+
+          expect(data.listings.find((l: any) => l.seller.name === "Ikeja Gadget Hub").seller.distance_km).toBe(1)
+        })
+
+        it("uses the phone's location when the address isn't the buyer's", async () => {
+          const addressId = await savedAddress(buyer("ada-lends-address@oja.test"), OFF_LEKKI)
+
+          const { data } = await listAs(buyer("bola-near@oja.test"), { address_id: addressId, near: "6.59,3.35" })
+
+          expect(data.listings.find((l: any) => l.seller.name === "Ikeja Gadget Hub").seller.distance_km).toBe(1)
+        })
+
+        it("tells a guest the shop page's and the product page's distance from the phone's location, and no coordinates", async () => {
+          const seller = await sellerId("Iya Bisi Foodstuff")
+          const lantern = await productId(LANTERN.title)
+          const near = "6.5854,3.3546" // Snaps to 6.59,3.35 (about 10.5 km); measured as sent, 10 km.
+
+          const { data: shop } = await api.get(`/store/shops/${seller}?region_id=${regionId}&near=${near}`, { headers })
+          const { data: product } = await api.get(`/store/listings/${seller}/${lantern}?region_id=${regionId}&near=${near}`, {
+            headers,
+          })
+
+          expect(shop.shop.distance_km).toBe(11)
+          expect(product.listing.seller.distance_km).toBe(11)
+          expect(pickupDetailsIn([shop, product])).toEqual([])
+        })
+
+        it.each(["", "6.59", "6.59,", "lagos", "6.59,3.35,1", "91,3.35", "6.59,181", "NaN,3.35", "Infinity,3.35", "0x1A,3.35", "6.59,0x1A", "6.59e0,3.35", "1e1,3.35"])(
+          "ignores a malformed or out-of-range location (%p), answering as with none",
+          async (near) => {
+            await shipsIn("Adire House", 0)
+            await shipsIn("Iya Bisi Foodstuff", 1)
+            await shipsIn("Ikeja Gadget Hub", 3)
+
+            const { data } = await listAs({ headers }, { near })
+
+            expect(shopOrder(data.listings)).toEqual(["Adire House", "Iya Bisi Foodstuff", "Ikeja Gadget Hub"])
+            expect(data.listings.every((l: any) => l.seller.distance_km === null)).toBe(true)
+          }
+        )
       })
     })
 

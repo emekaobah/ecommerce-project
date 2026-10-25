@@ -77,7 +77,7 @@ export default defineMiddlewares({
         { method: ["GET"], matcher: "/store/offers*", middlewares: [onlyLiveShops] },
         { method: ["GET"], matcher: "/store/sellers*", middlewares: [onlyLiveShops] },
         { method: ["GET"], matcher: "/store/products*", middlewares: [onlyLiveShops] },
-        // Listings are for everyone; a signed-in buyer's `address_id` ranks them nearest first (ADR 0011).
+        // Listings are for everyone; a signed-in buyer's `address_id`, else `near`, ranks them nearest first (ADR 0011, 0015).
         {
             method: ["GET"],
             matcher: "/store/listings",

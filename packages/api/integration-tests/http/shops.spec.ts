@@ -2,9 +2,9 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
 import { seedDemoWorld } from "../../src/scripts/seed"
-import { SEED_SELLERS } from "../../src/scripts/seed-data"
 import { ADDRESS } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
+import { pickupDetailsIn } from "../helpers/pickup-privacy"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -120,11 +120,7 @@ medusaIntegrationTestRunner({
           ["Iya Bisi Foodstuff", 11],
           ["Adire House", 21],
         ])
-        const body = JSON.stringify(data)
-        for (const { pickup } of SEED_SELLERS) {
-          expect(body).not.toContain(String(pickup.latitude))
-          expect(body).not.toContain(String(pickup.longitude))
-        }
+        expect(pickupDetailsIn(data)).toEqual([])
       })
 
       it("within a band, ranks the shop that ships soonest, then the nearest", async () => {
@@ -168,6 +164,22 @@ medusaIntegrationTestRunner({
 
         expect(names(data.shops)).toEqual(["Adire House", "Iya Bisi Foodstuff", "Ikeja Gadget Hub"])
         expect(data.shops.every((s: any) => s.distance_km === null)).toBe(true)
+      })
+
+      it("ranks a guest's shops nearest first from the phone's location, with rounded distances and no coordinates", async () => {
+        await shipsIn("Adire House", 0)
+        await shipsIn("Iya Bisi Foodstuff", 1)
+        await shipsIn("Ikeja Gadget Hub", 3)
+
+        // Snaps to 6.59,3.35 (ADR 0015).
+        const { data } = await shops(guest(), { near: "6.5946,3.3454" })
+
+        expect(data.shops.map((s: any) => [s.name, s.distance_km])).toEqual([
+          ["Ikeja Gadget Hub", 1],
+          ["Iya Bisi Foodstuff", 11],
+          ["Adire House", 21],
+        ])
+        expect(pickupDetailsIn(data)).toEqual([])
       })
 
       it("in a category, lists only the shops selling in it, with only those listings counted", async () => {

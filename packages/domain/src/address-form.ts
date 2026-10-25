@@ -54,7 +54,7 @@ export function pinOf(address: { metadata?: Record<string, unknown> | null } | n
 }
 
 /** Six decimal places is about 11 cm, finer than any pin a finger places. */
-const toMicroDegrees = (degrees: number) => Math.round(degrees * 1e6) / 1e6
+export const toMicroDegrees = (degrees: number) => Math.round(degrees * 1e6) / 1e6
 
 /** A delivery address with the pin the buyer confirmed, as checkout needs it. */
 export type PinnedDeliveryAddress = DeliveryAddress & { metadata: Pin & { landmark?: string } }

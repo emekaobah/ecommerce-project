@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import type { Pin } from '@oja/domain';
+import { addressEntryStart, type AddressEntryWay, type Pin } from '@oja/domain';
 import { EmptyState, ErrorState, LoadingState, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -10,19 +10,22 @@ import { useCustomer } from '@/api/customer';
 import { AddressEntry } from '@/components/address/address-entry';
 import { useAddressDraft } from '@/components/address/use-address-draft';
 import { ToggleRow } from '@/components/toggle-row';
+import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
 import { useRegion } from '@/region/region-provider';
 
 /**
  * Adds a saved address, or edits one (`id`), with the entry flow from checkout (ADR 0002):
- * search or current location, the per-country form, and a confirmed pin. `locate` starts
- * with the current location (Home's address prompt). An edit keeps the
- * address's pin unless the buyer moves it or picks another place, which needs a new one.
+ * search or current location, the per-country form, and a confirmed pin. `way` is how Home's
+ * address prompt chose to start; without it, the first address starts at the spot the buyer
+ * shared as a guest (ADR 0015). An edit keeps the address's pin unless the buyer moves it or
+ * picks another place, which needs a new one.
  */
 export function AddressEditScreen() {
-  const { id, locate } = useLocalSearchParams<{ id?: string; locate?: string }>();
+  const { id, way } = useLocalSearchParams<{ id?: string; way?: AddressEntryWay }>();
   const { userId } = useAuth();
   const addresses = useSavedAddresses(userId);
   const { region } = useRegion();
+  const { spot } = useDeliveringTo();
 
   if (addresses.error && !addresses.data) {
     return (
@@ -45,14 +48,15 @@ export function AddressEditScreen() {
       />
     );
   }
+  const isFirstAddress = addresses.data.length === 0;
   return (
     <AddressEditor
       key={id ?? 'new'}
       saved={saved}
-      isFirstAddress={addresses.data.length === 0}
+      isFirstAddress={isFirstAddress}
       regionId={region.id}
       countryCode={countryCode}
-      locateOnOpen={locate === '1'}
+      start={addressEntryStart({ way, firstAddress: !id && isFirstAddress, spot })}
     />
   );
 }
@@ -62,13 +66,13 @@ function AddressEditor({
   isFirstAddress,
   regionId,
   countryCode,
-  locateOnOpen,
+  start,
 }: Readonly<{
   saved: SavedAddressRecord | undefined;
   isFirstAddress: boolean;
   regionId: string;
   countryCode: string;
-  locateOnOpen: boolean;
+  start: 'here' | Pin | undefined;
 }>) {
   const theme = useTheme();
   const { userId } = useAuth();
@@ -101,7 +105,7 @@ function AddressEditor({
           saving={save.isPending}
           saveError={save.error}
           saveLabel="Save address"
-          locateOnOpen={locateOnOpen}>
+          start={start}>
           {alreadyDefault ? null : (
             <ToggleRow label="Use for checkout by default" value={makeDefault} onChange={setMakeDefault} />
           )}

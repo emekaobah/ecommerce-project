@@ -7,6 +7,7 @@ import {
   preselectedAddress,
   receiverOf,
   savedAddressFor,
+  spotPin,
   type AddressStep,
   type Pin,
   type PinnedDeliveryAddress,
@@ -192,7 +193,7 @@ function CheckoutForm({
   const saved = useSavedAddresses(userId);
   // Checkout starts on the address Home and Search deliver to (#43); until that is known, the
   // saved addresses count as loading.
-  const { address: deliveringTo } = useDeliveringTo();
+  const { address: deliveringTo, spot } = useDeliveringTo();
   // The account's name names an address saved without one, so it loads before checkout starts too.
   const startingFrom = deliveringTo === undefined || customer.isPending ? undefined : saved.data;
   const picked = deliveringTo?.id ?? null;
@@ -390,6 +391,10 @@ function CheckoutForm({
           onChoose={(address) => deliverTo(address, () => setScreenStep(2))}
           onEnter={enterAddress}
           onEntered={deliverToEntered}
+          // A first address starts at the spot the buyer shared as a guest (ADR 0015).
+          start={
+            spot && !hasSaved && !pinningSaved && !draft.entry.values.address_1 ? spotPin(spot) : undefined
+          }
         />
       );
     }

@@ -1,8 +1,12 @@
+import type { GuestSpot } from "./guest-spot"
 import { addressLines } from "./saved-address"
 import type { SavedAddress } from "./saved-address"
 
-/** What tapping "Delivering to" does: nothing yet, switch addresses, ask to sign in, reload, or ask for a first address. */
-export type DeliveringToAction = "none" | "choose" | "signIn" | "retry" | "addAddress"
+/**
+ * What tapping "Delivering to" does: nothing yet, switch addresses, ask to sign in, reload, ask
+ * for a first address, or offer a guest to locate them again or sign in.
+ */
+export type DeliveringToAction = "none" | "choose" | "signIn" | "retry" | "addAddress" | "guestSpot"
 
 /** "Delivering to" on Home's band: what it says, what tapping it does, and whether it is muted while loading. */
 export type DeliveringToBand = {
@@ -22,19 +26,30 @@ export type DeliveringToBandState = {
   saved: readonly SavedAddress[] | undefined
   /** Whether the signed-in buyer's saved addresses won't load. */
   error: boolean
+  /** The guest's spot (ADR 0015): undefined while it is read from the device, null when there is none. */
+  spot: GuestSpot | null | undefined
 }
 
 /**
  * The band's "Delivering to" (#43, #101): the address's place, or, without one, what to do about
- * it. While the address is worked out it says so, muted, rather than showing an empty band.
+ * it. A guest's spot reads "Near <area>" (#109). While the address or the spot is worked out it
+ * says so, muted, rather than showing an empty band.
  */
-export function deliveringToBand({ address, signedIn, saved, error }: DeliveringToBandState): DeliveringToBand {
+export function deliveringToBand({ address, signedIn, saved, error, spot }: DeliveringToBandState): DeliveringToBand {
   if (address) return { label: addressLines(address).place, action: "choose", muted: false, chooses: true }
-  if (address === undefined) return { label: "Finding your address…", action: "none", muted: true, chooses: false }
+  if (address === undefined || (!signedIn && spot === undefined)) {
+    return { label: "Finding your address…", action: "none", muted: true, chooses: false }
+  }
+  if (!signedIn && spot) return { label: guestSpotLabel(spot), action: "guestSpot", muted: false, chooses: true }
   if (!signedIn) return { label: "Sign in to see shops near you", action: "signIn", muted: false, chooses: false }
   if (error || !saved) return { label: "Couldn't load your addresses. Tap to retry", action: "retry", muted: false, chooses: false }
   if (!saved.length) return { label: "Add a delivery address", action: "addAddress", muted: false, chooses: true }
   return { label: "Choose a delivery address", action: "choose", muted: false, chooses: true }
+}
+
+/** What a guest's spot is called on the band and its sheet: "Near <area>", else "Your current location". */
+export function guestSpotLabel({ name }: GuestSpot): string {
+  return name ? `Near ${name}` : "Your current location"
 }
 
 /**

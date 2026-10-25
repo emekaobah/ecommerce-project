@@ -60,6 +60,22 @@ describe("formFromLookup", () => {
     expect(formFromLookup(transAmadi, "NG")).toEqual({ address_1: "Trans Amadi", city: "Obio/Akpor", province: "Rivers" })
   })
 
+  test("leaves out an area named like its LGA, which the address already shows", () => {
+    const surulere = { ...VICTORIA_ISLAND, street: "22 Mercy Eneli Street", area: "Surulere", district: "surulere " }
+
+    expect(formFromLookup(surulere, "NG")).toEqual({
+      address_1: "22 Mercy Eneli Street",
+      city: "surulere ",
+      province: "Lagos",
+    })
+  })
+
+  test("keeps an area named like its LGA when there's no street to fill in", () => {
+    const surulere = { ...VICTORIA_ISLAND, street: null, area: "Surulere", district: "Surulere" }
+
+    expect(formFromLookup(surulere, "NG")).toEqual({ address_1: "Surulere", city: "Surulere", province: "Lagos" })
+  })
+
   test("empties what the place doesn't know, so an earlier place's street doesn't linger", () => {
     const bare = { ...VICTORIA_ISLAND, street: null, area: null, district: null, state: "Lagos State" }
 

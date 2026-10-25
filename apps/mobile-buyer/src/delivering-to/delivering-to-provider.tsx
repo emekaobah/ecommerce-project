@@ -1,9 +1,11 @@
 import { useAuth } from '@clerk/expo';
-import { deliveringTo } from '@oja/domain';
+import { deliveringTo, spotPin, type GuestSpot, type MeasuredFrom } from '@oja/domain';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
 
+import { readGuestSpot, saveGuestSpot } from './guest-spot-store';
+import { locateSpot, type Located } from './locate-spot';
 import { readPickedAddressId, savePickedAddressId } from './picked-address-store';
 
 type DeliveringToState = {
@@ -22,6 +24,14 @@ type DeliveringToState = {
   retry: () => void;
   /** Delivers to another saved address, remembered on the device until changed. */
   pick: (addressId: string) => void;
+  /**
+   * The guest's spot (ADR 0015): where their phone was when they last shared it, which shops are
+   * measured from while there's no saved address. Undefined while it is read from the device;
+   * null when there is none, and once the buyer has a saved address, which replaces it.
+   */
+  spot: GuestSpot | null | undefined;
+  /** Finds where the phone is and keeps it as the spot; says why when it can't. */
+  locate: () => Promise<Located>;
 };
 
 const DeliveringToContext = createContext<DeliveringToState | null>(null);
@@ -29,7 +39,9 @@ const DeliveringToContext = createContext<DeliveringToState | null>(null);
 /**
  * "Delivering to": the signed-in buyer's default saved address, or the one they picked on Home
  * or Search, which the device remembers. A picked address that was deleted falls back to the
- * default. The app sends only the address's id; the backend measures from its pin.
+ * default. The app sends only the address's id; the backend measures from its pin. Without a
+ * saved address, a guest's spot is sent as `near` instead (ADR 0015), kept on the device until
+ * the buyer has a saved address.
  */
 export function DeliveringToProvider({ children }: Readonly<{ children: ReactNode }>) {
   const { isLoaded, userId } = useAuth();
@@ -57,6 +69,37 @@ export function DeliveringToProvider({ children }: Readonly<{ children: ReactNod
     [userId]
   );
 
+  /** The spot as last read or located: undefined until read from the device, null for none. */
+  const [kept, setKept] = useState<GuestSpot | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    void readGuestSpot().then((read) => {
+      if (!cancelled) setKept((current) => (current === undefined ? read : current));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const locate = useCallback(async () => {
+    const located = await locateSpot();
+    if ('spot' in located) {
+      setKept(located.spot);
+      void saveGuestSpot(located.spot);
+    }
+    return located;
+  }, []);
+
+  // A saved address replaces the spot for good. `spot` hides it at once; forgetting it in memory
+  // too (adjusted during render, as React advises over an effect) keeps it from coming back if
+  // the buyer then deletes every address or signs out; the effect forgets it on the device.
+  const hasSaved = !!userId && !!addresses.data?.length;
+  if (hasSaved && kept) setKept(null);
+  useEffect(() => {
+    if (hasSaved) void saveGuestSpot(null);
+  }, [hasSaved]);
+  const spot = hasSaved ? null : kept;
+
   const pickedId = picked?.userId === userId ? picked?.id : undefined;
   const address = useMemo(() => {
     if (!isLoaded) return undefined;
@@ -70,8 +113,17 @@ export function DeliveringToProvider({ children }: Readonly<{ children: ReactNod
   const { refetch } = addresses;
   const retry = useCallback(() => void refetch(), [refetch]);
   const value = useMemo<DeliveringToState>(
-    () => ({ address, saved: userId ? addresses.data : undefined, signedIn: isLoaded && !!userId, error, retry, pick }),
-    [address, userId, isLoaded, addresses.data, error, retry, pick]
+    () => ({
+      address,
+      saved: userId ? addresses.data : undefined,
+      signedIn: isLoaded && !!userId,
+      error,
+      retry,
+      pick,
+      spot,
+      locate,
+    }),
+    [address, userId, isLoaded, addresses.data, error, retry, pick, spot, locate]
   );
   return <DeliveringToContext.Provider value={value}>{children}</DeliveringToContext.Provider>;
 }
@@ -86,4 +138,19 @@ export function useDeliveringTo(): DeliveringToState {
 export function useDeliveringToId(): string | null | undefined {
   const { address } = useDeliveringTo();
   return address === undefined ? undefined : (address?.id ?? null);
+}
+
+/** Measured from nowhere: no saved address or spot, or the key of a query still waiting to know where. */
+export const NOWHERE: MeasuredFrom = { addressId: null, near: null };
+
+/**
+ * Where listings and shops are measured from: the saved address, else the guest's spot, else
+ * nowhere; undefined while either is worked out, so a query waits rather than loading twice.
+ */
+export function useMeasuredFrom(): MeasuredFrom | undefined {
+  const { address, spot } = useDeliveringTo();
+  if (address === undefined) return undefined;
+  if (address) return { ...NOWHERE, addressId: address.id };
+  if (spot === undefined) return undefined;
+  return spot ? { ...NOWHERE, near: spotPin(spot) } : NOWHERE;
 }
