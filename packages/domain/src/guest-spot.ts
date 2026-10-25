@@ -11,12 +11,11 @@ export type GuestSpot = Pin & { name: string | null }
 export type GeocodedPlace = {
   district?: string | null
   street?: string | null
-  city?: string | null
 }
 
-/** The spot's name: its area, else its street, else its town; null when the geocoder found none. */
+/** The spot's name: its area, else its street; null without either ("Your current location"). */
 export function guestSpotName(place: GeocodedPlace | undefined): string | null {
-  const name = [place?.district, place?.street, place?.city].map((part) => part?.trim()).find(Boolean)
+  const name = [place?.district, place?.street].map((part) => part?.trim()).find(Boolean)
   return name ?? null
 }
 

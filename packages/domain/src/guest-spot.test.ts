@@ -3,17 +3,18 @@ import { guestSpotName, measuredFrom } from "./guest-spot"
 
 describe("guestSpotName", () => {
   test("names the spot by its area, as the phone's geocoder gives it", () => {
-    expect(guestSpotName({ district: "Victoria Island", street: "Adeola Odeku St", city: "Lagos" })).toBe("Victoria Island")
+    expect(guestSpotName({ district: "Victoria Island", street: "Adeola Odeku St" })).toBe("Victoria Island")
   })
 
-  test("falls back to the street, then the town, when the geocoder gives no area", () => {
-    expect(guestSpotName({ district: null, street: "Adeola Odeku St", city: "Lagos" })).toBe("Adeola Odeku St")
-    expect(guestSpotName({ district: null, street: null, city: "Lagos" })).toBe("Lagos")
+  test("falls back to the street when the geocoder gives no area", () => {
+    expect(guestSpotName({ district: null, street: "Adeola Odeku St" })).toBe("Adeola Odeku St")
   })
 
-  test("has no name when the geocoder found nothing, or only blanks", () => {
+  test("has no name with neither an area nor a street, even when the town is known", () => {
+    const townOnly = { district: null, street: null, city: "Lagos" }
+    expect(guestSpotName(townOnly)).toBeNull()
     expect(guestSpotName(undefined)).toBeNull()
-    expect(guestSpotName({ district: " ", street: null, city: null })).toBeNull()
+    expect(guestSpotName({ district: " ", street: null })).toBeNull()
   })
 })
 
