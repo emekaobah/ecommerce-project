@@ -1064,10 +1064,10 @@ async function promotionByCode(scope: MedusaContainer, code: string): Promise<Co
  * Why a code took nothing off the cart (400, coded for the app to word, #106): used up, a shop's
  * code for none of its items (naming the shop), or nothing it covers.
  */
-function notApplied(promotion: CodeLookup, usedUp: string[]): MedusaError {
+function notApplied(promotion: CodeLookup, usedUp: string[]): Refusal {
   const { code, seller } = promotion
   if (usedUp.includes(code)) {
-    return new MedusaError(MedusaError.Types.INVALID_DATA, `"${code}" has been used up.`, PROMO_CODE_REFUSALS.usedUp)
+    return new Refusal(MedusaError.Types.INVALID_DATA, `"${code}" has been used up.`, PROMO_CODE_REFUSALS.usedUp)
   }
   if (seller) {
     return new Refusal(
@@ -1077,11 +1077,7 @@ function notApplied(promotion: CodeLookup, usedUp: string[]): MedusaError {
       { seller: { id: seller.id, name: seller.name } }
     )
   }
-  return new MedusaError(
-    MedusaError.Types.INVALID_DATA,
-    `"${code}" doesn't apply to the items in your cart.`,
-    PROMO_CODE_REFUSALS.notApplicable
-  )
+  return new Refusal(MedusaError.Types.INVALID_DATA, `"${code}" doesn't apply to the items in your cart.`, PROMO_CODE_REFUSALS.notApplicable)
 }
 
 /**
@@ -1098,7 +1094,8 @@ export async function applyPromoCode(
   const typed = code.trim()
   const promotion = await promotionByCode(scope, typed)
   const problem = promoCodeProblem(promotion, typed, new Date())
-  if (problem || !promotion) throw new MedusaError(MedusaError.Types.INVALID_DATA, problem!.message, problem!.code)
+  if (problem) throw new Refusal(MedusaError.Types.INVALID_DATA, problem.message, problem.code)
+  if (!promotion) throw new Error("promoCodeProblem passed a code no promotion has")
 
   const entered = await enteredCodes(scope, cart)
   if (!promotion.is_automatic && !entered.includes(promotion.code)) {

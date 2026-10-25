@@ -4,7 +4,7 @@ import { formatMoney } from "@oja/domain"
 import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { remindAcceptDeadlines } from "../../src/lib/order-acceptance"
-import { setWeeklyHours } from "../../src/lib/shop-hours"
+import { setWeeklyHours, shopHoursOf } from "../../src/lib/shop-hours"
 import { ORDER_PICKUP_SCHEDULED } from "../../src/lib/order-fulfilment"
 import { checkPushReceipts } from "../../src/lib/push-receipts"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../../src/modules/push-token"
@@ -293,7 +293,9 @@ medusaIntegrationTestRunner({
         const placedAt = Date.parse(data[0].created_at)
         // The shop closes for the night 23 open hours in, so its last open hour comes 10 hours later.
         const closes = Math.ceil((placedAt + 23 * HOUR) / MINUTE) * MINUTE
-        await setWeeklyHours(getContainer(), await buyer.sellerId(GROCERY), closedBetween(closes, closes + 10 * HOUR))
+        const sellerId = await buyer.sellerId(GROCERY)
+        const { time_zone } = (await shopHoursOf(getContainer(), [sellerId])).get(sellerId)!
+        await setWeeklyHours(getContainer(), sellerId, closedBetween(closes, closes + 10 * HOUR, time_zone))
         try {
           await remindAcceptDeadlines(getContainer(), new Date(placedAt + 22 * HOUR + 5 * MINUTE))
           const reminder = await eventually(

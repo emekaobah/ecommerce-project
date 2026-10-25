@@ -16,24 +16,23 @@ export async function keepShopsOpen(container: MedusaContainer, shops: { name: s
   await Promise.all((data as { id: string }[]).map((seller) => setWeeklyHours(container, seller.id, ALWAYS_OPEN)))
 }
 
-/** Lagos keeps West Africa Time, UTC+1, all year: the seeded shops' timezone. */
-const LAGOS_OFFSET_MS = 60 * 60 * 1000
-
-/** An instant's Lagos weekday and "HH:MM" (minutes, rounded down). */
-function inLagos(instant: number): { day: Weekday; time: string } {
-  const local = new Date(instant + LAGOS_OFFSET_MS)
-  const time = `${String(local.getUTCHours()).padStart(2, "0")}:${String(local.getUTCMinutes()).padStart(2, "0")}`
-  return { day: WEEKDAYS[(local.getUTCDay() + 6) % 7]!, time }
+/** An instant's weekday and "HH:MM" (minutes, rounded down) in the timezone. */
+function localTo(instant: number, timeZone: string): { day: Weekday; time: string } {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .formatToParts(instant)
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)!.value
+  return { day: part("weekday").toLowerCase() as Weekday, time: `${part("hour")}:${part("minute")}` }
 }
 
 /**
  * Open round the clock except from `closes` to `opens` (instants, on the minute, under a day
- * apart), on those weekdays every week: a shop that shuts for one night a test chooses.
+ * apart), on those weekdays every week in the shop's timezone: a shop that shuts for one night a
+ * test chooses.
  */
-export function closedBetween(closes: number, opens: number): WeeklyHours {
-  const from = inLagos(closes)
-  const to = inLagos(opens)
-  const open = (opens: string, closes: string): OpenPeriod[] => (opens < closes ? [{ opens, closes }] : [])
+export function closedBetween(closes: number, opens: number, timeZone: string): WeeklyHours {
+  const from = localTo(closes, timeZone)
+  const to = localTo(opens, timeZone)
+  const open = (start: string, end: string): OpenPeriod[] => (start < end ? [{ opens: start, closes: end }] : [])
   const weekly = { ...ALWAYS_OPEN }
   if (from.day === to.day) {
     weekly[from.day] = [...open("00:00", from.time), ...open(to.time, "24:00")]

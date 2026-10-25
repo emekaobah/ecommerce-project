@@ -1,4 +1,5 @@
 import { MedusaError } from "@medusajs/framework/utils"
+import type { CheckoutRefusalCode, CheckoutRefusalDetails } from "@oja/domain"
 
 /**
  * A refusal the app words itself from its `code` (#106), with the fields it needs for that,
@@ -10,8 +11,8 @@ export class Refusal extends MedusaError {
   constructor(
     type: string,
     message: string,
-    code: string,
-    readonly details: Record<string, unknown>
+    readonly code: CheckoutRefusalCode,
+    readonly details?: CheckoutRefusalDetails
   ) {
     super(type, message, code)
   }

@@ -24,13 +24,28 @@ export type PromoCodeRefusal = (typeof PROMO_CODE_REFUSALS)[keyof typeof PROMO_C
  */
 export const SHOP_DOESNT_DELIVER = "shop_doesnt_deliver"
 
-const PROMO_CODE_WORDS: Record<Exclude<PromoCodeRefusal, "promo_code_other_shop">, string> = {
-  promo_code_not_found: "That isn't a valid promo code. Check it and try again.",
-  promo_code_expired: "That code has expired.",
-  promo_code_not_started: "That code isn't on yet. Try it again once the deal starts.",
-  promo_code_used_up: "That code has been used up.",
-  promo_code_not_applicable: "That code doesn't apply to the items in your cart.",
+/** Every code a coded checkout refusal carries. */
+export type CheckoutRefusalCode = PromoCodeRefusal | typeof SHOP_DOESNT_DELIVER
+
+/**
+ * The fields a coded refusal adds to the API's `{ code, type, message }`: the shop it names,
+ * and for `shop_doesnt_deliver` whether that shop offers pickup.
+ */
+export type CheckoutRefusalDetails = {
+  seller: { id: string; name: string }
+  offers_pickup?: boolean
 }
+
+const PROMO_CODE_WORDS: Record<Exclude<PromoCodeRefusal, typeof PROMO_CODE_REFUSALS.otherShop>, string> = {
+  [PROMO_CODE_REFUSALS.notFound]: "That isn't a valid promo code. Check it and try again.",
+  [PROMO_CODE_REFUSALS.expired]: "That code has expired.",
+  [PROMO_CODE_REFUSALS.notStarted]: "That code isn't on yet. Try it again once the deal starts.",
+  [PROMO_CODE_REFUSALS.usedUp]: "That code has been used up.",
+  [PROMO_CODE_REFUSALS.notApplicable]: "That code doesn't apply to the items in your cart.",
+}
+
+/** A refusal's body as it may arrive: nothing in it is trusted until checked. */
+type RefusalBody = { code?: unknown; seller?: { name?: unknown } | null; offers_pickup?: unknown }
 
 /**
  * What the buyer is told of a coded checkout refusal, from the error response's body; null for
@@ -38,10 +53,10 @@ const PROMO_CODE_WORDS: Record<Exclude<PromoCodeRefusal, "promo_code_other_shop"
  * itself and reports.
  */
 export function checkoutRefusalMessage(body: unknown): string | null {
-  const { code, seller, offers_pickup } = body && typeof body === "object" ? (body as Record<string, unknown>) : {}
+  const { code, seller, offers_pickup }: RefusalBody = body && typeof body === "object" ? body : {}
   if (typeof code !== "string") return null
   if (Object.prototype.hasOwnProperty.call(PROMO_CODE_WORDS, code)) return PROMO_CODE_WORDS[code as keyof typeof PROMO_CODE_WORDS]
-  const shop = seller && typeof seller === "object" ? (seller as { name?: unknown }).name : undefined
+  const shop = seller && typeof seller === "object" ? seller.name : undefined
   if (typeof shop !== "string") return null
   if (code === PROMO_CODE_REFUSALS.otherShop) {
     return `That's ${shop}'s code. It only takes money off their items, and none in your cart qualify.`
