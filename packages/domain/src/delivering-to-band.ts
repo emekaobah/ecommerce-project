@@ -36,3 +36,11 @@ export function deliveringToBand({ address, signedIn, saved, error }: Delivering
   if (!saved.length) return { label: "Add a delivery address", action: "addAddress", muted: false, chooses: true }
   return { label: "Choose a delivery address", action: "choose", muted: false, chooses: true }
 }
+
+/**
+ * Whether the buyer has no address yet and is asked to add one (#101), as the band's "Add a
+ * delivery address" does: signed in, with saved addresses that loaded empty.
+ */
+export function needsFirstAddress({ address, signedIn, saved, error }: DeliveringToBandState): boolean {
+  return address === null && signedIn && !error && saved?.length === 0
+}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { deliveringToBand } from "./delivering-to-band"
+import { deliveringToBand, needsFirstAddress } from "./delivering-to-band"
 
 describe("deliveringToBand", () => {
   test("says it is finding the address while the address is worked out, muted and not tappable", () => {
@@ -54,5 +54,20 @@ describe("deliveringToBand", () => {
       muted: false,
       chooses: true,
     })
+  })
+})
+
+describe("needsFirstAddress", () => {
+  const home = { id: "addr_home", address_1: "14 Bode Thomas St", city: "Surulere", province: "Lagos" }
+
+  test("a signed-in buyer whose saved addresses loaded empty needs a first address", () => {
+    expect(needsFirstAddress({ address: null, signedIn: true, saved: [], error: false })).toBe(true)
+  })
+
+  test("a guest, a buyer whose addresses are loading or won't load, or one with an address doesn't", () => {
+    expect(needsFirstAddress({ address: null, signedIn: false, saved: undefined, error: false })).toBe(false)
+    expect(needsFirstAddress({ address: undefined, signedIn: true, saved: undefined, error: false })).toBe(false)
+    expect(needsFirstAddress({ address: null, signedIn: true, saved: undefined, error: true })).toBe(false)
+    expect(needsFirstAddress({ address: null, signedIn: true, saved: [home], error: false })).toBe(false)
   })
 })

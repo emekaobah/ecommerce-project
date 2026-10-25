@@ -220,7 +220,7 @@ export { canReview, isReceived, myReviewSubject, ratingSummary, reviewAction, re
 export type { MyReviewOf, MyReviewSubject, OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewShop, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
 export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAddFormValue } from "./quick-add"
 export { DISTANCE_BANDS_KM, deliveringTo, distanceBand, distanceKm, distanceLabel, roundedDistanceKm } from "./distance"
-export { deliveringToBand } from "./delivering-to-band"
+export { deliveringToBand, needsFirstAddress } from "./delivering-to-band"
 export type { DeliveringToAction, DeliveringToBand, DeliveringToBandState } from "./delivering-to-band"
 export { addressPromptShown } from "./address-prompt"
 export type { AddressPromptState } from "./address-prompt"

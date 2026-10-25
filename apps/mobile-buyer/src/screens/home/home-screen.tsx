@@ -1,5 +1,5 @@
 import { useUser } from '@clerk/expo';
-import { addressLines, deliveringToBand, departments, greeting } from '@oja/domain';
+import { addressLines, departments, greeting, needsFirstAddress } from '@oja/domain';
 import { Band, Button, EmptyState, ErrorState, FilterChips, SearchField, Skeleton, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -167,7 +167,7 @@ function Loading() {
 function NoShops() {
   const { address, saved, signedIn, error } = useDeliveringTo();
   const prompt = useAddressPrompt();
-  if (deliveringToBand({ address, saved, signedIn, error: !!error }).action === 'addAddress') {
+  if (needsFirstAddress({ address, saved, signedIn, error: !!error })) {
     return (
       <EmptyState
         title="No shops yet"

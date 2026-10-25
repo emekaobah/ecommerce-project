@@ -1,8 +1,10 @@
+import type { SavedAddress } from "./saved-address"
+
 export type AddressPromptState = {
   /** The signed-in buyer; null for a guest or until Clerk has loaded. */
   userId: string | null
   /** The buyer's saved addresses: undefined while they load or when they won't load. */
-  saved: readonly unknown[] | undefined
+  saved: readonly SavedAddress[] | undefined
   /** The buyer who put the prompt off ("Enter it later") since the app started, if any. */
   dismissedBy: string | null
 }
