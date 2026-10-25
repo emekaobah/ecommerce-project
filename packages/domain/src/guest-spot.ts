@@ -1,4 +1,4 @@
-import type { Pin } from "./address-form"
+import { toMicroDegrees, type Pin } from "./address-form"
 
 /**
  * A guest's spot (ADR 0015): where their phone was when they tapped "Use my current location",
@@ -28,7 +28,8 @@ export type MeasuredFrom = { addressId: string | null; near: Pin | null }
  */
 export function measuredFrom({ addressId, near }: MeasuredFrom): { address_id?: string; near?: string } {
   if (addressId) return { address_id: addressId }
-  if (near) return { near: `${near.latitude},${near.longitude}` }
+  // Rounded to a pin's precision, a number prints as a plain decimal (never 1e-7), as the server takes it.
+  if (near) return { near: `${toMicroDegrees(near.latitude)},${toMicroDegrees(near.longitude)}` }
   return {}
 }
 

@@ -25,6 +25,10 @@ describe("measuredFrom", () => {
     expect(measuredFrom({ addressId: null, near: spot })).toEqual({ near: "6.4281,3.4219" })
   })
 
+  test("sends the spot as plain decimals the server takes, never in exponent form", () => {
+    expect(measuredFrom({ addressId: null, near: { latitude: 0.0000001, longitude: -0.0000008 } })).toEqual({ near: "0,-0.000001" })
+  })
+
   test("sends only the saved address when there is one, since it wins over the spot", () => {
     expect(measuredFrom({ addressId: "addr_home", near: spot })).toEqual({ address_id: "addr_home" })
   })
