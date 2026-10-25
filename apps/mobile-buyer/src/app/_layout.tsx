@@ -11,6 +11,7 @@ import { useEffect } from 'react';
 import { queryClient } from '@/api/query-client';
 import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
+import { AddressPromptProvider } from '@/delivering-to/address-prompt-provider';
 import { DeliveringToProvider } from '@/delivering-to/delivering-to-provider';
 import { usePushRegistration } from '@/push/push-registration';
 import { useOpenTappedPush } from '@/push/use-open-tapped-push';
@@ -35,8 +36,10 @@ function RootLayout() {
             <RegionProvider>
               <CartProvider>
                 <DeliveringToProvider>
-                  <StatusBar style="auto" />
-                  <RootStack />
+                  <AddressPromptProvider>
+                    <StatusBar style="auto" />
+                    <RootStack />
+                  </AddressPromptProvider>
                 </DeliveringToProvider>
               </CartProvider>
             </RegionProvider>
