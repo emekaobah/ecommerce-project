@@ -54,11 +54,15 @@ export type LookedUpPlace = {
 
 /**
  * The address form's location fields filled from a place: the street with its area, the LGA
- * and the state. A field the place doesn't know comes back empty, for the buyer to fill.
+ * and the state. An area named like its LGA (Surulere in Surulere) is left off the street, as
+ * the address shows the LGA after it. A field the place doesn't know comes back empty, for the
+ * buyer to fill.
  */
 export function formFromLookup(place: LookedUpPlace, countryCode: string): AddressFormValues {
+  const areaIsLga = place.area && place.district && normalised(place.area) === normalised(place.district)
+  const area = place.street && areaIsLga ? null : place.area
   return {
-    address_1: [place.street, place.area].filter(Boolean).join(", "),
+    address_1: [place.street, area].filter(Boolean).join(", "),
     city: place.district ?? "",
     province: stateFromLookup(place.state, countryCode) ?? "",
   }
