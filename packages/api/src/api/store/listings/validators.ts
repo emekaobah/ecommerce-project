@@ -37,7 +37,7 @@ export const StoreGetListingsParams = StoreGetListingParams.extend({
   offset: z.coerce.number().int().min(0).default(0),
 })
 
-/** A shop page's header is scoped to the region, and measured from the buyer's address, like a listing. */
+/** A shop page's header is scoped to the region, and measured from the buyer's address or `near`, like a listing. */
 export const StoreGetShopParams = StoreGetListingParams
 
 /** Home's shops near the buyer, in a category or all, a page of shops at a time. */

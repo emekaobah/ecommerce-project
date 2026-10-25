@@ -14,7 +14,7 @@ export type StoreListingsResponse = {
 
 /**
  * The buyer's feed: one listing per shop and product, visible in the region, nearest first from
- * the signed-in buyer's `address_id` when they send one (ADR 0011).
+ * the signed-in buyer's `address_id`, else the phone's location sent as `near` (ADR 0011, 0015).
  */
 export const GET = async (
   req: MedusaStoreRequest<unknown, StoreGetListingsParamsType>,

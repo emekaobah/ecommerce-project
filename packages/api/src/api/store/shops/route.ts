@@ -7,7 +7,8 @@ export type StoreShopsResponse = { shops: ShopWithListings[]; count: number; off
 
 /**
  * Home's shops near the buyer (#65): each shop once, where its first listing comes in the feed,
- * nearest first from the signed-in buyer's `address_id` (ADR 0011, 0014), with its top listings.
+ * nearest first from the signed-in buyer's `address_id`, else `near` (ADR 0011, 0014, 0015), with
+ * its top listings.
  */
 export const GET = async (
   req: MedusaStoreRequest<unknown, StoreGetShopsParamsType>,
