@@ -426,6 +426,38 @@ medusaIntegrationTestRunner({
           const distances = Object.fromEntries(north.data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
           expect(distances).toEqual({ "Ikeja Gadget Hub": 1, "Iya Bisi Foodstuff": 11, "Adire House": 21 })
         })
+
+        it("measures from the buyer's saved address over the phone's location", async () => {
+          const ada = buyer("ada-saved-and-near@oja.test")
+          const addressId = await savedAddress(ada, OFF_LEKKI)
+
+          const { data } = await listAs(ada, { address_id: addressId, near: "6.59,3.35" })
+
+          const distances = Object.fromEntries(data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
+          expect(distances).toEqual({ "Adire House": 7, "Iya Bisi Foodstuff": 8, "Ikeja Gadget Hub": 14 })
+        })
+
+        it("uses the phone's location when the address isn't the buyer's", async () => {
+          const addressId = await savedAddress(buyer("ada-lends-address@oja.test"), OFF_LEKKI)
+
+          const { data } = await listAs(buyer("bola-near@oja.test"), { address_id: addressId, near: "6.59,3.35" })
+
+          expect(data.listings.find((l: any) => l.seller.name === "Ikeja Gadget Hub").seller.distance_km).toBe(1)
+        })
+
+        it.each(["", "6.59", "6.59,", "lagos", "6.59,3.35,1", "91,3.35", "6.59,181", "NaN,3.35", "Infinity,3.35"])(
+          "ignores a malformed or out-of-range location (%p), answering as with none",
+          async (near) => {
+            await shipsIn("Adire House", 0)
+            await shipsIn("Iya Bisi Foodstuff", 1)
+            await shipsIn("Ikeja Gadget Hub", 3)
+
+            const { data } = await listAs({ headers }, { near })
+
+            expect(shopOrder(data.listings)).toEqual(["Adire House", "Iya Bisi Foodstuff", "Ikeja Gadget Hub"])
+            expect(data.listings.every((l: any) => l.seller.distance_km === null)).toBe(true)
+          }
+        )
       })
     })
 
