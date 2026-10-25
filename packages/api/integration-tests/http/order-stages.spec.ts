@@ -139,6 +139,30 @@ medusaIntegrationTestRunner({
       ])
     })
 
+    it("counts a stage's orders as it lists them while the shop has orders not recorded yet (#92)", async () => {
+      await ordersInEveryState()
+      // Linked to the shop but not yet recorded by order.placed: in no stage.
+      const container = getContainer()
+      const query = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: [region] } = await query.graph({ entity: "region", fields: ["id"], filters: { currency_code: "ngn" } })
+      for (const title of ["Unrecorded 1", "Unrecorded 2", "Unrecorded 3", "Unrecorded 4"]) {
+        const { result: order } = await createOrderWorkflow(container).run({
+          input: { region_id: region.id, email: "buyer@oja.test", currency_code: "ngn", items: [{ title, quantity: 1, unit_price: 1500 }] },
+        })
+        await container.resolve(ContainerRegistrationKeys.LINK).create({
+          [Modules.ORDER]: { order_id: order.id },
+          seller: { seller_id: await sellerId(grocery) },
+        })
+      }
+      const headers = await owner(grocery)
+
+      const { data } = await api.get("/vendor/order-stages/picking", headers)
+      expect([data.orders.length, data.count]).toEqual([3, 3])
+
+      const tile = await api.get("/vendor/order-stages/new", headers)
+      expect([tile.data.orders.length, tile.data.count]).toEqual([1, 1])
+    })
+
     it("returns only the fields asked for, with the order's fulfilment", async () => {
       await ordersInEveryState()
 
