@@ -121,7 +121,7 @@ function samePlace(saved: StoredAddress, cart: StoredAddress, countryCode: strin
   const pinB = pinOf(cart)
   const unnamed = !formA.first_name && !formA.last_name
   return (
-    Object.keys(formA).every((key) => (unnamed && NAME_KEYS.includes(key)) || formA[key] === formB[key]) &&
+    Object.keys(formA).every((key) => (unnamed && NAME_KEYS.has(key)) || formA[key] === formB[key]) &&
     !!pinA &&
     !!pinB &&
     pinA.latitude === pinB.latitude &&
@@ -129,7 +129,7 @@ function samePlace(saved: StoredAddress, cart: StoredAddress, countryCode: strin
   )
 }
 
-const NAME_KEYS: readonly string[] = ["first_name", "last_name"]
+const NAME_KEYS: ReadonlySet<string> = new Set(["first_name", "last_name"])
 
 /** The saved address the cart delivers to, so checkout shows it as chosen; null for one that isn't saved. */
 export function savedAddressFor(
