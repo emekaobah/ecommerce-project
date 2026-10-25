@@ -184,7 +184,15 @@ export type BuyerRefund = { amount: number; status: PaystackRefundStatus }
  * units of each (#61): "₦3,500 for Fresh Tomatoes 1kg". `lines` is null for a refund of no lines
  * (of delivery alone) and for refunds made before refunds named their lines.
  */
-export type BuyerRefundEntry = BuyerRefund & { lines: { item_id: string; quantity: number }[] | null }
+export type BuyerRefundEntry = BuyerRefund & { lines: RefundLine[] | null }
+
+/** An order line a refund was for, and how many units of it. */
+export type RefundLine = { item_id: string; quantity: number }
+
+/** A refund's lines (`order_refund.lines`) as its buyer sees them; null for a refund of no lines. */
+export function refundLines(lines: unknown): RefundLine[] | null {
+  return lines ? Object.entries(lines as Picks).map(([item_id, quantity]) => ({ item_id, quantity })) : null
+}
 
 /** A refund the order owes its buyer, as the buyer sees it (#16). */
 export type BuyerOwedRefund = Pick<OwedRefund, "amount" | "state">
@@ -232,7 +240,7 @@ function buyerRefunds(all: RefundRow[]): BuyerRefundEntry[] {
   return countedRefunds(all).map((r) => ({
     amount: Number(r.amount),
     status: r.status as PaystackRefundStatus,
-    lines: r.lines ? Object.entries(r.lines as Picks).map(([item_id, quantity]) => ({ item_id, quantity })) : null,
+    lines: refundLines(r.lines),
   }))
 }
 
