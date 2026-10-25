@@ -2,6 +2,7 @@ import { cancelledBy, cancelReasonText } from "./cancellation"
 import { dateLabel } from "./date-label"
 import type { Cancellation, FulfilmentMethod, FulfilmentState } from "./fulfilment"
 import { formatMoney } from "./money"
+import { orderNumber } from "./order-number"
 import type { StatusView } from "./status"
 import type { TimelineStep } from "./timeline"
 
@@ -234,6 +235,39 @@ function refundSentence(refunds: MissingItemsOrder["refunds"], currencyCode: str
   return refunds.every((refund) => refund.status === "processed")
     ? `${amount} has been refunded to your card.`
     : `${amount} is on its way back to your card.`
+}
+
+/** A refund as its screen says what it was for (#95): the lines it names, and the order they're on. */
+export type RefundForOrder = {
+  /** The lines the refund was for, with units of each; null for a refund of no lines (of delivery alone). */
+  lines: readonly { item_id: string; quantity: number }[] | null
+  /** The order's lines, to name them by; null while they aren't known. */
+  items:
+    | readonly { id: string; product_title: string | null; variant_title: string | null; quantity: number; unavailable_quantity: number }[]
+    | null
+  /** The checkout's number, the one the buyer sees everywhere; null while it isn't known. */
+  display_id: number | null
+  shop: string
+}
+
+/**
+ * What a refund was for, in plain words: "For Fresh Tomatoes 1kg in OJ-2301." Part of a line
+ * says how many of it. A refund of no lines, or of lines not known here, is for the order:
+ * "For your order OJ-2301 from Iya Bisi Foodstuff."
+ */
+export function refundForNote({ lines, items, display_id, shop }: RefundForOrder): string {
+  const named = (lines ?? []).flatMap((line) => {
+    const item = items?.find((i) => i.id === line.item_id)
+    if (!item) return []
+    const bought = item.quantity + item.unavailable_quantity
+    const name = orderLineName(item)
+    return [line.quantity < bought ? `${line.quantity} of ${bought} ${name}` : name]
+  })
+  if (!lines?.length || named.length < lines.length) {
+    return display_id === null ? `For your order from ${shop}.` : `For your order ${orderNumber(display_id)} from ${shop}.`
+  }
+  const what = listed(named)
+  return display_id === null ? `For ${what} from ${shop}.` : `For ${what} in ${orderNumber(display_id)}.`
 }
 
 /** A line of an order by name: "Adire Kaftan · M"; a product's only variant usually shares its name, which isn't repeated. */

@@ -134,8 +134,14 @@ medusaIntegrationTestRunner({
           order: { id: orderId, display_id: expect.any(Number), shop: GROCERY.name },
           account: null,
         })
+        // It names the lines it refunds (#95): all of the rejected order's.
+        const order = await adasOrder(cartId, orderId)
+        expect(refund.lines).toEqual(
+          expect.arrayContaining(order.items.map((item: any) => ({ item_id: item.id, quantity: item.quantity })))
+        )
+        expect(refund.lines).toHaveLength(order.items.length)
         // Her order offers to add the account too.
-        expect(await adasOrder(cartId, orderId)).toMatchObject({
+        expect(order).toMatchObject({
           refund: { amount: ORDER_TOTALS.get(GROCERY), status: "needs-attention" },
           refund_needing_account: refundId,
         })

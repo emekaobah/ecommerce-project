@@ -136,6 +136,7 @@ export {
   orderStatus,
   owedRefundStatus,
   reachedOnLabel,
+  refundForNote,
   refundStatus,
 } from "./order-history"
 export type {
@@ -147,6 +148,7 @@ export type {
   OwedRefundState,
   OwedRefundView,
   ProgressStep,
+  RefundForOrder,
   RefundStatus,
   SummaryOrder,
 } from "./order-history"
