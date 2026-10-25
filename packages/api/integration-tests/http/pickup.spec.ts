@@ -328,6 +328,27 @@ medusaIntegrationTestRunner({
         expect(await status(prepare(cartId, { shipping_address: ADDRESS, pickup: [await sellerId(GADGETS)] }))).toBe(400)
       })
 
+      it("refuses delivery from a shop no courier serves, naming it and saying it offers pickup instead (#106)", async () => {
+        const { data: created } = await api.post("/store/carts", { region_id: buyer.regionId() }, ada())
+        const cartId = created.cart.id as string
+        await api.post(`/store/carts/${cartId}/line-items`, { offer_id: await offerId(GROCERY, RICE.title), quantity: 1 }, ada())
+        shipbubble.setCouriers([])
+
+        try {
+          const res = await prepare(cartId, { shipping_address: ADDRESS }).catch((e) => e.response)
+
+          expect(res.status).toBe(400)
+          expect(res.data).toMatchObject({
+            type: "not_allowed",
+            code: "shop_doesnt_deliver",
+            seller: { id: await sellerId(GROCERY), name: GROCERY.name },
+            offers_pickup: true,
+          })
+        } finally {
+          shipbubble.setCouriers(Object.values(COURIERS))
+        }
+      })
+
       it("can't switch method once paid", async () => {
         const cartId = await adasCart()
         await prepare(cartId, { shipping_address: ADDRESS, pickup: [await sellerId(GROCERY)] })

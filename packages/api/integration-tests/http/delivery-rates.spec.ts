@@ -171,6 +171,9 @@ medusaIntegrationTestRunner({
 
         expect(res.status).toBe(400)
         expect(res.data.message).toMatch(/doesn't deliver to this address/)
+        // Coded, with the shop named, for the app to word (#106).
+        expect(res.data).toMatchObject({ type: "not_allowed", code: "shop_doesnt_deliver", offers_pickup: false })
+        expect([GADGETS.name, GROCERY.name]).toContain(res.data.seller.name)
       })
 
       it("doesn't tell the buyer their address is wrong when Shipbubble refuses our account", async () => {

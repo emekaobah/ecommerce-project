@@ -75,7 +75,8 @@ medusaIntegrationTestRunner({
         () => null,
         (e) => e.response
       )
-      return { status: error?.status, message: error?.data?.message }
+      const { code, message, seller } = error?.data ?? {}
+      return { status: error?.status, code, message, seller }
     }
     /** Ada's cart, ready to pay: a lantern from the gadget hub and two bags of rice from the grocery. */
     const preparedCart = async () => {
@@ -164,7 +165,9 @@ medusaIntegrationTestRunner({
 
         expect(await refusal(applyCode(data.cart.id, code))).toEqual({
           status: 400,
+          code: "promo_code_other_shop",
           message: `"${code}" is ${GADGETS.name}'s code: it only takes money off their items, and none in your cart qualify.`,
+          seller: { id: expect.any(String), name: GADGETS.name },
         })
         expect((await buyer.checkout(data.cart.id)).promotions).toEqual([])
       })
@@ -224,6 +227,7 @@ medusaIntegrationTestRunner({
         const cartId = await preparedCart()
         expect(await refusal(applyCode(cartId, "nosuchcode"))).toEqual({
           status: 400,
+          code: "promo_code_not_found",
           message: '"NOSUCHCODE" isn\'t a valid promo code. Check it and try again.',
         })
       })
@@ -238,7 +242,7 @@ medusaIntegrationTestRunner({
           })
         const cartId = await preparedCart()
 
-        expect(await refusal(applyCode(cartId, code))).toEqual({ status: 400, message: `"${code}" has expired.` })
+        expect(await refusal(applyCode(cartId, code))).toEqual({ status: 400, code: "promo_code_expired", message: `"${code}" has expired.` })
       })
 
       it("says a used-up code is used up", async () => {
@@ -247,7 +251,20 @@ medusaIntegrationTestRunner({
         await getContainer().resolve(Modules.PROMOTION).updatePromotions({ id: promotion.id, used: 1 } as any)
         const cartId = await preparedCart()
 
-        expect(await refusal(applyCode(cartId, code))).toEqual({ status: 400, message: `"${code}" has been used up.` })
+        expect(await refusal(applyCode(cartId, code))).toEqual({ status: 400, code: "promo_code_used_up", message: `"${code}" has been used up.` })
+      })
+
+      it("says a promotion that hasn't started isn't on yet", async () => {
+        const code = newCode("SOON")
+        await getContainer()
+          .resolve(Modules.PROMOTION)
+          .createPromotions({
+            ...(tenPercentOff(code) as any),
+            campaign: { name: code, campaign_identifier: code, starts_at: new Date("2099-01-01"), ends_at: null },
+          })
+        const cartId = await preparedCart()
+
+        expect(await refusal(applyCode(cartId, code))).toEqual({ status: 400, code: "promo_code_not_started", message: `"${code}" isn't on yet.` })
       })
 
       it("starts no payment when the cart's discount changed since the buyer saw it", async () => {

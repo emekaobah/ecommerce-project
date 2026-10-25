@@ -63,11 +63,13 @@ import { AdminSetTopUpCap } from "./admin/courier-approvals/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
 import { reportServerErrors } from "./report-server-errors";
+import { answeringRefusalDetails } from "./refusal-details";
 import { showEachOrderItsOwnPaymentStatus } from "./admin/own-payment-status";
 
 export default defineMiddlewares({
-    // The API's own failures go to Sentry before Medusa answers them (#19).
-    errorHandler: reportServerErrors(),
+    // The API's own failures go to Sentry before Medusa answers them (#19); a coded refusal is
+    // answered with the fields the app words it from (#106).
+    errorHandler: answeringRefusalDetails(reportServerErrors()),
     routes: [
         // Before any store route's own auth check, so a Clerk session token reads as the customer.
         { matcher: "/store/*", middlewares: [clerkCustomerAuth] },

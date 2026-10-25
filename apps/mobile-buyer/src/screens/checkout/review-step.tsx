@@ -244,7 +244,8 @@ export function PayBar({
   const failure = useFailureMessage(
     startPayment.error && !isAlreadyPaid(startPayment.error) ? startPayment.error : null,
     "Couldn't start the payment. You haven't been charged. Try again.",
-    // The API's 400s here carry no code: the checkout shows which shop holds it up.
+    // Most of the API's 400s here carry no code: the checkout shows which shop holds it up. A shop
+    // that doesn't deliver to the address is coded, and worded from that (useFailureMessage).
     { 400: paymentRefusal(checkout) ?? "Something in your order needs a change before paying. You haven't been charged." }
   );
   const notice = paymentNotice(failure, returned);
