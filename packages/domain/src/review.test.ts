@@ -1,6 +1,16 @@
 import { describe, expect, test } from "bun:test"
 import type { FulfilmentState } from "./fulfilment"
-import { canReview, ratingSummary, reviewCounts, reviewerName, reviewAction, reviewForm, reviewStatus, reviewTitle } from "./review"
+import {
+  canReview,
+  myReviewSubject,
+  ratingSummary,
+  reviewCounts,
+  reviewerName,
+  reviewAction,
+  reviewForm,
+  reviewStatus,
+  reviewTitle,
+} from "./review"
 
 describe("canReview", () => {
   test("lets the buyer review a shop's order once it is delivered, or collected in store", () => {
@@ -129,5 +139,26 @@ describe("reviewCounts", () => {
 
   test("counts nothing before the buyer has written a review", () => {
     expect(reviewCounts([])).toEqual({ all: 0, shops: 0, products: 0 })
+  })
+})
+
+describe("myReviewSubject", () => {
+  const shop = { name: "Iya Bisi Foodstuff", logo: "https://img/iya-bisi.png" }
+
+  test("names a product review by the product, and under it the shop it was bought from, who replies", () => {
+    const subject = myReviewSubject({ reference: "product", product: { title: "Ofada Rice 5kg", thumbnail: "https://img/rice.jpg" }, shop })
+
+    expect(subject).toEqual({ title: "Ofada Rice 5kg", detail: "Iya Bisi Foodstuff", thumbnail: "https://img/rice.jpg", replier: "Iya Bisi Foodstuff" })
+  })
+
+  test("names a shop review by the shop, marked as a shop, which replies", () => {
+    const subject = myReviewSubject({ reference: "seller", seller: shop, shop })
+
+    expect(subject).toEqual({ title: "Iya Bisi Foodstuff", detail: "Shop", shop, replier: "Iya Bisi Foodstuff" })
+  })
+
+  test("falls back to what kind of review it is when the product or shop can't be read", () => {
+    expect(myReviewSubject({ reference: "product" })).toEqual({ title: "Product", detail: "Product", thumbnail: null, replier: null })
+    expect(myReviewSubject({ reference: "seller" })).toEqual({ title: "Shop", detail: "Shop", shop: { name: "Shop", logo: null }, replier: null })
   })
 })
