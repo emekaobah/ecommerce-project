@@ -1,4 +1,4 @@
-import { canReview, reviewAction, reviewerName, type FulfilmentState, type ReviewStatus, type ReviewSubject } from "@oja/domain"
+import { canReview, reviewAction, reviewerName, type FulfilmentState, type ReviewShop, type ReviewStatus, type ReviewSubject } from "@oja/domain"
 import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
@@ -79,8 +79,6 @@ export function asAuthorSees<R extends { seller_note?: string | null; status?: R
 
 type GraphPage = { skip?: number; take?: number; order?: Record<string, unknown> }
 
-/** The shop a review's order was bought from: the shop itself, or the one that sold the product. */
-export type ReviewShop = { id: string; name: string; logo: string | null }
 
 /**
  * A review as its author is shown it, with what it's of (`product.*`, or `seller.*` for a shop
@@ -239,7 +237,7 @@ export type PublicReview = {
   seller_note: string | null
   author: string
   /** The shop it was bought from, who replies to it: for a product review, one of the shops selling it (#96). */
-  shop: { id: string; name: string } | null
+  shop: Pick<ReviewShop, "id" | "name"> | null
   created_at: string
 }
 
@@ -253,7 +251,7 @@ type ReviewRow = {
   seller_note: string | null
   created_at: Date | string
   customer?: { first_name: string | null; last_name: string | null } | null
-  order?: { seller?: { id: string; name: string } | null } | null
+  order?: { seller?: Pick<ReviewShop, "id" | "name"> | null } | null
 }
 
 /** The target's published reviews, as a query to aggregate or page through. */
@@ -320,7 +318,7 @@ export async function publishedReviews(
               customer_note: r.customer_note,
               seller_note: r.seller_note,
               author: reviewerName(r.customer),
-              shop: r.order?.seller ? { id: r.order.seller.id, name: r.order.seller.name } : null,
+              shop: r.order?.seller ?? null,
               created_at: new Date(r.created_at).toISOString(),
             },
           ]

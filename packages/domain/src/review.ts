@@ -128,7 +128,8 @@ export function reviewCounts(reviews: readonly { reference: ReviewKind }[]): { a
   return { all: reviews.length, shops, products: reviews.length - shops }
 }
 
-type NamedShop = { name: string; logo?: string | null }
+/** A shop as a review names it: the shop reviewed, or the one its order was bought from, which replies (#96). */
+export type ReviewShop = { id: string; name: string; logo: string | null }
 
 /**
  * One of the buyer's reviews as My reviews reads it: what it's of (`product`, or `seller` for a
@@ -137,8 +138,8 @@ type NamedShop = { name: string; logo?: string | null }
 export type MyReviewOf = {
   reference: ReviewKind
   product?: { title: string; thumbnail?: string | null } | null
-  seller?: NamedShop | null
-  shop?: NamedShop | null
+  seller?: Pick<ReviewShop, "name" | "logo"> | null
+  shop?: Pick<ReviewShop, "name"> | null
 }
 
 /** How My reviews' card names a review: a product with the shop it was bought from, or a shop. */

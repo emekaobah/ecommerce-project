@@ -217,7 +217,7 @@ export { parcelWeightLabel, pickBand, pickLineView, pickProgress, scanBarcode, u
 export type { PickLine, PickLineView, PickProgress, ScanResult } from "./picking"
 export { photoUploadSize, quickAddForm } from "./quick-add"
 export { canReview, isReceived, myReviewSubject, ratingSummary, reviewAction, reviewCounts, reviewerName, reviewForm, reviewStatus, reviewTitle } from "./review"
-export type { MyReviewOf, MyReviewSubject, OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
+export type { MyReviewOf, MyReviewSubject, OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewShop, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
 export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAddFormValue } from "./quick-add"
 export { DISTANCE_BANDS_KM, deliveringTo, distanceBand, distanceKm, distanceLabel, roundedDistanceKm } from "./distance"
 export { deliveringToBand } from "./delivering-to-band"
