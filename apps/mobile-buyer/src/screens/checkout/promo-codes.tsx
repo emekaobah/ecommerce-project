@@ -8,7 +8,8 @@ import { useFailureMessage } from '@/api/errors';
 
 /**
  * Promo codes at checkout (#6): each code on the cart with what it takes off and whose it is,
- * then the box for another. A code the buyer can't use says why, in the store's words.
+ * then the box for another. A code the buyer can't use says why, worded from the refusal's
+ * code (#106); one refused without a known code gets the generic line.
  */
 export function PromoCodes({ cartId, checkout }: Readonly<{ cartId: string; checkout: Checkout }>) {
   const theme = useTheme();
