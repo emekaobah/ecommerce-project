@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { DeliveryAddress } from "./address-form"
-import { contactFromForm, nameFromForm, receiverOf } from "./contact"
+import { contactFromForm, nameFromForm, nameOf, receiverOf } from "./contact"
 
 /** Ada's office, saved from "Use my current location" without a name. */
 const office: DeliveryAddress = {
@@ -69,5 +69,16 @@ describe("contactFromForm", () => {
       ok: false,
       errors: { phone: "Enter the phone number" },
     })
+  })
+})
+
+describe("nameOf", () => {
+  test("is the whole name, trimmed", () => {
+    expect(nameOf({ first_name: " Ada ", last_name: "Obi" })).toEqual({ first_name: "Ada", last_name: "Obi" })
+  })
+
+  test("is null for an account with half a name, or none", () => {
+    expect(nameOf({ first_name: "Ada", last_name: null })).toBeNull()
+    expect(nameOf(null)).toBeNull()
   })
 })

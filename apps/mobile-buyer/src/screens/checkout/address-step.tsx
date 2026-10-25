@@ -256,6 +256,7 @@ export function ReceiverNameForm({
           setValues((current) => ({ ...current, [key]: value }));
           setErrors(({ [key]: _fixed, ...rest }) => rest);
         }}
+        onSubmit={save}
       />
       <Button label="Continue" size="main" onPress={save} />
     </View>
@@ -316,6 +317,7 @@ export function ContactDetails({
             values={values}
             errors={errors}
             onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
+            onSubmit={save}
           />
           {failure ? <InlineNote>{failure}</InlineNote> : null}
           <Button label="Continue" size="main" onPress={save} loading={saving} />

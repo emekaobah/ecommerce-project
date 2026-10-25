@@ -11,7 +11,8 @@ export type ReceiverName = { first_name: string; last_name: string }
 /** The buyer's name and phone, given at checkout when every shop's order is collected (#12). */
 export type Contact = ReceiverName & { phone: string }
 
-const nameOf = (person: { first_name?: string | null; last_name?: string | null } | null | undefined): ReceiverName | null => {
+/** A person's whole name (first and last), or null when either part is missing. */
+export const nameOf = (person: { first_name?: string | null; last_name?: string | null } | null | undefined): ReceiverName | null => {
   const first_name = person?.first_name?.trim()
   const last_name = person?.last_name?.trim()
   return first_name && last_name ? { first_name, last_name } : null

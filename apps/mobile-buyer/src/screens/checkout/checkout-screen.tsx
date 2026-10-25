@@ -3,6 +3,7 @@ import {
   addressStep,
   checkoutAddressOf,
   formatMoney,
+  nameOf,
   preselectedAddress,
   receiverOf,
   savedAddressFor,
@@ -264,11 +265,13 @@ function CheckoutForm({
       },
     );
 
+  // An account without a whole name keeps the one given for collection, as delivery does (#101).
   const collectFrom = (contact: CheckoutContact) =>
     prepare.mutate(
       { contact, pickup },
       {
         onSuccess: () => {
+          if (!nameOf(account)) saveAccountName.mutate({ first_name: contact.first_name, last_name: contact.last_name });
           if (pendingPickup) setScreenStep(2);
           setPendingPickup(null);
         },
