@@ -8,16 +8,17 @@ import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
 
 /**
  * "Delivering to" on Home's band (#43): the saved address shops are measured from, which opens
- * the list to switch it. A guest is asked to sign in, since addresses belong to accounts; a buyer
+ * the list to switch it. A guest with a spot reads "Near <area>", which offers to locate them
+ * again or sign in (#109); one without is asked to sign in, since addresses belong to accounts; a buyer
  * without a saved address to add one, through "Where should we deliver?" (#101), and one whose
  * addresses won't load to retry. While the address is worked out it says so, muted, in the same
  * shape. Until then shops keep the store's order.
  */
 export function DeliveringToPicker() {
   const theme = useTheme();
-  const { address, saved, signedIn, error, retry } = useDeliveringTo();
+  const { address, saved, signedIn, error, retry, near } = useDeliveringTo();
   const prompt = useAddressPrompt();
-  const band = deliveringToBand({ address, saved, signedIn, error: !!error });
+  const band = deliveringToBand({ address, saved, signedIn, error: !!error, spot: near });
 
   const actions: Record<DeliveringToAction, (() => void) | undefined> = {
     none: undefined,
@@ -25,6 +26,7 @@ export function DeliveringToPicker() {
     signIn: () => router.push('/sign-in'),
     retry,
     addAddress: prompt.open,
+    guestSpot: prompt.open,
   };
   const color = band.muted ? theme.colors.onBandSoft : theme.colors.onBand;
 
@@ -32,7 +34,9 @@ export function DeliveringToPicker() {
     <PressableSurface
       accessibilityRole="button"
       accessibilityLabel={address ? `Delivering to ${band.label}` : band.label}
-      accessibilityHint={address ? 'Changes which address shops are measured from' : undefined}
+      accessibilityHint={
+        band.action === 'choose' || band.action === 'guestSpot' ? 'Changes where shops are measured from' : undefined
+      }
       accessibilityState={{ busy: band.muted }}
       disabled={band.action === 'none'}
       onPress={actions[band.action]}

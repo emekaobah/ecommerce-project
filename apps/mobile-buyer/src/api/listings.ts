@@ -1,6 +1,7 @@
+import { measuredFrom, type MeasuredFrom } from '@oja/domain';
 import { skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import { useDeliveringToId } from '@/delivering-to/delivering-to-provider';
+import { useDeliveringToId, useMeasuredFrom } from '@/delivering-to/delivering-to-provider';
 
 import { storeClient } from './client';
 import { isNotFound } from './errors';
@@ -17,30 +18,24 @@ type ListFilters = {
 /** Listings loaded per page of search and category results (the route allows up to 100). */
 const PAGE_SIZE = 40;
 
-/** The buyer's saved address shops are measured from (#43); none for a guest or without one. */
-export type Near = { addressId: string | null };
-
 export const listingKeys = {
   all: ['listings'] as const,
-  list: (regionId: string, filters: ListFilters & Near) => [...listingKeys.all, 'list', { regionId, ...filters }] as const,
-  pages: (regionId: string, filters: ListFilters & Near) => [...listingKeys.all, 'pages', { regionId, ...filters }] as const,
-  detail: (regionId: string, sellerId: string, productId: string, { addressId }: Near) =>
-    [...listingKeys.all, 'detail', { regionId, sellerId, productId, addressId }] as const,
+  list: (regionId: string, filters: ListFilters & MeasuredFrom) => [...listingKeys.all, 'list', { regionId, ...filters }] as const,
+  pages: (regionId: string, filters: ListFilters & MeasuredFrom) => [...listingKeys.all, 'pages', { regionId, ...filters }] as const,
+  detail: (regionId: string, sellerId: string, productId: string, { addressId, near }: MeasuredFrom) =>
+    [...listingKeys.all, 'detail', { regionId, sellerId, productId, addressId, near }] as const,
   deliveryEstimate: (regionId: string, sellerId: string, productId: string, estimate: EstimateFor) =>
     [...listingKeys.all, 'delivery-estimate', { regionId, sellerId, productId, ...estimate }] as const,
 };
 
-/** The query parameter a store route measures shops from: the address's id, when there is one. */
-export const near = (addressId: string | null) => (addressId ? { address_id: addressId } : {});
-
 function fetchListings(
   regionId: string,
-  { search, categoryId, sellerId, excludeProductId, limit, addressId }: ListFilters & Near,
+  { search, categoryId, sellerId, excludeProductId, limit, ...from }: ListFilters & MeasuredFrom,
   offset = 0
 ) {
   return storeClient.store.listings.query({
     region_id: regionId,
-    ...near(addressId),
+    ...measuredFrom(from),
     ...(search ? { q: search } : {}),
     ...(categoryId ? { category_id: categoryId } : {}),
     ...(sellerId ? { seller_id: sellerId } : {}),
@@ -50,12 +45,12 @@ function fetchListings(
   });
 }
 
-async function fetchListing(regionId: string, sellerId: string, productId: string, addressId: string | null) {
+async function fetchListing(regionId: string, sellerId: string, productId: string, from: MeasuredFrom) {
   const { listing } = await storeClient.store.listings.$sellerId.$productId.query({
     $sellerId: sellerId,
     $productId: productId,
     region_id: regionId,
-    ...near(addressId),
+    ...measuredFrom(from),
   });
   return listing;
 }
@@ -66,33 +61,29 @@ export type ListingDetail = Awaited<ReturnType<typeof fetchListing>>;
 
 /**
  * Shop listings visible in the region, in the backend's order (best match, then nearest and
- * fastest shop from the address the buyer delivers to; never by price): the feed, search and
- * category results, or one shop's. Waits until it is known which address that is.
+ * fastest shop from the address the buyer delivers to, or a guest's spot; never by price): the
+ * feed, search and category results, or one shop's. Waits until it is known where that is.
  */
 export function useListings(regionId: string | undefined, filters: ListFilters = {}) {
-  const addressId = useDeliveringToId();
-  const measured = { ...filters, addressId: addressId ?? null };
+  const from = useMeasuredFrom();
+  const measured = { ...filters, addressId: null, near: null, ...from };
   return useQuery({
     queryKey: listingKeys.list(regionId ?? '', measured),
-    queryFn:
-      regionId && addressId !== undefined ? async () => (await fetchListings(regionId, measured)).listings : skipToken,
+    queryFn: regionId && from ? async () => (await fetchListings(regionId, measured)).listings : skipToken,
   });
 }
 
 /**
  * Search and category results a page at a time, with the true totals across every page: how many
- * listings match and from how many shops ("2 shops · 5 products"). Waits for the address like
- * `useListings`.
+ * listings match and from how many shops ("2 shops · 5 products"). Waits for where they're
+ * measured from like `useListings`.
  */
 export function useListingResults(regionId: string | undefined, filters: Omit<ListFilters, 'limit'>) {
-  const addressId = useDeliveringToId();
-  const measured = { ...filters, limit: PAGE_SIZE, addressId: addressId ?? null };
+  const from = useMeasuredFrom();
+  const measured = { ...filters, limit: PAGE_SIZE, addressId: null, near: null, ...from };
   return useInfiniteQuery({
     queryKey: listingKeys.pages(regionId ?? '', measured),
-    queryFn:
-      regionId && addressId !== undefined
-        ? ({ pageParam }) => fetchListings(regionId, measured, pageParam)
-        : skipToken,
+    queryFn: regionId && from ? ({ pageParam }) => fetchListings(regionId, measured, pageParam) : skipToken,
     initialPageParam: 0,
     getNextPageParam: (last: ListingPage) => {
       const next = last.offset + last.listings.length;
@@ -140,11 +131,10 @@ export function useDeliveryEstimate(
 
 /** One shop's listing of a product, for the product page, with how far the shop is. */
 export function useListing(regionId: string | undefined, sellerId: string, productId: string) {
-  const addressId = useDeliveringToId();
+  const from = useMeasuredFrom();
   return useQuery({
-    queryKey: listingKeys.detail(regionId ?? '', sellerId, productId, { addressId: addressId ?? null }),
-    queryFn:
-      regionId && addressId !== undefined ? () => fetchListing(regionId, sellerId, productId, addressId) : skipToken,
+    queryKey: listingKeys.detail(regionId ?? '', sellerId, productId, from ?? { addressId: null, near: null }),
+    queryFn: regionId && from ? () => fetchListing(regionId, sellerId, productId, from) : skipToken,
     // The shop stopped selling it.
     retry: (failures, error) => !isNotFound(error) && failures < 1,
   });

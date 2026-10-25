@@ -51,7 +51,7 @@ const config: ExpoConfig = {
     ],
     // Bricolage Grotesque and Manrope, bundled from @oja/ui: one file per weight.
     ['expo-font', { fonts: fontFiles() }],
-    ['expo-location', { locationWhenInUsePermission: `${name} uses your location to find your delivery address.` }],
+    ['expo-location', { locationWhenInUsePermission: `${name} uses your location to show shops near you and to find your delivery address.` }],
     // Google's map on both platforms, so the pin map matches the address search's data.
     [
       'react-native-maps',

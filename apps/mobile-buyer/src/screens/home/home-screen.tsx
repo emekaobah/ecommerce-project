@@ -131,15 +131,15 @@ function DepartmentChips({ selected, onSelect }: Readonly<{ selected: string; on
   return <FilterChips options={options} selected={selected} onSelect={onSelect} label="Categories" />;
 }
 
-/** "Near you", and "Nearest first" once shops are measured from an address. */
+/** "Near you", and "Nearest first" once shops are measured from an address or a guest's spot. */
 function NearYouHeading() {
   const theme = useTheme();
-  const { address } = useDeliveringTo();
+  const { address, near } = useDeliveringTo();
   return (
     <View
       style={[styles.between, { paddingHorizontal: theme.space[4], paddingTop: theme.space[6], paddingBottom: theme.space[1] }]}>
       <Text variant="heading">Near you</Text>
-      {address ? (
+      {address || near ? (
         <Text variant="meta" weight="bold" tone="link">
           Nearest first
         </Text>
@@ -165,9 +165,9 @@ function Loading() {
 
 /** No shops to show; a buyer without a saved address is asked for one, since shops are measured from it. */
 function NoShops() {
-  const { address, saved, signedIn, error } = useDeliveringTo();
+  const { address, saved, signedIn, error, near } = useDeliveringTo();
   const prompt = useAddressPrompt();
-  if (needsFirstAddress({ address, saved, signedIn, error: !!error })) {
+  if (needsFirstAddress({ address, saved, signedIn, error: !!error, spot: near })) {
     return (
       <EmptyState
         title="No shops yet"
