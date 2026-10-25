@@ -1,4 +1,4 @@
-import { formatMoney } from "@oja/domain"
+import { formatMoney, orderNumber } from "@oja/domain"
 import { Section } from "@react-email/components"
 import { Address, AmountRow, EmailLayout, Paragraph, ShopOrder, type EmailShopOrder } from "./parts"
 
@@ -18,7 +18,7 @@ export type DeliveryReceiptProps = {
 export function DeliveryReceiptEmail({ group_display_id, currency, order, refunded, delivered_on, address }: Readonly<DeliveryReceiptProps>) {
   return (
     <EmailLayout preview={`Your receipt for your order from ${order.shop}`} heading={`Your order from ${order.shop} was delivered`}>
-      <Paragraph>{`It arrived on ${delivered_on}. Here is your receipt for this part of order #${group_display_id}.`}</Paragraph>
+      <Paragraph>{`It arrived on ${delivered_on}. Here is your receipt for this part of order ${orderNumber(group_display_id)}.`}</Paragraph>
       <ShopOrder order={order} currency={currency} />
       {refunded > 0 && (
         <Section>

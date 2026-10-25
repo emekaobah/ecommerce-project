@@ -329,9 +329,9 @@ medusaIntegrationTestRunner({
         expect(data).toMatchObject({ refund_amount: LEFT, refund: { amount: LEFT, status: "pending" } })
         expect(paystack.refundsOf(reference).map((r) => r.amount)).toEqual([LEFT * 100])
         expect(await owedRefundOf(grocery)).toBeUndefined()
-        const { display_id } = await shopOrder(grocery)
+        const number = await buyer.orderNumberOf(grocery)
         const [push] = await eventually(
-          async () => expo.sentTo(device).filter((m: any) => m.title === `Order #${display_id} cancelled`),
+          async () => expo.sentTo(device).filter((m: any) => m.title === `Order ${number} cancelled`),
           (sent) => sent.length > 0
         )
         expect(push.body).toContain(`You'll be refunded ${formatMoney(LEFT, "ngn")}.`)
@@ -418,10 +418,10 @@ medusaIntegrationTestRunner({
 
         await cancel(grocery, { reason: "items_unavailable" })
 
-        const { display_id } = await shopOrder(grocery)
+        const number = await buyer.orderNumberOf(grocery)
         const refund = formatMoney(GROCERY_SHARE, "ngn")
         const [push] = await eventually(
-          async () => expo.sentTo(device).filter((m: any) => m.title === `Order #${display_id} cancelled`),
+          async () => expo.sentTo(device).filter((m: any) => m.title === `Order ${number} cancelled`),
           (sent) => sent.length > 0
         )
         expect(push).toMatchObject({
@@ -432,7 +432,7 @@ medusaIntegrationTestRunner({
           async () => resend.sentTo(ADA).filter((e) => e.subject.includes("cancelled")),
           (sent) => sent.length > 0
         )
-        expect(email.subject).toContain(`#${display_id}`)
+        expect(email.subject).toContain(number)
         expect(email.html).toContain("Items unavailable")
         expect(email.html).toContain(refund)
       })

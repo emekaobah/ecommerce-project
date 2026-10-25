@@ -1,4 +1,4 @@
-import { formatMoney, type RefundAccountReminder, type RefundNotice } from "@oja/domain"
+import { formatMoney, orderNumber, type RefundAccountReminder, type RefundNotice } from "@oja/domain"
 import { Button } from "@react-email/components"
 import { EmailLayout, Note, Paragraph } from "./parts"
 
@@ -13,11 +13,11 @@ export type RefundAccountProps = {
  * Sent when Paystack couldn't return a refund to the buyer's card and needs their bank account
  * to retry it (#13), and as a reminder after 1 and 3 days. The account is added in the app.
  */
-export function RefundAccountEmail({ refund: { display_id, shop, amount, currency_code }, link, reminder }: Readonly<RefundAccountProps>) {
+export function RefundAccountEmail({ refund: { group_display_id, shop, amount, currency_code }, link, reminder }: Readonly<RefundAccountProps>) {
   const refund = formatMoney(amount, currency_code)
   const days = reminder && (reminder.days_left === 1 ? "1 day" : `${reminder.days_left} days`)
   return (
-    <EmailLayout preview={`Add a bank account to receive your ${refund} refund`} heading={`Your refund for order #${display_id}`}>
+    <EmailLayout preview={`Add a bank account to receive your ${refund} refund`} heading={`Your refund for order ${orderNumber(group_display_id)}`}>
       <Paragraph>{`Your bank couldn't take the ${refund} refund for your order from ${shop} back to your card.`}</Paragraph>
       <Paragraph>{"Add a bank account in the app and we'll send it there. It can be anyone's account: you'll see the name on it before it's sent."}</Paragraph>
       <Button
