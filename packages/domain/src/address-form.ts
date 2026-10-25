@@ -12,8 +12,9 @@ export type BuyerDetails = { first_name?: string | null; last_name?: string | nu
 
 /** A delivery address as the store takes it: Medusa's columns, extra fields in `metadata` (ADR 0002). */
 export type DeliveryAddress = {
-  first_name: string
-  last_name: string
+  /** Null when the buyer saved the address without a name; checkout names the receiver (`receiverOf`). */
+  first_name: string | null
+  last_name: string | null
   address_1: string
   address_2?: string | null
   city: string

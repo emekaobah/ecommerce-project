@@ -110,20 +110,26 @@ export function addressBook<A extends SavedAddress>(addresses: readonly A[]): A[
   return [...addresses.filter((a) => a.is_default_shipping), ...addresses.filter((a) => !a.is_default_shipping)]
 }
 
-/** Two addresses that deliver to the same place: the same form, phone and landmark included, and the same pin. */
-function samePlace(a: StoredAddress, b: StoredAddress, countryCode: string): boolean {
-  const formA = addressFormValues(a, countryCode)
-  const formB = addressFormValues(b, countryCode)
-  const pinA = pinOf(a)
-  const pinB = pinOf(b)
+/**
+ * The cart delivers to a saved address: the same form, phone and landmark included, and the same
+ * pin. One saved without a name (#101) is delivered to in whatever name checkout gave its receiver.
+ */
+function samePlace(saved: StoredAddress, cart: StoredAddress, countryCode: string): boolean {
+  const formA: Record<string, string | undefined> = addressFormValues(saved, countryCode)
+  const formB: Record<string, string | undefined> = addressFormValues(cart, countryCode)
+  const pinA = pinOf(saved)
+  const pinB = pinOf(cart)
+  const unnamed = !formA.first_name && !formA.last_name
   return (
-    Object.keys(formA).every((key) => (formA as Record<string, string>)[key] === (formB as Record<string, string>)[key]) &&
+    Object.keys(formA).every((key) => (unnamed && NAME_KEYS.includes(key)) || formA[key] === formB[key]) &&
     !!pinA &&
     !!pinB &&
     pinA.latitude === pinB.latitude &&
     pinA.longitude === pinB.longitude
   )
 }
+
+const NAME_KEYS: readonly string[] = ["first_name", "last_name"]
 
 /** The saved address the cart delivers to, so checkout shows it as chosen; null for one that isn't saved. */
 export function savedAddressFor(

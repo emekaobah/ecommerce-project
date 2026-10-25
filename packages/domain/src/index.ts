@@ -23,6 +23,8 @@ export {
   savedAddressFor,
 } from "./saved-address"
 export type { AddressLines, AddressStep, DefaultCandidate, SavedAddress } from "./saved-address"
+export { contactFromForm, nameFromForm, receiverOf } from "./contact"
+export type { Contact, ReceiverName } from "./contact"
 export { formFromLookup, mapCentre, stateFromLookup } from "./address-lookup"
 export type { LookedUpPlace } from "./address-lookup"
 export { toE164 } from "./phone"
