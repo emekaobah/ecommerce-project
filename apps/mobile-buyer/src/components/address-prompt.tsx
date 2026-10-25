@@ -1,83 +1,39 @@
-import { useAuth } from '@clerk/expo';
 import { Button, Icon, PressableSurface, Sheet, Text, useTheme } from '@oja/ui';
-import * as SecureStore from 'expo-secure-store';
 import { router, useIsFocused } from 'expo-router';
-import { useEffect, useState } from 'react';
 
-import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
+import { useAddressPrompt } from '@/delivering-to/address-prompt-provider';
 
 import { SheetModal } from './sheet-modal';
 
-// Whether a buyer was already asked where to deliver lives on the device, one per buyer who has
-// signed in here: the prompt is asked once, not every time Home opens.
-const askedKey = (userId: string) => `oja.address-prompt.${userId}`;
-
-async function wasAsked(userId: string): Promise<boolean> {
-  try {
-    return (await SecureStore.getItemAsync(askedKey(userId))) === 'asked';
-  } catch {
-    // An unreadable keychain asks again rather than never.
-    return false;
-  }
-}
-
-async function rememberAsked(userId: string): Promise<void> {
-  try {
-    await SecureStore.setItemAsync(askedKey(userId), 'asked');
-  } catch {
-    // An unwritable keychain may ask again next launch.
-  }
-}
-
 /**
- * "Where should we deliver?": a sheet over Home for a signed-in buyer with no saved address,
- * asked once on this phone. Searching opens the address entry at its search; using the current
- * location opens it locating the buyer, the quick path. "Enter it later" closes it. A guest's band asks them to sign in instead.
+ * "Where should we deliver?": a sheet over Home for a signed-in buyer with no saved address, on
+ * every app start until they put it off (#101); the band and Home's empty state bring it back.
+ * Searching opens the address entry at its search; using the current location opens it locating
+ * the buyer, the quick path. "Enter it later" closes it until the app next starts. A guest's band
+ * asks them to sign in instead.
  */
 export function AddressPrompt() {
-  const { userId } = useAuth();
-  const { saved } = useDeliveringTo();
+  const { shown, dismiss } = useAddressPrompt();
   const focused = useIsFocused();
-  /** Whether this buyer was asked before: undefined until read. */
-  const [asked, setAsked] = useState<{ userId: string; asked: boolean } | undefined>(undefined);
 
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-    void wasAsked(userId).then((value) => {
-      if (!cancelled) setAsked({ userId, asked: value });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
-
-  const askedNow = asked && asked.userId === userId ? asked.asked : undefined;
-  const visible = !!userId && focused && askedNow === false && saved?.length === 0;
-
-  const close = () => {
-    if (!userId) return;
-    setAsked({ userId, asked: true });
-    void rememberAsked(userId);
-  };
   const enterAddress = () => {
-    close();
+    dismiss();
     router.push('/addresses/edit');
   };
   const useLocation = () => {
-    close();
+    dismiss();
     router.push({ pathname: '/addresses/edit', params: { locate: '1' } });
   };
 
   return (
-    <SheetModal visible={visible} onClose={close}>
+    <SheetModal visible={shown && focused} onClose={dismiss}>
       <Sheet
         title="Where should we deliver?"
         message="We'll show the shops nearest to it first."
         actions={
           <>
             <Button label="Use my current location" icon="locate" size="main" onPress={useLocation} />
-            <Button label="Enter it later" variant="secondary" onPress={close} />
+            <Button label="Enter it later" variant="secondary" onPress={dismiss} />
           </>
         }>
         <AddressSearchButton onPress={enterAddress} />
