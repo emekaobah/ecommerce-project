@@ -138,6 +138,7 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
           ) : (
             <View style={[styles.row, { gap: theme.space[2] }]}>
               <DeliveryFact listing={listing.data} offer={selected} currencyCode={currencyCode} />
+              <PickupFact pickup={seller.pickup} />
             </View>
           )}
           {product.perishable ? <PerishableNotice /> : null}
@@ -292,7 +293,6 @@ function SizeChips({ offers, selectedId, onSelect }: Readonly<{ offers: Offer[];
 /**
  * When it would arrive: the best-value courier's date and fee to the address in "Delivering to",
  * for the size chosen (#23); without an address, or until that loads, the shop's dispatch time.
- * Pickup isn't shown: nothing the store returns says whether the shop has a collection point.
  */
 function DeliveryFact({ listing, offer, currencyCode }: Readonly<{ listing: ListingDetail; offer?: Offer; currencyCode: string }>) {
   const { userId } = useAuth();
@@ -312,6 +312,12 @@ function DeliveryFact({ listing, offer, currencyCode }: Readonly<{ listing: List
   }
   if (listing.leadtime_to_ship == null) return null;
   return <FactTile icon="truck" value={shipsIn(listing.leadtime_to_ship)} label="Delivery" />;
+}
+
+/** "Pick up · Surulere · free", beside delivery, only when the shop has a collection point (#94). */
+function PickupFact({ pickup }: Readonly<{ pickup: ListingDetail['seller']['pickup'] }>) {
+  if (!pickup) return null;
+  return <FactTile icon="store" value="Pick up" label={pickup.area ? `${pickup.area} · free` : 'Free'} />;
 }
 
 function SoldOutNote({ shop }: Readonly<{ shop: string }>) {
