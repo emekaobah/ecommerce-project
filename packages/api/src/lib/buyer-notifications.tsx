@@ -124,6 +124,7 @@ async function buyerDevices(scope: Scope, customerId: string): Promise<string[]>
 const orderScreen = (groupId: string) => `/order/${groupId}`
 
 const emailOrder = (order: BuyerOrder, delivery: Map<string, number>): EmailShopOrder => ({
+  id: order.id,
   shop: order.seller.name,
   lines: order.items.map((item) => ({
     id: item.id,
@@ -193,12 +194,12 @@ export async function confirmCheckout(scope: Scope, groupId: string, now = new D
     return { ...emailOrder(order, delivery), opens }
   })
   const currency = group.orders[0]!.currency_code
-  const push = orderConfirmedPush({ group_display_id: group.display_id, shops: orders.map((o) => ({ name: o.shop, opens: o.opens })) })
+  const push = orderConfirmedPush({ number: checkout.number, shops: orders.map((o) => ({ name: o.shop, opens: o.opens })) })
   await Promise.all([
     emailBuyer(scope, checkout.email, {
       template: "order-confirmation",
       subject: `Your ${PRODUCT_NAME} order ${checkout.number} is confirmed`,
-      body: <OrderConfirmationEmail group_display_id={group.display_id} currency={currency} orders={orders} address={checkout.address} />,
+      body: <OrderConfirmationEmail number={checkout.number} currency={currency} orders={orders} address={checkout.address} />,
       key: `order-confirmation:${group.id}`,
     }),
     pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
@@ -220,7 +221,7 @@ export async function pushOrderState(scope: Scope, orderId: string, state: Fulfi
   if (!found) return
   const { checkout, order } = found
   const push = buyerStatusPush(state, {
-    group_display_id: checkout.group.display_id,
+    number: checkout.number,
     shop: order.seller.name,
     rejected_by: order.fulfilment.rejected_by,
     pickup: order.pickup,
@@ -255,7 +256,7 @@ export async function tellCourierChanged(scope: Scope, orderId: string): Promise
   const { checkout, order } = found
   // Days counted as the buyer's order shows them (`buyerDelivery`).
   const arrives = deliveryEstimate(shipment.delivery_eta_time, new Date(), SHIPBUBBLE_TIMEZONE)
-  const notice = { group_display_id: checkout.group.display_id, shop: order.seller.name, courier: shipment.courier.courier_name, arrives }
+  const notice = { number: checkout.number, shop: order.seller.name, courier: shipment.courier.courier_name, arrives }
   const key = `courier-changed:${orderId}:${shipment.waybill}`
   await Promise.all([
     emailBuyer(scope, checkout.email, {
@@ -293,7 +294,7 @@ export async function emailDeliveryReceipt(scope: Scope, orderId: string): Promi
     subject: `Your ${PRODUCT_NAME} receipt: order ${checkout.number} from ${order.seller.name}`,
     body: (
       <DeliveryReceiptEmail
-        group_display_id={checkout.group.display_id}
+        number={checkout.number}
         currency={order.currency_code}
         order={emailOrder(order, checkout.delivery)}
         refunded={order.refund?.amount ?? 0}
@@ -321,7 +322,7 @@ export async function pushItemsRemoved(
     return item && quantity > 0 ? [{ title: item.product_title ?? "Item", quantity }] : []
   })
   const push = itemsRemovedPush({
-    group_display_id: checkout.group.display_id,
+    number: checkout.number,
     shop: order.seller.name,
     items,
     refund: amount,
@@ -347,7 +348,7 @@ export async function tellOrderCancelled(scope: Scope, { id: orderId, amount }: 
   const cancellation = found?.order.fulfilment.cancellation
   if (!found || !cancellation) return
   const { checkout, order } = found
-  const notice = { group_display_id: checkout.group.display_id, shop: order.seller.name, cancellation, refund: amount, currency_code: order.currency_code }
+  const notice = { number: checkout.number, shop: order.seller.name, cancellation, refund: amount, currency_code: order.currency_code }
   const key = `order-cancelled:${orderId}`
   await Promise.all([
     emailBuyer(scope, checkout.email, {
@@ -374,7 +375,7 @@ export async function tellRefundByHand(scope: Scope, { order_id: orderId, amount
   const found = await buyerOrder(scope, orderId)
   if (!found) return
   const { checkout, order } = found
-  const refund: RefundNotice = { group_display_id: checkout.group.display_id, shop: order.seller.name, amount, currency_code: order.currency_code }
+  const refund: RefundNotice = { number: checkout.number, shop: order.seller.name, amount, currency_code: order.currency_code }
   const key = `refund-by-hand:${orderId}:${amount}`
   await Promise.all([
     emailBuyer(scope, checkout.email, {
@@ -411,7 +412,7 @@ export async function pushRefundCompleted(scope: Scope, refundId: string): Promi
   if (!refund || !found || (await isNotCollectedRefund(scope, refund))) return
   const { checkout, order } = found
   const push = refundCompletedPush({
-    group_display_id: checkout.group.display_id,
+    number: checkout.number,
     shop: order.seller.name,
     amount: Number(refund.amount),
     currency_code: refund.currency_code,
@@ -444,7 +445,7 @@ export async function askForRefundAccount(scope: Scope, refundId: string, remind
   const found = await refundOfBuyerOrder(scope, refundId)
   if (!found) return
   const { refund, checkout, order } = found
-  const notice: RefundNotice = { group_display_id: checkout.group.display_id, shop: order.seller.name, amount: Number(refund.amount), currency_code: refund.currency_code }
+  const notice: RefundNotice = { number: checkout.number, shop: order.seller.name, amount: Number(refund.amount), currency_code: refund.currency_code }
   const kind = reminder ? `refund-account-reminder-${reminder.nth}` : "refund-account"
   const key = `${kind}:${refund.id}:${needsAttentionSince(refund)}`
   const url = refundScreen(refund.id)
@@ -550,7 +551,7 @@ export async function remindOfPickupHold(scope: Scope, { id: orderId, reminder, 
   const { checkout, order } = found
   const onOrder = order.items.filter((i) => i.quantity > 0 && i.product_id).map((i) => i.product_id!)
   const notice = {
-    group_display_id: checkout.group.display_id,
+    number: checkout.number,
     shop: order.seller.name,
     reminder,
     collect_by: collectByLabel(collectBy.at, new Date(at), collectBy.time_zone),
@@ -590,7 +591,7 @@ export async function tellOrderCollected(scope: Scope, orderId: string): Promise
       subject: `Your ${PRODUCT_NAME} receipt: order ${checkout.number} from ${order.seller.name}`,
       body: (
         <CollectedReceiptEmail
-          group_display_id={checkout.group.display_id}
+          number={checkout.number}
           currency={order.currency_code}
           order={emailOrder(order, checkout.delivery)}
           refunded={order.refund?.amount ?? 0}
@@ -602,7 +603,7 @@ export async function tellOrderCollected(scope: Scope, orderId: string): Promise
     }),
     pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
       template: "buyer-order-collected",
-      ...orderCollectedPush({ group_display_id: checkout.group.display_id, shop: order.seller.name }),
+      ...orderCollectedPush({ number: checkout.number, shop: order.seller.name }),
       data: orderPushData(checkout, orderId),
       idempotencyKey: (to) => `buyer-order-collected:${orderId}:${to}`,
       about: `the receipt of order ${orderId}`,
@@ -633,7 +634,7 @@ export async function tellNotCollected(
       return line && quantity > 0 ? [{ title: line.product_title ?? "Item", quantity }] : []
     })
   const notice = {
-    group_display_id: checkout.group.display_id,
+    number: checkout.number,
     shop: order.seller.name,
     refund: amount,
     currency_code: order.currency_code,

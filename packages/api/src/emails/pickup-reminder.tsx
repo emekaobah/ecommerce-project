@@ -1,8 +1,8 @@
-import { orderNumber, PRODUCT_NAME, type HoldReminder } from "@oja/domain"
+import { PRODUCT_NAME, type HoldReminder } from "@oja/domain"
 import { CollectFrom, EmailLayout, Note, Paragraph, type EmailCollectionPlace } from "./parts"
 
 export type PickupReminderProps = {
-  group_display_id: number
+  number: string
   shop: string
   reminder: HoldReminder
   /** When the hold ends, as `collectByLabel` gives it. */
@@ -13,8 +13,7 @@ export type PickupReminderProps = {
 }
 
 /** Sent half-way through a pickup order's hold and on its last day (#33), with a push. */
-export function PickupReminderEmail({ group_display_id, shop, reminder, collect_by, perishable, place }: Readonly<PickupReminderProps>) {
-  const number = orderNumber(group_display_id)
+export function PickupReminderEmail({ number, shop, reminder, collect_by, perishable, place }: Readonly<PickupReminderProps>) {
   const heading = reminder === "last_day" ? `Last day to collect order ${number}` : `Order ${number} is waiting for you`
   return (
     <EmailLayout preview={`${collect_by} from ${shop}`} heading={heading}>

@@ -21,6 +21,8 @@ export type EmailLine = { id: string; title: string; variant: string | null; qua
  * one number (`orderNumber`, #97), not each shop's order by its own.
  */
 export type EmailShopOrder = {
+  /** Its order's id: shop names aren't unique, so an email keys its shops by this. */
+  id: string
   shop: string
   lines: EmailLine[]
   /** Its delivery fee; null for an order collected in store (#12). */

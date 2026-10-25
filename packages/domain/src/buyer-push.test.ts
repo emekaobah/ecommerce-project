@@ -15,7 +15,7 @@ import {
 import { formatMoney } from "./money"
 import type { FulfilmentState } from "./fulfilment"
 
-const order = { group_display_id: 42, shop: "Mama Put Groceries", rejected_by: null }
+const order = { number: "OJ-42", shop: "Mama Put Groceries", rejected_by: null }
 
 describe("buyerStatusPush", () => {
   test.each([
@@ -87,7 +87,7 @@ describe("buyerStatusPush", () => {
 
 describe("orderConfirmedPush", () => {
   test("confirms a one-shop order and says the shop is next", () => {
-    expect(orderConfirmedPush({ group_display_id: 7, shops: [{ name: "Gadget Hub", opens: null }] })).toEqual({
+    expect(orderConfirmedPush({ number: "OJ-7", shops: [{ name: "Gadget Hub", opens: null }] })).toEqual({
       title: "Order OJ-7 confirmed",
       body: "We'll let you know when Gadget Hub accepts it.",
     })
@@ -98,7 +98,7 @@ describe("orderConfirmedPush", () => {
       { name: "Gadget Hub", opens: null },
       { name: "Mama Put Groceries", opens: null },
     ]
-    expect(orderConfirmedPush({ group_display_id: 7, shops })).toEqual({
+    expect(orderConfirmedPush({ number: "OJ-7", shops })).toEqual({
       title: "Order OJ-7 confirmed",
       body: "We'll let you know as each of your 2 shops accepts it.",
     })
@@ -109,7 +109,7 @@ describe("orderConfirmedPush", () => {
       { name: "Gadget Hub", opens: null },
       { name: "Mama Put Groceries", opens: "8am Tue" },
     ]
-    expect(orderConfirmedPush({ group_display_id: 7, shops })).toEqual({
+    expect(orderConfirmedPush({ number: "OJ-7", shops })).toEqual({
       title: "Order OJ-7 confirmed",
       body: "Mama Put Groceries is closed now: it prepares your order when it opens at 8am Tue.",
     })
@@ -117,7 +117,7 @@ describe("orderConfirmedPush", () => {
 })
 
 describe("itemsRemovedPush", () => {
-  const order = { group_display_id: 42, shop: "Mama Put Groceries", refund: 14500, currency_code: "ngn" }
+  const order = { number: "OJ-42", shop: "Mama Put Groceries", refund: 14500, currency_code: "ngn" }
 
   test("names the items the shop didn't have and what is refunded", () => {
     expect(itemsRemovedPush({ ...order, items: [{ title: "Ofada Rice 5kg", quantity: 1 }] })).toEqual({
@@ -149,7 +149,7 @@ describe("itemsRemovedPush", () => {
 })
 
 describe("orderCancelledPush", () => {
-  const order = { group_display_id: 42, shop: "Mama Put Groceries", refund: 14500, currency_code: "ngn" }
+  const order = { number: "OJ-42", shop: "Mama Put Groceries", refund: 14500, currency_code: "ngn" }
 
   test("tells the buyer the shop cancelled their order, why, and what they are refunded", () => {
     const cancellation = { by: "seller", reason: "items_unavailable", note: null } as const
@@ -176,7 +176,7 @@ describe("orderCancelledPush", () => {
 
 describe("refundCompletedPush", () => {
   test("says the refund from the shop has completed", () => {
-    expect(refundCompletedPush({ group_display_id: 42, shop: "Mama Put Groceries", amount: 14500, currency_code: "ngn" })).toEqual({
+    expect(refundCompletedPush({ number: "OJ-42", shop: "Mama Put Groceries", amount: 14500, currency_code: "ngn" })).toEqual({
       title: "Refund for order OJ-42 completed",
       body: `The refund of ${formatMoney(14500, "ngn")} from Mama Put Groceries has completed.`,
     })
@@ -185,7 +185,7 @@ describe("refundCompletedPush", () => {
 
 describe("refundByHandPush", () => {
   test("tells the buyer Oja's team is sending their refund", () => {
-    expect(refundByHandPush({ group_display_id: 42, shop: "Mama Put Groceries", amount: 30, currency_code: "ngn" })).toEqual({
+    expect(refundByHandPush({ number: "OJ-42", shop: "Mama Put Groceries", amount: 30, currency_code: "ngn" })).toEqual({
       title: "Refund for order OJ-42",
       body: `Our team is sending your ${formatMoney(30, "ngn")} refund for your order from Mama Put Groceries.`,
     })
@@ -193,7 +193,7 @@ describe("refundByHandPush", () => {
 })
 
 describe("refundAccountPush", () => {
-  const refund = { group_display_id: 42, shop: "Mama Put Groceries", amount: 14500, currency_code: "ngn" }
+  const refund = { number: "OJ-42", shop: "Mama Put Groceries", amount: 14500, currency_code: "ngn" }
 
   test("asks the buyer for a bank account to receive the refund their card couldn't take", () => {
     expect(refundAccountPush(refund)).toEqual({
@@ -212,7 +212,7 @@ describe("refundAccountPush", () => {
 })
 
 describe("pickup pushes (#33)", () => {
-  const order = { group_display_id: 42, shop: "Mama Put Groceries" }
+  const order = { number: "OJ-42", shop: "Mama Put Groceries" }
 
   test("reminds the buyer half-way through the hold when to collect by, and that the code is in the app", () => {
     expect(holdReminderPush({ ...order, reminder: "half_way", collect_by: "Collect by 6pm, Thu 15 Oct", perishable: false })).toEqual({
@@ -276,7 +276,7 @@ describe("pickup pushes (#33)", () => {
 
 describe("courierChangedPush", () => {
   test("names the courier now delivering and when it arrives", () => {
-    expect(courierChangedPush({ group_display_id: 42, shop: "Mama Put Groceries", courier: "Faramove Same Day", arrives: "Arrives tomorrow" })).toEqual({
+    expect(courierChangedPush({ number: "OJ-42", shop: "Mama Put Groceries", courier: "Faramove Same Day", arrives: "Arrives tomorrow" })).toEqual({
       title: "New courier for order OJ-42",
       body: "Your order from Mama Put Groceries is now shipping with Faramove Same Day. Arrives tomorrow.",
     })
