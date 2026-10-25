@@ -3,7 +3,7 @@ import { deliveringToBand, needsFirstAddress } from "./delivering-to-band"
 
 describe("deliveringToBand", () => {
   test("says it is finding the address while the address is worked out, muted and not tappable", () => {
-    expect(deliveringToBand({ address: undefined, signedIn: false, saved: undefined, error: false })).toEqual({
+    expect(deliveringToBand({ address: undefined, signedIn: false, saved: undefined, error: false, spot: null })).toEqual({
       label: "Finding your address…",
       action: "none",
       muted: true,
@@ -12,7 +12,7 @@ describe("deliveringToBand", () => {
   })
 
   test("asks a signed-in buyer without a saved address to add one, offered as a choice", () => {
-    expect(deliveringToBand({ address: null, signedIn: true, saved: [], error: false })).toEqual({
+    expect(deliveringToBand({ address: null, signedIn: true, saved: [], error: false, spot: null })).toEqual({
       label: "Add a delivery address",
       action: "addAddress",
       muted: false,
@@ -21,15 +21,42 @@ describe("deliveringToBand", () => {
   })
 
   test("asks a guest to sign in, since addresses belong to accounts", () => {
-    expect(deliveringToBand({ address: null, signedIn: false, saved: undefined, error: false })).toMatchObject({
+    expect(deliveringToBand({ address: null, signedIn: false, saved: undefined, error: false, spot: null })).toMatchObject({
       label: "Sign in to see shops near you",
       action: "signIn",
       muted: false,
     })
   })
 
+  test("names a guest's spot, which offers to locate them again or sign in", () => {
+    const spot = { latitude: 6.4281, longitude: 3.4219, name: "Victoria Island" }
+    expect(deliveringToBand({ address: null, signedIn: false, saved: undefined, error: false, spot })).toEqual({
+      label: "Near Victoria Island",
+      action: "guestSpot",
+      muted: false,
+      chooses: true,
+    })
+  })
+
+  test("calls an unnamed spot the guest's current location", () => {
+    const spot = { latitude: 6.4281, longitude: 3.4219, name: null }
+    expect(deliveringToBand({ address: null, signedIn: false, saved: undefined, error: false, spot })).toMatchObject({
+      label: "Your current location",
+      action: "guestSpot",
+    })
+  })
+
+  test("says it is finding the location, muted, while a guest's spot is read", () => {
+    expect(deliveringToBand({ address: null, signedIn: false, saved: undefined, error: false, spot: undefined })).toEqual({
+      label: "Finding your address…",
+      action: "none",
+      muted: true,
+      chooses: false,
+    })
+  })
+
   test("offers a retry when the buyer's addresses won't load", () => {
-    expect(deliveringToBand({ address: null, signedIn: true, saved: undefined, error: true })).toMatchObject({
+    expect(deliveringToBand({ address: null, signedIn: true, saved: undefined, error: true, spot: null })).toMatchObject({
       label: "Couldn't load your addresses. Tap to retry",
       action: "retry",
       muted: false,
@@ -38,7 +65,7 @@ describe("deliveringToBand", () => {
 
   test("names the address shops are measured from, which opens the list to switch it", () => {
     const home = { id: "addr_home", address_1: "14 Bode Thomas St", city: "Surulere", province: "Lagos" }
-    expect(deliveringToBand({ address: home, signedIn: true, saved: [home], error: false })).toEqual({
+    expect(deliveringToBand({ address: home, signedIn: true, saved: [home], error: false, spot: null })).toEqual({
       label: "14 Bode Thomas St, Surulere, Lagos",
       action: "choose",
       muted: false,
@@ -48,7 +75,7 @@ describe("deliveringToBand", () => {
 
   test("asks a buyer whose addresses have neither a picked nor a default one to choose", () => {
     const office = { id: "addr_office", address_1: "3 Allen Ave", city: "Ikeja", province: "Lagos" }
-    expect(deliveringToBand({ address: null, signedIn: true, saved: [office], error: false })).toEqual({
+    expect(deliveringToBand({ address: null, signedIn: true, saved: [office], error: false, spot: null })).toEqual({
       label: "Choose a delivery address",
       action: "choose",
       muted: false,
@@ -61,13 +88,13 @@ describe("needsFirstAddress", () => {
   const home = { id: "addr_home", address_1: "14 Bode Thomas St", city: "Surulere", province: "Lagos" }
 
   test("a signed-in buyer whose saved addresses loaded empty needs a first address", () => {
-    expect(needsFirstAddress({ address: null, signedIn: true, saved: [], error: false })).toBe(true)
+    expect(needsFirstAddress({ address: null, signedIn: true, saved: [], error: false, spot: null })).toBe(true)
   })
 
   test("a guest, a buyer whose addresses are loading or won't load, or one with an address doesn't", () => {
-    expect(needsFirstAddress({ address: null, signedIn: false, saved: undefined, error: false })).toBe(false)
-    expect(needsFirstAddress({ address: undefined, signedIn: true, saved: undefined, error: false })).toBe(false)
-    expect(needsFirstAddress({ address: null, signedIn: true, saved: undefined, error: true })).toBe(false)
-    expect(needsFirstAddress({ address: null, signedIn: true, saved: [home], error: false })).toBe(false)
+    expect(needsFirstAddress({ address: null, signedIn: false, saved: undefined, error: false, spot: null })).toBe(false)
+    expect(needsFirstAddress({ address: undefined, signedIn: true, saved: undefined, error: false, spot: null })).toBe(false)
+    expect(needsFirstAddress({ address: null, signedIn: true, saved: undefined, error: true, spot: null })).toBe(false)
+    expect(needsFirstAddress({ address: null, signedIn: true, saved: [home], error: false, spot: null })).toBe(false)
   })
 })
