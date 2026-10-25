@@ -44,6 +44,9 @@ const PROMO_CODE_WORDS: Record<Exclude<PromoCodeRefusal, typeof PROMO_CODE_REFUS
   [PROMO_CODE_REFUSALS.notApplicable]: "That code doesn't apply to the items in your cart.",
 }
 
+const isWordedPromoCode = (code: string): code is keyof typeof PROMO_CODE_WORDS =>
+  Object.keys(PROMO_CODE_WORDS).includes(code)
+
 /** A refusal's body as it may arrive: nothing in it is trusted until checked. */
 type RefusalBody = { code?: unknown; seller?: { name?: unknown } | null; offers_pickup?: unknown }
 
@@ -55,7 +58,7 @@ type RefusalBody = { code?: unknown; seller?: { name?: unknown } | null; offers_
 export function checkoutRefusalMessage(body: unknown): string | null {
   const { code, seller, offers_pickup }: RefusalBody = body && typeof body === "object" ? body : {}
   if (typeof code !== "string") return null
-  if (Object.hasOwn(PROMO_CODE_WORDS, code)) return PROMO_CODE_WORDS[code as keyof typeof PROMO_CODE_WORDS]
+  if (isWordedPromoCode(code)) return PROMO_CODE_WORDS[code]
   const shop = seller && typeof seller === "object" ? seller.name : undefined
   if (typeof shop !== "string") return null
   if (code === PROMO_CODE_REFUSALS.otherShop) {
