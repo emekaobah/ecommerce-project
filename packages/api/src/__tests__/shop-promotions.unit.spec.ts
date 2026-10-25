@@ -103,34 +103,39 @@ describe("promoCodeProblem", () => {
   })
 
   it("says a code that doesn't exist, or isn't running yet as a draft, isn't valid", () => {
-    expect(promoCodeProblem(null, "NOPE", now)).toBe('"NOPE" isn\'t a valid promo code. Check it and try again.')
-    expect(promoCodeProblem({ ...promotion, status: "draft" }, "grocer10", now)).toBe(
-      '"GROCER10" isn\'t a valid promo code. Check it and try again.'
-    )
+    expect(promoCodeProblem(null, "NOPE", now)).toEqual({
+      code: "promo_code_not_found",
+      message: '"NOPE" isn\'t a valid promo code. Check it and try again.',
+    })
+    expect(promoCodeProblem({ ...promotion, status: "draft" }, "grocer10", now)).toEqual({
+      code: "promo_code_not_found",
+      message: '"GROCER10" isn\'t a valid promo code. Check it and try again.',
+    })
   })
 
   it("says an ended or stopped promotion has expired", () => {
-    const expired = '"GROCER10" has expired.'
-    expect(promoCodeProblem({ ...promotion, campaign: campaign({ ends_at: "2026-10-14T11:59:59Z" }) }, "GROCER10", now)).toBe(
+    const expired = { code: "promo_code_expired", message: '"GROCER10" has expired.' }
+    expect(promoCodeProblem({ ...promotion, campaign: campaign({ ends_at: "2026-10-14T11:59:59Z" }) }, "GROCER10", now)).toEqual(
       expired
     )
-    expect(promoCodeProblem({ ...promotion, status: "inactive" }, "GROCER10", now)).toBe(expired)
+    expect(promoCodeProblem({ ...promotion, status: "inactive" }, "GROCER10", now)).toEqual(expired)
   })
 
   it("says a promotion that hasn't started isn't on yet", () => {
-    expect(promoCodeProblem({ ...promotion, campaign: campaign({ starts_at: "2026-10-20T00:00:00Z" }) }, "GROCER10", now)).toBe(
-      '"GROCER10" isn\'t on yet.'
-    )
+    expect(promoCodeProblem({ ...promotion, campaign: campaign({ starts_at: "2026-10-20T00:00:00Z" }) }, "GROCER10", now)).toEqual({
+      code: "promo_code_not_started",
+      message: '"GROCER10" isn\'t on yet.',
+    })
   })
 
   it("says a promotion or campaign used to its limit is used up", () => {
-    const usedUp = '"GROCER10" has been used up.'
-    expect(promoCodeProblem({ ...promotion, limit: 100, used: 100 }, "GROCER10", now)).toBe(usedUp)
+    const usedUp = { code: "promo_code_used_up", message: '"GROCER10" has been used up.' }
+    expect(promoCodeProblem({ ...promotion, limit: 100, used: 100 }, "GROCER10", now)).toEqual(usedUp)
     expect(
       promoCodeProblem({ ...promotion, campaign: campaign({ budget: { type: "usage", limit: 50, used: 50 } }) }, "GROCER10", now)
-    ).toBe(usedUp)
+    ).toEqual(usedUp)
     expect(
       promoCodeProblem({ ...promotion, campaign: campaign({ budget: { type: "spend", limit: 10000, used: 10000 } }) }, "GROCER10", now)
-    ).toBe(usedUp)
+    ).toEqual(usedUp)
   })
 })
