@@ -184,6 +184,39 @@ medusaIntegrationTestRunner({
     const fulfilmentOf = async (shop: Shop, orderId: string) =>
       (await eventually(() => vendorOrder(shop, orderId), (o) => !!o.fulfilment)).fulfilment
 
+    describe("the shop as the store shows it", () => {
+      const shopViews = async (shop: Shop) => {
+        const guest = { headers: buyer.headers() }
+        const region = buyer.regionId()
+        const id = await sellerId(shop)
+        const { data: products } = await buyer.query().graph({ entity: "product", fields: ["id"], filters: { title: RICE.title } })
+        const [listing, page, feed] = await Promise.all([
+          api.get(`/store/listings/${id}/${products[0].id}?region_id=${region}`, guest),
+          api.get(`/store/shops/${id}?region_id=${region}`, guest),
+          api.get(`/store/listings?region_id=${region}&seller_id=${id}`, guest),
+        ])
+        return [listing.data.listing.seller.pickup, page.data.shop.pickup, feed.data.listings[0].seller.pickup]
+      }
+
+      it("says a shop without a collection point doesn't offer pickup", async () => {
+        expect(await shopViews(GROCERY)).toEqual([null, null, null])
+      })
+
+      it("says where a shop with a collection point offers pickup: its own area, when it is separate", async () => {
+        await setCollectionPoint(GROCERY)
+        expect(await shopViews(GROCERY)).toEqual(Array(3).fill({ area: GROCERY.pickup.city }))
+
+        await setCollectionPoint(GROCERY, { ...KIOSK, address: { ...KIOSK.address, city: "Lagos Mainland" } })
+        expect(await shopViews(GROCERY)).toEqual(Array(3).fill({ area: "Lagos Mainland" }))
+      })
+
+      it("stops saying so once the shop removes its collection point", async () => {
+        await setCollectionPoint(GROCERY)
+        await api.delete("/vendor/collection-point", await owner(GROCERY))
+        expect(await shopViews(GROCERY)).toEqual([null, null, null])
+      })
+    })
+
     describe("checking out with pickup", () => {
       beforeEach(() => setCollectionPoint(GROCERY))
 

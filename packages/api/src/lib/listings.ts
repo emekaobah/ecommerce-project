@@ -9,6 +9,7 @@ import {
 import { wrapOffersWithCalculatedPrices } from "@mercurjs/core/api/store/offers/helpers"
 import { pinOf, roundedDistanceKm, type Pin, type ShopDeal } from "@oja/domain"
 import { availableQuantities } from "./availability"
+import { collectionPointsOf } from "./collection-point"
 import { attributionOf, type Attribution } from "./enrichment"
 import { rankListingPage, rankShopPage, shopDistancesKm, type RankedListing, type RankingFilters } from "./listing-ranking"
 import { perishableProductIds } from "./perishable"
@@ -54,7 +55,16 @@ export type ListingSeller = {
    * reopens (an exception or pause: not orderable, with its note). ADR 0004.
    */
   shop_status: ShopStatusView
+  /**
+   * In-store pickup, when the shop has a collection point (#12, #94): where it is, as the
+   * collection point's `city` (the LGA in Nigeria's form, ADR 0002). Null when the shop doesn't
+   * offer pickup.
+   */
+  pickup: ListingPickup | null
 }
+
+/** Where a shop's buyers collect, as listings and shop pages say it; never the address itself. */
+export type ListingPickup = { area: string | null }
 
 /** A shop's page header. */
 export type Shop = ListingSeller & { description: string | null }
@@ -106,9 +116,10 @@ export type ListingFilters = {
 }
 
 type Region = { id: string; currency_code: string; countries: string[] }
-type SellerRow = Omit<Shop, "area" | "shop_status" | "distance_km"> & {
+type SellerRow = Omit<Shop, "area" | "shop_status" | "distance_km" | "pickup"> & {
   address?: { country_code: string | null; city: string | null } | null
   shop_status: ShopStatusView
+  pickup: ListingPickup | null
   /**
    * Straight-line kilometres from the buyer's delivery address to the shop's pickup pin, unrounded
    * (buyers see `distance_km`, rounded); null without either.
@@ -191,7 +202,7 @@ export async function rankingFiltersOf(
   }
 }
 
-/** The shops' headers, with whether they are open now and how far they are (`exact_km`). */
+/** The shops' headers, with whether they are open now, whether they offer pickup, and how far they are (`exact_km`). */
 async function sellerRows(scope: MedusaContainer, kmBySeller: Map<string, number | null>): Promise<Map<string, SellerRow>> {
   const ids = [...kmBySeller.keys()]
   if (!ids.length) return new Map()
@@ -211,12 +222,20 @@ async function sellerRows(scope: MedusaContainer, kmBySeller: Map<string, number
     ],
     filters: { id: ids },
   })
-  const statuses = await shopStatusesOf(scope, ids)
+  const [statuses, collectionPoints] = await Promise.all([shopStatusesOf(scope, ids), collectionPointsOf(scope, ids)])
   return new Map(
-    (data as unknown as Omit<SellerRow, "shop_status" | "exact_km">[]).map((s) => [
-      s.id,
-      { ...s, shop_status: statuses.get(s.id)!, exact_km: kmBySeller.get(s.id) ?? null },
-    ])
+    (data as unknown as Omit<SellerRow, "shop_status" | "exact_km" | "pickup">[]).map((s) => {
+      const point = collectionPoints.get(s.id)
+      return [
+        s.id,
+        {
+          ...s,
+          shop_status: statuses.get(s.id)!,
+          pickup: point ? { area: point.address.city } : null,
+          exact_km: kmBySeller.get(s.id) ?? null,
+        },
+      ]
+    })
   )
 }
 
@@ -291,6 +310,7 @@ function toListingSeller(seller: SellerRow): ListingSeller {
     area: seller.address?.city ?? null,
     default_leadtime_to_ship: seller.default_leadtime_to_ship,
     shop_status: seller.shop_status,
+    pickup: seller.pickup,
     distance_km: seller.exact_km == null ? null : roundedDistanceKm(seller.exact_km),
   }
 }

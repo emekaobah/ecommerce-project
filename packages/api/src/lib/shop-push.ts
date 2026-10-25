@@ -72,7 +72,7 @@ const KINDS: Record<ShopPushKind, { message: Message; to?: Audience; repeats?: t
     message: (order, now, hours) => {
       // The reminder comes only while the deadline is set (the shop reopens to finish the clock).
       const deadline = acceptDeadline(new Date(order.created_at).toISOString(), hours) ?? now.toISOString()
-      const { label } = acceptTimeLeft(deadline, now)
+      const { label } = acceptTimeLeft(deadline, now, hours)
       return {
         title: `Order #${order.display_id} is waiting`,
         body: `${label} to accept it, or it is rejected and refunded.`,
