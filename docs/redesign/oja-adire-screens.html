@@ -1698,7 +1698,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="btn sec">Enter it later</span>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Delivery address prompt.</b> For a signed-in buyer with no saved address, asked once as a sheet over Home, with location as the quick path. Addresses belong to accounts, so a guest's band reads "Sign in to see shops near you" instead.<span class="route">delivering-to.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Delivery address prompt.</b> For a signed-in buyer with no saved address, asked as a sheet over Home on every start while there's no saved address, with location as the quick path; "Enter it later" puts it off until the app is next opened, and the band's "Add a delivery address" or Home's empty state brings it back. While the address is worked out the band reads "Finding your address…", muted. Addresses belong to accounts, so a guest's band reads "Sign in to see shops near you" instead.<span class="route">delivering-to.tsx</span></figcaption></figure>
   </div>
 </section>
 
@@ -1733,7 +1733,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       </ol>
       <h4>For a first-time buyer or a guest</h4>
       <ul>
-        <li>A signed-in buyer with no address gets the address sheet once; a guest's band reads "Sign in to see shops near you", because addresses belong to accounts.</li>
+        <li>A signed-in buyer with no address gets the address sheet on every start while there's no saved address; "Enter it later" puts it off until the app is next opened. A guest's band reads "Sign in to see shops near you", because addresses belong to accounts.</li>
+        <li>While the address is worked out, the band reads "Finding your address…", muted, in the loaded band's shape. With no saved address, the band reads "Add a delivery address", and if no shops show, Home's empty state says shops near the buyer will show once they add one, with an "Add a delivery address" button that opens the sheet again.</li>
         <li>Without an address, listings aren't ranked by distance and the distance is left off each shop.</li>
       </ul>
       <h4>Left out because nothing supports it yet</h4>
@@ -2762,7 +2763,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div style="display:flex;gap:8px;padding:4px 16px 16px;overflow:hidden"><div style="display:grid;gap:8px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:8px;"></i><i class="sk" style="width:85%;height:10px;border-radius:8px;"></i></div><div style="display:grid;gap:8px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:8px;"></i><i class="sk" style="width:85%;height:10px;border-radius:8px;"></i></div><div style="display:grid;gap:8px;width:118px;flex:none"><i class="sk" style="width:118px;height:118px;border-radius:16px;"></i><i class="sk" style="width:60%;height:12px;border-radius:8px;"></i><i class="sk" style="width:85%;height:10px;border-radius:8px;"></i></div></div>
       </div>
       <div class="tabbar"><span class="on"><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>Home, loading.</b> The band, address and search are known on the phone, so they show at once; only the listings shimmer, in the shapes they will fill. Under Reduce Motion the shimmer is still.<span class="route">(tabs)/index.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Home, loading.</b> The band, address and search are known on the phone, so they show at once; only the listings shimmer, in the shapes they will fill. Until the address is worked out, the band reads "Finding your address…", muted. Under Reduce Motion the shimmer is still.<span class="route">(tabs)/index.tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div style="height:250px;background:var(--p-tile);position:relative"><i class="sk" style="position:absolute;inset:0;border-radius:0"></i>
