@@ -179,11 +179,26 @@ export function orderGroupSummary(orders: readonly SummaryOrder[]): string {
   return capitalise([...counts].map(([state, n]) => `${countWord(n)} ${state}`).join(", "))
 }
 
+/**
+ * A line of a shop's order as its notes name it: what was bought, the units still on the order
+ * (`quantity`) and those the shop didn't have (`unavailable_quantity`).
+ */
+export type NotedLine = { id: string; product_title: string | null; quantity: number; unavailable_quantity: number }
+
+/** A refund's part of an order line: which line, and how many of its units. */
+export type RefundedLine = { item_id: string; quantity: number }
+
+/** `name`, or, for some of a line's units only, how many of it: "2 of 3 Fresh Tomatoes 1kg". */
+function unitsOf(units: number, line: NotedLine, name: string) {
+  const bought = line.quantity + line.unavailable_quantity
+  return units < bought ? `${units} of ${bought} ${name}` : name
+}
+
 /** A shop's order as its missing-items note reads it (#22, #61). */
 export type MissingItemsOrder = {
-  items: readonly { id: string; product_title: string | null; quantity: number; unavailable_quantity: number }[]
+  items: readonly NotedLine[]
   /** Each refund of the order, with the lines it was for; null lines for one of no lines. */
-  refunds: readonly (OrderRefundView & { lines: readonly { item_id: string; quantity: number }[] | null })[]
+  refunds: readonly (OrderRefundView & { lines: readonly RefundedLine[] | null })[]
   currency_code: string
 }
 
@@ -208,10 +223,8 @@ export function missingItemsNote({ items, refunds, currency_code }: MissingItems
 }
 
 /** A missing line by name; part of a line says how many of it: "2 of 3 Fresh Tomatoes 1kg". */
-function missingName(item: MissingItemsOrder["items"][number]) {
-  const name = item.product_title ?? "An item"
-  if (!item.quantity) return name
-  return `${item.unavailable_quantity} of ${item.quantity + item.unavailable_quantity} ${name}`
+function missingName(item: NotedLine) {
+  return unitsOf(item.unavailable_quantity, item, item.product_title ?? "An item")
 }
 
 /** "A", "A and B", "A, B and C". */
@@ -240,13 +253,11 @@ function refundSentence(refunds: MissingItemsOrder["refunds"], currencyCode: str
 /** A refund as its screen says what it was for (#95): the lines it names, and the order they're on. */
 export type RefundForOrder = {
   /** The lines the refund was for, with units of each; null for a refund of no lines (of delivery alone). */
-  lines: readonly { item_id: string; quantity: number }[] | null
+  lines: readonly RefundedLine[] | null
   /** The order's lines, to name them by; null while they aren't known. */
-  items:
-    | readonly { id: string; product_title: string | null; variant_title: string | null; quantity: number; unavailable_quantity: number }[]
-    | null
-  /** The checkout's number, the one the buyer sees everywhere; null while it isn't known. */
-  display_id: number | null
+  items: readonly (NotedLine & { variant_title: string | null })[] | null
+  /** The checkout's (order group's) `display_id`, the number the buyer sees everywhere; null while it isn't known. */
+  group_display_id: number | null
   shop: string
 }
 
@@ -255,19 +266,17 @@ export type RefundForOrder = {
  * says how many of it. A refund of no lines, or of lines not known here, is for the order:
  * "For your order OJ-2301 from Iya Bisi Foodstuff."
  */
-export function refundForNote({ lines, items, display_id, shop }: RefundForOrder): string {
+export function refundForNote({ lines, items, group_display_id, shop }: RefundForOrder): string {
   const named = (lines ?? []).flatMap((line) => {
     const item = items?.find((i) => i.id === line.item_id)
-    if (!item) return []
-    const bought = item.quantity + item.unavailable_quantity
-    const name = orderLineName(item)
-    return [line.quantity < bought ? `${line.quantity} of ${bought} ${name}` : name]
+    return item ? [unitsOf(line.quantity, item, orderLineName(item))] : []
   })
+  const number = group_display_id === null ? null : orderNumber(group_display_id)
   if (!lines?.length || named.length < lines.length) {
-    return display_id === null ? `For your order from ${shop}.` : `For your order ${orderNumber(display_id)} from ${shop}.`
+    return number === null ? `For your order from ${shop}.` : `For your order ${number} from ${shop}.`
   }
   const what = listed(named)
-  return display_id === null ? `For ${what} from ${shop}.` : `For ${what} in ${orderNumber(display_id)}.`
+  return number === null ? `For ${what} from ${shop}.` : `For ${what} in ${number}.`
 }
 
 /** A line of an order by name: "Adire Kaftan · M"; a product's only variant usually shares its name, which isn't repeated. */

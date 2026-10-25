@@ -235,7 +235,7 @@ describe("refundForNote", () => {
   const tomatoes = { id: "item_1", product_title: "Fresh Tomatoes 1kg", variant_title: null, quantity: 0, unavailable_quantity: 3 }
   const beans = { id: "item_2", product_title: "Honey Beans 2kg", variant_title: null, quantity: 1, unavailable_quantity: 0 }
   const kaftan = { id: "item_3", product_title: "Adire Kaftan", variant_title: "M", quantity: 1, unavailable_quantity: 0 }
-  const order = { display_id: 2301, shop: "Iya Bisi Foodstuff", items: [tomatoes, beans, kaftan] }
+  const order = { group_display_id: 2301, shop: "Iya Bisi Foodstuff", items: [tomatoes, beans, kaftan] }
 
   test("a refund names the items it was for, in the checkout's number", () => {
     expect(refundForNote({ ...order, lines: [{ item_id: "item_1", quantity: 3 }] })).toBe("For Fresh Tomatoes 1kg in OJ-2301.")
@@ -255,7 +255,7 @@ describe("refundForNote", () => {
   })
 
   test("without the checkout's number, the shop says which order", () => {
-    expect(refundForNote({ ...order, display_id: null, lines: [{ item_id: "item_2", quantity: 1 }] })).toBe(
+    expect(refundForNote({ ...order, group_display_id: null, lines: [{ item_id: "item_2", quantity: 1 }] })).toBe(
       "For Honey Beans 2kg from Iya Bisi Foodstuff."
     )
   })
@@ -265,7 +265,7 @@ describe("refundForNote", () => {
     expect(refundForNote({ ...order, items: null, lines: [{ item_id: "item_1", quantity: 3 }] })).toBe(
       "For your order OJ-2301 from Iya Bisi Foodstuff."
     )
-    expect(refundForNote({ ...order, display_id: null, lines: [{ item_id: "item_9", quantity: 1 }] })).toBe(
+    expect(refundForNote({ ...order, group_display_id: null, lines: [{ item_id: "item_9", quantity: 1 }] })).toBe(
       "For your order from Iya Bisi Foodstuff."
     )
   })

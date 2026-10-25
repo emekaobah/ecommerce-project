@@ -84,7 +84,7 @@ function useForOrder(refund: BuyerRefund) {
   return refundForNote({
     lines: refund.lines,
     items: order?.items ?? null,
-    display_id: group.data?.display_id ?? null,
+    group_display_id: group.data?.display_id ?? null,
     shop: refund.order.shop,
   });
 }
