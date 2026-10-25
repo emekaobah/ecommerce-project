@@ -1,7 +1,8 @@
+import { orderNumber } from "@oja/domain"
 import { EmailLayout, Note, Paragraph } from "./parts"
 
 export type CourierChangedProps = {
-  display_id: number
+  group_display_id: number
   shop: string
   /** The courier now delivering the order. */
   courier: string
@@ -12,10 +13,10 @@ export type CourierChangedProps = {
 }
 
 /** Sent when a shop's order is booked with another courier than the buyer chose at checkout (#19). */
-export function CourierChangedEmail({ display_id, shop, courier, chosen, arrives }: Readonly<CourierChangedProps>) {
+export function CourierChangedEmail({ group_display_id, shop, courier, chosen, arrives }: Readonly<CourierChangedProps>) {
   const now = `Your order from ${shop} is now shipping with ${courier}.`
   return (
-    <EmailLayout preview={now} heading={`New courier for order #${display_id}`}>
+    <EmailLayout preview={now} heading={`New courier for order ${orderNumber(group_display_id)}`}>
       <Paragraph>{now}</Paragraph>
       <Paragraph>{`${arrives}.`}</Paragraph>
       <Note>{`It replaces ${chosen}, the courier you chose at checkout. You won't pay any more for delivery.`}</Note>

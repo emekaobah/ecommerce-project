@@ -186,7 +186,7 @@ medusaIntegrationTestRunner({
         }
         const [push] = await refundPushesTo(device)
         expect(push).toMatchObject({
-          title: `Refund for order #${owed.display_id}`,
+          title: `Refund for order ${await buyer.orderNumberOf(orderId)}`,
           body: `Our team is sending your ${formatMoney(RICE.price, "ngn")} refund for your order from ${GROCERY.name}.`,
           data: { order_id: orderId },
         })

@@ -1,4 +1,4 @@
-import { formatMoney } from "@oja/domain"
+import { formatMoney, orderNumber } from "@oja/domain"
 import { Section } from "@react-email/components"
 import { AmountRow, EmailLayout, Paragraph, ShopOrder, type EmailShopOrder } from "./parts"
 
@@ -19,7 +19,7 @@ export type CollectedReceiptProps = {
 export function CollectedReceiptEmail({ group_display_id, currency, order, refunded, collected_on, collected_by }: Readonly<CollectedReceiptProps>) {
   return (
     <EmailLayout preview={`Your receipt for your order from ${order.shop}`} heading={`Your order from ${order.shop} was collected`}>
-      <Paragraph>{`${collected_by} collected it on ${collected_on}. Here is your receipt for this part of order #${group_display_id}.`}</Paragraph>
+      <Paragraph>{`${collected_by} collected it on ${collected_on}. Here is your receipt for this part of order ${orderNumber(group_display_id)}.`}</Paragraph>
       <ShopOrder order={order} currency={currency} />
       {refunded > 0 && (
         <Section>

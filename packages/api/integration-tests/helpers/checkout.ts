@@ -1,5 +1,6 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { orderNumber } from "@oja/domain"
 import { SEED_PASSWORD, SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { vendorHeaders } from "./auth"
 import type { fakeClerk } from "./clerk"
@@ -176,6 +177,13 @@ export function buyerCheckout({
     return data[0].order_id as string
   }
 
+  /** The number of a shop's order's checkout ("OJ-12"): what the buyer app and every buyer message name the order by (#97). */
+  const orderNumberOf = async (orderId: string) => {
+    const { data: links } = await query().graph({ entity: "order_group_order", fields: ["order_group_id"], filters: { order_id: orderId } })
+    const { data } = await query().graph({ entity: "order_group", fields: ["display_id"], filters: { id: links[0].order_group_id } })
+    return orderNumber(data[0].display_id as number)
+  }
+
   return {
     load,
     query,
@@ -198,5 +206,6 @@ export function buyerCheckout({
     ordersOfCart,
     paidCheckout,
     shopOrderId,
+    orderNumberOf,
   }
 }
