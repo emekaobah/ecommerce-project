@@ -60,7 +60,7 @@ export function ReviewsScreen({ kind, id, title }: Readonly<{ kind: ReviewKind; 
           </>
         ) : undefined
       }
-      renderItem={({ item }) => <ReviewItem review={item} shop={kind === 'seller' ? title : undefined} />}
+      renderItem={({ item }) => <ReviewItem review={item} />}
     />
   );
 }

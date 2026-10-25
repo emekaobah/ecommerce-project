@@ -92,13 +92,11 @@ function refetchAfterReviewChange(queryClient: ReturnType<typeof useQueryClient>
 
 /**
  * What each of the buyer's reviews is of, read through Mercur's links of a review to its shop or
- * product. A product review isn't linked to the shop it was bought from, so it names no shop.
+ * product, and the shop it was bought from (#96), which replies to it.
  */
-const MY_REVIEW_FIELDS = '+product.title,+product.thumbnail,+seller.name,+seller.logo';
+const MY_REVIEW_FIELDS = '+product.title,+product.thumbnail,+seller.name,+seller.logo,+shop.name';
 /** Mercur's most per request; a buyer writes one review per shop and product, so this is rarely more than one. */
 const MY_REVIEWS_PAGE = 50;
-
-type Subject = { reference: ReviewKind; product?: { title: string; thumbnail: string | null } | null; seller?: { name: string; logo: string | null } | null };
 
 async function fetchMyReviews() {
   const page = (offset: number) =>
@@ -110,7 +108,7 @@ async function fetchMyReviews() {
     if (!next.reviews.length) break;
     reviews.push(...next.reviews);
   }
-  return reviews.map((review) => review as typeof review & Subject);
+  return reviews;
 }
 
 /** One review the buyer wrote, with what it's of. */
