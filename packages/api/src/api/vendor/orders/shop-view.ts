@@ -8,24 +8,27 @@ import { shopOrderView, type VendorOrder } from "../../../lib/shop-order"
 import type { VendorRequest } from "../offer-import/seller"
 import { shareFor, sharesOf, viewResponses } from "../shop-share"
 
+/** The count of a list the shop is shown, from the count the route found. */
+type CountShown = (req: MedusaRequest, found: number) => Promise<number>
+
 /**
- * Every vendor order response shows the shop its own order: its payment share and its own
- * prices. Each order also carries its `fulfilment`: its state, and while New, its accept deadline.
- * Each line it shows says whether it is `perishable` (#70).
- * An order still being placed, not yet recorded, is shown once it is: it is left out of a list
- * (and of its count), and not found on its own.
+ * Each response shows the shop its own order: its payment share and its own prices. Each order
+ * also carries its `fulfilment`: its state, and while New, its accept deadline. Each line it
+ * shows says whether it is `perishable` (#70).
+ * An order still being placed, not yet recorded, is shown once it is: it is left out of a list,
+ * and not found on its own. `countShown` gives a list's count without such orders.
  */
-export const showTheShopItsOwnOrder = viewResponses(async (req, body) => {
+const shopOrderResponses = (countShown: CountShown) => viewResponses(async (req, body) => {
   const { order, orders, count } = body as { order?: VendorOrder; orders?: VendorOrder[]; count?: number }
   const all = [...(order ? [order] : []), ...(orders ?? [])]
-  const listCount = orders && count != null ? recordedCount(req, count) : undefined
-  if (!all.length) return { ...body, ...(listCount && { count: await listCount }) }
+  const shownCount = orders && count != null ? countShown(req, count) : undefined
+  if (!all.length) return { ...body, ...(shownCount && { count: await shownCount }) }
   const ids = all.map((o) => o.id as string)
-  const [shares, fulfilments, perishable, recorded] = await Promise.all([
+  const [shares, fulfilments, perishable, shown] = await Promise.all([
     sharesOf(req.scope, ids),
     fulfilmentViews(req.scope, ids),
     perishableLines(req.scope, all),
-    listCount,
+    shownCount,
   ])
   const view = (o: VendorOrder) => {
     const fulfilment = fulfilments.get(o.id as string)
@@ -41,9 +44,18 @@ export const showTheShopItsOwnOrder = viewResponses(async (req, body) => {
     ...body,
     ...(order && { order: view(order) }),
     ...(orders && { orders: orders.flatMap((o) => view(o) ?? []) }),
-    ...(recorded != null && { count: recorded }),
+    ...(shown != null && { count: shown }),
   }
 })
+
+/** Mercur's `/vendor/orders`: its list and count include orders not recorded yet. */
+export const showTheShopItsOwnOrder = shopOrderResponses(recordedCount)
+
+/**
+ * A stage's orders (#69): listed and counted from the fulfilment rows, so only recorded orders,
+ * and its count already leaves the others out (#92).
+ */
+export const showTheShopItsStageOrders = shopOrderResponses(async (_req, found) => found)
 
 /**
  * Mercur's count of the shop's orders the list matches, less those not recorded yet: the

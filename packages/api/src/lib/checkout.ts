@@ -12,6 +12,8 @@ import {
   PERISHABLE_PICKUP_NOTE,
   PICKUP_HOLD_NOTICE,
   pinOf,
+  PROMO_CODE_REFUSALS,
+  SHOP_DOESNT_DELIVER,
   roundedDistanceKm,
   type DeliveryTag,
   type FulfilmentMethod,
@@ -45,6 +47,7 @@ import { promoCodeProblem, type CodedPromotion } from "./promotions"
 import { unshareCode } from "./shared-codes"
 import { fulfilmentsOf } from "./order-fulfilment"
 import { closedShopError } from "./shop-hours"
+import { Refusal } from "./refusal"
 import { NOT_PLACED_KEY, type StoredNotPlaced } from "./unplaced-checkout"
 
 // Checkout of a multi-shop cart (#16): the buyer's address, each shop's delivery, then a
@@ -722,7 +725,11 @@ async function setShopMethods(
           ? await quoteRates(scope, { sellerId: seller.id, receiverCode, lines, currencyCode: currency_code })
           : []
       if (!optionId || !rates.length) {
-        throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${seller.name} doesn't deliver to this address`)
+        // Coded, naming the shop, for the app to say what the buyer can do instead (#106).
+        throw new Refusal(MedusaError.Types.NOT_ALLOWED, `${seller.name} doesn't deliver to this address`, SHOP_DOESNT_DELIVER, {
+          seller: { id: seller.id, name: seller.name },
+          offers_pickup: points.has(seller.id),
+        })
       }
       const choices = deliveryChoices(ratesFor(rates, { perishable: group.perishable, timeZone }))
       if (!choices.length) {
@@ -1014,7 +1021,7 @@ async function enteredCodes(scope: MedusaContainer, cart: CartRow): Promise<stri
   return (data as unknown as { code: string; is_automatic: boolean }[]).filter((p) => !p.is_automatic).map((p) => p.code)
 }
 
-type CodeLookup = CodedPromotion & { id: string; is_automatic: boolean; seller?: { name: string } | null }
+type CodeLookup = CodedPromotion & { id: string; is_automatic: boolean; seller?: { id: string; name: string } | null }
 
 /** The promotion a buyer's code names, ignoring case, or none. */
 async function promotionByCode(scope: MedusaContainer, code: string): Promise<CodeLookup | null> {
@@ -1034,6 +1041,7 @@ async function promotionByCode(scope: MedusaContainer, code: string): Promise<Co
       "campaign.budget.type",
       "campaign.budget.limit",
       "campaign.budget.used",
+      "seller.id",
       "seller.name",
     ],
     filters: { code: { $ilike: pattern } },
@@ -1052,13 +1060,24 @@ async function promotionByCode(scope: MedusaContainer, code: string): Promise<Co
   }
 }
 
-/** Why a code took nothing off the cart: used up, a shop's code for none of its items, or nothing it covers. */
-function notAppliedReason(promotion: CodeLookup, usedUp: string[]): string {
-  if (usedUp.includes(promotion.code)) return `"${promotion.code}" has been used up.`
-  if (promotion.seller) {
-    return `"${promotion.code}" is ${promotion.seller.name}'s code: it only takes money off their items, and none in your cart qualify.`
+/**
+ * Why a code took nothing off the cart (400, coded for the app to word, #106): used up, a shop's
+ * code for none of its items (naming the shop), or nothing it covers.
+ */
+function notApplied(promotion: CodeLookup, usedUp: string[]): Refusal {
+  const { code, seller } = promotion
+  if (usedUp.includes(code)) {
+    return new Refusal(MedusaError.Types.INVALID_DATA, `"${code}" has been used up.`, PROMO_CODE_REFUSALS.usedUp)
   }
-  return `"${promotion.code}" doesn't apply to the items in your cart.`
+  if (seller) {
+    return new Refusal(
+      MedusaError.Types.INVALID_DATA,
+      `"${code}" is ${seller.name}'s code: it only takes money off their items, and none in your cart qualify.`,
+      PROMO_CODE_REFUSALS.otherShop,
+      { seller: { id: seller.id, name: seller.name } }
+    )
+  }
+  return new Refusal(MedusaError.Types.INVALID_DATA, `"${code}" doesn't apply to the items in your cart.`, PROMO_CODE_REFUSALS.notApplicable)
 }
 
 /**
@@ -1075,7 +1094,8 @@ export async function applyPromoCode(
   const typed = code.trim()
   const promotion = await promotionByCode(scope, typed)
   const problem = promoCodeProblem(promotion, typed, new Date())
-  if (problem || !promotion) throw new MedusaError(MedusaError.Types.INVALID_DATA, problem!)
+  if (problem) throw new Refusal(MedusaError.Types.INVALID_DATA, problem.message, problem.code)
+  if (!promotion) throw new Error("promoCodeProblem passed a code no promotion has")
 
   const entered = await enteredCodes(scope, cart)
   if (!promotion.is_automatic && !entered.includes(promotion.code)) {
@@ -1083,7 +1103,7 @@ export async function applyPromoCode(
     if (!codes.includes(promotion.code)) {
       // Back to the codes it had: a code that takes nothing off isn't kept.
       await applyShopPromotions(scope, cartId, entered)
-      throw new MedusaError(MedusaError.Types.INVALID_DATA, notAppliedReason(promotion, used_up))
+      throw notApplied(promotion, used_up)
     }
   }
   return retrieveCheckout(scope, cartId, customerId)

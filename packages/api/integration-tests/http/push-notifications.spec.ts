@@ -4,13 +4,14 @@ import { formatMoney } from "@oja/domain"
 import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PASSWORD } from "../../src/scripts/seed-data"
 import { remindAcceptDeadlines } from "../../src/lib/order-acceptance"
+import { setWeeklyHours, shopHoursOf } from "../../src/lib/shop-hours"
 import { ORDER_PICKUP_SCHEDULED } from "../../src/lib/order-fulfilment"
 import { checkPushReceipts } from "../../src/lib/push-receipts"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../../src/modules/push-token"
 import { vendorHeaders } from "../helpers/auth"
 import { ADDRESS, buyerCheckout, eventually, GADGETS, GROCERY, ORDER_TOTALS, RICE, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
-import { keepShopsOpen } from "../helpers/shop-hours"
+import { closedBetween, keepShopsOpen } from "../helpers/shop-hours"
 import { fakeExpoPush, pushToken, type PushMessage } from "../helpers/expo-push"
 import { fakePaystack } from "../helpers/paystack"
 import { fakeShipbubble } from "../helpers/shipbubble"
@@ -282,6 +283,30 @@ medusaIntegrationTestRunner({
         expect(await settledPushesTo(groceryDevice, async () => {})).toHaveLength(2)
         // The accepted order needs no reminder.
         expect(expo.sentTo(gadgetsDevice)).toHaveLength(1)
+      })
+
+      it("counts the shop's open time left, as the vendor app's time chip does", async () => {
+        const device = await registerMember(await buyer.owner(GROCERY))
+        const { grocery } = await paidOrders()
+        await pushesTo(device)
+        const { data } = await buyer.query().graph({ entity: "order", fields: ["created_at"], filters: { id: grocery } })
+        const placedAt = Date.parse(data[0].created_at)
+        // The shop closes for the night 23 open hours in, so its last open hour comes 10 hours later.
+        const closes = Math.ceil((placedAt + 23 * HOUR) / MINUTE) * MINUTE
+        const sellerId = await buyer.sellerId(GROCERY)
+        const { time_zone } = (await shopHoursOf(getContainer(), [sellerId])).get(sellerId)!
+        await setWeeklyHours(getContainer(), sellerId, closedBetween(closes, closes + 10 * HOUR, time_zone))
+        try {
+          await remindAcceptDeadlines(getContainer(), new Date(placedAt + 22 * HOUR + 5 * MINUTE))
+          const reminder = await eventually(
+            async () => expo.sentTo(device).find((push) => push.data?.kind === "accept_deadline_near" && push.data?.order_id === grocery),
+            (push) => !!push
+          )
+          // 55 minutes before it closes and an hour after it reopens, not the 11h 55m on the wall clock.
+          expect(reminder?.body).toBe("1h 55m left to accept it, or it is rejected and refunded.")
+        } finally {
+          await keepShopsOpen(getContainer(), [GROCERY])
+        }
       })
     })
 

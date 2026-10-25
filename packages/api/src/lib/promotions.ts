@@ -1,5 +1,6 @@
 import type { ComputeActions } from "@medusajs/framework/types"
 import { ComputedActions } from "@medusajs/framework/utils"
+import { PROMO_CODE_REFUSALS, type PromoCodeRefusal } from "@oja/domain"
 
 // A cart's promotions, worked out shop by shop (#6, docs/adr/0010-promotions.md). Medusa works
 // a cart's promotions out over all its items, and Mercur only drops a shop's discounts from other
@@ -114,22 +115,29 @@ export type CodedPromotion = {
   } | null
 }
 
+/** Why a buyer can't use a code: the `code` the app words it from (#106), and the API's own words. */
+export type PromoCodeProblem = { code: PromoCodeRefusal; message: string }
+
 /**
  * Why a buyer can't use a code now, or null when they can (whether it discounts anything in
  * their cart is worked out on the cart). `typed` is the code as the buyer typed it.
  */
-export function promoCodeProblem(promotion: CodedPromotion | null, typed: string, now: Date): string | null {
+export function promoCodeProblem(promotion: CodedPromotion | null, typed: string, now: Date): PromoCodeProblem | null {
   if (!promotion || promotion.status === "draft") {
-    return `"${typed.toUpperCase()}" isn't a valid promo code. Check it and try again.`
+    return { code: PROMO_CODE_REFUSALS.notFound, message: `"${typed.toUpperCase()}" isn't a valid promo code. Check it and try again.` }
   }
   const { code, campaign } = promotion
   const at = (date: string | Date | null) => (date ? new Date(date).getTime() : null)
   const endsAt = at(campaign?.ends_at ?? null)
-  if (promotion.status === "inactive" || (endsAt !== null && endsAt <= now.getTime())) return `"${code}" has expired.`
+  if (promotion.status === "inactive" || (endsAt !== null && endsAt <= now.getTime())) {
+    return { code: PROMO_CODE_REFUSALS.expired, message: `"${code}" has expired.` }
+  }
   const startsAt = at(campaign?.starts_at ?? null)
-  if (startsAt !== null && startsAt > now.getTime()) return `"${code}" isn't on yet.`
+  if (startsAt !== null && startsAt > now.getTime()) return { code: PROMO_CODE_REFUSALS.notStarted, message: `"${code}" isn't on yet.` }
   const budget = campaign?.budget
   const budgetUsed = budget && budget.type !== "use_by_attribute" && budget.limit != null && budget.used >= budget.limit
-  if ((promotion.limit != null && promotion.used >= promotion.limit) || budgetUsed) return `"${code}" has been used up.`
+  if ((promotion.limit != null && promotion.used >= promotion.limit) || budgetUsed) {
+    return { code: PROMO_CODE_REFUSALS.usedUp, message: `"${code}" has been used up.` }
+  }
   return null
 }
