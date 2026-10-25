@@ -89,11 +89,7 @@ function GuestPrompt({ visible }: Readonly<{ visible: boolean }>) {
 
   const refused = problem === 'refused';
   const title = spot ? guestSpotLabel(spot) : 'Where should we deliver?';
-  const message = refused
-    ? "Location is off, so we can't find shops near you. Sign in to search for your address, or turn location on in Settings."
-    : spot
-      ? 'Shops are measured from where you were when you shared your location.'
-      : "We'll show the shops nearest to you first.";
+  const message = guestMessage(refused, Boolean(spot));
   return (
     <SheetModal visible={visible} onClose={close}>
       <Sheet
@@ -152,4 +148,13 @@ function AddressSearchButton({ onPress }: Readonly<{ onPress: () => void }>) {
       </Text>
     </PressableSurface>
   );
+}
+
+/** What the guest's sheet says: why location can't be used, where shops are measured from, or what sharing it does. */
+function guestMessage(refused: boolean, hasSpot: boolean): string {
+  if (refused) {
+    return "Location is off, so we can't find shops near you. Sign in to search for your address, or turn location on in Settings.";
+  }
+  if (hasSpot) return 'Shops are measured from where you were when you shared your location.';
+  return "We'll show the shops nearest to you first.";
 }

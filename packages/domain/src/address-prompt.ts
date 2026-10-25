@@ -26,6 +26,6 @@ export type AddressPromptState = {
  */
 export function addressPromptShown({ userId, saved, spot, choice }: AddressPromptState): boolean {
   if (userId === undefined) return false
-  if (choice && choice.by === userId) return choice.shown
+  if (choice?.by === userId) return choice.shown
   return userId ? saved?.length === 0 : spot === null
 }
