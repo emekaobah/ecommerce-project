@@ -652,7 +652,7 @@ export async function retrieveShop(
  */
 export async function deliveringToPin(
   scope: MedusaContainer,
-  { customerId, addressId, near }: { customerId: string | null | undefined; addressId: string | undefined; near?: string }
+  { customerId, addressId, near }: { customerId: string | null | undefined; addressId?: string; near?: string }
 ): Promise<Pin | null> {
   return (await savedAddressPin(scope, customerId, addressId)) ?? nearPin(near)
 }
@@ -671,16 +671,18 @@ async function savedAddressPin(scope: MedusaContainer, customerId: string | null
 /** Two decimal places is a grid of about 1.1 km. */
 const toCentiDegrees = (degrees: number) => Math.round(degrees * 100) / 100
 
+/** A plain decimal number of degrees, as the app sends it: no hex, exponent or blanks. */
+const DECIMAL_DEGREES = /^-?\d+(\.\d+)?$/
+
 /**
  * The phone's location sent as `near` ("lat,lng"), snapped to the centre of its grid cell, so
  * every point in a cell measures alike and a searcher can't walk a distance boundary (ADR 0015).
- * Null when it isn't two numbers within a latitude's and a longitude's range.
+ * Null when it isn't two plain decimals within a latitude's and a longitude's range.
  */
 function nearPin(near: string | undefined): Pin | null {
   const parts = near?.split(",") ?? []
-  if (parts.length !== 2 || parts.some((part) => part.trim() === "")) return null
+  if (parts.length !== 2 || !parts.every((part) => DECIMAL_DEGREES.test(part))) return null
   const [latitude, longitude] = parts.map(Number)
-  // NaN fails both comparisons.
-  if (!(Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180)) return null
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null
   return { latitude: toCentiDegrees(latitude), longitude: toCentiDegrees(longitude) }
 }

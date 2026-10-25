@@ -6,6 +6,7 @@ import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PRODUCTS, SEED_SELLERS } from "../../src/scripts/seed-data"
 import { ADDRESS } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
+import { pickupDetailsIn } from "../helpers/pickup-privacy"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -307,11 +308,7 @@ medusaIntegrationTestRunner({
 
         const distances = Object.fromEntries(data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
         expect(distances).toEqual({ "Ikeja Gadget Hub": 0, "Iya Bisi Foodstuff": 11, "Adire House": 21 })
-        const body = JSON.stringify(data)
-        for (const { pickup } of SEED_SELLERS) {
-          expect(body).not.toContain(String(pickup.latitude))
-          expect(body).not.toContain(String(pickup.longitude))
-        }
+        expect(pickupDetailsIn(data)).toEqual([])
       })
 
       it("tells the shop page and the product page the shop's distance too", async () => {
@@ -328,7 +325,7 @@ medusaIntegrationTestRunner({
 
         expect(shop.shop.distance_km).toBe(11)
         expect(product.listing.seller.distance_km).toBe(11)
-        expect(JSON.stringify([shop, product])).not.toContain(String(SEED_SELLERS[0].pickup.latitude))
+        expect(pickupDetailsIn([shop, product])).toEqual([])
       })
 
       it("pages through every band in one stable order, each listing once", async () => {
@@ -437,6 +434,19 @@ medusaIntegrationTestRunner({
           expect(distances).toEqual({ "Adire House": 7, "Iya Bisi Foodstuff": 8, "Ikeja Gadget Hub": 14 })
         })
 
+        it("uses the phone's location when the buyer's saved address has no pin", async () => {
+          const bola = buyer("bola-unpinned@oja.test")
+          const { data: me } = await api.get("/store/customers/me", bola)
+          const { latitude, longitude, ...unpinned } = ADDRESS.metadata
+          const [address] = await getContainer()
+            .resolve(Modules.CUSTOMER)
+            .createCustomerAddresses([{ ...ADDRESS, customer_id: me.customer.id, metadata: unpinned }])
+
+          const { data } = await listAs(bola, { address_id: address.id, near: "6.59,3.35" })
+
+          expect(data.listings.find((l: any) => l.seller.name === "Ikeja Gadget Hub").seller.distance_km).toBe(1)
+        })
+
         it("uses the phone's location when the address isn't the buyer's", async () => {
           const addressId = await savedAddress(buyer("ada-lends-address@oja.test"), OFF_LEKKI)
 
@@ -457,15 +467,10 @@ medusaIntegrationTestRunner({
 
           expect(shop.shop.distance_km).toBe(11)
           expect(product.listing.seller.distance_km).toBe(11)
-          const body = JSON.stringify([shop, product])
-          for (const { pickup } of SEED_SELLERS) {
-            expect(body).not.toContain(String(pickup.latitude))
-            expect(body).not.toContain(String(pickup.longitude))
-            expect(body).not.toContain(pickup.address_1)
-          }
+          expect(pickupDetailsIn([shop, product])).toEqual([])
         })
 
-        it.each(["", "6.59", "6.59,", "lagos", "6.59,3.35,1", "91,3.35", "6.59,181", "NaN,3.35", "Infinity,3.35"])(
+        it.each(["", "6.59", "6.59,", "lagos", "6.59,3.35,1", "91,3.35", "6.59,181", "NaN,3.35", "Infinity,3.35", "0x1A,3.35", "6.59,0x1A", "6.59e0,3.35", "1e1,3.35"])(
           "ignores a malformed or out-of-range location (%p), answering as with none",
           async (near) => {
             await shipsIn("Adire House", 0)

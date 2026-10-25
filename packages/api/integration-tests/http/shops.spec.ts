@@ -2,9 +2,9 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { MercurModules } from "@mercurjs/types"
 import { seedDemoWorld } from "../../src/scripts/seed"
-import { SEED_SELLERS } from "../../src/scripts/seed-data"
 import { ADDRESS } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
+import { pickupDetailsIn } from "../helpers/pickup-privacy"
 
 jest.setTimeout(5 * 60 * 1000)
 
@@ -120,11 +120,7 @@ medusaIntegrationTestRunner({
           ["Iya Bisi Foodstuff", 11],
           ["Adire House", 21],
         ])
-        const body = JSON.stringify(data)
-        for (const { pickup } of SEED_SELLERS) {
-          expect(body).not.toContain(String(pickup.latitude))
-          expect(body).not.toContain(String(pickup.longitude))
-        }
+        expect(pickupDetailsIn(data)).toEqual([])
       })
 
       it("within a band, ranks the shop that ships soonest, then the nearest", async () => {
@@ -183,12 +179,7 @@ medusaIntegrationTestRunner({
           ["Iya Bisi Foodstuff", 11],
           ["Adire House", 21],
         ])
-        const body = JSON.stringify(data)
-        for (const { pickup } of SEED_SELLERS) {
-          expect(body).not.toContain(String(pickup.latitude))
-          expect(body).not.toContain(String(pickup.longitude))
-          expect(body).not.toContain(pickup.address_1)
-        }
+        expect(pickupDetailsIn(data)).toEqual([])
       })
 
       it("in a category, lists only the shops selling in it, with only those listings counted", async () => {

@@ -374,6 +374,16 @@ medusaIntegrationTestRunner({
         expect(shipbubble.rateRequests()).toEqual([])
       })
 
+      it("refuses the phone's location, since an estimate needs a saved, validated address (ADR 0015)", async () => {
+        const status = await estimateOf(GROCERY, RICE.title, { headers: buyer.headers() }, { near: "6.59,3.35" }).then(
+          () => 200,
+          (e: any) => e.response?.status
+        )
+
+        expect(status).toBe(400)
+        expect(shipbubble.rateRequests()).toEqual([])
+      })
+
       it("has none when no courier will take the parcel", async () => {
         await saveAddress("emeka@oja.test", { ...PINNED, first_name: "Emeka" })
         shipbubble.setCouriers([])
