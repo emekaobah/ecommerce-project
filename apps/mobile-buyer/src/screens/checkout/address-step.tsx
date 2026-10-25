@@ -1,15 +1,19 @@
 import {
-  addressFromForm,
+  addressFormValues,
   checkoutAddressOf,
+  contactFromForm,
   getAddressConfig,
+  nameFromForm,
   savedAddressFor,
-  toE164,
+  type AddressConfig,
   type AddressFieldKey,
   type AddressFormErrors,
   type AddressFormValues,
   type AddressStep as AddressStepState,
+  type BuyerDetails,
   type Pin,
   type PinnedDeliveryAddress,
+  type ReceiverName,
 } from '@oja/domain';
 import { Button, InlineNote, RadioOption, Skeleton, StatusChip, Text, useTheme } from '@oja/ui';
 import { useState } from 'react';
@@ -198,7 +202,65 @@ export function contactOf(customer: { first_name?: string | null; last_name?: st
   return first_name && last_name && phone ? { first_name, last_name, phone } : null;
 }
 
-const CONTACT_FIELDS = new Set<string>(['first_name', 'last_name', 'phone'] satisfies AddressFieldKey[]);
+const NAME_FIELDS = new Set<string>(['first_name', 'last_name'] satisfies AddressFieldKey[]);
+const CONTACT_FIELDS = new Set<string>([...NAME_FIELDS, 'phone']);
+
+/** The country's form fields in `keys`, each required: an address may go without them, checkout can't. */
+const requiredFields = (config: AddressConfig, keys: Set<string>) =>
+  config.fields.filter((field) => keys.has(field.key)).map((field) => ({ ...field, required: true }));
+
+/**
+ * The buyer's name, asked for when neither the delivery address nor their account has one
+ * (#101): the courier hands the order over by name. Checkout keeps it on the account.
+ */
+export function ReceiverNameForm({
+  countryCode,
+  address,
+  buyer,
+  onSave,
+  onChangeAddress,
+}: Readonly<{
+  countryCode: string;
+  address: PinnedDeliveryAddress;
+  /** The account, whose half a name (a first name only) fills the form. */
+  buyer: BuyerDetails | undefined;
+  onSave: (name: ReceiverName) => void;
+  onChangeAddress: () => void;
+}>) {
+  const theme = useTheme();
+  const config = getAddressConfig(countryCode);
+  const fields = { ...config, fields: requiredFields(config, NAME_FIELDS) };
+  const [values, setValues] = useState<AddressFormValues>(() => addressFormValues(null, countryCode, buyer));
+  const [errors, setErrors] = useState<AddressFormErrors>({});
+  const save = () => {
+    const checked = nameFromForm(values);
+    if (!checked.ok) return setErrors(checked.errors);
+    onSave(checked.name);
+  };
+  return (
+    <View style={{ gap: theme.space[3] }}>
+      <View style={[styles.spread, { gap: theme.space[3] }]}>
+        <Text weight="bold" tone="muted">
+          Deliver to
+        </Text>
+        <Button label="Change" variant="link" onPress={onChangeAddress} />
+      </View>
+      <AddressCard address={address} />
+      <Text variant="heading">Your name</Text>
+      <Text tone="muted">{"The courier asks for you by name. We'll keep it on your account for next time."}</Text>
+      <AddressForm
+        config={fields}
+        values={values}
+        errors={errors}
+        onChange={(key, value) => {
+          setValues((current) => ({ ...current, [key]: value }));
+          setErrors(({ [key]: _fixed, ...rest }) => rest);
+        }}
+      />
+      <Button label="Continue" size="main" onPress={save} />
+    </View>
+  );
+}
 
 /**
  * When every shop's order is collected (#12), checkout asks for no address: only the buyer's
@@ -207,6 +269,7 @@ const CONTACT_FIELDS = new Set<string>(['first_name', 'last_name', 'phone'] sati
 export function ContactDetails({
   countryCode,
   contact,
+  buyer,
   editing,
   saving,
   error,
@@ -215,6 +278,8 @@ export function ContactDetails({
 }: Readonly<{
   countryCode: string;
   contact: CheckoutContact | null;
+  /** The buyer's account, whose name and phone fill what it has of the form. */
+  buyer: BuyerDetails | undefined;
   editing: boolean;
   saving: boolean;
   error: Error | null;
@@ -226,19 +291,14 @@ export function ContactDetails({
     400: 'Give your name and phone number for the shop.',
   });
   const config = getAddressConfig(countryCode);
-  const fields = { ...config, fields: config.fields.filter((f) => CONTACT_FIELDS.has(f.key)) };
-  const [values, setValues] = useState<AddressFormValues>({
-    first_name: contact?.first_name ?? '',
-    last_name: contact?.last_name ?? '',
-    phone: contact?.phone ?? '',
-  });
+  const fields = { ...config, fields: requiredFields(config, CONTACT_FIELDS) };
+  // Starts with what the account has, even just a phone or a first name.
+  const [values, setValues] = useState<AddressFormValues>(() => addressFormValues(null, countryCode, contact ?? buyer));
   const [errors, setErrors] = useState<AddressFormErrors>({});
   const save = () => {
-    const checked = addressFromForm(values, countryCode);
-    const problems = checked.ok ? {} : Object.fromEntries(Object.entries(checked.errors).filter(([key]) => CONTACT_FIELDS.has(key)));
-    const phone = toE164(values.phone ?? '', countryCode);
-    if (Object.keys(problems).length || !phone) return setErrors(problems);
-    onSave({ first_name: values.first_name!.trim(), last_name: values.last_name!.trim(), phone });
+    const checked = contactFromForm(values, countryCode);
+    if (!checked.ok) return setErrors(checked.errors);
+    onSave(checked.contact);
   };
   return (
     <View style={{ gap: theme.space[3] }}>

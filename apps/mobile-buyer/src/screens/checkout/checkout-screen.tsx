@@ -4,10 +4,12 @@ import {
   checkoutAddressOf,
   formatMoney,
   preselectedAddress,
+  receiverOf,
   savedAddressFor,
   type AddressStep,
   type Pin,
   type PinnedDeliveryAddress,
+  type ReceiverName,
 } from '@oja/domain';
 import {
   EmptyState,
@@ -29,18 +31,27 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import { useSaveAddress, useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
 import { cartKeys, moveShopCartBack } from '@/api/cart';
 import { useCheckout, usePrepareCheckout, type Checkout, type CheckoutContact, type CheckoutPreparation } from '@/api/checkout';
-import { useCustomer } from '@/api/customer';
+import { useCustomer, useSaveAccountName } from '@/api/customer';
 import { useAddressDraft } from '@/components/address/use-address-draft';
 import { useCartSession, useIsAppCart } from '@/cart/cart-provider';
 import { useDeliveringTo, useDeliveringToId } from '@/delivering-to/delivering-to-provider';
 import { useRegion } from '@/region/region-provider';
 
-import { ContactDetails, contactOf, DeliveryAddress } from './address-step';
+import { ContactDetails, contactOf, DeliveryAddress, ReceiverNameForm } from './address-step';
 import { DeliveryStep } from './delivery-step';
 import { PayBar, ReviewStep, type PaymentLeft } from './review-step';
 
 /** Checkout's three steps: the address with a confirmed pin, delivery per shop, then review and pay. */
 type CheckoutStep = 1 | 2 | 3;
+
+/** What a checkout preparation calls back when it settles. */
+type PrepareOptions = Parameters<ReturnType<typeof usePrepareCheckout>['mutate']>[1];
+
+/**
+ * A preparation as checkout's steps ask for it: the delivery address may be one saved without a
+ * name, which checkout names for its receiver before sending (#101). The "Delivering to" address is added too.
+ */
+type Preparation = Omit<CheckoutPreparation, 'addressId' | 'shippingAddress'> & { shippingAddress?: PinnedDeliveryAddress | null };
 
 const STEP_TITLES: Record<CheckoutStep, string> = { 1: 'Delivery address', 2: 'Delivery', 3: 'Review and pay' };
 
@@ -163,7 +174,7 @@ function preparationFor(
   allCollected: boolean,
   contact: CheckoutContact | null,
   cartAddress: PinnedDeliveryAddress | null,
-): Omit<CheckoutPreparation, 'addressId'> | null {
+): Preparation | null {
   if (allCollected) return contact ? { contact, pickup } : null;
   return cartAddress ? { shippingAddress: cartAddress, pickup } : null;
 }
@@ -181,17 +192,30 @@ function CheckoutForm({
   // Checkout starts on the address Home and Search deliver to (#43); until that is known, the
   // saved addresses count as loading.
   const { address: deliveringTo } = useDeliveringTo();
-  const startingFrom = deliveringTo === undefined ? undefined : saved.data;
+  // The account's name names an address saved without one, so it loads before checkout starts too.
+  const startingFrom = deliveringTo === undefined || customer.isPending ? undefined : saved.data;
   const picked = deliveringTo?.id ?? null;
   const prepareCheckout = usePrepareCheckout(cartId);
   const saveToAddressBook = useSaveAddress(countryCode);
+  const saveAccountName = useSaveAccountName(userId);
   const money = (amount: number) => formatMoney(amount, checkout.currency_code);
-  // Every preparation carries the "Delivering to" address, which collection points are measured from.
+  /** A delivery waiting for the receiver's name: neither its address nor the account has one (#101). */
+  const [unnamed, setUnnamed] = useState<{
+    address: PinnedDeliveryAddress;
+    rest: Omit<Preparation, 'shippingAddress'>;
+    options?: PrepareOptions;
+  } | null>(null);
+  // Every preparation carries the "Delivering to" address, which collection points are measured
+  // from, and a delivery address named for who receives it.
   const { mutate: prepareMutate } = prepareCheckout;
+  const account = customer.data;
   const mutate = useCallback(
-    (variables: Omit<CheckoutPreparation, 'addressId'>, options?: Parameters<typeof prepareMutate>[1]) =>
-      prepareMutate({ ...variables, addressId }, options),
-    [prepareMutate, addressId],
+    ({ shippingAddress, ...rest }: Preparation, options?: PrepareOptions) => {
+      const named = shippingAddress ? receiverOf(shippingAddress, account) : null;
+      if (shippingAddress && !named) return setUnnamed({ address: shippingAddress, rest, options });
+      prepareMutate({ ...rest, shippingAddress: named, addressId }, options);
+    },
+    [prepareMutate, addressId, account],
   );
   const prepare = { isPending: prepareCheckout.isPending, error: prepareCheckout.error, mutate };
 
@@ -300,18 +324,42 @@ function CheckoutForm({
   const contact = checkout.contact ?? contactOf(customer.data);
   const editingDetails = editingContact || !checkout.contact || !!pendingPickup;
   // Step 1 is done once the cart has where its orders go: an address, or the buyer's details.
-  const addressDone = everyCollected ? !editingDetails : step === 'chosen' && !pendingPickup;
+  const addressDone = everyCollected ? !editingDetails : step === 'chosen' && !pendingPickup && !unnamed;
 
   const back = () => (screenStep === 1 ? router.back() : setScreenStep((screenStep - 1) as CheckoutStep));
   const renderBack = () => <BackButton step={screenStep} onPress={back} />;
   const renderStep = () => <StepCount step={screenStep} />;
 
+  /** The receiver's name, kept on the account; the delivery that waited for it goes ahead. */
+  const nameReceiver = (name: ReceiverName) => {
+    if (!unnamed) return;
+    const { address, rest, options } = unnamed;
+    saveAccountName.mutate(name);
+    setUnnamed(null);
+    prepareMutate({ ...rest, shippingAddress: { ...address, ...name }, addressId }, options);
+  };
+
   const content = () => {
+    if (screenStep === 1 && unnamed) {
+      return (
+        <ReceiverNameForm
+          countryCode={countryCode}
+          address={unnamed.address}
+          buyer={customer.data ?? undefined}
+          onSave={nameReceiver}
+          onChangeAddress={() => {
+            setUnnamed(null);
+            setBuyerStep(hasSaved ? 'choosing' : 'entering');
+          }}
+        />
+      );
+    }
     if (screenStep === 1) {
       return everyCollected ? (
         <ContactDetails
           countryCode={countryCode}
           contact={contact}
+          buyer={customer.data ?? undefined}
           editing={editingDetails}
           saving={prepare.isPending}
           error={prepare.error}
@@ -471,7 +519,7 @@ function useAutomaticQuotes({
   pickup: string[];
   /** Every shop is collected: there is nothing to quote. */
   everyCollected: boolean;
-  prepare: { isPending: boolean; mutate: (variables: Omit<CheckoutPreparation, 'addressId'>, options?: { onError?: () => void }) => void };
+  prepare: { isPending: boolean; mutate: (variables: Preparation, options?: { onError?: () => void }) => void };
   onFailed: () => void;
 }) {
   const { isPending, mutate } = prepare;

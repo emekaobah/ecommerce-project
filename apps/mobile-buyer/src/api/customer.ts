@@ -1,4 +1,5 @@
-import { skipToken, useQuery } from '@tanstack/react-query';
+import type { ReceiverName } from '@oja/domain';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { storeClient } from './client';
 
@@ -20,6 +21,18 @@ export function useCustomer(userId: string | null | undefined) {
   return useQuery({
     queryKey: customerKeys.me(userId ?? ''),
     queryFn: userId ? fetchCustomer : skipToken,
+  });
+}
+
+/**
+ * Puts the buyer's name on their account. Checkout asks for it when neither the delivery
+ * address nor the account has one (#101), and keeps it so it doesn't ask again.
+ */
+export function useSaveAccountName(userId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: ReceiverName) => storeClient.store.customers.me.mutate(name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: customerKeys.me(userId ?? '') }),
   });
 }
 
