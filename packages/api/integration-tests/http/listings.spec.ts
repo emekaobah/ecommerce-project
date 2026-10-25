@@ -401,6 +401,32 @@ medusaIntegrationTestRunner({
         }
         expect(shop.distance_km).toBeNull()
       })
+
+      // Without a usable saved address, the phone's location (`near`), snapped to a 2-decimal grid (ADR 0015).
+      describe("from the phone's location", () => {
+        it("ranks a guest's listings nearest first, with each shop's rounded distance", async () => {
+          await shipsIn("Adire House", 0)
+          await shipsIn("Iya Bisi Foodstuff", 1)
+          await shipsIn("Ikeja Gadget Hub", 3)
+
+          const { data } = await listAs({ headers }, { near: "6.59,3.35" })
+
+          expect(shopOrder(data.listings)).toEqual(["Ikeja Gadget Hub", "Iya Bisi Foodstuff", "Adire House"])
+          const distances = Object.fromEntries(data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
+          expect(distances).toEqual({ "Ikeja Gadget Hub": 1, "Iya Bisi Foodstuff": 11, "Adire House": 21 })
+        })
+
+        it("measures from the centre of the location's 2-decimal grid cell, so two points in one cell get the same answer", async () => {
+          // Both snap to 6.59,3.35. Measured as sent, they'd read Ikeja Gadget Hub 0 km and Adire House 22 km,
+          // and Ikeja Gadget Hub 2 km and Adire House 20 km.
+          const north = await listAs({ headers }, { near: "6.5946,3.3454" })
+          const south = await listAs({ headers }, { near: "6.5854,3.3546" })
+
+          expect(north.data).toEqual(south.data)
+          const distances = Object.fromEntries(north.data.listings.map((l: any) => [l.seller.name, l.seller.distance_km]))
+          expect(distances).toEqual({ "Ikeja Gadget Hub": 1, "Iya Bisi Foodstuff": 11, "Adire House": 21 })
+        })
+      })
     })
 
     describe("shop logos and banners", () => {

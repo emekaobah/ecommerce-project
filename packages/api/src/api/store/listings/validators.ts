@@ -1,6 +1,6 @@
 import { z } from "@medusajs/framework/zod"
 
-export const StoreGetListingParams = z.object({
+const StoreDeliveringToParams = z.object({
   region_id: z.string(),
   /**
    * The signed-in buyer's saved address they are delivering to: shops are measured from its pin
@@ -9,12 +9,20 @@ export const StoreGetListingParams = z.object({
   address_id: z.string().optional(),
 })
 
+export const StoreGetListingParams = StoreDeliveringToParams.extend({
+  /**
+   * The phone's location as `lat,lng`, for a buyer with no usable `address_id`: shops are measured
+   * from it, snapped to a 2-decimal grid (ADR 0015). Ignored when malformed or out of range.
+   */
+  near: z.string().optional(),
+})
+
 /**
- * The product page's estimate, scoped like a listing: to the address the buyer is delivering to
+ * The product page's estimate, scoped to the saved address the buyer is delivering to
  * (`address_id`, else their default), for the variant they picked (`variant_id`, else the shop's
- * cheapest).
+ * cheapest). Never from `near`: an estimate needs a saved, validated address (ADR 0015).
  */
-export const StoreGetDeliveryEstimateParams = StoreGetListingParams.extend({
+export const StoreGetDeliveryEstimateParams = StoreDeliveringToParams.extend({
   variant_id: z.string().optional(),
 })
 
