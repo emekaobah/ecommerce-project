@@ -16,9 +16,13 @@ const secondary = { ...text, color: SECONDARY, fontSize: "13px", lineHeight: "20
 /** One line of a shop's order. */
 export type EmailLine = { id: string; title: string; variant: string | null; quantity: number; total: number }
 
-/** One shop's order in a buyer email. */
+/**
+ * One shop's order in a buyer email, named by its shop: the buyer knows the whole checkout by
+ * one number (`orderNumber`, #97), not each shop's order by its own.
+ */
 export type EmailShopOrder = {
-  display_id: number
+  /** Its order's id: shop names aren't unique, so an email keys its shops by this. */
+  id: string
   shop: string
   lines: EmailLine[]
   /** Its delivery fee; null for an order collected in store (#12). */
@@ -69,7 +73,6 @@ export function ShopOrder({ order, currency, children }: Readonly<{ order: Email
     <Section style={{ marginTop: "24px" }}>
       <Hr style={{ borderColor: DIVIDER, margin: "0 0 16px" }} />
       <Text style={{ ...text, fontWeight: 800 }}>{order.shop}</Text>
-      <Text style={secondary}>{`#${order.display_id}`}</Text>
       {children}
       <Section style={{ marginTop: "12px" }}>
         {order.lines.map((line) => (

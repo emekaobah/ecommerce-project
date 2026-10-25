@@ -54,8 +54,9 @@ export function DeliveringToScreen() {
               pick(address.id);
               router.back();
             }}>
-            <Text variant="strong">{name}</Text>
-            <Text tone="muted">{place}</Text>
+            {/* An address saved without a name (#101) leads with where it is. */}
+            <Text variant="strong">{name || place}</Text>
+            {name ? <Text tone="muted">{place}</Text> : null}
             {pinned ? null : <Text tone="muted">Add a pin in Account → Addresses to deliver here.</Text>}
           </RadioOption>
         );

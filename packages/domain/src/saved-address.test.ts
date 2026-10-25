@@ -75,6 +75,14 @@ describe("checkoutAddressOf", () => {
     expect(checkoutAddressOf({ ...home, metadata: { landmark: "Opposite the Mobil station" } }, "NG")).toBeNull()
   })
 
+  test("takes an address saved without a name: checkout names the receiver", () => {
+    expect(checkoutAddressOf({ ...home, first_name: null, last_name: null }, "NG")).toMatchObject({
+      first_name: null,
+      last_name: null,
+      address_1: "3 Akin Adesola Street",
+    })
+  })
+
   test("is null for an address the country's form wouldn't take, e.g. one without an LGA", () => {
     expect(checkoutAddressOf({ ...home, city: null }, "NG")).toBeNull()
   })
@@ -169,6 +177,16 @@ describe("savedAddressFor", () => {
 
   test("is the saved address the cart delivers to", () => {
     expect(savedAddressFor([home, office], onCart, "NG")).toBe("caddr_office")
+  })
+
+  test("is the address saved without a name, delivered to in the receiver's name checkout asked for", () => {
+    const nameless = { ...office, first_name: null, last_name: null }
+
+    expect(savedAddressFor([home, nameless], onCart, "NG")).toBe("caddr_office")
+  })
+
+  test("is none for a cart delivering to someone else at a saved address with a name", () => {
+    expect(savedAddressFor([home, office], { ...onCart, first_name: "Chidi" }, "NG")).toBeNull()
   })
 
   test("is none when the cart's address differs from every saved one, even only by its pin", () => {

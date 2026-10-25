@@ -101,22 +101,24 @@ medusaIntegrationTestRunner({
         const { cartId } = await buyer.paidCheckout()
 
         const groupId = await buyer.orderGroupOf(cartId)
-        const group = await displayIdOf("order_group", groupId)
+        const group = await buyer.orderNumberOf(await buyer.shopOrderId(GROCERY, cartId))
         const [push] = await pushesTo(device)
         expect(push).toMatchObject({
-          title: `Order #${group} confirmed`,
+          title: `Order ${group} confirmed`,
           body: "We'll let you know as each of your 2 shops accepts it.",
           data: { url: `/order/${groupId}`, order_group_id: groupId },
         })
 
         const [email] = await emailsToAda()
-        expect(email).toMatchObject({ from: "Oja <orders@oja.test>", subject: `Your Oja order #${group} is confirmed` })
+        expect(email).toMatchObject({ from: "Oja <orders@oja.test>", subject: `Your Oja order ${group} is confirmed` })
         const grocery = await displayIdOf("order", await buyer.shopOrderId(GROCERY, cartId))
         const gadgets = await displayIdOf("order", await buyer.shopOrderId(GADGETS, cartId))
-        const details = [GROCERY.name, `#${grocery}`, RICE.title, GADGETS.name, `#${gadgets}`, LANTERN.title, ADDRESS.address_1]
+        const details = [group, GROCERY.name, RICE.title, GADGETS.name, LANTERN.title, ADDRESS.address_1]
         const money = (amount: number) => formatMoney(amount, "ngn")
         for (const text of details) expect(email.html).toContain(text)
         for (const text of [...details, `Delivery ${money(BEST_VALUE_FEE)}`, `Total paid ${money(TOTAL)}`]) expect(email.text).toContain(text)
+        // Each shop's order isn't numbered on its own: the buyer knows the checkout by one number.
+        for (const shopOrder of [grocery, gadgets]) expect(email.text).not.toContain(`#${shopOrder}`)
       })
 
       it("tells Ada a shop that is closed now prepares its order when it opens", async () => {
@@ -146,7 +148,7 @@ medusaIntegrationTestRunner({
       it("pushes Ada as it is accepted, its courier booked, picked up and delivered, each opening the order", async () => {
         const device = await registerAda()
         const { orderId, groupId } = await confirmedCheckout(device)
-        const order = await displayIdOf("order", orderId)
+        const order = await buyer.orderNumberOf(orderId)
 
         const waybill = await packAndBook(orderId)
         await shipbubbleSays(waybill, "confirmed")
@@ -157,10 +159,10 @@ medusaIntegrationTestRunner({
 
         const pushes = (await pushesTo(device, 5)).slice(1)
         expect(pushes.map(({ title }) => title)).toEqual([
-          `Order #${order} accepted`,
-          `Courier booked for order #${order}`,
-          `Order #${order} picked up`,
-          `Order #${order} delivered`,
+          `Order ${order} accepted`,
+          `Courier booked for order ${order}`,
+          `Order ${order} picked up`,
+          `Order ${order} delivered`,
         ])
         for (const push of pushes) expect(push.data).toEqual({ url: `/order/${groupId}`, order_group_id: groupId, order_id: orderId })
         // Picking, packing, the courier confirming and the parcel in transit are the shop's and courier's own steps.
@@ -178,8 +180,8 @@ medusaIntegrationTestRunner({
 
         const pushes = await pushesTo(device, 4)
         expect(pushes.map(({ title }) => title).slice(2)).toEqual([
-          `Courier booked for order #${await displayIdOf("order", orderId)}`,
-          `Courier booked for order #${await displayIdOf("order", orderId)}`,
+          `Courier booked for order ${await buyer.orderNumberOf(orderId)}`,
+          `Courier booked for order ${await buyer.orderNumberOf(orderId)}`,
         ])
       })
 
@@ -191,7 +193,7 @@ medusaIntegrationTestRunner({
 
         const [, push] = await pushesTo(device, 2)
         expect(push).toMatchObject({
-          title: `Order #${await displayIdOf("order", orderId)} cancelled`,
+          title: `Order ${await buyer.orderNumberOf(orderId)} cancelled`,
           body: `${GROCERY.name} couldn't take your order. You'll get a full refund.`,
         })
       })
@@ -207,7 +209,7 @@ medusaIntegrationTestRunner({
 
         const [, , push] = await pushesTo(device, 3)
         expect(push).toMatchObject({
-          title: `Order #${await displayIdOf("order", orderId)} cancelled`,
+          title: `Order ${await buyer.orderNumberOf(orderId)} cancelled`,
           body: `${GROCERY.name} didn't accept your order in time. You'll get a full refund.`,
         })
       })
@@ -225,7 +227,7 @@ medusaIntegrationTestRunner({
 
         const [, , push] = await pushesTo(device, 3)
         expect(push).toMatchObject({
-          title: `Items removed from order #${await displayIdOf("order", orderId)}`,
+          title: `Items removed from order ${await buyer.orderNumberOf(orderId)}`,
           body: `${GROCERY.name} didn't have 1 × ${RICE.title}. You'll be refunded ${formatMoney(RICE.price, "ngn")}.`,
           data: { url: `/order/${groupId}`, order_group_id: groupId, order_id: orderId },
         })
@@ -256,7 +258,7 @@ medusaIntegrationTestRunner({
 
         const [, , , push] = await pushesTo(device, 4)
         expect(push).toMatchObject({
-          title: `Refund for order #${await displayIdOf("order", orderId)} completed`,
+          title: `Refund for order ${await buyer.orderNumberOf(orderId)} completed`,
           body: `The refund of ${formatMoney(ORDER_TOTALS.get(GROCERY)!, "ngn")} from ${GROCERY.name} has completed.`,
           data: { order_id: orderId },
         })
@@ -267,7 +269,7 @@ medusaIntegrationTestRunner({
     describe("an order delivered", () => {
       it("emails Ada her receipt for the shop's order", async () => {
         const device = await registerAda()
-        const { orderId, groupId } = await confirmedCheckout(device)
+        const { orderId } = await confirmedCheckout(device)
         const waybill = await packAndBook(orderId)
         await shipbubbleSays(waybill, "confirmed")
         await api.post(`/vendor/orders/${orderId}/hand-over`, {}, await buyer.owner(GROCERY))
@@ -276,11 +278,10 @@ medusaIntegrationTestRunner({
         await shipbubbleSays(waybill, "completed")
 
         const [, receipt] = await emailsToAda(2)
-        const order = await displayIdOf("order", orderId)
-        expect(receipt).toMatchObject({ subject: `Your Oja receipt: order #${order} from ${GROCERY.name}` })
-        for (const text of [GROCERY.name, `#${order}`, RICE.title, `order #${await displayIdOf("order_group", groupId)}`]) {
-          expect(receipt.html).toContain(text)
-        }
+        const order = await buyer.orderNumberOf(orderId)
+        expect(receipt).toMatchObject({ subject: `Your Oja receipt: order ${order} from ${GROCERY.name}` })
+        for (const text of [GROCERY.name, RICE.title, `this part of order ${order}`]) expect(receipt.html).toContain(text)
+        expect(receipt.text).not.toContain(`#${await displayIdOf("order", orderId)}`)
         // Only the delivered shop's order is on it.
         expect(receipt.html).not.toContain(LANTERN.title)
       })

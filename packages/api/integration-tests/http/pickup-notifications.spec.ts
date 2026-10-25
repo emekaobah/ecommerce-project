@@ -125,7 +125,8 @@ medusaIntegrationTestRunner({
       await post(`${orderId}/pack`)
       const order = await vendorOrder(orderId)
       const readyAt = order.fulfilment.timeline.find((s: any) => s.label === "Ready for pickup").at as string
-      return { orderId, groupId, reference, readyAt, display_id: order.display_id as number }
+      // The shop knows its order by its own `display_id`; the buyer by its checkout's number (#97).
+      return { orderId, groupId, reference, readyAt, display_id: order.display_id as number, number: await buyer.orderNumberOf(orderId) }
     }
     const collect = async (groupId: string, orderId: string) => {
       const { code } = (await adasOrder(groupId, orderId)).pickup
@@ -135,13 +136,13 @@ medusaIntegrationTestRunner({
     describe("once the order is ready for pickup", () => {
       it("emails the buyer the code, where to collect, the shop's hours and when to collect by, once", async () => {
         const device = await registerAda()
-        const { orderId, groupId, display_id } = await readyOrder()
+        const { orderId, groupId, number } = await readyOrder()
 
         const { pushes, emails } = await toldAda(device, /ready for pickup/i)
 
         const { pickup, fulfilment } = await adasOrder(groupId, orderId)
         const [email] = emails as SentEmail[]
-        expect(email.subject).toBe(`Your Oja order #${display_id} from ${GROCERY.name} is ready for pickup`)
+        expect(email.subject).toBe(`Your Oja order ${number} from ${GROCERY.name} is ready for pickup`)
         for (const text of [
           pickup.code,
           GROCERY.pickup.address_1,
@@ -164,7 +165,7 @@ medusaIntegrationTestRunner({
     describe("while it waits to be collected", () => {
       it("reminds the buyer by push and email half-way through the hold and on its last day, once each", async () => {
         const device = await registerAda()
-        const { orderId, readyAt, display_id } = await readyOrder()
+        const { orderId, readyAt, number } = await readyOrder()
         const reminders = () => ({
           pushes: matching(expo.sentTo(device), /waiting for you|last day/i) as PushMessage[],
           emails: matching(resend.sentTo(ADA), /waiting for you|last day/i),
@@ -180,20 +181,20 @@ medusaIntegrationTestRunner({
         const halfWay = await eventually(async () => reminders(), (r) => r.pushes.length > 0 && r.emails.length > 0)
         expect(halfWay.pushes).toEqual([
           expect.objectContaining({
-            title: `Order #${display_id} is waiting for you`,
+            title: `Order ${number} is waiting for you`,
             data: expect.objectContaining({ order_id: orderId }),
           }),
         ])
-        expect(halfWay.emails.map((e) => e.subject)).toEqual([`Reminder: your Oja order #${display_id} is waiting for you`])
+        expect(halfWay.emails.map((e) => e.subject)).toEqual([`Reminder: your Oja order ${number} is waiting for you`])
 
         await remindPickupHolds(getContainer(), intoDayAfter(readyAt, 5))
         await remindPickupHolds(getContainer(), new Date(intoDayAfter(readyAt, 5).getTime() + HOUR))
         const lastDay = await eventually(async () => reminders(), (r) => r.pushes.length > 1 && r.emails.length > 1)
-        expect(lastDay.pushes.map((p) => p.title)).toEqual([`Order #${display_id} is waiting for you`, `Last day to collect order #${display_id}`])
+        expect(lastDay.pushes.map((p) => p.title)).toEqual([`Order ${number} is waiting for you`, `Last day to collect order ${number}`])
         expect(lastDay.pushes[1]!.body).toContain("Collect by 12am")
         expect(lastDay.emails.map((e) => e.subject)).toEqual([
-          `Reminder: your Oja order #${display_id} is waiting for you`,
-          `Last day to collect your Oja order #${display_id}`,
+          `Reminder: your Oja order ${number} is waiting for you`,
+          `Last day to collect your Oja order ${number}`,
         ])
         await settled()
         expect(reminders().pushes).toHaveLength(2)
@@ -217,20 +218,20 @@ medusaIntegrationTestRunner({
     describe("once the buyer collects it", () => {
       it("emails the buyer their receipt with a push, once", async () => {
         const device = await registerAda()
-        const { orderId, groupId, display_id } = await readyOrder()
+        const { orderId, groupId, number } = await readyOrder()
 
         await collect(groupId, orderId)
 
         const { pushes, emails } = await toldAda(device, /collected|receipt/i)
         expect(pushes).toEqual([
           expect.objectContaining({
-            title: `Order #${display_id} collected`,
+            title: `Order ${number} collected`,
             body: expect.stringContaining("receipt"),
             data: expect.objectContaining({ url: `/order/${groupId}`, order_id: orderId }),
           }),
         ])
         expect(emails).toHaveLength(1)
-        expect(emails[0]!.subject).toBe(`Your Oja receipt: order #${display_id} from ${GROCERY.name}`)
+        expect(emails[0]!.subject).toBe(`Your Oja receipt: order ${number} from ${GROCERY.name}`)
         for (const text of ["Tunde Bakare", RICE.title, `Paid ${money(2 * RICE.price)}`]) expect(emails[0]!.text).toContain(text)
         expect(emails[0]!.text).not.toContain("Delivering to")
         await settled()
@@ -244,19 +245,19 @@ medusaIntegrationTestRunner({
 
       it("tells the buyer what was refunded and which fresh items weren't, once, in place of the refund's own push", async () => {
         const device = await registerAda()
-        const { orderId, groupId, reference, readyAt, display_id } = await readyOrder({ fresh: 1 })
+        const { orderId, groupId, reference, readyAt, number } = await readyOrder({ fresh: 1 })
 
         await longAfter(readyAt)
 
         const { pushes, emails } = await toldAda(device, /wasn't collected/i)
         expect(pushes).toEqual([
           expect.objectContaining({
-            title: `Order #${display_id} wasn't collected`,
+            title: `Order ${number} wasn't collected`,
             body: `${GROCERY.name} held it, but it wasn't collected in time. You'll be refunded ${money(2 * RICE.price)}. Fresh items aren't refunded: 1 × ${TOMATOES.title}.`,
             data: expect.objectContaining({ url: `/order/${groupId}`, order_id: orderId }),
           }),
         ])
-        expect(emails.map((e) => e.subject)).toEqual([`Your Oja order #${display_id} from ${GROCERY.name} wasn't collected`])
+        expect(emails.map((e) => e.subject)).toEqual([`Your Oja order ${number} from ${GROCERY.name} wasn't collected`])
         for (const text of [RICE.title, money(2 * RICE.price), TOMATOES.title]) expect(emails[0]!.text).toContain(text)
 
         // Paystack completes the refund: the buyer isn't told about it again.
@@ -273,7 +274,7 @@ medusaIntegrationTestRunner({
 
       it("still pushes a later refund of the order, such as Oja's team refunding the fresh items", async () => {
         const device = await registerAda()
-        const { orderId, groupId, reference, readyAt, display_id } = await readyOrder({ fresh: 1 })
+        const { orderId, groupId, reference, readyAt, number } = await readyOrder({ fresh: 1 })
         await longAfter(readyAt)
         await toldAda(device, /wasn't collected/i)
         const settle = async () => {
@@ -293,7 +294,7 @@ medusaIntegrationTestRunner({
         const pushes = await eventually(async () => matching(expo.sentTo(device), /refund/i), (p) => p.length > 0)
         expect(pushes).toEqual([
           expect.objectContaining({
-            title: `Refund for order #${display_id} completed`,
+            title: `Refund for order ${number} completed`,
             body: `The refund of ${money(TOMATOES.price)} from ${GROCERY.name} has completed.`,
           }),
         ])

@@ -83,8 +83,9 @@ const CONFIGS: Record<string, AddressConfig> = {
   NG: {
     countryCode: "NG",
     fields: [
-      { key: "first_name", label: "First name", required: true },
-      { key: "last_name", label: "Last name", required: true },
+      // An address saves without a name (#101); checkout asks for the receiver's when the account has none.
+      { key: "first_name", label: "First name", required: false },
+      { key: "last_name", label: "Last name", required: false },
       { key: "address_1", label: "Street address", required: true },
       { key: "address_2", label: "Apartment, floor", required: false },
       {

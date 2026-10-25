@@ -105,6 +105,33 @@ medusaIntegrationTestRunner({
         expect((await addresses(ada))[0].metadata.shipbubble_address_code).toBe(codeAt(PIN))
       })
 
+      describe("an address saved without a name (#101)", () => {
+        const nameless = { ...ADDRESS, first_name: null, last_name: null }
+
+        it("is validated in the name on the buyer's account", async () => {
+          const email = "ada-account-name@oja.test"
+          const ada = {
+            headers: { ...headers, authorization: `Bearer ${clerk.sessionToken({ sub: `user_${email}`, email, first_name: "Ada", last_name: "Obi" })}` },
+          }
+
+          await save(ada, nameless)
+
+          expect(validationsFor(email)).toEqual([expect.objectContaining({ name: "Ada Obi" })])
+        })
+
+        it("saves for a buyer whose account has no name either, validated in a stand-in name", async () => {
+          // Shipbubble refuses a name with numbers or symbols, so an email can't stand in.
+          const email = "nameless+clerk_test@oja.test"
+
+          await save(buyer(email), nameless)
+
+          expect(validationsFor(email)).toEqual([expect.objectContaining({ name: "Oja Buyer" })])
+          expect(await addresses(buyer(email))).toEqual([
+            expect.objectContaining({ first_name: null, last_name: null, address_1: ADDRESS.address_1 }),
+          ])
+        })
+      })
+
       it("refuses an address Shipbubble can't place, and saves nothing", async () => {
         const ada = buyer("ada-unplaced@oja.test")
         shipbubble.rejectAddresses((v) => v.email === "ada-unplaced@oja.test")

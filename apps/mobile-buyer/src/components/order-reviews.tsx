@@ -8,7 +8,7 @@ import { openWriteReview } from '@/navigation';
 
 /**
  * The buyer's reviews of a shop's order (#7), each with where it is in moderation (a pending
- * one says it waits to be checked) and the shop's reply once published; and, once the order is
+ * one says it waits to be checked) and the shop's reply once published, named (#96); and, once the order is
  * received, a way to review it, or to edit the reviews once all are written: a buyer has one
  * review of each shop and product, whichever order they wrote it on. Beside the review button,
  * once received, Order again (#86, catalogue b-after #3): the two side by side.
@@ -40,7 +40,7 @@ export function OrderReviews({
                 {status.note}
               </Text>
             ) : null}
-            {review.seller_note ? <ShopReply note={review.seller_note} /> : null}
+            {review.seller_note ? <ShopReply note={review.seller_note} shop={order.seller.name} /> : null}
           </View>
         );
       })}

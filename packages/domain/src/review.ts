@@ -127,3 +127,41 @@ export function reviewCounts(reviews: readonly { reference: ReviewKind }[]): { a
   const shops = reviews.filter((review) => review.reference === "seller").length
   return { all: reviews.length, shops, products: reviews.length - shops }
 }
+
+/** A shop as a review names it: the shop reviewed, or the one its order was bought from, which replies (#96). */
+export type ReviewShop = { id: string; name: string; logo: string | null }
+
+/**
+ * One of the buyer's reviews as My reviews reads it: what it's of (`product`, or `seller` for a
+ * shop review) and the shop it was bought from (`shop`), which replies to it.
+ */
+export type MyReviewOf = {
+  reference: ReviewKind
+  product?: { title: string; thumbnail?: string | null } | null
+  seller?: Pick<ReviewShop, "name" | "logo"> | null
+  shop?: Pick<ReviewShop, "name"> | null
+}
+
+/** How My reviews' card names a review: a product with the shop it was bought from, or a shop. */
+export type MyReviewSubject =
+  | { title: string; detail: string; thumbnail: string | null; replier: string | null }
+  | { title: string; detail: "Shop"; shop: { name: string; logo: string | null }; replier: string | null }
+
+/**
+ * What My reviews names a review by (#81): a product review by the product, with the shop it was
+ * bought from under it (#96); a shop review by the shop. `replier` is the shop whose reply shows
+ * under it, unnamed when it can't be read.
+ */
+export function myReviewSubject(review: MyReviewOf): MyReviewSubject {
+  if (review.reference === "seller") {
+    const name = review.seller?.name ?? "Shop"
+    return {
+      title: name,
+      detail: "Shop",
+      shop: { name, logo: review.seller?.logo ?? null },
+      replier: review.shop?.name ?? review.seller?.name ?? null,
+    }
+  }
+  const replier = review.shop?.name ?? null
+  return { title: review.product?.title ?? "Product", detail: replier ?? "Product", thumbnail: review.product?.thumbnail ?? null, replier }
+}

@@ -1,4 +1,4 @@
-import { canReview, reviewAction, reviewerName, type FulfilmentState, type ReviewStatus, type ReviewSubject } from "@oja/domain"
+import { canReview, reviewAction, reviewerName, type FulfilmentState, type ReviewShop, type ReviewStatus, type ReviewSubject } from "@oja/domain"
 import type { Knex } from "@medusajs/framework/mikro-orm/knex"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
@@ -79,22 +79,44 @@ export function asAuthorSees<R extends { seller_note?: string | null; status?: R
 
 type GraphPage = { skip?: number; take?: number; order?: Record<string, unknown> }
 
+
+/**
+ * A review as its author is shown it, with what it's of (`product.*`, or `seller.*` for a shop
+ * review) and the shop it was bought from (`shop.*`) when asked for.
+ */
+export type AuthorReview = ReviewDTO & {
+  product?: { id: string; title: string; thumbnail: string | null } | null
+  seller?: ReviewShop | null
+  shop?: ReviewShop | null
+}
+
+const SHOP_FIELD = "shop."
+
 /**
  * Reviews as their author is shown them (`asAuthorSees`), for the buyer's own review routes.
- * Status is always read, since it decides whether the reply shows.
+ * Status is always read, since it decides whether the reply shows. `shop.*` fields name the shop
+ * the review's order was bought from (#96), read through Mercur's link of a review to its order:
+ * a product review has no link to a shop of its own, and the store may not expand the order.
+ * Medusa restricts `order` fields on store routes, so no client field asks for one: the order
+ * read here is only the shop lookup's, and is dropped from every row.
  */
 export async function authorReviews(
   scope: Scope,
   { fields, filters, pagination }: { fields: string[]; filters: Record<string, unknown>; pagination?: GraphPage }
-) {
+): Promise<{ reviews: AuthorReview[]; metadata?: { count?: number; skip?: number; take?: number } }> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const shopFields = fields.filter((f) => f.startsWith(SHOP_FIELD)).map((f) => `order.seller.${f.slice(SHOP_FIELD.length)}`)
   const { data, metadata } = await query.graph({
     entity: "review",
-    fields: [...new Set([...fields, "status"])],
+    fields: [...new Set([...fields.filter((f) => !f.startsWith(SHOP_FIELD)), ...shopFields, "status"])],
     filters,
     pagination,
   })
-  return { reviews: (data as unknown as ReviewDTO[]).map(asAuthorSees), metadata }
+  const rows = data as unknown as (ReviewDTO & { order?: { seller?: ReviewShop | null } | null })[]
+  const reviews = rows.map(({ order, ...review }) =>
+    asAuthorSees<AuthorReview>(shopFields.length ? { ...review, shop: order?.seller ?? null } : review)
+  )
+  return { reviews, metadata }
 }
 
 /** A subject's key in a map of the buyer's reviews. */
@@ -214,6 +236,8 @@ export type PublicReview = {
   /** The shop's reply, if it gave one. */
   seller_note: string | null
   author: string
+  /** The shop it was bought from, who replies to it: for a product review, one of the shops selling it (#96). */
+  shop: Pick<ReviewShop, "id" | "name"> | null
   created_at: string
 }
 
@@ -227,6 +251,7 @@ type ReviewRow = {
   seller_note: string | null
   created_at: Date | string
   customer?: { first_name: string | null; last_name: string | null } | null
+  order?: { seller?: Pick<ReviewShop, "id" | "name"> | null } | null
 }
 
 /** The target's published reviews, as a query to aggregate or page through. */
@@ -267,7 +292,17 @@ export async function publishedReviews(
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "review",
-    fields: ["id", "rating", "customer_note", "seller_note", "created_at", "customer.first_name", "customer.last_name"],
+    fields: [
+      "id",
+      "rating",
+      "customer_note",
+      "seller_note",
+      "created_at",
+      "customer.first_name",
+      "customer.last_name",
+      "order.seller.id",
+      "order.seller.name",
+    ],
     filters: { id: ids },
   })
   const byId = new Map((data as unknown as ReviewRow[]).map((r) => [r.id, r]))
@@ -283,6 +318,7 @@ export async function publishedReviews(
               customer_note: r.customer_note,
               seller_note: r.seller_note,
               author: reviewerName(r.customer),
+              shop: r.order?.seller ?? null,
               created_at: new Date(r.created_at).toISOString(),
             },
           ]

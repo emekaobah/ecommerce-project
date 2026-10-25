@@ -2,7 +2,7 @@ import { formatMoney, type RemovedItem } from "@oja/domain"
 import { EmailLayout, ItemList, Note, Paragraph } from "./parts"
 
 export type NotCollectedProps = {
-  display_id: number
+  number: string
   shop: string
   /** What the buyer is refunded: its non-perishable lines. */
   refund: number
@@ -16,9 +16,9 @@ export type NotCollectedProps = {
  * Sent when a pickup order's hold ends uncollected (#33, #32), with a push: what is refunded,
  * and the fresh items that aren't. It stands for the refund's own "completed" push.
  */
-export function NotCollectedEmail({ display_id, shop, refund, currency_code, refunded, kept }: Readonly<NotCollectedProps>) {
+export function NotCollectedEmail({ number, shop, refund, currency_code, refunded, kept }: Readonly<NotCollectedProps>) {
   return (
-    <EmailLayout preview={`${shop} held it, but it wasn't collected in time`} heading={`Order #${display_id} wasn't collected`}>
+    <EmailLayout preview={`${shop} held it, but it wasn't collected in time`} heading={`Order ${number} wasn't collected`}>
       <Paragraph>{`${shop} held your order, but it wasn't collected in time.`}</Paragraph>
       {refund > 0 && (
         <>

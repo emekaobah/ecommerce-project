@@ -23,6 +23,8 @@ export {
   savedAddressFor,
 } from "./saved-address"
 export type { AddressLines, AddressStep, DefaultCandidate, SavedAddress } from "./saved-address"
+export { contactFromForm, nameFromForm, nameOf, receiverOf } from "./contact"
+export type { Contact, ReceiverName } from "./contact"
 export { formFromLookup, mapCentre, stateFromLookup } from "./address-lookup"
 export type { LookedUpPlace } from "./address-lookup"
 export { toE164 } from "./phone"
@@ -136,6 +138,7 @@ export {
   orderStatus,
   owedRefundStatus,
   reachedOnLabel,
+  refundForNote,
   refundStatus,
 } from "./order-history"
 export type {
@@ -147,6 +150,7 @@ export type {
   OwedRefundState,
   OwedRefundView,
   ProgressStep,
+  RefundForOrder,
   RefundStatus,
   SummaryOrder,
 } from "./order-history"
@@ -214,10 +218,14 @@ export type { BuyerPush, BuyerPushOrder, BuyerPushPickup, ConfirmedShop, RefundA
 export { parcelWeightLabel, pickBand, pickLineView, pickProgress, scanBarcode, unavailableCounter } from "./picking"
 export type { PickLine, PickLineView, PickProgress, ScanResult } from "./picking"
 export { photoUploadSize, quickAddForm } from "./quick-add"
-export { canReview, isReceived, ratingSummary, reviewAction, reviewCounts, reviewerName, reviewForm, reviewStatus, reviewTitle } from "./review"
-export type { OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
+export { canReview, isReceived, myReviewSubject, ratingSummary, reviewAction, reviewCounts, reviewerName, reviewForm, reviewStatus, reviewTitle } from "./review"
+export type { MyReviewOf, MyReviewSubject, OwnReview, Rating, ReviewFormEntry, ReviewKind, ReviewShop, ReviewStatus, ReviewSubject, ReviewTarget } from "./review"
 export type { QuickAddFormErrors, QuickAddFormInput, QuickAddFormResult, QuickAddFormValue } from "./quick-add"
 export { DISTANCE_BANDS_KM, deliveringTo, distanceBand, distanceKm, distanceLabel, roundedDistanceKm } from "./distance"
+export { deliveringToBand, needsFirstAddress } from "./delivering-to-band"
+export type { DeliveringToAction, DeliveringToBand, DeliveringToBandState } from "./delivering-to-band"
+export { addressPromptShown } from "./address-prompt"
+export type { AddressPromptState } from "./address-prompt"
 export { orderAgainBasket, orderAgainClosedNote, orderAgainLines, orderAgainSummary, orderAgainTicked } from "./order-again"
 export type { OrderAgainItemInput, OrderAgainLine, OrderAgainShopLines } from "./order-again"
 export { itemsLabel } from "./items-label"

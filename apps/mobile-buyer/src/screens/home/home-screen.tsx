@@ -1,5 +1,5 @@
 import { useUser } from '@clerk/expo';
-import { addressLines, departments, greeting } from '@oja/domain';
+import { addressLines, departments, greeting, needsFirstAddress } from '@oja/domain';
 import { Band, Button, EmptyState, ErrorState, FilterChips, SearchField, Skeleton, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -11,6 +11,7 @@ import { useShops, type NearbyShop } from '@/api/shops';
 import { LightStatusBar } from '@/components/light-status-bar';
 import { DeliveringToPicker } from '@/components/delivering-to-picker';
 import { ShopShelf, ShopShelfSkeleton } from '@/components/shop-results';
+import { useAddressPrompt } from '@/delivering-to/address-prompt-provider';
 import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
 import { useListRefresh } from '@/hooks/use-list-refresh';
 import { useRegion } from '@/region/region-provider';
@@ -162,7 +163,20 @@ function Loading() {
   );
 }
 
+/** No shops to show; a buyer without a saved address is asked for one, since shops are measured from it. */
 function NoShops() {
+  const { address, saved, signedIn, error } = useDeliveringTo();
+  const prompt = useAddressPrompt();
+  if (needsFirstAddress({ address, saved, signedIn, error: !!error })) {
+    return (
+      <EmptyState
+        title="No shops yet"
+        body="Shops near you will show here once you add a delivery address."
+        icon="store"
+        action={{ label: 'Add a delivery address', onPress: prompt.open }}
+      />
+    );
+  }
   return <EmptyState title="No shops yet" body="Shops selling in your area will show up here." icon="store" />;
 }
 

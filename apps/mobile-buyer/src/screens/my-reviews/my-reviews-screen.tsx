@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { reviewCounts, reviewStatus } from '@oja/domain';
+import { myReviewSubject, reviewCounts, reviewStatus } from '@oja/domain';
 import {
   Button,
   ConfirmSheet,
@@ -28,13 +28,6 @@ type Filter = 'all' | 'shops' | 'products';
 
 /** Mercur keeps a review's note to 300 characters. */
 const NOTE_LIMIT = 300;
-
-/** What a review is of, as its card names it. */
-function subjectOf(review: MyReview) {
-  return review.reference === 'seller'
-    ? { title: review.seller?.name ?? 'Shop', detail: 'Shop', shop: { name: review.seller?.name ?? 'Shop', logo: review.seller?.logo } }
-    : { title: review.product?.title ?? 'Product', detail: 'Product', thumbnail: review.product?.thumbnail ?? null };
-}
 
 /**
  * Every review the buyer has written (#81), of shops and products, newest first, each with its
@@ -107,7 +100,7 @@ export function MyReviewsScreen() {
       <SheetModal visible={!!menuFor} onClose={() => setMenuFor(null)}>
         {menuFor ? (
           <Sheet
-            title={subjectOf(menuFor).title}
+            title={myReviewSubject(menuFor).title}
             actions={
               <>
                 <Button
@@ -179,7 +172,7 @@ function Segments({
 
 function ReviewCard({ review, onMenu }: Readonly<{ review: MyReview; onMenu: () => void }>) {
   const theme = useTheme();
-  const subject = subjectOf(review);
+  const { replier, ...subject } = myReviewSubject(review);
   const status = reviewStatus(review.status);
   return (
     <View style={{ gap: theme.space[2], paddingVertical: theme.space[4] }}>
@@ -208,7 +201,7 @@ function ReviewCard({ review, onMenu }: Readonly<{ review: MyReview; onMenu: () 
         </Text>
       ) : null}
       {review.status === 'published' && review.seller_note ? (
-        <ShopReply note={review.seller_note} shop={review.reference === 'seller' ? subject.title : undefined} />
+        <ShopReply note={review.seller_note} shop={replier ?? undefined} />
       ) : null}
       <Text variant="meta" tone="muted">
         {reviewDate(review.created_at)}
@@ -231,7 +224,7 @@ function EditReview({ review, onClose }: Readonly<{ review: MyReview; onClose: (
   const edit = useEditReview();
   const [rating, setRating] = useState(review.rating);
   const [note, setNote] = useState(review.customer_note ?? '');
-  const title = subjectOf(review).title;
+  const title = myReviewSubject(review).title;
   const unchanged = rating === review.rating && note.trim() === (review.customer_note ?? '');
 
   return (
@@ -284,7 +277,7 @@ function DeleteReviewModal({ review, onClose }: Readonly<{ review: MyReview | nu
       {review ? (
         <ConfirmSheet
           title="Delete this review?"
-          message={`Your review of ${subjectOf(review).title} is removed for good.`}
+          message={`Your review of ${myReviewSubject(review).title} is removed for good.`}
           confirmLabel="Delete"
           destructive
           loading={remove.isPending}

@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import { formatMoney, orderNumber, type StatusChipView } from '@oja/domain';
+import { formatMoney, refundForNote, type StatusChipView } from '@oja/domain';
 import {
   Button,
   EmptyState,
@@ -71,18 +71,22 @@ export function RefundAccountScreen({ refundId }: Readonly<{ refundId: string }>
 }
 
 /**
- * "For your order OJ-2301 from Mama Put.": the refund's order, by its checkout's number, the one
- * the buyer sees everywhere (the shop's own order number isn't it). Which items it covers isn't known here.
+ * "For Fresh Tomatoes 1kg in OJ-2301.": the items the refund was for (#95), named from its
+ * order, and the checkout's number, the one the buyer sees everywhere (the shop's own order
+ * number isn't it). Until the order loads, or for a refund of no lines, it's for the order.
  */
 function useForOrder(refund: BuyerRefund) {
   const { userId } = useAuth();
   const groupId = refund.order.order_group_id;
   // Idle for a refund of an order with no checkout behind it.
   const group = useOrderGroup(groupId ? userId : null, groupId ?? '');
-  const displayId = groupId ? group.data?.display_id : undefined;
-  return displayId === undefined
-    ? `For your order from ${refund.order.shop}.`
-    : `For your order ${orderNumber(displayId)} from ${refund.order.shop}.`;
+  const order = group.data?.orders.find((o) => o.id === refund.order.id);
+  return refundForNote({
+    lines: refund.lines,
+    items: order?.items ?? null,
+    group_display_id: group.data?.display_id ?? null,
+    shop: refund.order.shop,
+  });
 }
 
 /** Where a refund that needs no account (any more) is: a chip and a line in plain words. */

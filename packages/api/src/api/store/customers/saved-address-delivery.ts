@@ -19,6 +19,9 @@ const DELIVERY_FIELDS = [
   "metadata",
 ] as const
 
+/** Who Shipbubble validates a saved address for when neither it nor the account has a name. */
+const STAND_IN_NAME = "Oja Buyer"
+
 type AddressBody = DeliveryAddress & Record<string, unknown>
 
 /** One of the buyer's saved addresses, or none when it isn't theirs. */
@@ -71,7 +74,12 @@ async function stampAddressCode(req: AuthenticatedMedusaRequest) {
   }
 
   const customer = await req.scope.resolve(Modules.CUSTOMER).retrieveCustomer(customerId)
-  const name = [address.first_name || customer.first_name, address.last_name || customer.last_name].filter(Boolean).join(" ")
+  // An address saves without a name (#101), and Shipbubble needs a full name with no numbers or
+  // symbols: the account's stands in, else a fixed one. Checkout validates the cart's address
+  // again in the receiver's name.
+  const name =
+    [address.first_name || customer.first_name, address.last_name || customer.last_name].filter(Boolean).join(" ") ||
+    STAND_IN_NAME
   const code = await validateAddress(address, { name, email: customer.email })
 
   const { [ADDRESS_CODE]: _sent, ...metadata } = body.metadata ?? {}

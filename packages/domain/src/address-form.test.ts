@@ -30,6 +30,12 @@ describe("addressFromForm", () => {
     })
   })
 
+  test("takes an address without a name: checkout asks who receives the order", () => {
+    const result = addressFromForm({ ...filled, first_name: "", last_name: " " }, "NG")
+
+    expect(result).toMatchObject({ ok: true, address: { first_name: null, last_name: null, address_1: "3 Akin Adesola Street" } })
+  })
+
   test("leaves out an empty landmark", () => {
     const result = addressFromForm({ ...filled, "metadata.landmark": "  " }, "NG")
 

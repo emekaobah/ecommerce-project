@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import { PaystackRequestError, type PaystackRefundStatus } from "../modules/paystack/client"
 import { notifyOjaTeam } from "./admin-notifications"
 import { askForRefundAccount } from "./buyer-notifications"
+import { refundLines, type RefundLine } from "./buyer-orders"
 import { errorMessage } from "./errors"
 import { accountRefused, activeBanks, lookupsLimited, requirePaystack } from "./paystack"
 import { fulfilmentService, type OrderRefundRecord } from "./order-fulfilment"
@@ -52,6 +53,8 @@ export type BuyerRefundAccount = {
   /** Whether Oja's team took it over, the buyer having given no account in 7 days. */
   handed_over: boolean
   order: { id: string; display_id: number; shop: string; order_group_id: string | null }
+  /** The order lines it was for, with how many units of each (#95); null for a refund of no lines (of delivery alone). */
+  lines: RefundLine[] | null
   /** The account it was retried to: its bank and the account number's last 4 digits. */
   account: { bank_name: string; last4: string } | null
 }
@@ -95,6 +98,7 @@ export async function buyerRefundAccountView(scope: Scope, customerId: string, r
       shop: order.seller?.name ?? "",
       order_group_id: (data[0] as unknown as { order_group_id?: string } | undefined)?.order_group_id ?? null,
     },
+    lines: refundLines(refund.lines),
     account:
       refund.account_bank_name && refund.account_last4 ? { bank_name: refund.account_bank_name, last4: refund.account_last4 } : null,
   }

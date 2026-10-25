@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 
 /**
  * An address as the buyer reads it: who, where, the landmark for the rider and the phone.
- * `badge` sits beside the name (e.g. "Default").
+ * One saved without a name (#101) leads with where it is. `badge` sits beside the first line (e.g. "Default").
  */
 export function AddressCard({ address, badge }: Readonly<{ address: StoredAddress; badge?: ReactNode }>) {
   const theme = useTheme();
@@ -14,11 +14,11 @@ export function AddressCard({ address, badge }: Readonly<{ address: StoredAddres
     <View style={{ gap: theme.space[1] }}>
       <View style={[styles.row, { gap: theme.space[2] }]}>
         <Text variant="strong" style={styles.shrink}>
-          {name}
+          {name || place}
         </Text>
         {badge}
       </View>
-      <Text tone="muted">{place}</Text>
+      {name ? <Text tone="muted">{place}</Text> : null}
       {landmark ? <Text tone="muted">{landmark}</Text> : null}
       <Text tone="muted">{phone}</Text>
     </View>

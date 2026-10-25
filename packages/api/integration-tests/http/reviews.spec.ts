@@ -198,7 +198,15 @@ medusaIntegrationTestRunner({
         ])
         expect(product).toMatchObject({ count: 1, average_rating: 4 })
         expect(product.reviews).toEqual([
-          { id: rice.id, rating: 4, customer_note: "Good rice", seller_note: null, author: "A buyer", created_at: expect.any(String) },
+          {
+            id: rice.id,
+            rating: 4,
+            customer_note: "Good rice",
+            seller_note: null,
+            author: "A buyer",
+            shop: { id: await buyer.sellerId(GROCERY), name: GROCERY.name },
+            created_at: expect.any(String),
+          },
         ])
       })
 
@@ -340,6 +348,31 @@ medusaIntegrationTestRunner({
 
         expect(before).toEqual([null, null])
         expect(after).toEqual(["Thank you!", "Thank you!"])
+      })
+
+      it("name the shop a product review's product was bought from (#96)", async () => {
+        const { grocery } = await deliveredGrocery()
+        const productReview = await reviewProduct(grocery, RICE.title, 5)
+        const shopReview = await reviewShop(grocery, GROCERY, 4)
+
+        const withShop = { ...buyer.ada(), params: { fields: "+shop.name" } }
+        const { data: list } = await api.get("/store/reviews", withShop)
+        const { data: one } = await api.get(`/store/reviews/${productReview.id}`, withShop)
+        const shopOf = (id: string) => list.reviews.find((r: any) => r.id === id).shop
+
+        expect(shopOf(productReview.id)).toMatchObject({ name: GROCERY.name })
+        expect(shopOf(shopReview.id)).toMatchObject({ name: GROCERY.name })
+        expect(one.review.shop).toMatchObject({ name: GROCERY.name })
+      })
+
+      it("name the shop without showing the order it was read through, which the store never serves (#96)", async () => {
+        const { grocery } = await deliveredGrocery()
+        const review = await reviewProduct(grocery, RICE.title, 5)
+
+        const { data } = await api.get(`/store/reviews/${review.id}`, { ...buyer.ada(), params: { fields: "+shop.name,+order.id" } })
+
+        expect(data.review.shop).toMatchObject({ name: GROCERY.name })
+        expect(data.review).not.toHaveProperty("order")
       })
     })
 

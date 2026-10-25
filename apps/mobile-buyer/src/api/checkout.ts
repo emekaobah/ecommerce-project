@@ -1,4 +1,4 @@
-import type { PinnedDeliveryAddress } from '@oja/domain';
+import type { PinnedDeliveryAddress, ReceiverName } from '@oja/domain';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { cartKeys } from './cart';
@@ -48,12 +48,15 @@ export function useCheckout(
 /** The buyer's name and phone, when every shop's order is collected and no address is given. */
 export type CheckoutContact = { first_name: string; last_name: string; phone: string };
 
+/** A delivery address as checkout takes it: pinned, and named for who receives it (`receiverOf`, #101). */
+export type CheckoutAddress = PinnedDeliveryAddress & ReceiverName;
+
 /**
  * How each shop's order reaches the buyer: the shops in `pickup` are collected in store (#12),
  * the rest delivered to `shippingAddress`. With every shop collected, `contact` stands in for it.
  */
 export type CheckoutPreparation = {
-  shippingAddress?: PinnedDeliveryAddress | null;
+  shippingAddress?: CheckoutAddress | null;
   contact?: CheckoutContact | null;
   pickup: string[];
   /** The buyer's "Delivering to" address, which collection points are measured from without a delivery address. */

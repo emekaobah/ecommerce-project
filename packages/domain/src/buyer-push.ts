@@ -20,9 +20,13 @@ export type BuyerPushPickup = {
   weekly: WeeklyHours | null
 }
 
-/** One shop's order, as a push about it names it; `pickup` for an order the buyer collects. */
+/**
+ * One shop's order, as a push about it names it: by its checkout's `number` ("OJ-12", `orderNumber` of the
+ * order group's `display_id`), the one the buyer app shows (#97); `pickup` for an order the buyer
+ * collects.
+ */
 export type BuyerPushOrder = {
-  display_id: number
+  number: string
   shop: string
   rejected_by: "seller" | "accept_deadline" | null
   pickup?: BuyerPushPickup | null
@@ -41,30 +45,30 @@ function collectFrom(shop: string, { address, weekly }: BuyerPushPickup) {
  * courier confirming) aren't pushed; a state not listed sends nothing.
  */
 const STATE_PUSHES: { [S in FulfilmentState]?: (order: BuyerPushOrder) => BuyerPush } = {
-  accepted: ({ display_id, shop }) => ({
-    title: `Order #${display_id} accepted`,
+  accepted: ({ number, shop }) => ({
+    title: `Order ${number} accepted`,
     body: `${shop} is preparing your order.`,
   }),
-  label_booked: ({ display_id, shop }) => ({
-    title: `Courier booked for order #${display_id}`,
+  label_booked: ({ number, shop }) => ({
+    title: `Courier booked for order ${number}`,
     body: `${shop} has booked a courier to deliver your order.`,
   }),
-  handed_to_courier: ({ display_id, shop }) => ({
-    title: `Order #${display_id} picked up`,
+  handed_to_courier: ({ number, shop }) => ({
+    title: `Order ${number} picked up`,
     body: `The courier has collected your order from ${shop}.`,
   }),
-  delivered: ({ display_id, shop }) => ({
-    title: `Order #${display_id} delivered`,
+  delivered: ({ number, shop }) => ({
+    title: `Order ${number} delivered`,
     body: `Your order from ${shop} has arrived.`,
   }),
   // In-store pickup (#12): the code to collect with is only in the app. Collected is pushed with
   // its receipt (`orderCollectedPush`, #33), Not collected with what is refunded (`notCollectedPush`).
-  ready_for_pickup: ({ display_id, shop, pickup }) => ({
-    title: `Order #${display_id} is ready for pickup`,
+  ready_for_pickup: ({ number, shop, pickup }) => ({
+    title: `Order ${number} is ready for pickup`,
     body: [`Your pickup code is in the ${PRODUCT_NAME} app.`, pickup ? collectFrom(shop, pickup) : null].filter(Boolean).join(" "),
   }),
-  rejected: ({ display_id, shop, rejected_by }) => ({
-    title: `Order #${display_id} cancelled`,
+  rejected: ({ number, shop, rejected_by }) => ({
+    title: `Order ${number} cancelled`,
     body: `${shop} ${rejected_by === "accept_deadline" ? "didn't accept your order in time" : "couldn't take your order"}. You'll get a full refund.`,
   }),
 }
@@ -85,12 +89,12 @@ export const preparedWhenOpen = ({ name, opens }: ConfirmedShop & { opens: strin
   `${name} is closed now: it prepares your order when it opens at ${opens}.`
 
 /** The push confirming a paid checkout, split into an order per shop. */
-export function orderConfirmedPush({ display_id, shops }: { display_id: number; shops: ConfirmedShop[] }): BuyerPush {
+export function orderConfirmedPush({ number, shops }: { number: string; shops: ConfirmedShop[] }): BuyerPush {
   const closed = shops.flatMap((shop) => (shop.opens ? [preparedWhenOpen({ ...shop, opens: shop.opens })] : []))
   const [only] = shops
   const next =
     shops.length === 1 && only ? `We'll let you know when ${only.name} accepts it.` : `We'll let you know as each of your ${shops.length} shops accepts it.`
-  return { title: `Order #${display_id} confirmed`, body: closed.length ? closed.join(" ") : next }
+  return { title: `Order ${number} confirmed`, body: closed.length ? closed.join(" ") : next }
 }
 
 /** A line the shop removed as unavailable while picking, and how many of it. */
@@ -107,13 +111,13 @@ function namedItems(items: RemovedItem[]) {
  * refunds for them (#22). Two lines are named; more are counted, to keep the push short.
  */
 export function itemsRemovedPush({
-  display_id,
+  number,
   shop,
   items,
   refund,
   currency_code,
 }: {
-  display_id: number
+  number: string
   shop: string
   items: RemovedItem[]
   refund: number
@@ -121,7 +125,7 @@ export function itemsRemovedPush({
 }): BuyerPush {
   const removed = namedItems(items)
   return {
-    title: `Items removed from order #${display_id}`,
+    title: `Items removed from order ${number}`,
     body: `${shop} didn't have ${removed}. You'll be refunded ${formatMoney(refund, currency_code)}.`,
   }
 }
@@ -131,13 +135,13 @@ export function itemsRemovedPush({
  * team, why, and what they are refunded (none when nothing was paid for it).
  */
 export function orderCancelledPush({
-  display_id,
+  number,
   shop,
   cancellation,
   refund,
   currency_code,
 }: {
-  display_id: number
+  number: string
   shop: string
   cancellation: Pick<Cancellation, "by" | "reason" | "note">
   refund: number
@@ -146,24 +150,24 @@ export function orderCancelledPush({
   const from = cancellation.by === "operator" ? ` from ${shop}` : ""
   const who = `${cancelledBy(cancellation.by, shop)} cancelled your order${from}`
   const refunded = refund > 0 ? ` You'll be refunded ${formatMoney(refund, currency_code)}.` : ""
-  return { title: `Order #${display_id} cancelled`, body: `${who}: ${cancelReasonText(cancellation)}.${refunded}` }
+  return { title: `Order ${number} cancelled`, body: `${who}: ${cancelReasonText(cancellation)}.${refunded}` }
 }
 
 /**
  * The push telling the buyer their order was booked with another courier than they chose at
  * checkout (#19), and when it now arrives (`deliveryEstimate`).
  */
-export function courierChangedPush({ display_id, shop, courier, arrives }: { display_id: number; shop: string; courier: string; arrives: string }): BuyerPush {
-  return { title: `New courier for order #${display_id}`, body: `Your order from ${shop} is now shipping with ${courier}. ${arrives}.` }
+export function courierChangedPush({ number, shop, courier, arrives }: { number: string; shop: string; courier: string; arrives: string }): BuyerPush {
+  return { title: `New courier for order ${number}`, body: `Your order from ${shop} is now shipping with ${courier}. ${arrives}.` }
 }
 
 /** A refund of one of the buyer's orders, as they are told about it: its order, shop and amount. */
-export type RefundNotice = { display_id: number; shop: string; amount: number; currency_code: string }
+export type RefundNotice = { number: string; shop: string; amount: number; currency_code: string }
 
 /** The push telling the buyer a refund of their order has reached them (Paystack processed it). */
-export function refundCompletedPush({ display_id, shop, amount, currency_code }: RefundNotice): BuyerPush {
+export function refundCompletedPush({ number, shop, amount, currency_code }: RefundNotice): BuyerPush {
   return {
-    title: `Refund for order #${display_id} completed`,
+    title: `Refund for order ${number} completed`,
     body: `The refund of ${formatMoney(amount, currency_code)} from ${shop} has completed.`,
   }
 }
@@ -172,9 +176,9 @@ export function refundCompletedPush({ display_id, shop, amount, currency_code }:
  * The push telling the buyer Oja's team is sending their refund by hand (#16): Paystack can't
  * make it (under its ₦50 minimum), or refused every retry.
  */
-export function refundByHandPush({ display_id, shop, amount, currency_code }: RefundNotice): BuyerPush {
+export function refundByHandPush({ number, shop, amount, currency_code }: RefundNotice): BuyerPush {
   return {
-    title: `Refund for order #${display_id}`,
+    title: `Refund for order ${number}`,
     body: `Our team is sending your ${formatMoney(amount, currency_code)} refund for your order from ${shop}.`,
   }
 }
@@ -186,18 +190,18 @@ export type RefundAccountReminder = { days_left: number }
  * The push asking the buyer for a bank account to receive a refund (#13): Paystack couldn't
  * return it to their card. A reminder says how long they have before Oja's team takes it over.
  */
-export function refundAccountPush({ display_id, shop, amount, currency_code }: RefundNotice, reminder?: RefundAccountReminder): BuyerPush {
+export function refundAccountPush({ number, shop, amount, currency_code }: RefundNotice, reminder?: RefundAccountReminder): BuyerPush {
   const refund = formatMoney(amount, currency_code)
   if (!reminder) {
     return {
       title: "Your refund needs your bank account",
-      body: `Your bank couldn't take the ${refund} refund for order #${display_id} from ${shop} back to your card. Add a bank account to receive it.`,
+      body: `Your bank couldn't take the ${refund} refund for order ${number} from ${shop} back to your card. Add a bank account to receive it.`,
     }
   }
   const days = reminder.days_left === 1 ? "1 day" : `${reminder.days_left} days`
   return {
     title: "Reminder: your refund needs your bank account",
-    body: `Add a bank account to receive your ${refund} refund for order #${display_id}. If you don't within ${days}, our team will contact you.`,
+    body: `Add a bank account to receive your ${refund} refund for order ${number}. If you don't within ${days}, our team will contact you.`,
   }
 }
 
@@ -209,28 +213,28 @@ const CODE_IN_APP = `Your pickup code is in the ${PRODUCT_NAME} app.`
  * whether fresh items on it stay unrefunded once it isn't collected.
  */
 export function holdReminderPush({
-  display_id,
+  number,
   shop,
   reminder,
   collect_by,
   perishable,
 }: {
-  display_id: number
+  number: string
   shop: string
   reminder: HoldReminder
   collect_by: string
   perishable: boolean
 }): BuyerPush {
   if (reminder === "half_way") {
-    return { title: `Order #${display_id} is waiting for you`, body: `${collect_by} from ${shop}. ${CODE_IN_APP}` }
+    return { title: `Order ${number} is waiting for you`, body: `${collect_by} from ${shop}. ${CODE_IN_APP}` }
   }
   const refunded = perishable ? "or it is refunded instead, except its fresh items" : "or it is refunded instead"
-  return { title: `Last day to collect order #${display_id}`, body: `${collect_by} from ${shop}, ${refunded}. ${CODE_IN_APP}` }
+  return { title: `Last day to collect order ${number}`, body: `${collect_by} from ${shop}, ${refunded}. ${CODE_IN_APP}` }
 }
 
 /** The push sent with the receipt of a pickup order the buyer collected (#33). */
-export function orderCollectedPush({ display_id, shop }: { display_id: number; shop: string }): BuyerPush {
-  return { title: `Order #${display_id} collected`, body: `You collected your order from ${shop}. Your receipt is in your email.` }
+export function orderCollectedPush({ number, shop }: { number: string; shop: string }): BuyerPush {
+  return { title: `Order ${number} collected`, body: `You collected your order from ${shop}. Your receipt is in your email.` }
 }
 
 /**
@@ -239,13 +243,13 @@ export function orderCollectedPush({ display_id, shop }: { display_id: number; s
  * It stands for the refund's own "completed" push, which isn't sent for it.
  */
 export function notCollectedPush({
-  display_id,
+  number,
   shop,
   refund,
   currency_code,
   kept,
 }: {
-  display_id: number
+  number: string
   shop: string
   refund: number
   currency_code: string
@@ -256,5 +260,5 @@ export function notCollectedPush({
     refund > 0 ? `You'll be refunded ${formatMoney(refund, currency_code)}.` : null,
     kept.length ? `Fresh items aren't refunded: ${namedItems(kept)}.` : null,
   ]
-  return { title: `Order #${display_id} wasn't collected`, body: body.filter(Boolean).join(" ") }
+  return { title: `Order ${number} wasn't collected`, body: body.filter(Boolean).join(" ") }
 }

@@ -78,9 +78,9 @@ export function StarInput({
 }
 
 /**
- * A published review: who wrote it and when, its stars, what they said, and the shop's reply
- * under it. `shop` names the replying shop on the shop's own page. Lists put a `Divider` between
- * reviews, never above the first.
+ * A published review: who wrote it and when, its stars, what they said, and the reply of the shop
+ * it was bought from under it, named (#96). On a shop's own page `shop` names the page's shop, for a
+ * review whose order can't be read. Lists put a `Divider` between reviews, never above the first.
  */
 export function ReviewItem({ review, shop }: Readonly<{ review: PublishedReview; shop?: string }>) {
   const theme = useTheme();
@@ -96,7 +96,7 @@ export function ReviewItem({ review, shop }: Readonly<{ review: PublishedReview;
       </View>
       <Stars rating={review.rating} />
       {review.customer_note ? <Text>{review.customer_note}</Text> : null}
-      {review.seller_note ? <ShopReply note={review.seller_note} shop={shop} /> : null}
+      {review.seller_note ? <ShopReply note={review.seller_note} shop={review.shop?.name ?? shop} /> : null}
     </View>
   );
 }
