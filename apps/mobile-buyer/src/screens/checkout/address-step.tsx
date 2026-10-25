@@ -46,6 +46,7 @@ export function DeliveryAddress({
   onChoose,
   onEnter,
   onEntered,
+  start,
 }: Readonly<{
   cartId: string;
   checkout: Checkout;
@@ -64,6 +65,8 @@ export function DeliveryAddress({
   onChoose: (address: PinnedDeliveryAddress) => void;
   onEnter: (from: SavedAddressRecord | null) => void;
   onEntered: (pin: Pin) => void;
+  /** Where a new address's entry starts, when the app already has a pin for it. */
+  start?: Pin;
 }>) {
   const theme = useTheme();
   return (
@@ -112,7 +115,8 @@ export function DeliveryAddress({
           onSave={onEntered}
           saving={prepare.isPending}
           saveError={prepare.error}
-          stepLabel="Step 1 of 3">
+          stepLabel="Step 1 of 3"
+          start={start}>
           {savesNew ? <ToggleRow label="Save to my addresses" value={saveNew} onChange={onSaveNew} /> : null}
         </AddressEntry>
       ) : null}

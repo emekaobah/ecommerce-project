@@ -47,7 +47,8 @@ async function currentPosition(): Promise<Pin | null> {
  * fills the country's form; then confirm the pin on the map, whose sheet takes the rider's
  * landmark and the courier's phone. "Enter manually" is the plain form, but the pin is still
  * confirmed before saving. `onSave` gets the confirmed pin once the whole form is valid.
- * `locateOnOpen` starts with the current location, for a buyer who chose it before opening this.
+ * `start` opens it at the current location, for a buyer who chose it before opening this, or at
+ * a pin the app already has (a guest spot's, for the first address after signing in, ADR 0015).
  */
 export function AddressEntry({
   lookup,
@@ -64,7 +65,7 @@ export function AddressEntry({
   saveError,
   saveLabel = 'Confirm address',
   stepLabel,
-  locateOnOpen = false,
+  start,
   children,
 }: Readonly<{
   lookup: LookupFor;
@@ -85,8 +86,11 @@ export function AddressEntry({
   saveLabel?: string;
   /** "Step 1 of 3", on the map at checkout. */
   stepLabel?: string;
-  /** Locate the buyer as soon as the entry opens, as tapping "Use my current location" does. */
-  locateOnOpen?: boolean;
+  /**
+   * Where the entry starts: `'here'` locates the buyer as soon as it opens, as tapping "Use my
+   * current location" does; a pin fills the form from the address there and opens the map at it.
+   */
+  start?: 'here' | Pin;
   /** Shown above the save button, e.g. whether to keep the address for next time. */
   children?: ReactNode;
 }>) {
@@ -97,7 +101,7 @@ export function AddressEntry({
   const [mode, setMode] = useState<'search' | 'form'>(values.address_1 ? 'form' : 'search');
   const [pinRequest, setPinRequest] = useState<PinRequest | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [locating, setLocating] = useState(locateOnOpen);
+  const [locating, setLocating] = useState(start !== undefined);
 
   /** A new place: its address fills the form, and the old pin no longer marks it. */
   const fill = (place: LookedUpPlace | null) => {
@@ -127,19 +131,23 @@ export function AddressEntry({
   };
 
   const addressAt = useAddressAt(lookup);
-  /** Fills the form from where the buyer is; `locating` is already on. */
-  const locate = async () => {
+  /** Fills the form from the address at a pin, and opens the map at the pin itself. */
+  const fillAt = async (at: Pin) => {
+    const place = await addressAt.mutateAsync(at).catch(() => null);
+    if (!place) setNotice("We couldn't find an address where you are. Fill it in below, then check the pin.");
+    fill(place);
+    // The pin starts where the buyer is, not at the address Google found nearby.
+    setPinRequest({ at, zoom: 'place' });
+  };
+  /** Fills the form from where the buyer is, or from `at`; `locating` is already on. */
+  const locate = async (at?: Pin) => {
     try {
-      const here = await currentPosition();
+      const here = at ?? (await currentPosition());
       if (!here) {
         setNotice('Location is off. Search for your address, or turn location on in Settings.');
         return;
       }
-      const place = await addressAt.mutateAsync(here).catch(() => null);
-      if (!place) setNotice("We couldn't find an address where you are. Fill it in below, then check the pin.");
-      fill(place);
-      // The pin starts where the buyer is, not at the address Google found nearby.
-      setPinRequest({ at: here, zoom: 'place' });
+      await fillAt(here);
     } finally {
       setLocating(false);
     }
@@ -149,11 +157,12 @@ export function AddressEntry({
     setLocating(true);
     void locate();
   };
-  // Opened to locate: `locating` starts on, so the button shows it before the permission prompt.
-  const locateOnce = useEffectEvent(() => void locate());
-  useEffect(() => {
-    if (locateOnOpen) locateOnce();
-  }, [locateOnOpen]);
+  // Opened at a place: `locating` starts on, so the button shows it before the permission prompt
+  // or the lookup. Only where it opens counts; a later `start` doesn't move a buyer already entering.
+  const startOnce = useEffectEvent(() => {
+    if (start !== undefined) void locate(start === 'here' ? undefined : start);
+  });
+  useEffect(() => startOnce(), []);
 
   /** The map for a pin the buyer places by hand: where they are, else their state, else the country. */
   const placePinByHand = async () => {

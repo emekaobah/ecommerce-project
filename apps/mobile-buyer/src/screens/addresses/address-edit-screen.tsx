@@ -7,6 +7,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-na
 
 import { useSaveAddress, useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
 import { useCustomer } from '@/api/customer';
+import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
 import { AddressEntry } from '@/components/address/address-entry';
 import { useAddressDraft } from '@/components/address/use-address-draft';
 import { ToggleRow } from '@/components/toggle-row';
@@ -15,7 +16,8 @@ import { useRegion } from '@/region/region-provider';
 /**
  * Adds a saved address, or edits one (`id`), with the entry flow from checkout (ADR 0002):
  * search or current location, the per-country form, and a confirmed pin. `locate` starts
- * with the current location (Home's address prompt). An edit keeps the
+ * with the current location (Home's address prompt); else the first address starts at the spot
+ * the buyer shared as a guest (ADR 0015). An edit keeps the
  * address's pin unless the buyer moves it or picks another place, which needs a new one.
  */
 export function AddressEditScreen() {
@@ -23,6 +25,7 @@ export function AddressEditScreen() {
   const { userId } = useAuth();
   const addresses = useSavedAddresses(userId);
   const { region } = useRegion();
+  const { near } = useDeliveringTo();
 
   if (addresses.error && !addresses.data) {
     return (
@@ -45,14 +48,16 @@ export function AddressEditScreen() {
       />
     );
   }
+  const isFirstAddress = addresses.data.length === 0;
+  const spot = !id && isFirstAddress && near ? { latitude: near.latitude, longitude: near.longitude } : undefined;
   return (
     <AddressEditor
       key={id ?? 'new'}
       saved={saved}
-      isFirstAddress={addresses.data.length === 0}
+      isFirstAddress={isFirstAddress}
       regionId={region.id}
       countryCode={countryCode}
-      locateOnOpen={locate === '1'}
+      start={locate === '1' ? 'here' : spot}
     />
   );
 }
@@ -62,13 +67,13 @@ function AddressEditor({
   isFirstAddress,
   regionId,
   countryCode,
-  locateOnOpen,
+  start,
 }: Readonly<{
   saved: SavedAddressRecord | undefined;
   isFirstAddress: boolean;
   regionId: string;
   countryCode: string;
-  locateOnOpen: boolean;
+  start: 'here' | Pin | undefined;
 }>) {
   const theme = useTheme();
   const { userId } = useAuth();
@@ -101,7 +106,7 @@ function AddressEditor({
           saving={save.isPending}
           saveError={save.error}
           saveLabel="Save address"
-          locateOnOpen={locateOnOpen}>
+          start={start}>
           {alreadyDefault ? null : (
             <ToggleRow label="Use for checkout by default" value={makeDefault} onChange={setMakeDefault} />
           )}
