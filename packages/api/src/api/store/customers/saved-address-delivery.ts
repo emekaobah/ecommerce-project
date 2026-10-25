@@ -71,7 +71,11 @@ async function stampAddressCode(req: AuthenticatedMedusaRequest) {
   }
 
   const customer = await req.scope.resolve(Modules.CUSTOMER).retrieveCustomer(customerId)
-  const name = [address.first_name || customer.first_name, address.last_name || customer.last_name].filter(Boolean).join(" ")
+  // An address saves without a name (#101), and Shipbubble needs one: the account's stands in,
+  // else the buyer's email. Checkout validates the cart's address again in the receiver's name.
+  const name =
+    [address.first_name || customer.first_name, address.last_name || customer.last_name].filter(Boolean).join(" ") ||
+    customer.email
   const code = await validateAddress(address, { name, email: customer.email })
 
   const { [ADDRESS_CODE]: _sent, ...metadata } = body.metadata ?? {}
