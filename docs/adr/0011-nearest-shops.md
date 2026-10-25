@@ -1,6 +1,6 @@
 # 11. Nearest shops, measured from the buyer's saved address
 
-Status: accepted, 2026-10-17 (#43). Its in-memory consequence is superseded by ADR 0014.
+Status: accepted, 2026-10-17 (#43). Its in-memory consequence is superseded by ADR 0014. Amended by ADR 0015: guests and buyers without a saved address send their phone's location, snapped to a grid.
 
 ## Context
 
