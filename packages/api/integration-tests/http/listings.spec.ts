@@ -445,6 +445,26 @@ medusaIntegrationTestRunner({
           expect(data.listings.find((l: any) => l.seller.name === "Ikeja Gadget Hub").seller.distance_km).toBe(1)
         })
 
+        it("tells a guest the shop page's and the product page's distance from the phone's location, and no coordinates", async () => {
+          const seller = await sellerId("Iya Bisi Foodstuff")
+          const lantern = await productId(LANTERN.title)
+          const near = "6.5854,3.3546" // Snaps to 6.59,3.35 (about 10.5 km); measured as sent, 10 km.
+
+          const { data: shop } = await api.get(`/store/shops/${seller}?region_id=${regionId}&near=${near}`, { headers })
+          const { data: product } = await api.get(`/store/listings/${seller}/${lantern}?region_id=${regionId}&near=${near}`, {
+            headers,
+          })
+
+          expect(shop.shop.distance_km).toBe(11)
+          expect(product.listing.seller.distance_km).toBe(11)
+          const body = JSON.stringify([shop, product])
+          for (const { pickup } of SEED_SELLERS) {
+            expect(body).not.toContain(String(pickup.latitude))
+            expect(body).not.toContain(String(pickup.longitude))
+            expect(body).not.toContain(pickup.address_1)
+          }
+        })
+
         it.each(["", "6.59", "6.59,", "lagos", "6.59,3.35,1", "91,3.35", "6.59,181", "NaN,3.35", "Infinity,3.35"])(
           "ignores a malformed or out-of-range location (%p), answering as with none",
           async (near) => {
