@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/expo';
-import type { Pin } from '@oja/domain';
+import { addressEntryStart, type AddressEntryWay, type Pin } from '@oja/domain';
 import { EmptyState, ErrorState, LoadingState, useTheme } from '@oja/ui';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -7,21 +7,21 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-na
 
 import { useSaveAddress, useSavedAddresses, type SavedAddressRecord } from '@/api/addresses';
 import { useCustomer } from '@/api/customer';
-import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
 import { AddressEntry } from '@/components/address/address-entry';
 import { useAddressDraft } from '@/components/address/use-address-draft';
 import { ToggleRow } from '@/components/toggle-row';
+import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
 import { useRegion } from '@/region/region-provider';
 
 /**
  * Adds a saved address, or edits one (`id`), with the entry flow from checkout (ADR 0002):
- * search or current location, the per-country form, and a confirmed pin. `locate` starts
- * with the current location (Home's address prompt); else the first address starts at the spot
- * the buyer shared as a guest (ADR 0015). An edit keeps the
- * address's pin unless the buyer moves it or picks another place, which needs a new one.
+ * search or current location, the per-country form, and a confirmed pin. `way` is how Home's
+ * address prompt chose to start; without it, the first address starts at the spot the buyer
+ * shared as a guest (ADR 0015). An edit keeps the address's pin unless the buyer moves it or
+ * picks another place, which needs a new one.
  */
 export function AddressEditScreen() {
-  const { id, locate } = useLocalSearchParams<{ id?: string; locate?: string }>();
+  const { id, way } = useLocalSearchParams<{ id?: string; way?: AddressEntryWay }>();
   const { userId } = useAuth();
   const addresses = useSavedAddresses(userId);
   const { region } = useRegion();
@@ -49,7 +49,6 @@ export function AddressEditScreen() {
     );
   }
   const isFirstAddress = addresses.data.length === 0;
-  const spot = !id && isFirstAddress && near ? { latitude: near.latitude, longitude: near.longitude } : undefined;
   return (
     <AddressEditor
       key={id ?? 'new'}
@@ -57,7 +56,7 @@ export function AddressEditScreen() {
       isFirstAddress={isFirstAddress}
       regionId={region.id}
       countryCode={countryCode}
-      start={locate === '1' ? 'here' : spot}
+      start={addressEntryStart({ way, firstAddress: !id && isFirstAddress, spot: near })}
     />
   );
 }

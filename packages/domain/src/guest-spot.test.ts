@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { guestSpotName, measuredFrom } from "./guest-spot"
+import { addressEntryStart, guestSpotName, measuredFrom } from "./guest-spot"
 
 describe("guestSpotName", () => {
   test("names the spot by its area, as the phone's geocoder gives it", () => {
@@ -31,5 +31,26 @@ describe("measuredFrom", () => {
 
   test("sends neither without an address or a spot", () => {
     expect(measuredFrom({ addressId: null, near: null })).toEqual({})
+  })
+})
+
+describe("addressEntryStart", () => {
+  const spot = { latitude: 6.4281, longitude: 3.4219, name: "Victoria Island" }
+
+  test("starts a buyer's first address at the spot they shared as a guest, as a plain pin", () => {
+    expect(addressEntryStart({ way: undefined, firstAddress: true, spot })).toEqual({ latitude: 6.4281, longitude: 3.4219 })
+  })
+
+  test("locates the buyer when they chose their current location", () => {
+    expect(addressEntryStart({ way: "here", firstAddress: true, spot })).toBe("here")
+  })
+
+  test("opens the search when the buyer chose to search, though they have a spot", () => {
+    expect(addressEntryStart({ way: "search", firstAddress: true, spot })).toBeUndefined()
+  })
+
+  test("opens the search for a later address, or without a spot", () => {
+    expect(addressEntryStart({ way: undefined, firstAddress: false, spot })).toBeUndefined()
+    expect(addressEntryStart({ way: undefined, firstAddress: true, spot: null })).toBeUndefined()
   })
 })

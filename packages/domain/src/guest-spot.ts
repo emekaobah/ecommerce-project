@@ -31,3 +31,30 @@ export function measuredFrom({ addressId, near }: MeasuredFrom): { address_id?: 
   if (near) return { near: `${near.latitude},${near.longitude}` }
   return {}
 }
+
+/** The spot as a plain pin, without its name. */
+export function spotPin({ latitude, longitude }: GuestSpot): Pin {
+  return { latitude, longitude }
+}
+
+/** How the buyer chose to start entering an address: at their current location, or by searching. */
+export type AddressEntryWay = "here" | "search"
+
+/**
+ * Where the address entry starts: locating the buyer (`"here"`) when they chose their current
+ * location; else a first address starts at the guest's spot (ADR 0015), unless the buyer chose
+ * to search; else at the search (undefined).
+ */
+export function addressEntryStart({
+  way,
+  firstAddress,
+  spot,
+}: {
+  way: AddressEntryWay | undefined
+  firstAddress: boolean
+  spot: GuestSpot | null | undefined
+}): "here" | Pin | undefined {
+  if (way === "here") return "here"
+  if (way === "search" || !firstAddress || !spot) return undefined
+  return spotPin(spot)
+}

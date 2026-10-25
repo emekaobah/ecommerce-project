@@ -30,11 +30,11 @@ function BuyerPrompt({ visible }: Readonly<{ visible: boolean }>) {
 
   const enterAddress = () => {
     dismiss();
-    router.push('/addresses/edit');
+    router.push({ pathname: '/addresses/edit', params: { way: 'search' } });
   };
   const useLocation = () => {
     dismiss();
-    router.push({ pathname: '/addresses/edit', params: { locate: '1' } });
+    router.push({ pathname: '/addresses/edit', params: { way: 'here' } });
   };
 
   return (
