@@ -6,9 +6,9 @@ import { SEED_PRODUCTS, SEED_SELLERS } from "../scripts/seed-data"
 
 const DIR = path.join(__dirname, "../scripts/demo-images")
 
-/** Reads a WebP's header: whether it carries alpha, and its longer side in pixels. */
-function webpInfo(bytes: Buffer): { alpha: boolean; longSide: number } | "not a WebP" {
-  if (bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WEBP") return "not a WebP"
+/** Reads a WebP's header: whether it carries alpha, and its longer side in pixels; null if it isn't a WebP. */
+function webpInfo(bytes: Buffer): { alpha: boolean; longSide: number } | null {
+  if (bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WEBP") return null
   const chunk = bytes.toString("ascii", 12, 16)
   if (chunk === "VP8X") {
     // Extended format: flags byte (bit 4 is alpha), then 24-bit width-1 and height-1.
@@ -62,8 +62,8 @@ describe("demo images", () => {
       // Gallery close-ups that fill the frame have no background to remove, so may be opaque.
       productPhotoFiles(product).forEach((file, i) => {
         const info = webpInfo(readFileSync(path.join(DIR, "products", file)))
-        expect([file, info === "not a WebP" ? info : info.longSide]).toEqual([file, 800])
-        if (i === 0) expect([file, info !== "not a WebP" && info.alpha]).toEqual([file, true])
+        expect([file, info?.longSide]).toEqual([file, 800])
+        if (i === 0) expect([file, info?.alpha]).toEqual([file, true])
       })
     }
   })
