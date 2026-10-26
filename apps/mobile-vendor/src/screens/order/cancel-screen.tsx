@@ -14,6 +14,7 @@ import {
   EmptyState,
   ErrorState,
   InlineNote,
+  NoTopScrollEdge,
   RadioOption,
   Skeleton,
   StatusChip,
@@ -210,18 +211,20 @@ function Cancelled({
   else if (refunded) line = `${amount} is being refunded to the buyer.`;
   return (
     <TopBandScreen band={band} focused={focused}>
-      <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
-        <ConfirmationHero band={band} title="Order cancelled" line={line} />
-        {nothingLeft ? null : (
-          <View style={[styles.start, { padding: theme.space[4] }]}>
-            <StatusChip
-              label={refunded ? 'Refund on its way' : 'Refund pending'}
-              tone={refunded ? 'success' : 'new'}
-              icon={refunded ? 'check' : 'clock'}
-            />
-          </View>
-        )}
-      </Animated.ScrollView>
+      <NoTopScrollEdge>
+        <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+          <ConfirmationHero band={band} title="Order cancelled" line={line} />
+          {nothingLeft ? null : (
+            <View style={[styles.start, { padding: theme.space[4] }]}>
+              <StatusChip
+                label={refunded ? 'Refund on its way' : 'Refund pending'}
+                tone={refunded ? 'success' : 'new'}
+                icon={refunded ? 'check' : 'clock'}
+              />
+            </View>
+          )}
+        </Animated.ScrollView>
+      </NoTopScrollEdge>
       <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2] }}>
         <Button label="Back to orders" size="main" onPress={onDone} />
       </SafeAreaView>

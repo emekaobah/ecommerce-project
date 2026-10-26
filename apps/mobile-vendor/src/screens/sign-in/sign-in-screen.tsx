@@ -1,6 +1,6 @@
 import { ClientError } from '@oja/api-client';
 import { PRODUCT_NAME } from '@oja/domain';
-import { AdirePattern, Button, InlineNote, Text, TextField, TopBandArea, TopBandScreen, useTheme, useTopBand } from '@oja/ui';
+import { AdirePattern, Button, InlineNote, NoTopScrollEdge, Text, TextField, TopBandArea, TopBandScreen, useTheme, useTopBand } from '@oja/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useIsFocused } from 'expo-router';
 import { useState } from 'react';
@@ -27,59 +27,61 @@ export function SignInScreen() {
   return (
     <TopBandScreen band={band} focused={focused} pageColor={theme.colors.raised}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
-        <Animated.ScrollView {...band.scroll} contentContainerStyle={styles.grow} keyboardShouldPersistTaps="handled" bounces={false}>
-          <TopBandArea
-            band={band}
-            belowStatusBar={theme.space[6]}
-            style={[styles.top, { padding: theme.space[6], gap: theme.space[2], backgroundColor: theme.colors.band }]}>
-            <AdirePattern fade="top" opacity={0.55} />
-            {/* The wordmark's tight tracking runs on into "for shops", so it reads as part of the logo. */}
-            <Text variant="displayXxl" tone="onBand" style={{ letterSpacing: -0.03 * theme.type.displayXxl.fontSize }}>
-              {PRODUCT_NAME.toLowerCase()}
-              <Text variant="titlePushed" weight="bold" tone="onBand" style={styles.soft}>
-                {' for shops'}
+        <NoTopScrollEdge>
+          <Animated.ScrollView {...band.scroll} contentContainerStyle={styles.grow} keyboardShouldPersistTaps="handled" bounces={false}>
+            <TopBandArea
+              band={band}
+              belowStatusBar={theme.space[6]}
+              style={[styles.top, { padding: theme.space[6], gap: theme.space[2], backgroundColor: theme.colors.band }]}>
+              <AdirePattern fade="top" opacity={0.55} />
+              {/* The wordmark's tight tracking runs on into "for shops", so it reads as part of the logo. */}
+              <Text variant="displayXxl" tone="onBand" style={{ letterSpacing: -0.03 * theme.type.displayXxl.fontSize }}>
+                {PRODUCT_NAME.toLowerCase()}
+                <Text variant="titlePushed" weight="bold" tone="onBand" style={styles.soft}>
+                  {' for shops'}
+                </Text>
               </Text>
-            </Text>
-            <Text variant="titleNamed" weight="bold" tone="onBand">
-              {'Accept, pick, pack\nand hand over.'}
-            </Text>
-          </TopBandArea>
-          <SafeAreaView edges={['bottom']} style={{ padding: theme.space[4], paddingBottom: theme.space[6], gap: theme.space[2] }}>
-            <TextField
-              label="Email"
-              testID="email"
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              textContentType="username"
-              returnKeyType="next"
-              value={email}
-              onChangeText={setEmail}
-            />
-            <TextField
-              label="Password"
-              testID="password"
-              autoComplete="current-password"
-              textContentType="password"
-              secureTextEntry
-              returnKeyType="go"
-              value={password}
-              onChangeText={setPassword}
-              onSubmitEditing={() => canSubmit && submit.mutate()}
-            />
-            <View style={{ gap: theme.space[2], marginTop: theme.space[2] }}>
-              {submit.error ? (
-                <InlineNote>
-                  {signInProblem(submit.error)}
-                </InlineNote>
-              ) : null}
-              <Button label="Sign in" onPress={() => submit.mutate()} disabled={!canSubmit} loading={submit.isPending} />
-              <Text variant="meta" tone="muted" style={styles.centred}>
-                No account? Your shop owner invites you from the vendor panel.
+              <Text variant="titleNamed" weight="bold" tone="onBand">
+                {'Accept, pick, pack\nand hand over.'}
               </Text>
-            </View>
-          </SafeAreaView>
-        </Animated.ScrollView>
+            </TopBandArea>
+            <SafeAreaView edges={['bottom']} style={{ padding: theme.space[4], paddingBottom: theme.space[6], gap: theme.space[2] }}>
+              <TextField
+                label="Email"
+                testID="email"
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                textContentType="username"
+                returnKeyType="next"
+                value={email}
+                onChangeText={setEmail}
+              />
+              <TextField
+                label="Password"
+                testID="password"
+                autoComplete="current-password"
+                textContentType="password"
+                secureTextEntry
+                returnKeyType="go"
+                value={password}
+                onChangeText={setPassword}
+                onSubmitEditing={() => canSubmit && submit.mutate()}
+              />
+              <View style={{ gap: theme.space[2], marginTop: theme.space[2] }}>
+                {submit.error ? (
+                  <InlineNote>
+                    {signInProblem(submit.error)}
+                  </InlineNote>
+                ) : null}
+                <Button label="Sign in" onPress={() => submit.mutate()} disabled={!canSubmit} loading={submit.isPending} />
+                <Text variant="meta" tone="muted" style={styles.centred}>
+                  No account? Your shop owner invites you from the vendor panel.
+                </Text>
+              </View>
+            </SafeAreaView>
+          </Animated.ScrollView>
+        </NoTopScrollEdge>
       </KeyboardAvoidingView>
     </TopBandScreen>
   );

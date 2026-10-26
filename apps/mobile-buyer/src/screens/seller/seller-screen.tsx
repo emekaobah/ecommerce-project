@@ -2,6 +2,7 @@ import { shopStatusChip } from '@oja/domain';
 import {
   EmptyState,
   ErrorState,
+  NoTopScrollEdge,
   PressableSurface,
   ShopHeader,
   Skeleton,
@@ -90,15 +91,17 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
   if (tab === 'reviews' && shop.data) {
     return (
       <TopBandScreen band={band} focused={focused}>
-        <Animated.ScrollView
-          {...band.scroll}
-          contentInsetAdjustmentBehavior="never"
-          contentContainerStyle={{ paddingBottom: theme.space[8] }}>
-          {top}
-          <View style={{ padding: theme.space[4] }}>
-            <ReviewsPreview kind="seller" id={shop.data.id} title={shop.data.name} />
-          </View>
-        </Animated.ScrollView>
+        <NoTopScrollEdge>
+          <Animated.ScrollView
+            {...band.scroll}
+            contentInsetAdjustmentBehavior="never"
+            contentContainerStyle={{ paddingBottom: theme.space[8] }}>
+            {top}
+            <View style={{ padding: theme.space[4] }}>
+              <ReviewsPreview kind="seller" id={shop.data.id} title={shop.data.name} />
+            </View>
+          </Animated.ScrollView>
+        </NoTopScrollEdge>
       </TopBandScreen>
     );
   }

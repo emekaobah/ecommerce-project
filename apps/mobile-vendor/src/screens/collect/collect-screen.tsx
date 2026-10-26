@@ -18,6 +18,7 @@ import {
   haptics,
   Icon,
   InlineNote,
+  NoTopScrollEdge,
   PhotoTile,
   QuantityPill,
   Skeleton,
@@ -311,22 +312,24 @@ function Collected({ order }: Readonly<{ order: Order }>) {
 
   return (
     <TopBandScreen band={band} focused={focused}>
-      <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
-        <ConfirmationHero band={band} title="Collected" line={line} />
-        <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
-          {(order.items ?? []).map((item) => {
-            const quantity = Number(item.quantity);
-            return (
-              <Line
-                key={item.id}
-                item={item}
-                spoken="collected"
-                trailing={<QuantityPill label={`${quantity}/${quantity}`} tone="picked" />}
-              />
-            );
-          })}
-        </View>
-      </Animated.ScrollView>
+      <NoTopScrollEdge>
+        <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+          <ConfirmationHero band={band} title="Collected" line={line} />
+          <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
+            {(order.items ?? []).map((item) => {
+              const quantity = Number(item.quantity);
+              return (
+                <Line
+                  key={item.id}
+                  item={item}
+                  spoken="collected"
+                  trailing={<QuantityPill label={`${quantity}/${quantity}`} tone="picked" />}
+                />
+              );
+            })}
+          </View>
+        </Animated.ScrollView>
+      </NoTopScrollEdge>
       <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2] }}>
         <Button label="Back to orders" size="main" onPress={() => router.dismissTo('/')} />
       </SafeAreaView>

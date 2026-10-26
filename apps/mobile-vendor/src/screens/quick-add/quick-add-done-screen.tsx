@@ -1,4 +1,4 @@
-import { Button, PhotoTile, StatusChip, Text, TopBandScreen, useTheme, useTopBand } from '@oja/ui';
+import { Button, NoTopScrollEdge, PhotoTile, StatusChip, Text, TopBandScreen, useTheme, useTopBand } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -36,29 +36,31 @@ export function QuickAddDoneScreen() {
     <TopBandScreen band={band} focused={focused}>
       {/* The confirmation runs up under the status bar. */}
       <Stack.Screen options={{ headerShown: false }} />
-      <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
-        <ConfirmationHero
-          band={band}
-          title={proposed ? 'Sent for review' : `${title} is in your shop`}
-          line={proposed ? "The catalogue team checks it before it goes on sale at your price." : 'Buyers can order it now.'}
-        />
-        <View style={[styles.row, { padding: theme.space[4], gap: theme.space[2] }]}>
-          <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
-            {thumbnail ? <Image source={{ uri: thumbnail }} contentFit="contain" style={StyleSheet.absoluteFill} /> : null}
-          </PhotoTile>
-          <View style={styles.fill}>
-            <Text weight="bold">{title}</Text>
-            <Text variant="meta" tone="muted" tabular>
-              {stock ? `${price} · ${stock} in stock` : price}
-            </Text>
-          </View>
-          <StatusChip
-            label={proposed ? 'In review' : 'On sale'}
-            tone={proposed ? 'new' : 'success'}
-            icon={proposed ? 'clock' : 'check'}
+      <NoTopScrollEdge>
+        <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+          <ConfirmationHero
+            band={band}
+            title={proposed ? 'Sent for review' : `${title} is in your shop`}
+            line={proposed ? "The catalogue team checks it before it goes on sale at your price." : 'Buyers can order it now.'}
           />
-        </View>
-      </Animated.ScrollView>
+          <View style={[styles.row, { padding: theme.space[4], gap: theme.space[2] }]}>
+            <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
+              {thumbnail ? <Image source={{ uri: thumbnail }} contentFit="contain" style={StyleSheet.absoluteFill} /> : null}
+            </PhotoTile>
+            <View style={styles.fill}>
+              <Text weight="bold">{title}</Text>
+              <Text variant="meta" tone="muted" tabular>
+                {stock ? `${price} · ${stock} in stock` : price}
+              </Text>
+            </View>
+            <StatusChip
+              label={proposed ? 'In review' : 'On sale'}
+              tone={proposed ? 'new' : 'success'}
+              icon={proposed ? 'clock' : 'check'}
+            />
+          </View>
+        </Animated.ScrollView>
+      </NoTopScrollEdge>
       <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2], gap: theme.space[2] }}>
         <Button label="Scan another" icon="scan" size="main" onPress={() => router.replace('/quick-add')} />
         <Button label="Back to orders" variant="secondary" onPress={() => router.dismissTo('/')} />

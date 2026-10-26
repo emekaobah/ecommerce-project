@@ -5,6 +5,7 @@ import {
   EmptyState,
   ErrorState,
   FilterChips,
+  NoTopScrollEdge,
   SearchField,
   Skeleton,
   Text,
@@ -71,35 +72,37 @@ export function HomeScreen() {
 
   return (
     <TopBandScreen band={band} focused={focused}>
-      <Animated.FlatList
-        {...band.scroll}
-        data={list}
-        keyExtractor={(shop) => shop.id}
-        // The band runs under the status bar, and the end of the list clears the tab bar (Home
-        // turns off the tabs' automatic insets).
-        contentInsetAdjustmentBehavior="never"
-        contentContainerStyle={[styles.grow, { paddingBottom: insets.bottom + theme.control.main + theme.space[4] }]}
-        ListHeaderComponent={
-          <>
-            <HomeBand band={band} search />
-            <View style={{ paddingTop: theme.space[4] }}>
-              <DepartmentChips selected={department} onSelect={setDepartment} />
-            </View>
-            <NearYouHeading />
-          </>
-        }
-        ListEmptyComponent={loaded ? <NoShops /> : <Loading />}
-        ListFooterComponent={list.length ? <Footer more={shops.hasNextPage} /> : undefined}
-        ItemSeparatorComponent={ShelfGap}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
-        onEndReached={() => {
-          if (shops.hasNextPage && !shops.isFetchingNextPage) void shops.fetchNextPage();
-        }}
-        onEndReachedThreshold={0.5}
-        renderItem={({ item }: { item: NearbyShop }) => (
-          <ShopShelf seller={item} listings={item.listings} currencyCode={currencyCode ?? ''} />
-        )}
-      />
+      <NoTopScrollEdge>
+        <Animated.FlatList
+          {...band.scroll}
+          data={list}
+          keyExtractor={(shop) => shop.id}
+          // The band runs under the status bar, and the end of the list clears the tab bar (Home
+          // turns off the tabs' automatic insets).
+          contentInsetAdjustmentBehavior="never"
+          contentContainerStyle={[styles.grow, { paddingBottom: insets.bottom + theme.control.main + theme.space[4] }]}
+          ListHeaderComponent={
+            <>
+              <HomeBand band={band} search />
+              <View style={{ paddingTop: theme.space[4] }}>
+                <DepartmentChips selected={department} onSelect={setDepartment} />
+              </View>
+              <NearYouHeading />
+            </>
+          }
+          ListEmptyComponent={loaded ? <NoShops /> : <Loading />}
+          ListFooterComponent={list.length ? <Footer more={shops.hasNextPage} /> : undefined}
+          ItemSeparatorComponent={ShelfGap}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
+          onEndReached={() => {
+            if (shops.hasNextPage && !shops.isFetchingNextPage) void shops.fetchNextPage();
+          }}
+          onEndReachedThreshold={0.5}
+          renderItem={({ item }: { item: NearbyShop }) => (
+            <ShopShelf seller={item} listings={item.listings} currencyCode={currencyCode ?? ''} />
+          )}
+        />
+      </NoTopScrollEdge>
     </TopBandScreen>
   );
 }

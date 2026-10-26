@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar"
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from "react"
 import {
   StyleSheet,
   useWindowDimensions,
@@ -17,6 +17,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { ScrollViewMarker } from "react-native-screens/experimental"
 import { scheduleOnRN } from "react-native-worklets"
 import { useTheme } from "../theme"
 import { Band } from "./band"
@@ -131,6 +132,20 @@ export function TopBandScreen({ band, focused, pageColor, children }: Readonly<T
       {/* White on the band, then the theme's own (dark in Light, white in Dark) once it has gone. */}
       {focused ? <StatusBar animated style={cleared ? "auto" : "light"} /> : null}
     </View>
+  )
+}
+
+/**
+ * Wraps the scroll view of a screen that opens on the band; it must be the only child, and a
+ * scroll view (react-native-screens throws otherwise). iOS 26 and later lay a soft scroll-edge
+ * effect under the status bar, which in dark darkens the band's indigo there into a seam; this
+ * hides that edge, as the page-colour strip covers the status bar once the band has gone.
+ */
+export function NoTopScrollEdge({ children }: Readonly<{ children: ReactElement }>) {
+  return (
+    <ScrollViewMarker scrollEdgeEffects={{ top: "hidden" }} style={styles.fill}>
+      {children}
+    </ScrollViewMarker>
   )
 }
 

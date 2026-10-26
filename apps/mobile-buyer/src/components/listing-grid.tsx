@@ -1,4 +1,4 @@
-import { Skeleton, useGridColumns, useTheme, useTopBandRefreshColors, type TopBandController } from '@oja/ui';
+import { NoTopScrollEdge, Skeleton, useGridColumns, useTheme, useTopBandRefreshColors, type TopBandController } from '@oja/ui';
 import type { ReactElement } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -41,7 +41,7 @@ export function ListingGrid({
   const columns = useGridColumns();
   const refreshColors = useTopBandRefreshColors();
   const data = listings ?? [];
-  return (
+  const grid = (
     <Animated.FlatList
       {...band?.scroll}
       key={columns}
@@ -72,6 +72,7 @@ export function ListingGrid({
       )}
     />
   );
+  return band ? <NoTopScrollEdge>{grid}</NoTopScrollEdge> : grid;
 }
 
 /** Two rows of tile shapes. */

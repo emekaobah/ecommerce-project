@@ -4,6 +4,7 @@ import {
   EmptyState,
   ErrorState,
   Icon,
+  NoTopScrollEdge,
   PressableSurface,
   Skeleton,
   StatusChip,
@@ -116,20 +117,22 @@ function PickupCodeView({
   const when = collectBy ? pickupCodeCollectByLabel(collectBy.at, new Date(), collectBy.time_zone) : hours;
 
   return (
-    <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: insets.bottom + theme.space[6] }}>
-      <TopBand band={band} style={{ paddingBottom: theme.space[6] }}>
-        <TopRow label={orderNumber(displayId)} groupId={groupId} chip={<StatusChip label="Ready" tone="success" icon="store" onBand />} />
-        <Text variant="titleNamed" tone="onBand">{`Show this at ${order.seller.name}`}</Text>
-        <PickupCode code={code} />
-      </TopBand>
-      {when ? <InfoRow icon="clock" title={when} subtitle={collectBy ? hours : null} /> : null}
-      <InfoRow
-        icon="pin"
-        title={place}
-        subtitle={[address.landmark, pickup.instructions].filter(Boolean).join(' · ') || null}
-        action={query ? { label: 'Map', hint: 'Opens the address in your maps app', onPress: openMap } : undefined}
-      />
-    </Animated.ScrollView>
+    <NoTopScrollEdge>
+      <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: insets.bottom + theme.space[6] }}>
+        <TopBand band={band} style={{ paddingBottom: theme.space[6] }}>
+          <TopRow label={orderNumber(displayId)} groupId={groupId} chip={<StatusChip label="Ready" tone="success" icon="store" onBand />} />
+          <Text variant="titleNamed" tone="onBand">{`Show this at ${order.seller.name}`}</Text>
+          <PickupCode code={code} />
+        </TopBand>
+        {when ? <InfoRow icon="clock" title={when} subtitle={collectBy ? hours : null} /> : null}
+        <InfoRow
+          icon="pin"
+          title={place}
+          subtitle={[address.landmark, pickup.instructions].filter(Boolean).join(' · ') || null}
+          action={query ? { label: 'Map', hint: 'Opens the address in your maps app', onPress: openMap } : undefined}
+        />
+      </Animated.ScrollView>
+    </NoTopScrollEdge>
   );
 }
 
