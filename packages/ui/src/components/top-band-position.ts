@@ -1,5 +1,5 @@
 /** Where a screen's top band stands against the status bar as the screen scrolls. */
-export type TopBand = {
+export type TopBandPosition = {
   /** The page-colour strip behind the status bar: 0 while the band is under it, 1 once it has gone. */
   stripOpacity: number
   /** Whether the band has cleared the status bar, so its text follows the theme rather than staying white. */
@@ -15,7 +15,7 @@ const TOP_BAND_FADE = 8
  * bar's, and the strip fades in over the last few points before. Until the band is measured
  * (height 0) it counts as behind the status bar. Runs on the UI thread with each scroll frame.
  */
-export function topBand(scrollY: number, bandHeight: number, statusBarHeight: number): TopBand {
+export function topBandPosition(scrollY: number, bandHeight: number, statusBarHeight: number): TopBandPosition {
   "worklet"
   if (bandHeight === 0) return { stripOpacity: 0, cleared: false }
   const clearsAt = bandHeight - statusBarHeight

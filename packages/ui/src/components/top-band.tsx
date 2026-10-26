@@ -1,4 +1,4 @@
-import { topBand, topBandStatusBar } from "@oja/domain"
+import { topBandPosition, topBandStatusBar } from "./top-band-position"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import {
   StatusBar,
@@ -80,13 +80,13 @@ export function TopBandScreen({ band, focused, pageColor, children }: Readonly<T
 
   // The status bar changes once per crossing, not with every frame.
   useAnimatedReaction(
-    () => topBand(scrollY.get(), height.get(), statusBarHeight).cleared,
+    () => topBandPosition(scrollY.get(), height.get(), statusBarHeight).cleared,
     (now, before) => {
       if (now !== before) scheduleOnRN(setCleared, now)
     },
     [statusBarHeight],
   )
-  const strip = useAnimatedStyle(() => ({ opacity: topBand(scrollY.get(), height.get(), statusBarHeight).stripOpacity }))
+  const strip = useAnimatedStyle(() => ({ opacity: topBandPosition(scrollY.get(), height.get(), statusBarHeight).stripOpacity }))
   // Pulled down, the indigo follows the band's top edge down the screen.
   const pull = useAnimatedStyle(() => ({ transform: [{ translateY: Math.max(0, -scrollY.get()) }] }))
 
