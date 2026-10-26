@@ -18,11 +18,13 @@ Facts that shaped the decision (checked 2026-10-26, Bun 1.4.2, TypeScript 6.0.3,
 
 ## Decision
 
-Keep the root on React 18's types for the web panels. Each workspace that type-checks Expo code (`packages/ui`, `apps/mobile-buyer`, `apps/mobile-vendor`) maps `react` and `react/*` to its own `node_modules/@types/react` with `compilerOptions.paths`. That's 19.3.0, the version its own `package.json` asks for. `paths` applies to every import in the program, library declaration files included, so Reanimated and the rest read React 19 too.
+Keep the root on React 18's types for the web panels. Each workspace that type-checks Expo code (`packages/ui`, `apps/mobile-buyer`, `apps/mobile-vendor`) maps `react` and `react/*` to its own `node_modules/@types/react` declaration files with `compilerOptions.paths`: `./node_modules/@types/react/index.d.ts` and `./node_modules/@types/react/*.d.ts`. That's 19.3.0, the version its own `package.json` asks for. `paths` applies to every import in the program, library declaration files included, so Reanimated and the rest read React 19 too.
+
+The targets must name the `.d.ts` files, not the `@types/react` folder. Expo's Metro reads the app's `tsconfig.json` `paths` to resolve imports at bundle time and skips only mappings that end in `.d.ts`. Mapped to the folder, Metro sent the runtime `react` import to `@types/react`, whose exports hold only `types` conditions, and every bundle failed with `Unable to resolve "react"`.
 
 ## Consequences
 
 - One `@types/react` (19) in each Expo program, and the web panels keep theirs (18). Neither side breaks the other.
-- A new Expo workspace that compiles `@oja/ui` or uses React Native libraries needs the same two `paths` entries. Without them, errors like the one above show up on library components that take children or style.
+- A new Expo workspace that compiles `@oja/ui` or uses React Native libraries needs the same two `paths` entries, ending in `.d.ts`. Without them, errors like the one above show up on library components that take children or style.
 - Each workspace has to list `@types/react` in its own `devDependencies` so `./node_modules/@types/react` exists. All three do.
 - If the web panels move to React 19, or the root stops needing React 18's types, set the root's `@types/react` to 19 and drop the `paths`.
