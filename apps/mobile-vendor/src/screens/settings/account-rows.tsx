@@ -1,4 +1,4 @@
-import { Icon, ListRow, useTheme, type IconName } from '@oja/ui';
+import { appearanceLabel, Icon, ListRow, useAppearance, useTheme, type IconName } from '@oja/ui';
 import { useRouter } from 'expo-router';
 import { Linking, View } from 'react-native';
 
@@ -31,7 +31,8 @@ function IconTile({ name, danger }: Readonly<{ name: IconName; danger?: boolean 
 
 /**
  * Below the shop's card (catalogue v-shop #4): Switch shop for a member of more than one,
- * Opening hours (edited on the web, which the row says), and Sign out with the member's email.
+ * Opening hours (edited on the web, which the row says), Appearance (this phone's, #102), and
+ * Sign out with the member's email.
  */
 export function AccountRows({ sellerId }: Readonly<{ sellerId: string | undefined }>) {
   const theme = useTheme();
@@ -39,6 +40,7 @@ export function AccountRows({ sellerId }: Readonly<{ sellerId: string | undefine
   const memberships = useMemberships();
   const email = useMemberEmail(sellerId);
   const shops = memberships.data?.length ?? 0;
+  const appearance = useAppearance();
 
   return (
     <View>
@@ -57,6 +59,13 @@ export function AccountRows({ sellerId }: Readonly<{ sellerId: string | undefine
         leading={<IconTile name="clock" />}
         trailing={<Icon name="share" color={theme.colors.muted} />}
         onPress={() => void Linking.openURL(VENDOR_PANEL_URL)}
+      />
+      <ListRow
+        title="Appearance"
+        subtitle={appearanceLabel[appearance]}
+        leading={<IconTile name="appearance" />}
+        trailing={<Icon name="fwd" color={theme.colors.muted} />}
+        onPress={() => router.push('/appearance')}
       />
       <ListRow
         title="Sign out"

@@ -1166,6 +1166,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 <symbol id="i-lock" viewBox="0 0 24 24"><path d="M6 11h12v9H6z"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></symbol>
 <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
 <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
+<symbol id="i-appearance" viewBox="0 0 24 24"><path d="M12 2v2M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715M16 12a4 4 0 0 0-4-4M19 5l-1.256 1.256M20 12h2"/></symbol>
 </defs>
 </svg>
 <div class="wrap">
@@ -1554,7 +1555,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <li>Sun stays the same in both themes, always with dark text.</li>
         <li>Surfaces are neutral greys with no brand tint, and elevation comes from lighter greys, not shadows: page, then cards, then tiles.</li>
         <li>The new-order takeover is the same indigo in both themes. At night it is the brightest thing on the counter.</li>
-        <li>Follow the system setting, with no in-app toggle in v1.</li>
+        <li>Follow the phone by default. Appearance (buyer Account, vendor Settings) chooses System, Light or Dark on this phone; Light and Dark hold whatever the phone is set to, including Clerk, sheets, the tab bar, headers and the status bar (#102).</li>
       </ul>
     </div>
   </div>
@@ -1565,6 +1566,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 <div data-dark="b-buy|Delivery."></div>
 <div data-dark="b-after|Order detail."></div>
 <div data-dark="b-after|Pickup code."></div>
+<div data-dark="b-account|Appearance."></div>
 <div data-dark="v-triage|Orders."></div>
 <div data-dark="v-triage|New order."></div>
 <div data-dark="v-pick|Pick list."></div>
@@ -2350,10 +2352,27 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-pin"/></svg></span><div><b>Addresses</b><small>2 saved · 14 Bode Thomas St is default</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
         <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-heart"/></svg></span><div><b>Saved items</b><small>4 items</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
         <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-star"/></svg></span><div><b>My reviews</b><small>3 reviews · 1 order to review</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
+        <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-appearance"/></svg></span><div><b>Appearance</b><small>System</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
                         <div class="lrow" style="border:0"><span class="ic" style="color:var(--p-bad);background:var(--p-badbg)"><svg class="ico"><use href="#i-logout"/></svg></span><div><b style="color:var(--p-bad)">Sign out</b><small>Your cart stays on this phone</small></div></div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span class="on"><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>Account.</b> The buyer's own things in one list, with counts from one summary request; "1 order to review" counts delivered or collected orders not yet reviewed. Sign-out says what happens to the cart. Saved items and a product's Reviews are drawn in Decide, above; My reviews is next.<span class="route">(tabs)/account.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Account.</b> The buyer's own things in one list, with counts from one summary request; "1 order to review" counts delivered or collected orders not yet reviewed. Appearance opens its sheet (next) and names the current choice. Sign-out says what happens to the cart. Saved items and a product's Reviews are drawn in Decide, above; My reviews is next.<span class="route">(tabs)/account.tsx</span></figcaption></figure>
+    <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
+      <div class="body">
+        <div class="bigt">Account</div>
+        <div class="acct"><span class="avatar">TA</span><div><b>Tolu Adeyemi</b><small>tolu@example.com · signed in with Google</small></div></div>
+        <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-pin"/></svg></span><div><b>Addresses</b><small>2 saved · 14 Bode Thomas St is default</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
+        <div class="dim"></div>
+        <div class="bsheet">
+          <span class="grab"></span>
+          <h4>Appearance</h4>
+          <div class="radio on"><span class="rb2 on"></span><div>System<small style="display:block;font-size:11.5px;font-weight:400;color:var(--p-muted)">Follows your phone's setting</small></div></div>
+          <div class="radio"><span class="rb2"></span>Light</div>
+          <div class="radio"><span class="rb2"></span>Dark</div>
+        </div>
+      </div>
+      <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span class="on"><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
+    </div></div><figcaption class="ph-cap"><b>Appearance.</b> <span class="cap-tag">New</span> System (the default) follows the phone; Light and Dark hold whatever the phone is set to. Choosing switches the whole app at once, native parts included, and closes the sheet. The choice belongs to this phone, not the account: it outlives sign-out, guests have it too, and it applies before the first screen draws on the next launch. If the phone can't keep it, the app switches back and the sheet says "Couldn't save that on this phone. Try again." The vendor app's sheet is the same, from Settings.<span class="route">new: appearance.tsx · @oja/ui AppearanceSheet</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>My reviews</b></div>
@@ -2418,9 +2437,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <p>Check out, track your orders and save favourites.</p>
           <span class="btn pri" style="width:100%;margin-top:4px">Sign in</span>
         </div>
+        <div class="lrow" style="border:0"><span class="ic"><svg class="ico"><use href="#i-appearance"/></svg></span><div><b>Appearance</b><small>System</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span class="on"><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
-    </div></div><figcaption class="ph-cap"><b>Account, signed out.</b> Guests browse and fill a cart freely; signing in is asked for at checkout, orders and saving.<span class="route">(tabs)/account.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Account, signed out.</b> Guests browse and fill a cart freely; signing in is asked for at checkout, orders and saving. Appearance stays, since it belongs to the phone.<span class="route">(tabs)/account.tsx</span></figcaption></figure>
   </div>
 </section>
 
@@ -2737,9 +2757,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
         <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-swap"/></svg></span><div><b>Switch shop</b><small>You work at 2 shops</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
                 <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-clock"/></svg></span><div><b>Opening hours</b><small>Edit in the vendor panel on the web</small></div><span class="chev"><svg class="ico"><use href="#i-share"/></svg></span></div>
+        <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-appearance"/></svg></span><div><b>Appearance</b><small>System</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
         <div class="lrow" style="border:0"><span class="ic" style="color:var(--p-bad);background:var(--p-badbg)"><svg class="ico"><use href="#i-logout"/></svg></span><div><b style="color:var(--p-bad)">Sign out</b><small>bisi@iyabisi.ng</small></div></div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Settings.</b> Pause is a switch at the top, not a buried row. Only owners and managers can pause; for other staff the switch is off-limits and reads "Only the owner or a manager can pause the shop". The full-screen alert can be turned off on this phone, a setting AAA requires. Things done on the web say so.<span class="route">(app)/settings.tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Settings.</b> Pause is a switch at the top, not a buried row. Only owners and managers can pause; for other staff the switch is off-limits and reads "Only the owner or a manager can pause the shop". The full-screen alert can be turned off on this phone, a setting AAA requires. Appearance opens the same System, Light and Dark sheet as the buyer app. Things done on the web say so.<span class="route">(app)/settings.tsx</span></figcaption></figure>
 
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
@@ -2766,6 +2787,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
         <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-swap"/></svg></span><div><b>Switch shop</b><small>You work at 2 shops</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
                 <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-clock"/></svg></span><div><b>Opening hours</b><small>Edit in the vendor panel on the web</small></div><span class="chev"><svg class="ico"><use href="#i-share"/></svg></span></div>
+        <div class="lrow"><span class="ic"><svg class="ico"><use href="#i-appearance"/></svg></span><div><b>Appearance</b><small>System</small></div><span class="chev"><svg class="ico"><use href="#i-fwd"/></svg></span></div>
         <div class="lrow" style="border:0"><span class="ic" style="color:var(--p-bad);background:var(--p-badbg)"><svg class="ico"><use href="#i-logout"/></svg></span><div><b style="color:var(--p-bad)">Sign out</b><small>bisi@iyabisi.ng</small></div></div>
       </div>
     
