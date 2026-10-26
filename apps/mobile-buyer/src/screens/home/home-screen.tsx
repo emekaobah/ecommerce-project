@@ -1,14 +1,27 @@
 import { useUser } from '@clerk/expo';
 import { addressLines, departments, greeting, needsFirstAddress } from '@oja/domain';
-import { Band, Button, EmptyState, ErrorState, FilterChips, SearchField, Skeleton, Text, useTheme } from '@oja/ui';
-import { router } from 'expo-router';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  FilterChips,
+  SearchField,
+  Skeleton,
+  Text,
+  TopBand,
+  TopBandScreen,
+  useTheme,
+  useTopBand,
+  type TopBandController,
+} from '@oja/ui';
+import { router, useIsFocused } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCategories } from '@/api/categories';
 import { useShops, type NearbyShop } from '@/api/shops';
-import { LightStatusBar } from '@/components/light-status-bar';
 import { DeliveringToPicker } from '@/components/delivering-to-picker';
 import { ShopShelf, ShopShelfSkeleton } from '@/components/shop-results';
 import { useAddressPrompt } from '@/delivering-to/address-prompt-provider';
@@ -28,6 +41,8 @@ export function HomeScreen() {
   const theme = useTheme();
   const region = useRegion();
   const insets = useSafeAreaInsets();
+  const band = useTopBand();
+  const focused = useIsFocused();
   const [department, setDepartment] = useState(ALL);
   const shops = useShops(region.region?.id, department === ALL ? null : department);
 
@@ -36,15 +51,15 @@ export function HomeScreen() {
   const error = region.error ?? (shops.data ? null : shops.error);
   if (error) {
     return (
-      <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
-        <HomeBand search={false} />
+      <TopBandScreen band={band} focused={focused}>
+        <HomeBand band={band} search={false} />
         <ErrorState
           title="Couldn't reach the store"
           body="Check your connection and try again. Anything in your cart is saved."
           error={error}
           onRetry={region.error ? region.retry : refresh}
         />
-      </View>
+      </TopBandScreen>
     );
   }
 
@@ -53,47 +68,46 @@ export function HomeScreen() {
   const loaded = Boolean(currencyCode && shops.data);
 
   return (
-    <FlatList
-      data={list}
-      keyExtractor={(shop) => shop.id}
-      style={{ backgroundColor: theme.colors.bg }}
-      // The band runs under the status bar, and the end of the list clears the tab bar (Home
-      // turns off the tabs' automatic insets).
-      contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={[styles.grow, { paddingBottom: insets.bottom + theme.control.main + theme.space[4] }]}
-      ListHeaderComponent={
-        <>
-          <HomeBand search />
-          <View style={{ paddingTop: theme.space[4] }}>
-            <DepartmentChips selected={department} onSelect={setDepartment} />
-          </View>
-          <NearYouHeading />
-        </>
-      }
-      ListEmptyComponent={loaded ? <NoShops /> : <Loading />}
-      ListFooterComponent={list.length ? <Footer more={shops.hasNextPage} /> : undefined}
-      ItemSeparatorComponent={ShelfGap}
-      refreshing={refreshing}
-      onRefresh={refresh}
-      onEndReached={() => {
-        if (shops.hasNextPage && !shops.isFetchingNextPage) void shops.fetchNextPage();
-      }}
-      onEndReachedThreshold={0.5}
-      renderItem={({ item }: { item: NearbyShop }) => (
-        <ShopShelf seller={item} listings={item.listings} currencyCode={currencyCode ?? ''} />
-      )}
-    />
+    <TopBandScreen band={band} focused={focused}>
+      <Animated.FlatList
+        {...band.scroll}
+        data={list}
+        keyExtractor={(shop) => shop.id}
+        // The band runs under the status bar, and the end of the list clears the tab bar (Home
+        // turns off the tabs' automatic insets).
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={[styles.grow, { paddingBottom: insets.bottom + theme.control.main + theme.space[4] }]}
+        ListHeaderComponent={
+          <>
+            <HomeBand band={band} search />
+            <View style={{ paddingTop: theme.space[4] }}>
+              <DepartmentChips selected={department} onSelect={setDepartment} />
+            </View>
+            <NearYouHeading />
+          </>
+        }
+        ListEmptyComponent={loaded ? <NoShops /> : <Loading />}
+        ListFooterComponent={list.length ? <Footer more={shops.hasNextPage} /> : undefined}
+        ItemSeparatorComponent={ShelfGap}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.colors.onBand} />}
+        onEndReached={() => {
+          if (shops.hasNextPage && !shops.isFetchingNextPage) void shops.fetchNextPage();
+        }}
+        onEndReachedThreshold={0.5}
+        renderItem={({ item }: { item: NearbyShop }) => (
+          <ShopShelf seller={item} listings={item.listings} currencyCode={currencyCode ?? ''} />
+        )}
+      />
+    </TopBandScreen>
   );
 }
 
 /** The indigo band under the status bar: delivering to, the greeting and search, known on the phone so never loading. */
-function HomeBand({ search }: Readonly<{ search: boolean }>) {
+function HomeBand({ band, search }: Readonly<{ band: TopBandController; search: boolean }>) {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { user } = useUser();
   return (
-    <Band style={{ paddingTop: insets.top + theme.space[1] }}>
-      <LightStatusBar />
+    <TopBand band={band} belowStatusBar={theme.space[1]}>
       <DeliveringToPicker />
       <Text variant="titleNamed" tone="onBand">
         {`${greeting(new Date(), user?.firstName ?? null, deviceTimeZone)}\nWhat are we buying?`}
@@ -107,7 +121,7 @@ function HomeBand({ search }: Readonly<{ search: boolean }>) {
           onPress={() => router.navigate('/search')}
         />
       ) : null}
-    </Band>
+    </TopBand>
   );
 }
 
@@ -197,7 +211,6 @@ function Footer({ more }: Readonly<{ more: boolean }>) {
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 },
   grow: { flexGrow: 1 },
   row: { flexDirection: 'row', overflow: 'hidden' },
   between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },

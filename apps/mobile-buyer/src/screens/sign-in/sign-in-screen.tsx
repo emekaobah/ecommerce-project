@@ -1,12 +1,10 @@
 import { useAuth } from '@clerk/expo';
 import { AuthView } from '@clerk/expo/native-components';
-import { AdirePattern, Text, useTheme } from '@oja/ui';
-import { router } from 'expo-router';
+import { AdirePattern, Text, TopBandScreen, useTheme, useTopBand } from '@oja/ui';
+import { router, useIsFocused } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Keyboard, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { LightStatusBar } from '@/components/light-status-bar';
 
 /** Clerk's first step at rest: email, Continue, then Apple and Google. The hero takes the rest. */
 const FORM_HEIGHT = 470;
@@ -39,14 +37,16 @@ export function SignInScreen() {
   // open until AuthView has finished them and the session is active.
   const { isSignedIn } = useAuth();
   const typing = useKeyboardShown();
+  // The screen doesn't scroll, so its band stays behind the status bar.
+  const band = useTopBand();
+  const focused = useIsFocused();
 
   useEffect(() => {
     if (isSignedIn) close();
   }, [isSignedIn]);
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
-      <LightStatusBar />
+    <TopBandScreen band={band} focused={focused}>
       {/* The band runs to the top edge and takes the room the form leaves, its words at its foot;
           the pattern fades out above them, so the type sits on plain indigo. While the buyer types
           it folds to the status bar, so all of Clerk's form (and its other sign-in methods) stays
@@ -83,7 +83,7 @@ export function SignInScreen() {
           Browse first
         </Text>
       </Text>
-    </View>
+    </TopBandScreen>
   );
 }
 

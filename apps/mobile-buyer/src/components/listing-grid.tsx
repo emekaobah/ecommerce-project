@@ -1,6 +1,7 @@
-import { Skeleton, useGridColumns, useTheme } from '@oja/ui';
+import { Skeleton, useGridColumns, useTheme, type TopBandController } from '@oja/ui';
 import type { ReactElement } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import type { Listing } from '@/api/listings';
 
@@ -20,6 +21,7 @@ export function ListingGrid({
   onEndReached,
   refreshing,
   onRefresh,
+  band,
 }: Readonly<{
   /** Undefined while the first page loads. */
   listings: Listing[] | undefined;
@@ -32,23 +34,33 @@ export function ListingGrid({
   onEndReached: () => void;
   refreshing?: boolean;
   onRefresh?: () => void;
+  /** The screen's top band, when the header opens on one: the grid reports its scroll to it. */
+  band?: TopBandController;
 }>) {
   const theme = useTheme();
   const columns = useGridColumns();
   const data = listings ?? [];
   return (
-    <FlatList
+    <Animated.FlatList
+      {...band?.scroll}
       key={columns}
       numColumns={columns}
       // An odd last tile keeps its column's width.
       data={data.length % columns ? [...data, null] : data}
       keyExtractor={(l) => (l ? `${l.seller.id}:${l.product.id}` : 'filler')}
-      // Screens without a header run their banner under the status bar and pad it themselves.
+      // Screens without a header run their band under the status bar, padded by the shared top band.
       contentInsetAdjustmentBehavior="never"
       contentContainerStyle={[{ paddingBottom: theme.space[8], gap: theme.space[4] }, styles.grow]}
       columnWrapperStyle={columns > 1 ? { gap: theme.space[3], paddingHorizontal: theme.space[4] } : undefined}
-      refreshing={refreshing}
-      onRefresh={onRefresh}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing ?? false}
+            onRefresh={onRefresh}
+            tintColor={band ? theme.colors.onBand : undefined}
+          />
+        ) : undefined
+      }
       ListHeaderComponent={header}
       ListEmptyComponent={listings ? empty : <GridSkeleton />}
       ListFooterComponent={more ? <GridSkeleton /> : undefined}

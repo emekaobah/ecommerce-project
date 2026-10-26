@@ -1770,6 +1770,13 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <li><b>Near you.</b> A page of shops, each with its logo (or monogram), distance, open state with today's closing time, and its top products. Shops rank by distance band, then ship time, then distance, so a nearer shop can follow one in the same band that ships faster; distances are whole kilometres. Sale prices show crossed out, and a shop's automatic promotion shows as its "10% off at this shop" badge. A sold-out product shows "Sold out" in place of its add button. <span class="src2">new <code>GET /store/shops</code>, ranked in the database · <code>closes_at</code> · <code>seller.logo</code> · <code>offerPrice</code> · <code>dealLabel</code></span></li>
         <li><b>End of list.</b> More shops load as the buyer scrolls; after the last one, a way to change the address. Every live shop in the region is listed: couriers deliver nationwide, so there is no delivery area. <span class="src2">shops paging</span></li>
       </ol>
+      <h4>Band and status bar</h4>
+      <ul>
+        <li>At rest and pulled down, the band's indigo runs behind the status bar, with white status bar text. Pulling down shows more indigo above the band, never a gap, with the refresh spinner white on it.</li>
+        <li>Over the last few points before the band clears the status bar, a strip the height of the status bar fades in behind it, in the page colour with a hairline under it, as on iOS's large-title screens.</li>
+        <li>From the moment the band clears it, the status bar text follows the theme: dark in Light, white in Dark. The switch point is the band's measured height, so it holds when the greeting wraps at the largest text size.</li>
+        <li>The same holds on every screen that opens on a band under the status bar: the shop page, the pickup code, and the vendor app's done screens (Collected, Order cancelled, Added).</li>
+      </ul>
       <h4>For a first-time buyer or a guest</h4>
       <ul>
         <li>A signed-in buyer with no address gets the address sheet on every start while there's no saved address; "Enter it later" puts it off until the app is next opened. A guest without a spot gets the guest sheet on every start, until "Not now": sharing their location ranks shops nearest first from it and the band reads "Near &lt;area&gt;"; refusing it leaves the band reading "Sign in to see shops near you".</li>
@@ -1857,7 +1864,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="pcard"><div class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦3,500</span><span class="n">Fresh Tomatoes 1kg</span></div>
         </div>
       </div>
-    </div></div><figcaption class="ph-cap"><b>Shop.</b> The banner and logo the shop uploaded in the vendor panel; without them, the indigo pattern and the monogram. Then the open state, rating, distance and the shop's own description.<span class="route">seller/[id].tsx</span></figcaption></figure>
+    </div></div><figcaption class="ph-cap"><b>Shop.</b> The banner and logo the shop uploaded in the vendor panel; without them, the indigo pattern and the monogram. Then the open state, rating, distance and the shop's own description. The indigo behind the status bar and the banner behave as Home's band does, on both the Products and Reviews tabs: indigo when pulled down, and once the banner has scrolled away the page-colour strip and the theme's status bar text.<span class="route">seller/[id].tsx</span></figcaption></figure>
   </div>
 </section>
 
