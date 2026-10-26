@@ -1,6 +1,6 @@
 import { useAuth, useClerk, useUser } from '@clerk/expo';
 import { shopInitials } from '@oja/domain';
-import { Button, Icon, ListRow, Skeleton, Text, useTheme, useToast, type IconName } from '@oja/ui';
+import { appearanceLabel, Button, Icon, ListRow, Skeleton, Text, useAppearance, useTheme, useToast, type IconName } from '@oja/ui';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -33,7 +33,8 @@ function reviewsLine({ reviews_written, orders_to_review }: AccountSummary): str
 
 /**
  * The buyer's own things in one list (#73): who is signed in, their addresses, saved items and
- * reviews with counts from one summary request, and Sign out, which says what happens to the cart.
+ * reviews with counts from one summary request, Appearance, and Sign out, which says what happens
+ * to the cart. Guests get the sign-in prompt and Appearance, which belongs to the phone (#102).
  */
 export function AccountScreen() {
   const theme = useTheme();
@@ -47,7 +48,12 @@ export function AccountScreen() {
       {isSignedIn ? (
         <SignedIn />
       ) : (
-        <SignInPrompt title="Sign in to Oja" message="Check out, track your orders and save favourites." />
+        <>
+          <SignInPrompt title="Sign in to Oja" message="Check out, track your orders and save favourites." />
+          <View style={{ paddingHorizontal: theme.space[4] }}>
+            <AppearanceRow />
+          </View>
+        </>
       )}
     </SafeAreaView>
   );
@@ -126,6 +132,7 @@ function SignedIn() {
           onPress={() => router.push('/wishlist')}
         />
         <AccountRow icon="star" title="My reviews" subtitle={subtitle(reviewsLine)} loading={summary.isPending} onPress={openMyReviews} />
+        <AppearanceRow />
         <ListRow
           title={signingOut ? 'Signing out…' : 'Sign out'}
           subtitle="Your cart stays on this phone"
@@ -138,13 +145,19 @@ function SignedIn() {
   );
 }
 
+/** Opens the Appearance sheet; the row names the current choice. */
+function AppearanceRow() {
+  const appearance = useAppearance();
+  return <AccountRow icon="appearance" title="Appearance" subtitle={appearanceLabel[appearance]} onPress={() => router.push('/appearance')} />;
+}
+
 function AccountRow({
   icon,
   title,
   subtitle,
   loading,
   onPress,
-}: Readonly<{ icon: IconName; title: string; subtitle?: string; loading: boolean; onPress: () => void }>) {
+}: Readonly<{ icon: IconName; title: string; subtitle?: string; loading?: boolean; onPress: () => void }>) {
   const theme = useTheme();
   return (
     <ListRow

@@ -1,7 +1,7 @@
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import { initSentry, useSentryNavigation, withSentry } from '@oja/expo-sentry';
-import { ThemeProvider, ToastProvider, useTheme } from '@oja/ui';
+import { restoreAppearance, ThemeProvider, ToastProvider, useTheme } from '@oja/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -19,6 +19,9 @@ import { RegionProvider } from '@/region/region-provider';
 import { useClearCacheOnUserChange } from '@/session/use-clear-cache-on-user-change';
 
 initSentry(env.sentryDsn);
+
+// The phone's Appearance choice, applied before the first screen draws so it never flashes the other theme.
+restoreAppearance();
 
 // Keep the splash up until Clerk has restored the session, so guards never see a false "signed out".
 void SplashScreen.preventAutoHideAsync();
@@ -110,6 +113,8 @@ function RootStack() {
         <Stack.Screen name="my-reviews" options={{ title: 'My reviews' }} />
         <Stack.Screen name="refund/[id]" options={{ title: 'Refund' }} />
       </Stack.Protected>
+      {/* Appearance is the phone's, not the account's, so guests choose it too. */}
+      <Stack.Screen name="appearance" options={formSheet} />
       {/* AuthView draws its own chrome, including the dismiss button. Full screen, so the indigo runs to the top edge. */}
       <Stack.Screen name="sign-in" options={{ presentation: 'fullScreenModal', headerShown: false }} />
     </Stack>

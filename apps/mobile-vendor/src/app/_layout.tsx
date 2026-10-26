@@ -1,5 +1,5 @@
 import { initSentry, useSentryNavigation, withSentry } from '@oja/expo-sentry';
-import { ThemeProvider, ToastProvider } from '@oja/ui';
+import { restoreAppearance, ThemeProvider, ToastProvider } from '@oja/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -13,6 +13,9 @@ import { createNewOrderChannel } from '@/push/new-order-channel';
 import { hydrateSession, useSessionState } from '@/session/session-store';
 
 initSentry(env.sentryDsn);
+
+// The phone's Appearance choice, applied before the first screen draws so it never flashes the other theme.
+restoreAppearance();
 
 // A new order's push rings on its own channel, which must exist before the first one arrives.
 void createNewOrderChannel();
