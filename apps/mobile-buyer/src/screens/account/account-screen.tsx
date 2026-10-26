@@ -48,12 +48,14 @@ export function AccountScreen() {
       {isSignedIn ? (
         <SignedIn />
       ) : (
-        <>
+        // Sized to its content, so Appearance sits under the prompt as the catalogue draws it, not
+        // pushed under the tab bar; it scrolls at the largest text sizes.
+        <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingBottom: theme.space[4] }}>
           <SignInPrompt title="Sign in to Oja" message="Check out, track your orders and save favourites." />
           <View style={{ paddingHorizontal: theme.space[4] }}>
             <AppearanceRow />
           </View>
-        </>
+        </ScrollView>
       )}
     </SafeAreaView>
   );
