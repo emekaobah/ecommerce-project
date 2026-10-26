@@ -33,7 +33,7 @@ const DEMO_IMAGES_DIR = path.join(__dirname, "demo-images")
 /** A product's demo photos in gallery order; the first is its thumbnail. */
 export function productPhotoFiles(product: Pick<SeedProduct, "title" | "photos">): string[] {
   const handle = toHandle(product.title)
-  return Array.from({ length: product.photos }, (_, i) => (i === 0 ? `${handle}.jpg` : `${handle}-${i + 1}.jpg`))
+  return Array.from({ length: product.photos }, (_, i) => (i === 0 ? `${handle}.webp` : `${handle}-${i + 1}.webp`))
 }
 
 /** A shop's demo logo and banner. */
@@ -168,7 +168,7 @@ async function applyShopImages(container: MedusaContainer): Promise<Tally> {
   return tally
 }
 
-const MIME_TYPES: Record<string, string> = { ".jpg": "image/jpeg", ".png": "image/png" }
+const MIME_TYPES: Record<string, string> = { ".webp": "image/webp", ".png": "image/png" }
 
 /** Uploads demo-images files through the file module; returns their public URLs in order. */
 async function upload(container: MedusaContainer, files: string[]): Promise<string[]> {
