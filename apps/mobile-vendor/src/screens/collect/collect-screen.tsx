@@ -18,18 +18,23 @@ import {
   haptics,
   Icon,
   InlineNote,
+  NoTopScrollEdge,
+  PhotoTile,
   QuantityPill,
   Skeleton,
   Text,
   TextField,
+  TopBandScreen,
   useTheme,
+  useTopBand,
 } from '@oja/ui';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCollectOrder, useOrder, type Order } from '@/api/orders';
@@ -114,9 +119,9 @@ function Line({ item, trailing, spoken }: Readonly<{ item: Item; trailing?: Reac
   const title = item.product_title ?? 'Item';
   return (
     <View accessible accessibilityLabel={[`${Number(item.quantity)} × ${title}`, spoken].filter(Boolean).join(', ')} style={[styles.row, { gap: theme.space[2] }]}>
-      <View style={{ width: photo, height: photo, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+      <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
         {item.thumbnail ? <Image source={{ uri: item.thumbnail }} contentFit="contain" style={StyleSheet.absoluteFill} /> : null}
-      </View>
+      </PhotoTile>
       <View style={styles.fill}>
         <Text weight="bold">{title}</Text>
         <Text variant="meta" tone="muted" tabular>{`× ${Number(item.quantity)}`}</Text>
@@ -295,6 +300,8 @@ function Collected({ order }: Readonly<{ order: Order }>) {
   const theme = useTheme();
   const router = useRouter();
   const timeZone = useShopTimeZone();
+  const band = useTopBand();
+  const focused = useIsFocused();
   const collection = order.fulfilment.collection!;
   const line = [
     `Order #${order.display_id}`,
@@ -304,27 +311,29 @@ function Collected({ order }: Readonly<{ order: Order }>) {
   ].join(' · ');
 
   return (
-    <View style={styles.fill}>
-      <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }}>
-        <ConfirmationHero title="Collected" line={line} />
-        <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
-          {(order.items ?? []).map((item) => {
-            const quantity = Number(item.quantity);
-            return (
-              <Line
-                key={item.id}
-                item={item}
-                spoken="collected"
-                trailing={<QuantityPill label={`${quantity}/${quantity}`} tone="picked" />}
-              />
-            );
-          })}
-        </View>
-      </ScrollView>
+    <TopBandScreen band={band} focused={focused}>
+      <NoTopScrollEdge>
+        <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+          <ConfirmationHero band={band} title="Collected" line={line} />
+          <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
+            {(order.items ?? []).map((item) => {
+              const quantity = Number(item.quantity);
+              return (
+                <Line
+                  key={item.id}
+                  item={item}
+                  spoken="collected"
+                  trailing={<QuantityPill label={`${quantity}/${quantity}`} tone="picked" />}
+                />
+              );
+            })}
+          </View>
+        </Animated.ScrollView>
+      </NoTopScrollEdge>
       <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2] }}>
         <Button label="Back to orders" size="main" onPress={() => router.dismissTo('/')} />
       </SafeAreaView>
-    </View>
+    </TopBandScreen>
   );
 }
 

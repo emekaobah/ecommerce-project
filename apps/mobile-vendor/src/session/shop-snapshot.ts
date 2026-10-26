@@ -1,5 +1,5 @@
 import type { ShopHours } from '@/api/shop-hours';
-import { keptValue } from '@/storage/kept-value';
+import { keptValue } from '@oja/ui';
 
 /**
  * The shop's name and hours from the last visit, kept on the phone so the Orders header shows

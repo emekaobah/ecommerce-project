@@ -1,10 +1,24 @@
 import { useAuth } from '@clerk/expo';
 import { orderNumber, pickupCodeCollectByLabel, todayHoursLabel } from '@oja/domain';
-import { Band, EmptyState, ErrorState, Icon, PressableSurface, Skeleton, StatusChip, Text, useTheme } from '@oja/ui';
-import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import {
+  EmptyState,
+  ErrorState,
+  Icon,
+  NoTopScrollEdge,
+  PressableSurface,
+  Skeleton,
+  StatusChip,
+  Text,
+  TopBand,
+  TopBandScreen,
+  useTheme,
+  useTopBand,
+  type TopBandController,
+} from '@oja/ui';
+import { router, useIsFocused } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { isNotFound } from '@/api/errors';
@@ -23,16 +37,15 @@ function close(groupId: string) {
  * order detail's "Show pickup code" on a shop's order that is Ready for pickup.
  */
 export function PickupCodeScreen({ groupId, orderId }: Readonly<{ groupId: string; orderId: string }>) {
-  const theme = useTheme();
+  const band = useTopBand();
+  const focused = useIsFocused();
   const { userId } = useAuth();
   const group = useOrderGroup(userId, groupId);
   const order = group.data?.orders.find((o) => o.id === orderId) ?? null;
 
-  let content: ReactNode;
-  if (group.error && !group.data && isNotFound(group.error)) {
-    content = <NoCode order={null} groupId={groupId} displayId={null} />;
-  } else if (group.error && !group.data) {
-    content = (
+  // No band to stand on, so it leaves the status bar to the theme.
+  if (group.error && !group.data && !isNotFound(group.error)) {
+    return (
       <ErrorState
         title="Couldn't load your pickup code"
         body="Check your connection and try again. Your order is still held for you."
@@ -41,18 +54,22 @@ export function PickupCodeScreen({ groupId, orderId }: Readonly<{ groupId: strin
         secondaryAction={{ label: 'Back to the order', onPress: () => close(groupId) }}
       />
     );
+  }
+
+  let content: ReactNode;
+  if (group.error && !group.data) {
+    content = <NoCode band={band} order={null} groupId={groupId} displayId={null} />;
   } else if (!group.data) {
-    content = <PickupSkeleton />;
+    content = <PickupSkeleton band={band} />;
   } else if (!order?.pickup?.code) {
-    content = <NoCode order={order} groupId={groupId} displayId={group.data.display_id} />;
+    content = <NoCode band={band} order={order} groupId={groupId} displayId={group.data.display_id} />;
   } else {
-    content = <PickupCodeView order={order} code={order.pickup.code} groupId={groupId} displayId={group.data.display_id} />;
+    content = <PickupCodeView band={band} order={order} code={order.pickup.code} groupId={groupId} displayId={group.data.display_id} />;
   }
   return (
-    <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
-      <StatusBar style="light" />
+    <TopBandScreen band={band} focused={focused}>
       {content}
-    </View>
+    </TopBandScreen>
   );
 }
 
@@ -79,11 +96,12 @@ function TopRow({ label, groupId, chip }: Readonly<{ label: string; groupId: str
 
 /** `displayId` is the checkout's: the one order number the buyer sees everywhere. */
 function PickupCodeView({
+  band,
   order,
   code,
   groupId,
   displayId,
-}: Readonly<{ order: SellerOrder; code: string; groupId: string; displayId: number }>) {
+}: Readonly<{ band: TopBandController; order: SellerOrder; code: string; groupId: string; displayId: number }>) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const pickup = order.pickup!;
@@ -99,20 +117,22 @@ function PickupCodeView({
   const when = collectBy ? pickupCodeCollectByLabel(collectBy.at, new Date(), collectBy.time_zone) : hours;
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + theme.space[6] }}>
-      <Band style={{ paddingTop: insets.top + theme.space[2], paddingBottom: theme.space[6] }}>
-        <TopRow label={orderNumber(displayId)} groupId={groupId} chip={<StatusChip label="Ready" tone="success" icon="store" onBand />} />
-        <Text variant="titleNamed" tone="onBand">{`Show this at ${order.seller.name}`}</Text>
-        <PickupCode code={code} />
-      </Band>
-      {when ? <InfoRow icon="clock" title={when} subtitle={collectBy ? hours : null} /> : null}
-      <InfoRow
-        icon="pin"
-        title={place}
-        subtitle={[address.landmark, pickup.instructions].filter(Boolean).join(' · ') || null}
-        action={query ? { label: 'Map', hint: 'Opens the address in your maps app', onPress: openMap } : undefined}
-      />
-    </ScrollView>
+    <NoTopScrollEdge>
+      <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: insets.bottom + theme.space[6] }}>
+        <TopBand band={band} style={{ paddingBottom: theme.space[6] }}>
+          <TopRow label={orderNumber(displayId)} groupId={groupId} chip={<StatusChip label="Ready" tone="success" icon="store" onBand />} />
+          <Text variant="titleNamed" tone="onBand">{`Show this at ${order.seller.name}`}</Text>
+          <PickupCode code={code} />
+        </TopBand>
+        {when ? <InfoRow icon="clock" title={when} subtitle={collectBy ? hours : null} /> : null}
+        <InfoRow
+          icon="pin"
+          title={place}
+          subtitle={[address.landmark, pickup.instructions].filter(Boolean).join(' · ') || null}
+          action={query ? { label: 'Map', hint: 'Opens the address in your maps app', onPress: openMap } : undefined}
+        />
+      </Animated.ScrollView>
+    </NoTopScrollEdge>
   );
 }
 
@@ -156,9 +176,12 @@ function InfoRow({
 }
 
 /** The order has no code to show: not ready yet, collected, or no longer one of the group's. */
-function NoCode({ order, groupId, displayId }: Readonly<{ order: SellerOrder | null; groupId: string; displayId: number | null }>) {
-  const theme = useTheme();
-  const insets = useSafeAreaInsets();
+function NoCode({
+  band,
+  order,
+  groupId,
+  displayId,
+}: Readonly<{ band: TopBandController; order: SellerOrder | null; groupId: string; displayId: number | null }>) {
   const state = order?.fulfilment.state;
   let title = 'No pickup code right now';
   let body = 'Your code appears here when the shop has your order ready.';
@@ -174,9 +197,9 @@ function NoCode({ order, groupId, displayId }: Readonly<{ order: SellerOrder | n
   }
   return (
     <View style={styles.fill}>
-      <Band style={{ paddingTop: insets.top + theme.space[2] }}>
+      <TopBand band={band}>
         <TopRow label={order && displayId !== null ? orderNumber(displayId) : 'Order'} groupId={groupId} />
-      </Band>
+      </TopBand>
       <EmptyState
         title={title}
         body={body}
@@ -192,20 +215,19 @@ function NoCode({ order, groupId, displayId }: Readonly<{ order: SellerOrder | n
 }
 
 /** The screen's shape while the order loads: the band with the QR's square and the digits. */
-function PickupSkeleton() {
+function PickupSkeleton({ band }: Readonly<{ band: TopBandController }>) {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const side = usePickupQrSide();
   return (
     <View accessible accessibilityLabel="Loading your pickup code" style={styles.fill}>
-      <Band style={{ paddingTop: insets.top + theme.space[2], paddingBottom: theme.space[6] }}>
+      <TopBand band={band} style={{ paddingBottom: theme.space[6] }}>
         <View style={{ height: theme.hitArea }} />
         <Skeleton width="70%" height={theme.type.titleNamed.lineHeight} />
         <View style={[styles.centre, { gap: theme.space[3] }]}>
           <Skeleton width={side} height={side} radius="xl" />
           <Skeleton width="60%" height={theme.type.displayXxl.lineHeight} />
         </View>
-      </Band>
+      </TopBand>
       <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
         <Skeleton width="60%" height={theme.type.body.lineHeight} />
         <Skeleton width="40%" height={theme.type.meta.lineHeight} />

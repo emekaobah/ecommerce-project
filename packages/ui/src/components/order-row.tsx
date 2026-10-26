@@ -3,6 +3,7 @@ import { Image } from "expo-image"
 import type { ReactNode } from "react"
 import { StyleSheet, View } from "react-native"
 import { useTheme } from "../theme"
+import { PhotoTile } from "./photo-tile"
 import { PressableSurface } from "./pressable-surface"
 import { StatusChip } from "./status-chip"
 import { Text } from "./text"
@@ -85,12 +86,9 @@ export function OrderRow({ title, meta, price, shops, thumbnails = [], trailing,
       {shown.length ? (
         <View style={[styles.wrap, { gap: theme.space[2] }]}>
           {shown.map((uri, index) => (
-            <View
-              key={`${index}-${uri}`}
-              style={{ width: thumb, height: thumb, borderRadius: theme.radius.md, overflow: "hidden", backgroundColor: theme.colors.productTile }}
-            >
+            <PhotoTile key={`${index}-${uri}`} style={{ width: thumb, height: thumb, borderRadius: theme.radius.md }}>
               <Image source={{ uri }} contentFit="contain" style={styles.fill} />
-            </View>
+            </PhotoTile>
           ))}
           {more > 0 ? (
             <View

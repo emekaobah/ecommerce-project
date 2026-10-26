@@ -9,7 +9,12 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": []
+    "types": ["bun"],
+    // React 19's types for every import, React Native libraries' included: the root's are React 18 (ADR 0016).
+    "paths": {
+      "react": ["./node_modules/@types/react/index.d.ts"],
+      "react/*": ["./node_modules/@types/react/*.d.ts"]
+    }
   },
   "include": ["src"]
 }

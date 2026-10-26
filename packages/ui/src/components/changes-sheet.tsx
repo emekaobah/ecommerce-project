@@ -2,6 +2,7 @@ import { Image } from "expo-image"
 import { StyleSheet, View } from "react-native"
 import { useTheme } from "../theme"
 import { Button } from "./button"
+import { PhotoTile } from "./photo-tile"
 import { Sheet } from "./sheet"
 import { Text } from "./text"
 
@@ -60,12 +61,9 @@ export function ChangesSheet({
       {changes.map((change) => (
         <View key={change.key} accessible style={[styles.row, { gap: theme.space[2] }]}>
           {change.imageUrl === undefined ? null : (
-            <Image
-              source={change.imageUrl}
-              contentFit="contain"
-              accessibilityIgnoresInvertColors
-              style={{ width: photo, height: photo, borderRadius: theme.radius.md, backgroundColor: theme.colors.productTile }}
-            />
+            <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
+              <Image source={change.imageUrl} contentFit="contain" accessibilityIgnoresInvertColors style={StyleSheet.absoluteFill} />
+            </PhotoTile>
           )}
           <View style={[styles.fill, { gap: theme.space[1] }]}>
             <Text weight="bold">{change.label}</Text>

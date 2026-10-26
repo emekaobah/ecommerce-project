@@ -6,8 +6,9 @@ const ThemeContext = createContext<Theme>(lightTheme)
 const ReduceMotionContext = createContext(false)
 
 /**
- * Each app wraps its root layout in one provider. The theme follows the system's light or dark
- * setting (there's no in-app toggle), and Reduce Motion is read here once for every component.
+ * Each app wraps its root layout in one provider. The theme follows `useColorScheme()`: the phone's
+ * light or dark setting, or Light or Dark when chosen in Appearance (`restoreAppearance`). Reduce
+ * Motion is read here once for every component.
  */
 export function ThemeProvider({ children }: Readonly<{ children: ReactNode }>) {
   const theme = useColorScheme() === "dark" ? darkTheme : lightTheme

@@ -1,5 +1,5 @@
 import { formatMoney, quickAddForm, type QuickAddFormErrors } from '@oja/domain';
-import { Button, ErrorState, InlineNote, Skeleton, StatusChip, Text, TextField, useTheme } from '@oja/ui';
+import { Button, ErrorState, InlineNote, PhotoTile, Skeleton, StatusChip, Text, TextField, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
@@ -101,11 +101,11 @@ function ProductHeader({ lookup, chip }: Readonly<{ lookup: BarcodeLookup; chip:
   const { product, barcode } = lookup;
   return (
     <View style={[styles.row, { gap: theme.space[3] }]}>
-      <View style={{ width: tile, height: tile, borderRadius: theme.radius.lg, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+      <PhotoTile style={{ width: tile, height: tile, borderRadius: theme.radius.lg }}>
         {product?.thumbnail ? (
           <Image source={{ uri: product.thumbnail }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityIgnoresInvertColors />
         ) : null}
-      </View>
+      </PhotoTile>
       <View style={[styles.fill, styles.start, { gap: theme.space[1] }]}>
         {chip}
         <Text variant="strong" style={{ marginTop: theme.space[1] }}>
@@ -217,12 +217,9 @@ function AddForm({ lookup }: Readonly<{ lookup: BarcodeLookup }>) {
               {`The catalogue doesn't have barcode ${lookup.barcode}. Photograph it and name it: it is reviewed before buyers see it, and your price applies once it is approved.`}
             </Text>
             {photo ? (
-              <Image
-                source={{ uri: photo.uri }}
-                style={[styles.photo, { borderRadius: theme.radius.lg, backgroundColor: theme.colors.productTile }]}
-                contentFit="contain"
-                accessibilityLabel="The product's photo"
-              />
+              <PhotoTile style={[styles.photo, { borderRadius: theme.radius.lg }]}>
+                <Image source={{ uri: photo.uri }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityLabel="The product's photo" />
+              </PhotoTile>
             ) : null}
             <Button
               label={photo ? 'Retake photo' : 'Take photo'}

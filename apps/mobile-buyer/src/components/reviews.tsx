@@ -1,5 +1,5 @@
 import { dateLabel, ratingSummary, shopInitials, type Rating, type ReviewKind } from '@oja/domain';
-import { Button, GroupList, Icon, PressableSurface, Skeleton, Text, useTheme } from '@oja/ui';
+import { Button, GroupList, Icon, PhotoTile, PressableSurface, Skeleton, Text, useTheme } from '@oja/ui';
 import { Image } from 'expo-image';
 import { useState, type ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
@@ -141,9 +141,9 @@ export function ReviewSubjectLine({
       {shop ? (
         <SubjectMonogram shop={shop} style={box} />
       ) : (
-        <View style={[box, { backgroundColor: theme.colors.productTile }]}>
+        <PhotoTile style={box}>
           {thumbnail ? <Image source={thumbnail} contentFit="contain" style={styles.fill} accessibilityIgnoresInvertColors /> : null}
-        </View>
+        </PhotoTile>
       )}
       <View style={styles.fill}>
         <Text variant={large ? 'body' : 'meta'} weight="bold" numberOfLines={2}>

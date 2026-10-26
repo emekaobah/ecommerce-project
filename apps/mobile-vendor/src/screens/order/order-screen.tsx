@@ -16,6 +16,7 @@ import {
   Icon,
   ErrorState,
   ListRow,
+  PhotoTile,
   PressableSurface,
   QuantityPill,
   Skeleton,
@@ -180,9 +181,9 @@ function Lines({ order }: Readonly<{ order: Order }>) {
             .filter(Boolean)
             .join(', ')}
           style={[styles.row, { gap: theme.space[2] }]}>
-          <View style={{ width: photo, height: photo, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+          <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
             {item.thumbnail ? <Image source={{ uri: item.thumbnail }} contentFit="contain" style={StyleSheet.absoluteFill} /> : null}
-          </View>
+          </PhotoTile>
           <View style={styles.grow}>
             <Text weight="bold">{item.product_title ?? 'Item'}</Text>
             {/* A plain muted tag, as on the takeover (catalogue v-triage #3). */}

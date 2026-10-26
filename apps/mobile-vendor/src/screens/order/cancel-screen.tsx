@@ -8,11 +8,27 @@ import {
   staffStatus,
   type CancelReason,
 } from '@oja/domain';
-import { Band, Button, EmptyState, ErrorState, InlineNote, RadioOption, Skeleton, StatusChip, Text, TextField, useTheme } from '@oja/ui';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  Band,
+  Button,
+  EmptyState,
+  ErrorState,
+  InlineNote,
+  NoTopScrollEdge,
+  RadioOption,
+  Skeleton,
+  StatusChip,
+  Text,
+  TextField,
+  TopBandScreen,
+  useTheme,
+  useTopBand,
+} from '@oja/ui';
+import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useFailureMessage } from '@/api/errors';
@@ -188,27 +204,31 @@ function Cancelled({
   onDone,
 }: Readonly<{ amount: string; refunded: boolean; nothingLeft: boolean; onDone: () => void }>) {
   const theme = useTheme();
+  const band = useTopBand();
+  const focused = useIsFocused();
   let line = `The refund of ${amount} didn't go through yet. Oja keeps trying it, and the buyer is told.`;
   if (nothingLeft) line = 'The buyer had already been refunded in full.';
   else if (refunded) line = `${amount} is being refunded to the buyer.`;
   return (
-    <View style={styles.fill}>
-      <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }}>
-        <ConfirmationHero title="Order cancelled" line={line} />
-        {nothingLeft ? null : (
-          <View style={[styles.start, { padding: theme.space[4] }]}>
-            <StatusChip
-              label={refunded ? 'Refund on its way' : 'Refund pending'}
-              tone={refunded ? 'success' : 'new'}
-              icon={refunded ? 'check' : 'clock'}
-            />
-          </View>
-        )}
-      </ScrollView>
+    <TopBandScreen band={band} focused={focused}>
+      <NoTopScrollEdge>
+        <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+          <ConfirmationHero band={band} title="Order cancelled" line={line} />
+          {nothingLeft ? null : (
+            <View style={[styles.start, { padding: theme.space[4] }]}>
+              <StatusChip
+                label={refunded ? 'Refund on its way' : 'Refund pending'}
+                tone={refunded ? 'success' : 'new'}
+                icon={refunded ? 'check' : 'clock'}
+              />
+            </View>
+          )}
+        </Animated.ScrollView>
+      </NoTopScrollEdge>
       <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2] }}>
         <Button label="Back to orders" size="main" onPress={onDone} />
       </SafeAreaView>
-    </View>
+    </TopBandScreen>
   );
 }
 

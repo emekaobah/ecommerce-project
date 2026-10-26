@@ -2,11 +2,10 @@ import { useAuth } from '@clerk/expo';
 import { AuthView } from '@clerk/expo/native-components';
 import { AdirePattern, Text, useTheme } from '@oja/ui';
 import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Keyboard, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { LightStatusBar } from '@/components/light-status-bar';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** Clerk's first step at rest: email, Continue, then Apple and Google. The hero takes the rest. */
 const FORM_HEIGHT = 470;
@@ -45,19 +44,24 @@ export function SignInScreen() {
   }, [isSignedIn]);
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
-      <LightStatusBar />
+    <View style={styles.fill}>
+      {/* The screen doesn't scroll, so its band is always behind the status bar: white text. A
+          full-screen modal, it is the last screen mounted while it shows, so its bar wins. */}
+      <StatusBar style="light" />
       {/* The band runs to the top edge and takes the room the form leaves, its words at its foot;
           the pattern fades out above them, so the type sits on plain indigo. While the buyer types
           it folds to the status bar, so all of Clerk's form (and its other sign-in methods) stays
           above the keyboard. */}
       {typing ? (
-        <View style={{ height: insets.top, backgroundColor: theme.colors.band }} />
+        <SafeAreaView edges={['top']} style={{ backgroundColor: theme.colors.band }} />
       ) : (
         <View style={[styles.band, { backgroundColor: theme.colors.band }]}>
-          <View style={[styles.fill, { minHeight: insets.top + theme.space[12] }]}>
+          {/* The pattern runs up behind the status bar; the safe area keeps the words below it. It
+              grows into the room left, but never below the status bar and the spacer. */}
+          <SafeAreaView edges={['top']} style={styles.grow}>
+            <View style={{ minHeight: theme.space[12] }} />
             <AdirePattern fade="top" opacity={0.55} />
-          </View>
+          </SafeAreaView>
           <View style={{ paddingHorizontal: theme.space[6], paddingBottom: theme.space[6], gap: theme.space[2] }}>
             <Text variant="displayXxl" tone="onBand" accessibilityRole="header" accessibilityLabel="Oja">
               oja
@@ -89,6 +93,7 @@ export function SignInScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  grow: { flexGrow: 1 },
   band: { flex: 1, justifyContent: 'flex-end' },
   subtitle: { opacity: 0.85 },
   centred: { textAlign: 'center' },

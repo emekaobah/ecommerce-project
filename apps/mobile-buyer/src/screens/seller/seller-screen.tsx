@@ -1,13 +1,26 @@
 import { shopStatusChip } from '@oja/domain';
-import { EmptyState, ErrorState, PressableSurface, ShopHeader, Skeleton, StatusChip, Text, useTheme } from '@oja/ui';
-import { router, Stack } from 'expo-router';
+import {
+  EmptyState,
+  ErrorState,
+  NoTopScrollEdge,
+  PressableSurface,
+  ShopHeader,
+  Skeleton,
+  StatusChip,
+  Text,
+  TopBandScreen,
+  useTheme,
+  useTopBand,
+  type TopBandController,
+} from '@oja/ui';
+import { router, Stack, useIsFocused } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { isNotFound } from '@/api/errors';
 import { useListingResults } from '@/api/listings';
 import { useShop, type Shop } from '@/api/shops';
-import { LightStatusBar } from '@/components/light-status-bar';
 import { ListingGrid } from '@/components/listing-grid';
 import { ReviewsPreview } from '@/components/reviews';
 import { RoundButton } from '@/components/round-button';
@@ -28,6 +41,8 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
   const shop = useShop(region.region?.id, sellerId);
   const listings = useListingResults(region.region?.id, { sellerId });
   const [tab, setTab] = useState<Tab>('products');
+  const band = useTopBand();
+  const focused = useIsFocused();
   const { refreshing, refresh } = useListRefresh(async () => {
     const [s, l] = await Promise.all([shop.refetch(), listings.refetch()]);
     return { error: s.error ?? l.error, data: s.data };
@@ -68,28 +83,33 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
   const top = (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <LightStatusBar />
-      {shop.data ? <Header shop={shop.data} /> : <HeaderSkeleton />}
+      {shop.data ? <Header band={band} shop={shop.data} /> : <HeaderSkeleton band={band} />}
       <ShopTabs tab={tab} onChange={setTab} />
     </>
   );
 
   if (tab === 'reviews' && shop.data) {
     return (
-      <ScrollView
-        contentInsetAdjustmentBehavior="never"
-        style={{ backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingBottom: theme.space[8] }}>
-        {top}
-        <View style={{ padding: theme.space[4] }}>
-          <ReviewsPreview kind="seller" id={shop.data.id} title={shop.data.name} />
-        </View>
-      </ScrollView>
+      <TopBandScreen band={band} focused={focused}>
+        <NoTopScrollEdge>
+          <Animated.ScrollView
+            {...band.scroll}
+            contentInsetAdjustmentBehavior="never"
+            contentContainerStyle={{ paddingBottom: theme.space[8] }}>
+            {top}
+            <View style={{ padding: theme.space[4] }}>
+              <ReviewsPreview kind="seller" id={shop.data.id} title={shop.data.name} />
+            </View>
+          </Animated.ScrollView>
+        </NoTopScrollEdge>
+      </TopBandScreen>
     );
   }
 
   return (
-    <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+    <TopBandScreen band={band} focused={focused}>
       <ListingGrid
+        band={band}
         listings={region.region && shop.data ? listings.data?.pages.flatMap((page) => page.listings) : undefined}
         currencyCode={region.region?.currency_code ?? ''}
         header={<View style={{ paddingBottom: theme.space[2] }}>{top}</View>}
@@ -101,7 +121,7 @@ export function SellerScreen({ sellerId }: Readonly<{ sellerId: string }>) {
         refreshing={refreshing}
         onRefresh={refresh}
       />
-    </View>
+    </TopBandScreen>
   );
 }
 
@@ -109,11 +129,11 @@ function BackButton() {
   return <RoundButton icon="back" label="Back" onPress={() => router.back()} />;
 }
 
-function Header({ shop }: Readonly<{ shop: Shop }>) {
+function Header({ band, shop }: Readonly<{ band: TopBandController; shop: Shop }>) {
   const theme = useTheme();
   const place = shopPlace(shop);
   return (
-    <ShopHeader name={shop.name} logoUrl={shop.logo} bannerUrl={shop.banner} actions={<BackButton />} description={shop.description}>
+    <ShopHeader band={band} name={shop.name} logoUrl={shop.logo} bannerUrl={shop.banner} actions={<BackButton />} description={shop.description}>
       <StatusChip {...shopStatusChip(shop.shop_status.state, shop.shop_status.label)} />
       <ShopStars sellerId={shop.id} />
       {place ? (
@@ -131,11 +151,11 @@ function Header({ shop }: Readonly<{ shop: Shop }>) {
 }
 
 /** The banner's place while the shop loads; back works straight away. */
-function HeaderSkeleton() {
+function HeaderSkeleton({ band }: Readonly<{ band: TopBandController }>) {
   const theme = useTheme();
   return (
     <View>
-      <ShopHeader name="" actions={<BackButton />} />
+      <ShopHeader band={band} name="" actions={<BackButton />} />
       <View style={{ paddingHorizontal: theme.space[4], gap: theme.space[2], paddingBottom: theme.space[4] }}>
         <Skeleton width="60%" height={theme.space[5]} />
         <Skeleton width="80%" height={theme.space[3]} />
@@ -186,7 +206,6 @@ function ShopTabs({ tab, onChange }: Readonly<{ tab: Tab; onChange: (tab: Tab) =
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 },
   full: { width: '100%' },
   tabs: { flexDirection: 'row' },
 });

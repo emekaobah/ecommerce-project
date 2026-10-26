@@ -13,6 +13,7 @@ import {
   haptics,
   Icon,
   InlineNote,
+  PhotoTile,
   PressableSurface,
   QuantityPill,
   Text,
@@ -236,17 +237,9 @@ function OrderSummary({ order, now, hours }: SummaryProps) {
               accessible
               accessibilityLabel={[`${quantity} × ${name}`, total, item.perishable ? 'Perishable' : null].filter(Boolean).join(', ')}
               style={[styles.row, { gap: theme.space[3] }]}>
-              <View
-                style={{
-                  width: photo,
-                  height: photo,
-                  padding: photo * 0.1,
-                  borderRadius: theme.radius.md,
-                  overflow: 'hidden',
-                  backgroundColor: theme.colors.productTile,
-                }}>
+              <PhotoTile style={{ width: photo, height: photo, padding: photo * 0.1, borderRadius: theme.radius.md }}>
                 {item.thumbnail ? <Image source={{ uri: item.thumbnail }} contentFit="contain" style={styles.fill} /> : null}
-              </View>
+              </PhotoTile>
               <View style={styles.fill}>
                 <Text weight="bold" tone="onBand">
                   {name}
