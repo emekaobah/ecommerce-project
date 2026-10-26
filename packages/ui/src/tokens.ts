@@ -212,10 +212,12 @@ export type Theme = {
     raised: string
     /** Mist: secondary buttons, fact boxes, chips, skeletons. */
     tile: string
-    /** Behind product photos: white in both themes, with no outline. */
+    /** Behind product photos (`PhotoTile`), which are transparent cut-outs: white in light, the charcoal tile in dark, with no outline. */
     productTile: string
-    /** Laid over a product tile and its photo together (`PhotoTile`): none in light; in dark, the page colour, dimming white to about #D8D8DC. */
-    photoVeil: string | null
+    /** A photo carousel's dots for the photos not showing, on the product tile (the current one is `accent`). */
+    photoDot: string
+    /** White in both themes: behind the pickup QR, which stays black on white, and shop logos. */
+    paper: string
     /** Dividers, card edges. */
     line: string
     /** The lighter rule between groups in a list: orders, shops in the cart, checkout and an order, reviews. */
@@ -309,6 +311,7 @@ const sizes = {
 }
 
 const white = "#FFFFFF"
+const charcoal = "#26262A"
 const indigo = "#1B2559"
 const sun = "#F2B33D"
 const leaf = "#186441"
@@ -325,7 +328,8 @@ export const lightTheme: Theme = {
     raised: white,
     tile: "#EEF0F7",
     productTile: white,
-    photoVeil: null,
+    photoDot: "#DDE1EE",
+    paper: white,
     line: "#DDE1EE",
     divider: "#E4E6EE",
     control: "#80869E",
@@ -383,9 +387,10 @@ export const darkTheme: Theme = {
     bg: "#111113",
     bgGrouped: "#111113",
     raised: "#1C1C1F",
-    tile: "#26262A",
-    productTile: white,
-    photoVeil: "rgba(17, 17, 19, 0.16)",
+    tile: charcoal,
+    productTile: charcoal,
+    photoDot: "#7A7A83",
+    paper: white,
     line: "#333338",
     divider: "#2A2A2F",
     control: "#7A7A83",
@@ -426,7 +431,7 @@ export const darkTheme: Theme = {
     onBandTrack: "rgba(255, 255, 255, 0.2)",
   },
   status: {
-    neutral: { foreground: "#B4B4BC", background: "#26262A" },
+    neutral: { foreground: "#B4B4BC", background: charcoal },
     info: { foreground: "#AEB8FF", background: "#23263A" },
     success: { foreground: "#6FD6A0", background: "#14281D" },
     new: { foreground: "#F2C76B", background: "#2E2614" },

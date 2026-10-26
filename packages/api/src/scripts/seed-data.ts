@@ -229,8 +229,8 @@ export type SeedProduct = {
   category: string
   description: string
   /**
-   * How many demo photos it has in demo-images/products: `<handle>.jpg` (the thumbnail), then
-   * `<handle>-2.jpg` and on, in gallery order (see demo-images.ts).
+   * How many demo photos it has in demo-images/products: `<handle>.webp` (the thumbnail), then
+   * `<handle>-2.webp` and on, in gallery order (see demo-images.ts).
    */
   photos: number
   /** Price in NGN at the department's shop. */
