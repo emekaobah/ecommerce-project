@@ -35,7 +35,7 @@ export function ShopHeader({ band, name, logoUrl, bannerUrl, actions, children, 
   return (
     <View>
       {/* Solid indigo behind the status bar; the banner starts below it. */}
-      <TopBandArea band={band} style={{ backgroundColor: theme.colors.band }}>
+      <TopBandArea band={band} belowStatusBar={0} style={{ backgroundColor: theme.colors.band }}>
         <View style={[styles.cover, { height: theme.block.banner, backgroundColor: theme.colors.band }]}>
           {banner ? (
             <Image

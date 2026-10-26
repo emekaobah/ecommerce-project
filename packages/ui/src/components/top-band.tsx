@@ -114,12 +114,24 @@ export function TopBandScreen({ band, focused, pageColor, children }: Readonly<T
   )
 }
 
-/** The band's measurement, and a fresh list (the shop page's other tab) starts with the band at rest. */
-function useTopBandLayout({ scrollY, height }: TopBandController) {
+/**
+ * What every top band does where it mounts. The band is the first thing in its scroll view, so a
+ * band mounting means a fresh scroll view at its top (the shop page's other tab, a grid re-laid
+ * for more columns): the scroll offset restarts at 0 there, not at the old view's. Returns the
+ * band's `onLayout`, which measures it.
+ */
+function useRestartScrollAndMeasure({ scrollY, height }: TopBandController) {
   useEffect(() => {
     scrollY.set(0)
   }, [scrollY])
   return (event: LayoutChangeEvent) => height.set(event.nativeEvent.layout.height)
+}
+
+/** The space between the status bar and a top band's content when the screen doesn't say: the band's own top padding. */
+function useBelowStatusBar(belowStatusBar: number | undefined) {
+  const theme = useTheme()
+  const insets = useSafeAreaInsets()
+  return insets.top + (belowStatusBar ?? theme.space[2])
 }
 
 export type TopBandProps = {
@@ -134,13 +146,13 @@ export type TopBandProps = {
 /**
  * The indigo band at the top of a screen, under the status bar: the first thing in the screen's
  * scroll view (or on its own, for a screen that doesn't scroll), inside a `TopBandScreen`.
+ * Mounting it restarts the band's scroll offset at 0.
  */
 export function TopBand({ band, belowStatusBar, style, children }: Readonly<TopBandProps>) {
-  const theme = useTheme()
-  const insets = useSafeAreaInsets()
-  const onLayout = useTopBandLayout(band)
+  const onLayout = useRestartScrollAndMeasure(band)
+  const paddingTop = useBelowStatusBar(belowStatusBar)
   return (
-    <Band onLayout={onLayout} style={[style, { paddingTop: insets.top + (belowStatusBar ?? theme.space[2]) }]}>
+    <Band onLayout={onLayout} style={[style, { paddingTop }]}>
       {children}
     </Band>
   )
@@ -148,18 +160,19 @@ export function TopBand({ band, belowStatusBar, style, children }: Readonly<TopB
 
 export type TopBandAreaProps = Omit<ViewProps, "onLayout"> & {
   band: TopBandController
-  /** The space between the status bar and the area's content: its top padding (default none). */
+  /** The space between the status bar and the area's content: its top padding (default `space[2]`, as for `TopBand`). */
   belowStatusBar?: number
 }
 
 /**
  * A top band drawn its own way (a shop's banner, a sign-in hero): measured like `TopBand` and
- * padded below the status bar, with its look left to the caller.
+ * padded below the status bar, with its look left to the caller. Mounting it restarts the band's
+ * scroll offset at 0.
  */
-export function TopBandArea({ band, belowStatusBar = 0, style, ...props }: Readonly<TopBandAreaProps>) {
-  const insets = useSafeAreaInsets()
-  const onLayout = useTopBandLayout(band)
-  return <View {...props} onLayout={onLayout} style={[style, { paddingTop: insets.top + belowStatusBar }]} />
+export function TopBandArea({ band, belowStatusBar, style, ...props }: Readonly<TopBandAreaProps>) {
+  const onLayout = useRestartScrollAndMeasure(band)
+  const paddingTop = useBelowStatusBar(belowStatusBar)
+  return <View {...props} onLayout={onLayout} style={[style, { paddingTop }]} />
 }
 
 const styles = StyleSheet.create({
