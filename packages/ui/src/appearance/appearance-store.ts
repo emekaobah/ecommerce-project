@@ -1,3 +1,5 @@
+import { createKeptValue, type KeptValueStorage } from "../storage/kept-value"
+
 /**
  * The app's appearance (#102): System follows the phone's light or dark setting, Light and Dark
  * hold whatever the phone is set to. A setting of this phone, not of the account, so it outlives
@@ -9,9 +11,8 @@ export type AppearanceChoice = "system" | "light" | "dark"
 export type ColorSchemeChoice = "light" | "dark" | "unspecified"
 
 /** Where the choice is kept. Reads are synchronous so it applies before the first screen draws. */
-export type AppearanceStorage = {
+export type AppearanceStorage = KeptValueStorage & {
   read: (key: string) => string | null
-  write: (key: string, value: string) => Promise<void>
 }
 
 export type AppearanceStore = {
@@ -19,7 +20,10 @@ export type AppearanceStore = {
   subscribe: (listener: () => void) => () => void
   /** Reads the kept choice and applies it; anything missing or unreadable is System. */
   restore: () => void
-  /** Applies the choice at once and keeps it; rejects, with the choice as it was, when the phone can't keep it. */
+  /**
+   * Applies the choice at once and keeps it; rejects when the phone can't keep it, and the choice
+   * goes back to what the phone holds unless another was made after it.
+   */
   choose: (next: AppearanceChoice) => Promise<void>
 }
 
@@ -27,13 +31,13 @@ const KEY = "oja.appearance"
 
 const schemeFor = (choice: AppearanceChoice): ColorSchemeChoice => (choice === "system" ? "unspecified" : choice)
 
-const parse = (stored: string | null): AppearanceChoice => (stored === "light" || stored === "dark" ? stored : "system")
+const parse = (stored: string): AppearanceChoice => (stored === "light" || stored === "dark" ? stored : "system")
 
-function readKept(storage: AppearanceStorage): AppearanceChoice {
+function readKept(storage: AppearanceStorage): string | null {
   try {
-    return parse(storage.read(KEY))
+    return storage.read(KEY)
   } catch {
-    return "system"
+    return null
   }
 }
 
@@ -41,30 +45,14 @@ export function createAppearanceStore({
   storage,
   applyColorScheme,
 }: Readonly<{ storage: AppearanceStorage; applyColorScheme: (scheme: ColorSchemeChoice) => void }>): AppearanceStore {
-  let choice: AppearanceChoice = "system"
-  const listeners = new Set<() => void>()
-  const set = (next: AppearanceChoice) => {
-    choice = next
-    applyColorScheme(schemeFor(next))
-    listeners.forEach((listener) => listener())
-  }
+  const choice = createKeptValue<AppearanceChoice>({ key: KEY, initial: "system", codec: { parse, stringify: (c) => c }, storage })
+  // Every change the app sees, the phone's theme follows, a failed choice going back included.
+  choice.subscribe(() => applyColorScheme(schemeFor(choice.get())))
 
   return {
-    get: () => choice,
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    restore: () => set(readKept(storage)),
-    async choose(next) {
-      const previous = choice
-      set(next)
-      try {
-        await storage.write(KEY, next)
-      } catch (error) {
-        set(previous)
-        throw error
-      }
-    },
+    get: choice.get,
+    subscribe: choice.subscribe,
+    restore: () => choice.load(readKept(storage)),
+    choose: choice.save,
   }
 }

@@ -1,4 +1,4 @@
-import { keptValue } from '@/storage/kept-value';
+import { keptValue } from '@oja/ui';
 
 /**
  * How a new order shows while the app is open (#83): full screen, or as a banner. A setting of
@@ -18,7 +18,7 @@ export const getNewOrderAlertMode = mode.get;
 /** Restores the phone's choice. */
 export const hydrateNewOrderAlertMode = mode.hydrate;
 
-/** Keeps the phone's choice; rejects, with the choice as it was, when the phone can't keep it. */
+/** Keeps the phone's choice; rejects when the phone can't keep it. */
 export const setNewOrderAlertMode = mode.save;
 
 export const useNewOrderAlertMode = mode.use;

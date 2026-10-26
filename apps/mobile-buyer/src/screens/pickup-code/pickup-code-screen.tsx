@@ -42,11 +42,9 @@ export function PickupCodeScreen({ groupId, orderId }: Readonly<{ groupId: strin
   const group = useOrderGroup(userId, groupId);
   const order = group.data?.orders.find((o) => o.id === orderId) ?? null;
 
-  let content: ReactNode;
-  if (group.error && !group.data && isNotFound(group.error)) {
-    content = <NoCode band={band} order={null} groupId={groupId} displayId={null} />;
-  } else if (group.error && !group.data) {
-    content = (
+  // No band to stand on, so it leaves the status bar to the theme.
+  if (group.error && !group.data && !isNotFound(group.error)) {
+    return (
       <ErrorState
         title="Couldn't load your pickup code"
         body="Check your connection and try again. Your order is still held for you."
@@ -55,6 +53,11 @@ export function PickupCodeScreen({ groupId, orderId }: Readonly<{ groupId: strin
         secondaryAction={{ label: 'Back to the order', onPress: () => close(groupId) }}
       />
     );
+  }
+
+  let content: ReactNode;
+  if (group.error && !group.data) {
+    content = <NoCode band={band} order={null} groupId={groupId} displayId={null} />;
   } else if (!group.data) {
     content = <PickupSkeleton band={band} />;
   } else if (!order?.pickup?.code) {

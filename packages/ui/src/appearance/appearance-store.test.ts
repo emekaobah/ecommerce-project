@@ -1,20 +1,25 @@
 import { describe, expect, test } from "bun:test"
 import { createAppearanceStore, type AppearanceStorage, type ColorSchemeChoice } from "./appearance-store"
 
-/** A phone's storage held in a map, which can be made to refuse reads or writes. */
+/** A phone's storage held in a map, which can be made to refuse reads or writes, or to hold a write until told. */
 function phone(stored: Record<string, string> = {}) {
   const kept = new Map(Object.entries(stored))
   const applied: ColorSchemeChoice[] = []
   let failWrites = false
   let failReads = false
+  const held = new Map<string, Promise<void>>()
   const storage: AppearanceStorage = {
     read: (key) => {
       if (failReads) throw new Error("keychain locked")
       return kept.get(key) ?? null
     },
     write: async (key, value) => {
+      await held.get(value)
       if (failWrites) throw new Error("keychain full")
       kept.set(key, value)
+    },
+    remove: async (key) => {
+      kept.delete(key)
     },
   }
   return {
@@ -22,6 +27,17 @@ function phone(stored: Record<string, string> = {}) {
     applied,
     breakWrites: () => (failWrites = true),
     breakReads: () => (failReads = true),
+    /** Holds the phone's write of `value` until it is failed or kept. */
+    holdWrite(value: string) {
+      let release: (error?: Error) => void = () => undefined
+      held.set(
+        value,
+        new Promise<void>((resolve, reject) => {
+          release = (error) => (error ? reject(error) : resolve())
+        }),
+      )
+      return { fail: () => release(new Error("keychain busy")), keep: () => release() }
+    },
     store: () => createAppearanceStore({ storage, applyColorScheme: (scheme) => applied.push(scheme) }),
   }
 }
@@ -89,6 +105,21 @@ describe("choosing an appearance", () => {
     await expect(store.choose("light")).rejects.toThrow("keychain full")
     expect(store.get()).toBe("dark")
     expect(p.applied).toEqual(["dark", "light", "dark"])
+  })
+
+  test("a choice the phone failed to keep doesn't undo one made after it", async () => {
+    const p = phone({ "oja.appearance": "dark" })
+    const store = p.store()
+    store.restore()
+    const light = p.holdWrite("light")
+    const first = store.choose("light")
+    const second = store.choose("system")
+    light.fail()
+    await expect(first).rejects.toThrow("keychain busy")
+    await second
+    expect(store.get()).toBe("system")
+    expect(p.kept.get("oja.appearance")).toBe("system")
+    expect(p.applied).toEqual(["dark", "light", "unspecified"])
   })
 
   test("tells subscribers when the choice changes", async () => {

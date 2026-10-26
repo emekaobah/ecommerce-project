@@ -12,6 +12,7 @@ import {
   TopBandScreen,
   useTheme,
   useTopBand,
+  useTopBandRefreshColors,
   type TopBandController,
 } from '@oja/ui';
 import { router, useIsFocused } from 'expo-router';
@@ -43,6 +44,7 @@ export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const band = useTopBand();
   const focused = useIsFocused();
+  const refreshColors = useTopBandRefreshColors();
   const [department, setDepartment] = useState(ALL);
   const shops = useShops(region.region?.id, department === ALL ? null : department);
 
@@ -89,7 +91,7 @@ export function HomeScreen() {
         ListEmptyComponent={loaded ? <NoShops /> : <Loading />}
         ListFooterComponent={list.length ? <Footer more={shops.hasNextPage} /> : undefined}
         ItemSeparatorComponent={ShelfGap}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.colors.onBand} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} {...refreshColors} />}
         onEndReached={() => {
           if (shops.hasNextPage && !shops.isFetchingNextPage) void shops.fetchNextPage();
         }}

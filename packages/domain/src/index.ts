@@ -236,5 +236,3 @@ export { checkoutRefusalMessage, paymentRefusal, PROMO_CODE_REFUSALS, SHOP_DOESN
 export type { CheckoutRefusalCode, CheckoutRefusalDetails, PaymentShop, PromoCodeRefusal } from "./checkout-refusal"
 export { addressEntryStart, guestSpotName, measuredFrom, spotPin } from "./guest-spot"
 export type { AddressEntryWay, GeocodedPlace, GuestSpot, MeasuredFrom } from "./guest-spot"
-export { topBand, topBandStatusBar } from "./top-band"
-export type { TopBand } from "./top-band"
