@@ -40,6 +40,8 @@ export function ListingGrid({
   const theme = useTheme();
   const columns = useGridColumns();
   const refreshColors = useTopBandRefreshColors();
+  // The spinner takes the band's colours only when it sits on one.
+  const spinnerColors = band ? refreshColors : undefined;
   const data = listings ?? [];
   const grid = (
     <Animated.FlatList
@@ -55,7 +57,7 @@ export function ListingGrid({
       columnWrapperStyle={columns > 1 ? { gap: theme.space[3], paddingHorizontal: theme.space[4] } : undefined}
       refreshControl={
         onRefresh ? (
-          <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} {...(band ? refreshColors : undefined)} />
+          <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} {...spinnerColors} />
         ) : undefined
       }
       ListHeaderComponent={header}
