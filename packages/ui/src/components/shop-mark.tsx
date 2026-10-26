@@ -39,7 +39,7 @@ export function ShopMark({ name, logoUrl, size = "sm" }: Readonly<ShopMarkProps>
           borderRadius: mark.radius,
           borderWidth: edge || (logo ? theme.line.divider : 0),
           borderColor: edge ? theme.colors.bg : theme.colors.line,
-          backgroundColor: logo ? theme.colors.productTile : theme.colors.band,
+          backgroundColor: logo ? theme.colors.paper : theme.colors.band,
         },
       ]}
     >

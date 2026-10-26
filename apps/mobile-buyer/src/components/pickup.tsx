@@ -89,7 +89,7 @@ export function PickupCode({ code }: Readonly<{ code: string }>) {
         accessible
         accessibilityRole="image"
         accessibilityLabel={`QR code of your pickup code, ${spokenDigits(code)}`}
-        style={{ width: side, height: side, padding, borderRadius: theme.radius.xl, backgroundColor: theme.colors.productTile }}>
+        style={{ width: side, height: side, padding, borderRadius: theme.radius.xl, backgroundColor: theme.colors.paper }}>
         {modules.map((row) => (
           <View key={row.key} style={styles.row}>
             {row.cells.map((cell) => (

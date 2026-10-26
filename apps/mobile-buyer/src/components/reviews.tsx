@@ -169,7 +169,7 @@ function SubjectMonogram({ shop, style }: Readonly<{ shop: { name: string; logo?
   const [failed, setFailed] = useState(false);
   if (shop.logo && !failed) {
     return (
-      <View style={[style, { backgroundColor: theme.colors.productTile }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View style={[style, { backgroundColor: theme.colors.paper }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <Image source={{ uri: shop.logo }} contentFit="cover" style={styles.fill} onError={() => setFailed(true)} />
       </View>
     );
