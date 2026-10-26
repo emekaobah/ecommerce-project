@@ -1,11 +1,12 @@
 import type { ReactNode } from "react"
-import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native"
+import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native"
 import { useTheme } from "../theme"
 import { AdirePattern } from "./adire-pattern"
 
 export type BandProps = {
   children: ReactNode
   style?: StyleProp<ViewStyle>
+  onLayout?: (event: LayoutChangeEvent) => void
 }
 
 /**
@@ -13,10 +14,11 @@ export type BandProps = {
  * pattern fading in from the right behind the text, straight edges, and nothing overlapping it.
  * Its text takes the `onBand` tone.
  */
-export function Band({ children, style }: Readonly<BandProps>) {
+export function Band({ children, style, onLayout }: Readonly<BandProps>) {
   const theme = useTheme()
   return (
     <View
+      onLayout={onLayout}
       style={[
         styles.band,
         {
