@@ -777,21 +777,20 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .tiles4 .white{background:#FFFFFF; box-shadow:inset 0 0 0 1px #E4E6EE}
 .tiles4 .white img{object-fit:contain; padding:10%; box-sizing:border-box}
 .tiles4 .white.photo img{padding:8%; border-radius:20px}
-.tiles4 .white.dk{box-shadow:none}
+.tiles4 .charcoal{background:#26262A}
+.tiles4 .charcoal img{object-fit:contain; padding:10%; box-sizing:border-box}
+.tiles4 .charcoal.photo img{padding:8%; border-radius:20px}
 
 /* app-wide */
 .B{--p-ptile:#FFFFFF; --p-tileline:#E4E6EE}
-.D{--p-ptile:#FFFFFF; --p-tileline:transparent}
+.D{--p-ptile:#26262A; --p-tileline:transparent}
 .B .pcard .ph, .B .rc .ph, .B .ln .ph, .B .ag .ph, .B .thumbs span, .B .hero, .B .lrow > .ph, .B .pick .ph, .B .cat .ph, .B .addph span{background:var(--p-ptile); box-shadow:inset 0 0 0 1px var(--p-tileline)}
 .B .pcard .ph img, .B .rc .ph img, .B .ln .ph img, .B .ag .ph img, .B .thumbs span img, .B .lrow > .ph img, .B .pick .ph img, .B .cat .ph img{object-fit:contain; padding:10%; box-sizing:border-box}
 .B .hero img{object-fit:contain; padding:10% 18%; box-sizing:border-box}
 .B .pcard.off .ph img{opacity:.55; filter:grayscale(.7)}
 .D .pcard .ph, .D .rc .ph, .D .ln .ph, .D .hero, .D .thumbs span, .D .lrow > .ph{background:var(--p-ptile)}
 .B .hero{border-radius:0 0 24px 24px}
-/* Dark: one veil of the page colour (#111113 at 16%, the photoVeil token) over a product tile and its photo together, so white lands at about #D8D8DC and a pack shot's white still meets the tile (decided 2026-10-26 in #102). Buttons, badges and dots sit above it, undimmed. Not the pickup QR. */
-.D .pcard .ph, .D .rc .ph, .D .hc .ph, .D .ln .ph, .D .ag .ph, .D .thumbs span, .D .hero, .D .lrow > .ph, .D .pick .ph, .D .rline .ph, .D .tkrow .ph, .tiles4 .white.dk{position:relative}
-.D .pcard .ph::after, .D .rc .ph::after, .D .hc .ph::after, .D .ln .ph::after, .D .ag .ph::after, .D .thumbs span::after, .D .hero::after, .D .lrow > .ph::after, .D .pick .ph::after, .D .rline .ph::after, .D .tkrow .ph::after, .tiles4 .white.dk::after{content:""; position:absolute; inset:0; background:rgba(17,17,19,.16); border-radius:inherit; pointer-events:none; z-index:1}
-.D .ph > :not(img), .D .hero > :not(img){z-index:2}
+/* Dark: product photos are transparent cut-outs straight on the charcoal tile, with no veil (#115). The pickup QR stays black on white. */
 
 .flow-h + .flow-h{margin-top:-10px}
 
@@ -1212,7 +1211,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <li>Every full-screen surface is indigo or white. Green, ember and red stay at chip, pill and badge size; red also marks destructive buttons.</li>
         <li>One primary indigo button per screen, carrying the price when money moves.</li>
         <li>Status chips always pair a symbol and a label with colour.</li>
-        <li>Photos sit on white tiles, contained and never cropped. Vendors get a photo standard: square, plain background.</li>
+        <li>Photos are cut-outs on the theme's tile (white, charcoal in dark), contained and never cropped. Vendors get a photo standard: square, plain background.</li>
         <li>Errors say what happened and what to do next, in the shopper's words.</li>
       </ul>
     </div>
@@ -1342,8 +1341,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <tr><td><code>bgGrouped</code></td><td>#F7F8FC</td><td>#111113</td><td>Page behind grouped cards</td></tr>
         <tr><td><code>raised</code></td><td>#FFFFFF</td><td>#1C1C1F</td><td>Cards, inputs, sheets, tab bar</td></tr>
         <tr><td><code>tile</code></td><td>#EEF0F7</td><td>#26262A</td><td>Mist: secondary buttons, fact boxes, chips, skeletons</td></tr>
-        <tr><td><code>productTile</code></td><td>#FFFFFF</td><td>#FFFFFF</td><td>Behind product photos</td></tr>
-        <tr><td><code>photoVeil</code></td><td>none</td><td>#111113 at 16%</td><td>Over a product tile and its photo together (<code>PhotoTile</code>), so white reads #D8D8DC in dark; buttons and badges above it</td></tr>
+        <tr><td><code>productTile</code></td><td>#FFFFFF</td><td>#26262A</td><td>Behind product photos (<code>PhotoTile</code>), which are transparent cut-outs</td></tr>
+        <tr><td><code>paper</code></td><td>#FFFFFF</td><td>#FFFFFF</td><td>Behind the pickup QR and shop logos</td></tr>
         <tr><td><code>productTileLine</code></td><td>#E4E6EE</td><td>none</td><td>Inset edge of a product tile</td></tr>
         <tr><td><code>line</code></td><td>#DDE1EE</td><td>#333338</td><td>Dividers, card edges</td></tr>
         <tr><td><code>control</code></td><td>#80869E</td><td>#7A7A83</td><td>Input and checkbox outlines (3:1)</td></tr>
@@ -1480,8 +1479,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 <section id="images">
   <div class="stack col">
     <span class="eyebrow">Product images</span>
-    <h2>Built for the images we will actually get</h2>
-    <p>Product images reach Oja three ways. Catalogue imports bring commercial pack shots, almost always on pure white. Some arrive as cutouts with transparent backgrounds. Open Food Facts and vendors' quick-add photos are real photos with real backgrounds. The import copies images as they are; background removal is planned in the design doc but not built. So the tile has to look right with all three, untouched.</p>
+    <h2>Cut-outs on the theme's tile</h2>
+    <p>Product photos are transparent cut-outs, contained on a white tile in Light and a charcoal tile in Dark, so each one sits straight on its tile's colour in both themes. The demo catalogue's photos were cut out once, by hand on a dev machine (#115). Real vendor uploads aren't processed: the import copies images as they are.</p>
   </div>
   <div class="imgcmp">
     <div class="imgrow">
@@ -1489,7 +1488,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="tiles4 lightbg">
         <span class="t mist cover"><img src="img/cat-rice.jpg" alt="Rice pack shot on white"></span>
         <span class="t mist cover"><img src="img/cat-palmoil.jpg" alt="Palm oil pack shot on white"></span>
-        <span class="t mist cover"><img src="img/cut-powerbank.png" alt="Power bank cutout"></span>
+        <span class="t mist cover"><img src="img/cat-powerbank.webp" alt="Power bank cutout"></span>
         <span class="t mist cover"><img src="img/ugc-garri.jpg" alt="Vendor photo of garri on a counter"></span>
       </div>
     </div>
@@ -1498,36 +1497,43 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="tiles4 lightbg">
         <span class="t mist contain"><img src="img/cat-rice.jpg" alt=""></span>
         <span class="t mist contain"><img src="img/cat-palmoil.jpg" alt=""></span>
-        <span class="t mist contain"><img src="img/cut-powerbank.png" alt=""></span>
+        <span class="t mist contain"><img src="img/cat-powerbank.webp" alt=""></span>
         <span class="t mist contain"><img src="img/ugc-garri.jpg" alt=""></span>
       </div>
     </div>
     <div class="imgrow">
-      <div class="imglab"><b>White tile, contained with a margin, no outline</b><span>White pack shots disappear into the tile, so every source looks consistent. Cutouts sit on white, and vendor photos keep their whole frame. Nothing needs processing.</span><span class="res pass">Chosen</span></div>
+      <div class="imglab"><b>Light: white tile, contained with a margin, no outline</b><span>Cut-outs sit on white, so the product itself is the shape. Vendor photos keep their whole frame.</span><span class="res pass">Chosen</span></div>
       <div class="tiles4 lightbg">
-        <span class="t white"><img src="img/cat-rice.jpg" alt=""></span>
-        <span class="t white"><img src="img/cat-palmoil.jpg" alt=""></span>
-        <span class="t white"><img src="img/cut-powerbank.png" alt=""></span>
+        <span class="t white"><img src="img/cat-rice.webp" alt=""></span>
+        <span class="t white"><img src="img/cat-palmoil.webp" alt=""></span>
+        <span class="t white"><img src="img/cat-powerbank.webp" alt=""></span>
         <span class="t white photo"><img src="img/ugc-garri.jpg" alt=""></span>
       </div>
     </div>
     <div class="imgrow">
-      <div class="imglab"><b>The same, in dark mode</b><span>The white tile is kept in dark mode and dimmed with its photo by one veil, so white reads about #D8D8DC beside the #111113 page instead of glaring, and pack shots still blend into the tile. A charcoal tile would turn every white pack shot into a glowing box. (Decided 2026-10-26 in #102; tiles were full white before.)</span><span class="res pass">Chosen</span></div>
+      <div class="imglab"><b>Dark: charcoal tile, the same rules</b><span>The tile is the dark theme's <code>#26262A</code> and cut-outs sit straight on it, with no veil. (Decided 2026-10-26 in #115, replacing #102's interim veil, which dimmed a white tile to about #D8D8DC and still read as a light block.)</span><span class="res pass">Chosen</span></div>
       <div class="tiles4 darkbg">
-        <span class="t white dk"><img src="img/cat-rice.jpg" alt=""></span>
-        <span class="t white dk"><img src="img/cat-palmoil.jpg" alt=""></span>
-        <span class="t white dk"><img src="img/cut-powerbank.png" alt=""></span>
-        <span class="t white dk photo"><img src="img/ugc-garri.jpg" alt=""></span>
+        <span class="t charcoal"><img src="img/cat-rice.webp" alt=""></span>
+        <span class="t charcoal"><img src="img/cat-palmoil.webp" alt=""></span>
+        <span class="t charcoal"><img src="img/cat-powerbank.webp" alt=""></span>
+        <span class="t charcoal photo"><img src="img/ugc-garri.jpg" alt=""></span>
+      </div>
+    </div>
+    <div class="imgrow">
+      <div class="imglab"><b>Dark: an opaque photo</b><span>A photo that isn't a cut-out, such as a future vendor upload on white, shows as a white rectangle inside the charcoal tile. Accepted in #115; revisit when real uploads arrive, choosing between a per-photo transparency flag and a background-stripping service.</span><span class="res impl">Trade-off</span></div>
+      <div class="tiles4 darkbg">
+        <span class="t charcoal"><img src="img/cat-rice.jpg" alt="Rice pack shot on white, on a charcoal tile"></span>
+        <span class="t charcoal"><img src="img/cat-palmoil.jpg" alt="Palm oil pack shot on white, on a charcoal tile"></span>
       </div>
     </div>
   </div>
   <div class="sysc">
     <h3>Tile rules</h3>
     <ul>
-      <li>Every product tile is white with no outline, dimmed in dark together with its photo (white reads about #D8D8DC). Spacing separates the tiles (12 between columns, 16 between rows), and the price and name below anchor each one. The image is contained with a margin of about 10%, never cropped to fill.</li>
-      <li>On a white page, a white pack shot's tile edge disappears, so the product itself is the shape. The add button keeps a 44pt hit area in code.</li>
-      <li>Vendor and Open Food Facts photos show whole, framed by the tile. That makes their mixed backgrounds look intended. The quick-add tip ("square, plain background, whole product in view") nudges new photos towards the pack-shot look.</li>
-      <li>If background removal is built later, cutouts drop onto the same white tile and nothing else changes.</li>
+      <li>Every product tile is white in Light and charcoal (<code>#26262A</code>) in Dark, with no outline and no veil. Spacing separates the tiles (12 between columns, 16 between rows), and the price and name below anchor each one. The image is contained with a margin of about 10%, never cropped to fill.</li>
+      <li>Buttons, badges and carousel dots sit over the photo on the same tile. The add button keeps a 44pt hit area in code.</li>
+      <li>Vendor and Open Food Facts photos show whole, framed by the tile. The quick-add tip ("square, plain background, whole product in view") nudges new photos towards the pack-shot look.</li>
+      <li>The pickup QR stays black on white, and shop logos and banners are unchanged, in both themes.</li>
     </ul>
   </div>
 </section>
@@ -1759,7 +1765,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="sheet">
           <div class="cchips"><span class="fchip on">All</span><span class="fchip">Foodstuff</span><span class="fchip">Fresh food</span><span class="fchip">Fashion</span><span class="fchip">Gadgets</span></div>
           <div class="sec"><h5>Near you</h5><a>Nearest first</a></div>
-          <div class="lrow gh"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦8,550 <s>₦9,500</s></span><span class="n">Red Palm Oil 3L</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div></div><div class="divider"></div><div class="lrow gh"><span class="mono">AH</span><div><b>Adire House</b><small><span class="chip c-mute"><svg class="ico"><use href="#i-clock"/></svg>Closed · opens 10am Mon</span> · 4 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-kaftan.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦28,000</span><span class="n">Adire Kaftan</span></div></div><div class="divider"></div><div class="lrow gh"><span class="mono logo"><img src="img/logo-igh.svg" alt=""></span><div><b>Ikeja Gadget Hub</b><small><span class="stat"><i></i>Open</span> · closes 6pm · 10 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cut-powerbank.png" alt=""><span class="dealb">10% off at this shop</span><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦24,000</span><span class="n">Power Bank 20,000mAh</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-earbuds.jpg" alt=""><span class="dealb">10% off at this shop</span><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦18,500</span><span class="n">Wireless Earbuds</span></div></div>
+          <div class="lrow gh"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-rice.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦8,550 <s>₦9,500</s></span><span class="n">Red Palm Oil 3L</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div></div><div class="divider"></div><div class="lrow gh"><span class="mono">AH</span><div><b>Adire House</b><small><span class="chip c-mute"><svg class="ico"><use href="#i-clock"/></svg>Closed · opens 10am Mon</span> · 4 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-kaftan.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦28,000</span><span class="n">Adire Kaftan</span></div></div><div class="divider"></div><div class="lrow gh"><span class="mono logo"><img src="img/logo-igh.svg" alt=""></span><div><b>Ikeja Gadget Hub</b><small><span class="stat"><i></i>Open</span> · closes 6pm · 10 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-powerbank.webp" alt=""><span class="dealb">10% off at this shop</span><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦24,000</span><span class="n">Power Bank 20,000mAh</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-earbuds.webp" alt=""><span class="dealb">10% off at this shop</span><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦18,500</span><span class="n">Wireless Earbuds</span></div></div>
           <div class="endnote">That's every shop near 14 Bode Thomas St.<br><b>Change address</b></div>
         </div>
         <div class="fold"><span>First screen ends here</span></div>
@@ -1812,7 +1818,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="sheet">
           <div class="cchips"><span class="fchip on">All</span><span class="fchip">Foodstuff</span><span class="fchip">Fresh food</span><span class="fchip">Fashion</span><span class="fchip">Gadgets</span></div>
           <div class="sec"><h5>Near you</h5><a>Nearest first</a></div>
-          <div class="lrow gh"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦8,550 <s>₦9,500</s></span><span class="n">Red Palm Oil 3L</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div></div>
+          <div class="lrow gh"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div><div class="rrail"><div class="rc"><div class="ph"><img class="img" src="img/cat-rice.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦8,550 <s>₦9,500</s></span><span class="n">Red Palm Oil 3L</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div></div>
         </div>
       </div>
       <div class="tabbar"><span class="on"><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
@@ -1826,15 +1832,15 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="lbl2" style="padding-top:2px">2 shops · 5 products</div>
         <div class="lrow" style="border:0;padding-bottom:4px"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small><span class="stat"><i></i>Open</span> · closes 7pm · 1 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div>
         <div class="rrail" style="display:flex;gap:8px;padding:8px 16px 12px;overflow:hidden">
-          <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦14,500</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
-          <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦5,200</span><span style="font-size:11.5px;font-weight:600">Ijebu Garri 4kg</span></div>
-          <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-beans.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦6,800</span><span style="font-size:11.5px;font-weight:600">Honey Beans 2kg</span></div>
+          <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦14,500</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
+          <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-garri.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦5,200</span><span style="font-size:11.5px;font-weight:600">Ijebu Garri 4kg</span></div>
+          <div class="rc" style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-beans.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦6,800</span><span style="font-size:11.5px;font-weight:600">Honey Beans 2kg</span></div>
         </div>
         <div style="height:8px;background:var(--p-tile)"></div>
         <div class="lrow" style="border:0;padding-bottom:4px"><span class="mono">MN</span><div><b>Mama Ngozi Provisions</b><small><span class="stat"><i></i>Open</span> · closes 8pm · 6 km</small></div><span class="chev">Shop<svg class="ico"><use href="#i-fwd"/></svg></span></div>
         <div style="display:flex;gap:8px;padding:8px 16px 12px;overflow:hidden">
-          <div style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦13,900</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
-          <div style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦9,200</span><span style="font-size:11.5px;font-weight:600">Red Palm Oil 3L</span></div>
+          <div style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-rice.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦13,900</span><span style="font-size:11.5px;font-weight:600">Ofada Rice 5kg</span></div>
+          <div style="flex:none;width:118px;display:grid;gap:4px"><div class="ph" style="height:118px;border-radius:16px;overflow:hidden"><img class="img" src="img/cat-palmoil.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span style="font-weight:800" class="num">₦9,200</span><span style="font-size:11.5px;font-weight:600">Red Palm Oil 3L</span></div>
         </div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span class="on"><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
@@ -1846,10 +1852,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="subcats"><span class="fchip on">All</span><span class="fchip">Rice and grains</span><span class="fchip">Beans</span><span class="fchip">Oils</span><span class="fchip">Garri</span></div>
         <div class="sortrow">From 6 shops near you, nearest first</div>
         <div class="grid">
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span><span class="s">Iya Bisi · 1 km</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/cat-rice.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span><span class="s">Iya Bisi · 1 km</span></div>
           <div class="pcard"><div class="ph"><img class="img" src="img/ugc-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span><span class="s">Iya Bisi · 1 km</span></div>
-          <div class="pcard off"><div class="ph"><img class="img" src="img/cat-beans.jpg" alt=""><span class="chip c-mute closedtag">Sold out</span></div><span class="p num">₦6,800</span><span class="n">Honey Beans 2kg</span><span class="s">Iya Bisi · 1 km</span></div>
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦9,200</span><span class="n">Red Palm Oil 3L</span><span class="s">Mama Ngozi · 6 km</span></div>
+          <div class="pcard off"><div class="ph"><img class="img" src="img/cat-beans.webp" alt=""><span class="chip c-mute closedtag">Sold out</span></div><span class="p num">₦6,800</span><span class="n">Honey Beans 2kg</span><span class="s">Iya Bisi · 1 km</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/cat-palmoil.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦9,200</span><span class="n">Red Palm Oil 3L</span><span class="s">Mama Ngozi · 6 km</span></div>
         </div>
       </div>
       <div class="tabbar"><span class="on"><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
@@ -1866,8 +1872,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
         <div class="tabs"><span class="on">Products</span><span>Reviews</span></div>
         <div class="grid" style="padding-top:12px">
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div>
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦3,500</span><span class="n">Fresh Tomatoes 1kg</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/cat-rice.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/cat-tomatoes.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦3,500</span><span class="n">Fresh Tomatoes 1kg</span></div>
         </div>
       </div>
     </div></div><figcaption class="ph-cap"><b>Shop.</b> The banner and logo the shop uploaded in the vendor panel; without them, the indigo pattern and the monogram. Then the open state, rating, distance and the shop's own description. The indigo behind the status bar and the banner behave as Home's band does, on both the Products and Reviews tabs: indigo when pulled down, and once the banner has scrolled away the page-colour strip and the theme's status bar text.<span class="route">seller/[id].tsx</span></figcaption></figure>
@@ -1879,7 +1885,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   <div class="phones">
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb" style="background:var(--p-tile)"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="hero" style="height:228px"><img class="img" src="img/cat-rice.jpg" alt=""><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div></div>
+        <div class="hero" style="height:228px"><img class="img" src="img/cat-rice.webp" alt=""><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div></div>
         <div class="pd">
           <span class="shopline"><span class="av">IB</span>Iya Bisi Foodstuff · ★ 4.8</span>
           <h4>Ofada Rice, 5kg</h4>
@@ -1895,7 +1901,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     </div></div><figcaption class="ph-cap"><b>Product.</b> One shop's offer, first screen. Quantity sits in the sticky bar beside Add, and the button's price follows it (2 → ₦29,000). The whole page is in "Product, full scroll" below.<span class="route">product/[id].tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb" style="background:var(--p-tile)"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="hero" style="height:228px"><img class="img" src="img/cat-rice.jpg" alt=""><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div></div>
+        <div class="hero" style="height:228px"><img class="img" src="img/cat-rice.webp" alt=""><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div></div>
         <div class="pd">
           <span class="shopline"><span class="av">IB</span>Iya Bisi Foodstuff · ★ 4.8</span>
           <h4>Ofada Rice, 5kg</h4>
@@ -1911,7 +1917,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
     </div></div><figcaption class="ph-cap"><b>Product, in your cart.</b> After adding, the bar shows the quantity already in the cart and changes it there, so a second tap never adds a duplicate line. "View cart" goes straight to it.<span class="route">product/[id].tsx</span></figcaption></figure>
     <figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb" style="background:var(--p-tile)"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="hero" style="height:228px"><img class="img" src="img/cat-beans.jpg" alt="" style="opacity:.55;filter:grayscale(.7)"><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div></div>
+        <div class="hero" style="height:228px"><img class="img" src="img/cat-beans.webp" alt="" style="opacity:.55;filter:grayscale(.7)"><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div></div>
         <div class="pd">
           <span class="shopline"><span class="av">IB</span>Iya Bisi Foodstuff · ★ 4.8</span>
           <h4>Honey Beans, 2kg</h4>
@@ -1937,10 +1943,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="bigt">Saved</div>
         <div class="grid">
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-rice.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span><span class="s">Iya Bisi · open</span></div>
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-earbuds.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦18,500</span><span class="n">Wireless Earbuds</span><span class="s">Ikeja Gadget Hub · open</span></div>
-          <div class="pcard off"><div class="ph"><img class="img" src="img/cat-kaftan.jpg" alt="" style="object-position:top"><span class="chip c-mute closedtag"><svg class="ico"><use href="#i-clock"/></svg>Closed</span></div><span class="p num">₦28,000</span><span class="n">Adire Kaftan</span><span class="s">Adire House · closed until Tue 28 Oct</span></div>
-          <div class="pcard"><div class="ph"><img class="img" src="img/cat-powerbank.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦24,000</span><span class="n">Power Bank 20,000mAh</span><span class="s">Ikeja Gadget Hub · open</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/cat-rice.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦14,500</span><span class="n">Ofada Rice 5kg</span><span class="s">Iya Bisi · open</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/cat-earbuds.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦18,500</span><span class="n">Wireless Earbuds</span><span class="s">Ikeja Gadget Hub · open</span></div>
+          <div class="pcard off"><div class="ph"><img class="img" src="img/cat-kaftan.webp" alt="" style="object-position:top"><span class="chip c-mute closedtag"><svg class="ico"><use href="#i-clock"/></svg>Closed</span></div><span class="p num">₦28,000</span><span class="n">Adire Kaftan</span><span class="s">Adire House · closed until Tue 28 Oct</span></div>
+          <div class="pcard"><div class="ph"><img class="img" src="img/cat-powerbank.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦24,000</span><span class="n">Power Bank 20,000mAh</span><span class="s">Ikeja Gadget Hub · open</span></div>
         </div>
       </div>
       <div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span><svg class="ico"><use href="#i-box"/></svg>Orders</span><span class="on"><svg class="ico"><use href="#i-user"/></svg>Account</span></div>
@@ -1952,7 +1958,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   <div class="homegrid">
     <figure class="ph-wrap"><div class="phone B tall"><div class="scr"><div class="sb" style="background:var(--p-tile)"><span>9:41</span><span class="dots"><i></i><i></i></span></div>
       <div class="body">
-        <div class="hero" style="height:250px"><img class="img" src="img/cat-rice.jpg" alt=""><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div>
+        <div class="hero" style="height:250px"><img class="img" src="img/cat-rice.webp" alt=""><div class="tb"><span class="round"><svg class="ico"><use href="#i-back"/></svg></span><span class="round"><svg class="ico"><use href="#i-heart"/></svg></span></div>
           <div class="gdots" aria-label="Photo 1 of 3"><i class="on"></i><i></i><i></i></div></div>
         <div class="pd">
           <span class="shopline"><span class="av">IB</span>Iya Bisi Foodstuff · ★ 4.8 (212)</span>
@@ -1975,7 +1981,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         </div>
         <div class="psec"><small class="credit">Product information from <a class="lnk">Open Food Facts</a> (ODbL)</small></div>
         <div class="psec" style="padding-right:0"><h5>More from Iya Bisi Foodstuff</h5>
-          <div class="rrail" style="padding-left:0"><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-beans.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦6,800</span><span class="n">Honey Beans 2kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦9,200</span><span class="n">Red Palm Oil 3L</span></div></div>
+          <div class="rrail" style="padding-left:0"><div class="rc"><div class="ph"><img class="img" src="img/cat-garri.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦5,200</span><span class="n">Ijebu Garri 4kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-beans.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦6,800</span><span class="n">Honey Beans 2kg</span></div><div class="rc"><div class="ph"><img class="img" src="img/cat-palmoil.webp" alt=""><span class="add"><svg class="ico"><use href="#i-plus"/></svg></span></div><span class="p num">₦9,200</span><span class="n">Red Palm Oil 3L</span></div></div>
         </div>
         <div class="fold"><span>First screen ends here</span></div>
       </div>
@@ -2018,16 +2024,16 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="card2">
           <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Open · closes 7pm</small></div></div>
           <div class="lines">
-            <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦14,500</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
-            <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small class="num">₦5,200</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
-            <div class="ln so"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small><span class="chip c-mute">Sold out</span></small><div class="soact"><span>Remove</span><span>Save for later</span></div></div><b class="num" style="font-size:13px;color:var(--p-muted)">₦6,800</b></div>
+            <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.webp" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦14,500</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
+            <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.webp" alt=""></span><div><b>Ijebu Garri 4kg</b><small class="num">₦5,200</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
+            <div class="ln so"><span class="ph"><img class="img" src="img/cat-beans.webp" alt=""></span><div><b>Honey Beans 2kg</b><small><span class="chip c-mute">Sold out</span></small><div class="soact"><span>Remove</span><span>Save for later</span></div></div><b class="num" style="font-size:13px;color:var(--p-muted)">₦6,800</b></div>
           </div>
           <div class="shopsum"><div><b>Subtotal</b><small>3 items + delivery</small></div><div class="r"><b class="num">₦26,500</b><span class="lnk">Checkout this shop</span></div></div>
         </div>
         <div class="card2">
           <div class="hd"><span class="mono">AH</span><div><b>Adire House</b><small>Closed · opens 10am Mon · prepared then</small></div></div>
           <div class="lines">
-            <div class="ln"><span class="ph"><img class="img" src="img/cat-kaftan.jpg" alt="" style="object-position:top"></span><div><b>Adire Kaftan · M</b><small class="num">₦28,000</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
+            <div class="ln"><span class="ph"><img class="img" src="img/cat-kaftan.webp" alt="" style="object-position:top"></span><div><b>Adire Kaftan · M</b><small class="num">₦28,000</small></div><span class="step"><i><svg class="ico"><use href="#i-minus"/></svg></i><b>1</b><i><svg class="ico"><use href="#i-plus"/></svg></i></span></div>
           </div>
           <div class="shopsum"><div><b>Subtotal</b><small>1 item + delivery</small></div><div class="r"><b class="num">₦28,000</b><span class="lnk">Checkout this shop</span></div></div>
         </div>
@@ -2113,7 +2119,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="grab"></span>
           <h4>Some items changed</h4>
           <p>Nothing has been charged. Since you added them:</p>
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small>Sold out · removed</small></div></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.webp" alt=""></span><div><b>Ijebu Garri 4kg</b><small>Sold out · removed</small></div></div>
           <div class="sumrow total"><span>New total</span><b class="num">₦44,400</b></div>
           <span class="btn pri addall"><span>Update and pay</span><span class="num">₦44,400</span></span>
           <span class="btn sec">Back to cart</span>
@@ -2159,17 +2165,17 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="sec"><h5>In progress</h5></div>
         <div class="ocard">
           <div class="t"><div><b>2 shops</b><small>Today · 4 items · OJ-2410 · ₦49,600</small></div><svg class="ico"><use href="#i-fwd"/></svg></div>
-          <div class="thumbs"><span><img class="img" src="img/cat-rice.jpg" alt=""></span><span><img class="img" src="img/cat-garri.jpg" alt=""></span><span><img class="img" src="img/cat-kaftan.jpg" alt="" style="object-position:top"></span></div>
+          <div class="thumbs"><span><img class="img" src="img/cat-rice.webp" alt=""></span><span><img class="img" src="img/cat-garri.webp" alt=""></span><span><img class="img" src="img/cat-kaftan.webp" alt="" style="object-position:top"></span></div>
           <div class="st"><span class="chip c-ind"><svg class="ico"><use href="#i-box"/></svg>Iya Bisi · packed</span><span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>Adire House · opens Mon</span></div>
         </div>
         <div class="ocard">
           <div class="t"><div><b>Ikeja Gadget Hub</b><small>Sat 18 Oct · 1 item · OJ-2398 · ₦24,000</small></div><svg class="ico"><use href="#i-fwd"/></svg></div>
-          <div class="thumbs"><span><img class="img" src="img/cat-powerbank.jpg" alt=""></span></div>
+          <div class="thumbs"><span><img class="img" src="img/cat-powerbank.webp" alt=""></span></div>
           <div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-store"/></svg>Ready for pickup</span></div>
         </div>
         <div class="ocard">
           <div class="t"><div><b>Iya Bisi Foodstuff</b><small>Thu 2 Oct · 3 items · ₦24,800</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div>
-          <div class="thumbs"><span><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span></div>
+          <div class="thumbs"><span><img class="img" src="img/cat-tomatoes.webp" alt=""></span><span><img class="img" src="img/cat-beans.webp" alt=""></span><span><img class="img" src="img/cat-palmoil.webp" alt=""></span></div>
           <div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund delayed · add your bank</span></div>
         </div>
       </div>
@@ -2190,7 +2196,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           </div>
           <div class="card2">
             <div class="hd"><span class="mono">AH</span><div><b>Adire House</b><small>Prepared when it opens Mon 10am</small></div><span class="end chip c-new"><svg class="ico"><use href="#i-clock"/></svg>Waiting</span></div>
-            <div class="ln"><span class="ph"><img class="img" src="img/cat-kaftan.jpg" alt="" style="object-position:top"></span><div><b>Adire Kaftan · M</b><small>Arrives Wed 29 Oct</small></div><span class="pr num">₦28,000</span></div>
+            <div class="ln"><span class="ph"><img class="img" src="img/cat-kaftan.webp" alt="" style="object-position:top"></span><div><b>Adire Kaftan · M</b><small>Arrives Wed 29 Oct</small></div><span class="pr num">₦28,000</span></div>
           </div>
         </div>
       </div>
@@ -2200,7 +2206,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>OJ-2301</b></span><span style="font-size:11.5px;font-weight:700;color:var(--p-accent)">Receipt</span></div>
         <div class="card2">
           <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Delivered Thu 2 Oct</small></div><span class="end chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div>
-          <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:13px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:13px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:13px">₦9,200</b></div></div>
+          <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.webp" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:13px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.webp" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:13px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.webp" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:13px">₦9,200</b></div></div>
           <div class="sumrow"><span>Items</span><b class="num">₦23,000</b></div><div class="sumrow"><span>Delivery</span><b class="num">₦1,800</b></div><div class="sumrow total"><span>Paid</span><b class="num">₦24,800</b></div><small class="lnote">Paystack ref T482913660</small>
           <div class="act2"><span class="btn pri"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span><span class="btn sec"><svg class="ico"><use href="#i-star"/></svg>Write a review</span></div>
         </div>
@@ -2211,7 +2217,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="navh between"><span style="display:flex;gap:8px;align-items:center"><svg class="ico"><use href="#i-back"/></svg><b>OJ-2301</b></span><span style="font-size:11.5px;font-weight:700;color:var(--p-accent)">Receipt</span></div>
         <div class="card2">
           <div class="hd"><span class="mono">IB</span><div><b>Iya Bisi Foodstuff</b><small>Delivered Thu 2 Oct</small></div><span class="end chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div>
-          <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:13px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:13px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:13px">₦9,200</b></div></div>
+          <div class="lines"><div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.webp" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small></div><b class="num" style="font-size:13px">₦7,000</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-beans.webp" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num" style="font-size:13px">₦6,800</b></div><div class="ln"><span class="ph"><img class="img" src="img/cat-palmoil.webp" alt=""></span><div><b>Red Palm Oil 3L</b><small>× 1</small></div><b class="num" style="font-size:13px">₦9,200</b></div></div>
           <div class="sumrow"><span>Items</span><b class="num">₦23,000</b></div><div class="sumrow"><span>Delivery</span><b class="num">₦1,800</b></div><div class="sumrow total"><span>Paid</span><b class="num">₦24,800</b></div><small class="lnote">Paystack ref T482913660</small>
           <div class="act2"><span class="btn pri"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span><span class="btn sec"><svg class="ico"><use href="#i-star"/></svg>Write a review</span></div>
         </div>
@@ -2220,9 +2226,9 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span class="grab"></span>
           <h4>Order again from Iya Bisi Foodstuff</h4>
           <small class="rsub"><span class="stat"><i></i>Open</span> · closes 7pm · 1 km from 14 Bode Thomas St</small>
-          <div class="rline"><span class="rcb on"><svg class="ico"><use href="#i-check"/></svg></span><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small><span class="rnote">Now ₦3,800 each, was ₦3,500</span></div><b class="num">₦7,600</b></div>
-          <div class="rline"><span class="rcb on"><svg class="ico"><use href="#i-check"/></svg></span><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num">₦6,800</b></div>
-          <div class="rline off"><span class="rcb"></span><span class="ph"><img class="img" src="img/cat-palmoil.jpg" alt=""></span><div><b>Red Palm Oil 3L</b><small>Not available now</small></div><b class="num">—</b></div>
+          <div class="rline"><span class="rcb on"><svg class="ico"><use href="#i-check"/></svg></span><span class="ph"><img class="img" src="img/cat-tomatoes.webp" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>× 2</small><span class="rnote">Now ₦3,800 each, was ₦3,500</span></div><b class="num">₦7,600</b></div>
+          <div class="rline"><span class="rcb on"><svg class="ico"><use href="#i-check"/></svg></span><span class="ph"><img class="img" src="img/cat-beans.webp" alt=""></span><div><b>Honey Beans 2kg</b><small>× 1</small></div><b class="num">₦6,800</b></div>
+          <div class="rline off"><span class="rcb"></span><span class="ph"><img class="img" src="img/cat-palmoil.webp" alt=""></span><div><b>Red Palm Oil 3L</b><small>Not available now</small></div><b class="num">—</b></div>
           <span class="btn pri addall"><span>Add 3 items to cart</span><span class="num">₦14,400</span></span>
         </div>
       </div>
@@ -2271,7 +2277,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-x"/></svg><b>Review</b></div>
         <div class="pad">
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Iya Bisi Foodstuff · delivered Thu</small></div></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.webp" alt=""></span><div><b>Ofada Rice 5kg</b><small>Iya Bisi Foodstuff · delivered Thu</small></div></div>
           <div class="bigstars" style="padding:8px 0 2px"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></div>
           <p style="margin:0;text-align:center;font-size:11.5px;color:var(--p-muted);font-weight:700">Good</p>
           <div class="ta">Clean rice, no stones. The rider called ahead, which helped.</div>
@@ -2292,28 +2298,28 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="sec"><h5>In progress</h5></div>
         <div class="ocard">
           <div class="t"><div><b>2 shops</b><small>Today · 4 items · OJ-2410</small></div><b class="num" style="font-size:13px">₦49,600</b></div>
-          <div class="thumbs"><span><img class="img" src="img/cat-rice.jpg" alt=""></span><span><img class="img" src="img/cat-garri.jpg" alt=""></span><span><img class="img" src="img/cat-kaftan.jpg" alt=""></span></div>
+          <div class="thumbs"><span><img class="img" src="img/cat-rice.webp" alt=""></span><span><img class="img" src="img/cat-garri.webp" alt=""></span><span><img class="img" src="img/cat-kaftan.webp" alt=""></span></div>
           <div class="oshoprow"><small class="oshop">Iya Bisi Foodstuff</small><div class="st"><span class="chip c-ind"><svg class="ico"><use href="#i-box"/></svg>Packed</span></div></div><div class="oshoprow"><small class="oshop">Adire House</small><div class="st"><span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>Waiting for the shop</span></div></div>
         </div>
         <div class="ocard">
           <div class="t"><div><b>Ikeja Gadget Hub</b><small>Sat 18 Oct · 1 item · OJ-2398</small></div><b class="num" style="font-size:13px">₦24,000</b></div>
-          <div class="thumbs"><span><img class="img" src="img/cat-powerbank.jpg" alt=""></span></div>
+          <div class="thumbs"><span><img class="img" src="img/cat-powerbank.webp" alt=""></span></div>
           <div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-store"/></svg>Ready for pickup</span></div></div>
         </div>
         <div class="ocard">
           <div class="t"><div><b>Mama Ngozi Provisions</b><small>Tue 14 Oct · 2 items · OJ-2366</small></div><b class="num" style="font-size:13px">₦18,400</b></div>
-          <div class="thumbs"><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span></div>
+          <div class="thumbs"><span><img class="img" src="img/cat-palmoil.webp" alt=""></span><span><img class="img" src="img/cat-beans.webp" alt=""></span></div>
           <div class="oshoprow"><div class="st"><span class="chip c-ind"><svg class="ico"><use href="#i-truck"/></svg>On its way</span></div></div>
         </div>
         <div class="ocard">
           <div class="t"><div><b>Iya Bisi Foodstuff</b><small>Thu 2 Oct · 3 items · OJ-2301 · ₦24,800</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div>
-          <div class="thumbs"><span><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span></div>
+          <div class="thumbs"><span><img class="img" src="img/cat-tomatoes.webp" alt=""></span><span><img class="img" src="img/cat-beans.webp" alt=""></span><span><img class="img" src="img/cat-palmoil.webp" alt=""></span></div>
           <div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund delayed · add your bank</span></div></div>
         </div>
         <div class="sec"><h5>Past</h5></div>
-        <div class="ocard"><div class="t"><div><b>Adire House</b><small>20 Sep · 1 item · ₦28,000</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-kaftan.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Collected</span></div></div></div>
-        <div class="ocard"><div class="t"><div><b>Ikeja Gadget Hub</b><small>9 Sep · 1 item</small></div><b class="num" style="font-size:13px">₦18,500</b></div><div class="thumbs"><span><img class="img" src="img/cat-earbuds.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-mute"><svg class="ico"><use href="#i-x"/></svg>Rejected by the shop</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Refunded</span></div></div></div>
-        <div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>28 Aug · 4 items · ₦31,200</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-rice.jpg" alt=""></span><span><img class="img" src="img/cat-garri.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div></div></div>
+        <div class="ocard"><div class="t"><div><b>Adire House</b><small>20 Sep · 1 item · ₦28,000</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-kaftan.webp" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Collected</span></div></div></div>
+        <div class="ocard"><div class="t"><div><b>Ikeja Gadget Hub</b><small>9 Sep · 1 item</small></div><b class="num" style="font-size:13px">₦18,500</b></div><div class="thumbs"><span><img class="img" src="img/cat-earbuds.webp" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-mute"><svg class="ico"><use href="#i-x"/></svg>Rejected by the shop</span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Refunded</span></div></div></div>
+        <div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>28 Aug · 4 items · ₦31,200</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-rice.webp" alt=""></span><span><img class="img" src="img/cat-garri.webp" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span></div></div></div>
         <div class="endnote">Older orders load as you scroll.</div>
         <div class="fold"><span>First screen ends here</span></div>
       </div>
@@ -2343,7 +2349,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 
   <div id="orders-search" class="stack" style="margin-top:32px">
     <div class="flow-h"><h3>Searching orders</h3><p>One search across every order, in progress or past. Results drop the sections and list matching checkouts newest first.</p></div>
-    <div class="phones"><figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div><div class="body"><div class="bigt">Orders</div><div class="pad" style="padding-bottom:4px"><div class="search" style="background:var(--p-tile);color:var(--p-ink)"><svg class="ico"><use href="#i-search"/></svg>palm oil<span style="margin-left:auto;color:var(--p-muted)"><svg class="ico"><use href="#i-x"/></svg></span></div></div><div class="endnote" style="padding:8px 16px;text-align:left">2 orders with "palm oil"</div><div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>Tue 14 Oct · 2 items · OJ-2366</small></div><b class="num" style="font-size:13px">₦18,400</b></div><div class="thumbs"><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-ind"><svg class="ico"><use href="#i-truck"/></svg>On its way</span></div></div></div><div class="ocard"><div class="t"><div><b>Iya Bisi Foodstuff</b><small>Thu 2 Oct · 3 items · OJ-2301 · ₦24,800</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><span><img class="img" src="img/cat-beans.jpg" alt=""></span><span><img class="img" src="img/cat-palmoil.jpg" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund delayed · add your bank</span></div></div></div></div><div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div></div></div><figcaption class="ph-cap"><b>Search results.</b> <span class="cap-tag">New</span> Matches item names in any order. No match: "No orders with "palm oil". Try another item." Clearing the search brings back the sections.<span class="route">(tabs)/orders.tsx · ?q= on order history</span></figcaption></figure></div>
+    <div class="phones"><figure class="ph-wrap"><div class="phone B"><div class="scr"><div class="sb"><span>9:41</span><span class="dots"><i></i><i></i></span></div><div class="body"><div class="bigt">Orders</div><div class="pad" style="padding-bottom:4px"><div class="search" style="background:var(--p-tile);color:var(--p-ink)"><svg class="ico"><use href="#i-search"/></svg>palm oil<span style="margin-left:auto;color:var(--p-muted)"><svg class="ico"><use href="#i-x"/></svg></span></div></div><div class="endnote" style="padding:8px 16px;text-align:left">2 orders with "palm oil"</div><div class="ocard"><div class="t"><div><b>Mama Ngozi Provisions</b><small>Tue 14 Oct · 2 items · OJ-2366</small></div><b class="num" style="font-size:13px">₦18,400</b></div><div class="thumbs"><span><img class="img" src="img/cat-palmoil.webp" alt=""></span><span><img class="img" src="img/cat-beans.webp" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-ind"><svg class="ico"><use href="#i-truck"/></svg>On its way</span></div></div></div><div class="ocard"><div class="t"><div><b>Iya Bisi Foodstuff</b><small>Thu 2 Oct · 3 items · OJ-2301 · ₦24,800</small></div><span class="opill"><svg class="ico"><use href="#i-refresh"/></svg>Order again</span></div><div class="thumbs"><span><img class="img" src="img/cat-tomatoes.webp" alt=""></span><span><img class="img" src="img/cat-beans.webp" alt=""></span><span><img class="img" src="img/cat-palmoil.webp" alt=""></span></div><div class="oshoprow"><div class="st"><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Delivered</span><span class="chip c-warn"><svg class="ico"><use href="#i-info"/></svg>Refund delayed · add your bank</span></div></div></div></div><div class="tabbar"><span><svg class="ico"><use href="#i-home"/></svg>Home</span><span><svg class="ico"><use href="#i-search"/></svg>Search</span><span><svg class="ico"><use href="#i-bag"/></svg>Cart</span><span class="on"><svg class="ico"><use href="#i-box"/></svg>Orders</span><span><svg class="ico"><use href="#i-user"/></svg>Account</span></div></div></div><figcaption class="ph-cap"><b>Search results.</b> <span class="cap-tag">New</span> Matches item names in any order. No match: "No orders with "palm oil". Try another item." Clearing the search brings back the sections.<span class="route">(tabs)/orders.tsx · ?q= on order history</span></figcaption></figure></div>
   </div>
 </section>
 
@@ -2384,7 +2390,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>My reviews</b></div>
         <div class="seg2"><span class="on">All 3</span><span>Shops 1</span><span>Products 2</span></div>
         <div class="myrev">
-            <div class="mhd"><span class="ph mth"><img class="img" src="img/cat-earbuds.jpg" alt=""></span><div><b>Wireless Earbuds</b><small>Ikeja Gadget Hub</small></div><span class="end more">···</span></div>
+            <div class="mhd"><span class="ph mth"><img class="img" src="img/cat-earbuds.webp" alt=""></span><div><b>Wireless Earbuds</b><small>Ikeja Gadget Hub</small></div><span class="end more">···</span></div>
             <div class="between"><span class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico e"><use href="#i-star"/></svg></span><span class="chip c-new"><svg class="ico"><use href="#i-clock"/></svg>Waiting for moderation</span></div>
             <p>Clear sound and the case charges fast. Left bud is a little loose.</p>
             <small class="mdate">19 Oct</small>
@@ -2394,7 +2400,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
             <p>Everything came well sealed and on time. Will order again.</p><div class="reply"><b>Iya Bisi Foodstuff replied:</b> Thank you, Tolu! See you next market day.</div>
             <small class="mdate">12 Oct</small>
           </div><div class="myrev">
-            <div class="mhd"><span class="ph mth"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Iya Bisi Foodstuff</small></div><span class="end more">···</span></div>
+            <div class="mhd"><span class="ph mth"><img class="img" src="img/cat-rice.webp" alt=""></span><div><b>Ofada Rice 5kg</b><small>Iya Bisi Foodstuff</small></div><span class="end more">···</span></div>
             <div class="between"><span class="stars"><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg><svg class="ico"><use href="#i-star"/></svg></span><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Published</span></div>
             <p>Stone-free and properly sorted.</p>
             <small class="mdate">12 Oct</small>
@@ -2508,8 +2514,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <span class="lbl">New order · #1044 · delivery</span>
         <div class="big">3 items,<br><span class="num">₦32,500</span></div>
         <div class="tkrows">
-          <div class="tkrow"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦29,000</small></div><span class="qp">×2</span></div>
-          <div class="tkrow"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>Perishable · <span class="num">₦3,500</span></small></div><span class="qp">×1</span></div>
+          <div class="tkrow"><span class="ph"><img class="img" src="img/cat-rice.webp" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦29,000</small></div><span class="qp">×2</span></div>
+          <div class="tkrow"><span class="ph"><img class="img" src="img/cat-tomatoes.webp" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>Perishable · <span class="num">₦3,500</span></small></div><span class="qp">×1</span></div>
         </div>
         <div class="clock"><svg class="ico"><use href="#i-clock"/></svg>Accept within 23h 58m</div>
         <div class="tkact"><span class="acc">Accept order</span><span class="viewo">View order</span></div>
@@ -2524,8 +2530,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <span style="font-size:11.5px;opacity:.85">For Tolu A. · Surulere · buyer chose GIG, arriving Thu</span>
         </div>
         <div class="pad" style="padding-top:12px">
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦14,500 each</small></div><span class="qp">×2</span></div>
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>Perishable</small></div><span class="qp">×1</span></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-rice.webp" alt=""></span><div><b>Ofada Rice 5kg</b><small class="num">₦14,500 each</small></div><span class="qp">×2</span></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.webp" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>Perishable</small></div><span class="qp">×1</span></div>
           <div class="sumrow total"><span>Order total</span><b class="num">₦32,500</b></div>
         </div>
       </div>
@@ -2558,10 +2564,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="big">Picking · 3 of 5</div>
           <div class="ring" style="display:flex;gap:12px;align-items:center;font-size:11.5px"><span style="flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.2);overflow:hidden"><i style="display:block;height:100%;width:60%;background:#F2B33D"></i></span><b>60%</b></div>
         </div>
-        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-rice.jpg" alt=""></span><div><b>Ofada Rice 5kg</b><small>Picked</small></div><span class="qp ok" style="margin-left:auto">2/2</span></div>
-        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small>Picked</small></div><span class="qp ok" style="margin-left:auto">1/1</span></div>
-        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small style="color:var(--p-embertext)">Perishable · 1 not available</small></div><span class="qp short" style="margin-left:auto">0/2</span></div>
-        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>Tap to tick</small></div><span class="qp" style="margin-left:auto">0/1</span></div>
+        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-rice.webp" alt=""></span><div><b>Ofada Rice 5kg</b><small>Picked</small></div><span class="qp ok" style="margin-left:auto">2/2</span></div>
+        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-garri.webp" alt=""></span><div><b>Ijebu Garri 4kg</b><small>Picked</small></div><span class="qp ok" style="margin-left:auto">1/1</span></div>
+        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-tomatoes.webp" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small style="color:var(--p-embertext)">Perishable · 1 not available</small></div><span class="qp short" style="margin-left:auto">0/2</span></div>
+        <div class="lrow"><span class="ph" style="width:50px;height:50px;border-radius:12px;overflow:hidden;flex:none"><img class="img" src="img/cat-beans.webp" alt=""></span><div><b>Honey Beans 2kg</b><small>Tap to tick</small></div><span class="qp" style="margin-left:auto">0/1</span></div>
       </div>
       <div class="scanbtn"><span class="s1"><svg class="ico"><use href="#i-scan"/></svg>Scan item</span><span class="s2">Packed</span></div>
     </div></div><figcaption class="ph-cap"><b>Pick list.</b> Quantity pills turn leaf when picked and ember when short; tap a line to tick it, or open it to mark items short (long-press is only a shortcut).<span class="route">(app)/orders/[id]/pick.tsx</span></figcaption></figure>
@@ -2574,8 +2580,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="toast" style="top:132px"><svg class="ico"><use href="#i-check"/></svg>Ofada Rice 5kg · 2 of 2 picked</div>
       <div class="camcard">
         <div class="between"><b style="font-size:13px">Still to pick</b><span class="chip c-ind">2 lines</span></div>
-        <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>2 needed · 1 marked short</small></div><span class="qp short">0/2</span></div>
-        <div class="ln"><span class="ph"><img class="img" src="img/cat-beans.jpg" alt=""></span><div><b>Honey Beans 2kg</b><small>1 to pick</small></div><span class="qp">0/1</span></div>
+        <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.webp" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>2 needed · 1 marked short</small></div><span class="qp short">0/2</span></div>
+        <div class="ln"><span class="ph"><img class="img" src="img/cat-beans.webp" alt=""></span><div><b>Honey Beans 2kg</b><small>1 to pick</small></div><span class="qp">0/1</span></div>
       </div>
     </div></div><figcaption class="ph-cap"><b>Scan.</b> Each scan confirms in a toast; a code that matches nothing says "That barcode isn't on this order".<span class="route">(app)/orders/[id]/scan.tsx</span></figcaption></figure>
 
@@ -2585,7 +2591,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="dim"></div>
         <div class="bsheet">
           <span class="grab"></span>
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>2 ordered</small></div></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.webp" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>2 ordered</small></div></div>
           <h4>How many can't you supply?</h4>
           <div style="display:flex;justify-content:center;align-items:center;gap:24px;padding:8px 0"><span class="round" style="width:48px;height:48px;border-radius:16px;background:var(--p-tile);display:grid;place-items:center"><svg class="ico"><use href="#i-minus"/></svg></span><span class="disp" style="font-size:40px;font-weight:800">1</span><span class="round" style="width:48px;height:48px;border-radius:16px;background:var(--p-tile);display:grid;place-items:center"><svg class="ico"><use href="#i-plus"/></svg></span></div>
           <div class="note2"><svg class="ico"><use href="#i-info"/></svg><span>The buyer is refunded <b>₦3,500</b> for it when you remove the unavailable items, before packing.</span></div>
@@ -2598,7 +2604,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Refund to the buyer</b></div>
         <div class="pad" style="gap:16px">
           <p style="margin:0;color:var(--p-muted);font-size:13px;line-height:1.5">These come off the order, and the buyer is refunded what they paid for them. You then pick and pack the rest.</p>
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.jpg" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>1 of 2 unavailable</small></div><span class="qp short">1/2</span></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-tomatoes.webp" alt=""></span><div><b>Fresh Tomatoes 1kg</b><small>1 of 2 unavailable</small></div><span class="qp short">1/2</span></div>
           <div class="sumrow total"><span>Refund to the buyer</span><b class="num">₦3,500</b></div>
         </div>
       </div>
@@ -2675,7 +2681,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="big">Hand over this order</div>
         </div>
         <div class="pad" style="padding-top:16px;gap:12px">
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.jpg" alt=""></span><div><b>Power Bank 20,000mAh</b><small>× 1</small></div></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.webp" alt=""></span><div><b>Power Bank 20,000mAh</b><small>× 1</small></div></div>
           <div class="field"><label for="who">Who is collecting?</label><div class="inp" id="who">Tolu</div></div>
           <div class="field"><label>The buyer's 6-digit code</label><div class="codebox fit"><span>4</span><span>8</span><span>2</span><span>9</span><span class="f"></span><span></span></div></div>
           <span class="btn sec"><svg class="ico"><use href="#i-scan"/></svg>Scan their QR instead</span>
@@ -2690,7 +2696,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <div class="big">Hand over this order</div>
         </div>
         <div class="pad" style="padding-top:16px;gap:12px">
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.jpg" alt=""></span><div><b>Power Bank 20,000mAh</b><small>× 1</small></div></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.webp" alt=""></span><div><b>Power Bank 20,000mAh</b><small>× 1</small></div></div>
           <div class="field"><label for="who2">Who is collecting?</label><div class="inp" id="who2">Tolu</div></div>
           <div class="field"><label>The buyer's 6-digit code</label><div class="codebox fit"><span style="border-color:var(--p-bad)">4</span><span style="border-color:var(--p-bad)">8</span><span style="border-color:var(--p-bad)">2</span><span style="border-color:var(--p-bad)">9</span><span style="border-color:var(--p-bad)">1</span><span style="border-color:var(--p-bad)">6</span></div><span class="hint" style="color:var(--p-bad);display:flex;gap:4px;align-items:center;font-size:11.5px;font-weight:700"><svg class="ico" style="width:14px;height:14px"><use href="#i-alert"/></svg>That code doesn't match this order. Check it with the buyer.</span></div>
           <span class="btn sec"><svg class="ico"><use href="#i-scan"/></svg>Scan their QR instead</span>
@@ -2707,7 +2713,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <p>Order #1039 · Tolu A. · 2:47pm · handed over by Bisi</p>
         </div>
         <div class="pad" style="padding-top:12px">
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.jpg" alt=""></span><div><b>Power Bank 20,000mAh</b><small>×1</small></div><span class="qp ok">1/1</span></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-powerbank.webp" alt=""></span><div><b>Power Bank 20,000mAh</b><small>×1</small></div><span class="qp ok">1/1</span></div>
         </div>
       </div>
       <div class="cta"><span>Back to orders</span></div>
@@ -2733,7 +2739,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <div class="body">
         <div class="navh"><svg class="ico"><use href="#i-back"/></svg><b>Add a product</b></div>
         <div class="pad">
-          <div style="display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center"><span style="width:96px;height:96px;border-radius:16px;overflow:hidden;background:var(--p-tile)"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Found in catalogue</span><b style="display:block;font-size:14px;margin-top:8px">Ijebu Garri 4kg</b><small style="font-size:11.5px;color:var(--p-muted)" class="num">Barcode 6150123456789</small></div></div>
+          <div style="display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center"><span style="width:96px;height:96px;border-radius:16px;overflow:hidden;background:var(--p-tile)"><img class="img" src="img/cat-garri.webp" alt=""></span><div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>Found in catalogue</span><b style="display:block;font-size:14px;margin-top:8px">Ijebu Garri 4kg</b><small style="font-size:11.5px;color:var(--p-muted)" class="num">Barcode 6150123456789</small></div></div>
           <div class="field"><label for="qp1">Your price</label><div class="inp focus" id="qp1">₦ 5,200</div></div>
           <div class="field"><label for="qs1">In stock</label><div class="inp" id="qs1">24</div></div>
         </div>
@@ -2748,7 +2754,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
           <p>Buyers can order it now.</p>
         </div>
         <div class="pad" style="padding-top:16px">
-          <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.jpg" alt=""></span><div><b>Ijebu Garri 4kg</b><small class="num">₦5,200 · 24 in stock</small></div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>On sale</span></div>
+          <div class="ln"><span class="ph"><img class="img" src="img/cat-garri.webp" alt=""></span><div><b>Ijebu Garri 4kg</b><small class="num">₦5,200 · 24 in stock</small></div><span class="chip c-go"><svg class="ico"><use href="#i-check"/></svg>On sale</span></div>
         </div>
       </div>
       <div style="position:absolute;left:16px;right:16px;bottom:16px;display:grid;gap:8px"><span class="btn pri" style="width:100%;height:52px"><svg class="ico"><use href="#i-scan"/></svg>Scan another</span><span class="btn sec" style="width:100%">Back to orders</span></div>
