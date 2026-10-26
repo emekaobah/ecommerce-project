@@ -97,4 +97,6 @@ export type { TopBandAreaProps, TopBandController, TopBandProps, TopBandScreenPr
 export { APPEARANCE_CHOICES, appearanceLabel, chooseAppearance, restoreAppearance, useAppearance } from "./appearance/appearance"
 export type { AppearanceChoice } from "./appearance/appearance-store"
 export { AppearanceSheet } from "./appearance/appearance-sheet"
+export { keptValue } from "./storage/secure-kept-value"
+export type { SecureKeptValue } from "./storage/secure-kept-value"
 export type { AppearanceSheetProps } from "./appearance/appearance-sheet"
