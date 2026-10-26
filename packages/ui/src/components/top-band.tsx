@@ -1,9 +1,7 @@
-import { topBandPosition, topBandStatusBar } from "./top-band-position"
+import { StatusBar } from "expo-status-bar"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import {
-  StatusBar,
   StyleSheet,
-  useColorScheme,
   useWindowDimensions,
   View,
   type LayoutChangeEvent,
@@ -22,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { scheduleOnRN } from "react-native-worklets"
 import { useTheme } from "../theme"
 import { Band } from "./band"
+import { topBandPosition } from "./top-band-position"
 
 /** What a screen spreads on its Reanimated scroll view or list so its top band can follow the scroll. */
 export type TopBandScroll = {
@@ -55,7 +54,10 @@ const OVERLAP = 1
 
 export type TopBandScreenProps = {
   band: TopBandController
-  /** Whether the screen is in front: only the focused screen sets the status bar. */
+  /**
+   * Whether the screen is in front: only the focused screen sets the status bar. A tab stays
+   * mounted behind the others, so an unfocused one gives the bar back.
+   */
   focused: boolean
   /** The page under the band, and so the strip; the page colour unless the screen sits on another. */
   pageColor?: string
@@ -67,13 +69,17 @@ export type TopBandScreenProps = {
  * strip that fades in behind the status bar as the band leaves, and the status bar itself, white
  * on the band and the theme's own once the band has cleared it. Scroll views inside stay
  * transparent; the page colour is drawn here.
+ *
+ * The status bar is set with `expo-status-bar`, as everywhere in the apps. Its bars merge in the
+ * order they mount, so the focused screen's, mounted after its layouts', wins over theirs: each
+ * root layout sets the theme's own as the default, a stack layout may set its headers', and a
+ * focused `TopBandScreen` sets its screen's.
  */
 export function TopBandScreen({ band, focused, pageColor, children }: Readonly<TopBandScreenProps>) {
   const theme = useTheme()
   const page = pageColor ?? theme.colors.bg
   const insets = useSafeAreaInsets()
   const { height: windowHeight } = useWindowDimensions()
-  const scheme = useColorScheme() === "dark" ? "dark" : "light"
   const statusBarHeight = insets.top
   const { scrollY, height } = band
   const [cleared, setCleared] = useState(false)
@@ -109,7 +115,8 @@ export function TopBandScreen({ band, focused, pageColor, children }: Readonly<T
           strip,
         ]}
       />
-      {focused ? <StatusBar animated barStyle={`${topBandStatusBar(cleared, scheme)}-content`} /> : null}
+      {/* White on the band, then the theme's own (dark in Light, white in Dark) once it has gone. */}
+      {focused ? <StatusBar animated style={cleared ? "auto" : "light"} /> : null}
     </View>
   )
 }

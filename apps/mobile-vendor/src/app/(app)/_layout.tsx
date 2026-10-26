@@ -26,6 +26,10 @@ export default function AppLayout() {
 
   return (
     <>
+      {/* The stack's status bar: the theme's own over the Orders page, white over the indigo headers.
+          A done screen that opens on the indigo band (Collected, Order cancelled, Added) sets its own
+          over this one while it is in front (TopBandScreen): it mounts later, and expo-status-bar
+          merges bars in mount order. */}
       <StatusBar style={onOrders ? 'auto' : 'light'} />
       <Stack
         screenOptions={{

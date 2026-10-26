@@ -23,12 +23,3 @@ export function topBandPosition(scrollY: number, bandHeight: number, statusBarHe
   const stripOpacity = Math.min(1, Math.max(0, (scrollY - (clearsAt - TOP_BAND_FADE)) / TOP_BAND_FADE))
   return { stripOpacity, cleared }
 }
-
-/**
- * The status bar's text over a top band: white while the band is behind it, then the theme's
- * own once the band has gone, dark in Light and white in Dark.
- */
-export function topBandStatusBar(cleared: boolean, scheme: "light" | "dark"): "light" | "dark" {
-  if (!cleared) return "light"
-  return scheme === "dark" ? "light" : "dark"
-}

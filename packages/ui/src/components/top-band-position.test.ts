@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { topBandPosition, topBandStatusBar } from "./top-band-position"
+import { topBandPosition } from "./top-band-position"
 
 // An iPhone's status bar, and a band that runs 260 pt from the screen's top edge.
 const STATUS_BAR = 54
@@ -36,17 +36,5 @@ describe("topBandPosition", () => {
   test("until the band is measured it is taken to be behind the status bar", () => {
     expect(topBandPosition(0, 0, STATUS_BAR)).toEqual({ stripOpacity: 0, cleared: false })
     expect(topBandPosition(400, 0, STATUS_BAR)).toEqual({ stripOpacity: 0, cleared: false })
-  })
-})
-
-describe("topBandStatusBar", () => {
-  test("white text on the band in either theme", () => {
-    expect(topBandStatusBar(false, "light")).toBe("light")
-    expect(topBandStatusBar(false, "dark")).toBe("light")
-  })
-
-  test("once the band has gone, dark text in Light and white in Dark", () => {
-    expect(topBandStatusBar(true, "light")).toBe("dark")
-    expect(topBandStatusBar(true, "dark")).toBe("light")
   })
 })

@@ -40,6 +40,8 @@ function RootLayout() {
               <CartProvider>
                 <DeliveringToProvider>
                   <AddressPromptProvider>
+                    {/* The status bar's default, the theme's own. A screen that opens on the indigo band sets its own
+                        while it is in front (TopBandScreen); expo-status-bar merges bars in mount order, so it wins. */}
                     <StatusBar style="auto" />
                     <RootStack />
                   </AddressPromptProvider>
