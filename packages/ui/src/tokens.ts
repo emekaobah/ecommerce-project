@@ -309,7 +309,7 @@ const sizes = {
 }
 
 const white = "#FFFFFF"
-const charcoalTile = "#26262A"
+const charcoal = "#26262A"
 const indigo = "#1B2559"
 const sun = "#F2B33D"
 const leaf = "#186441"
@@ -384,8 +384,8 @@ export const darkTheme: Theme = {
     bg: "#111113",
     bgGrouped: "#111113",
     raised: "#1C1C1F",
-    tile: charcoalTile,
-    productTile: charcoalTile,
+    tile: charcoal,
+    productTile: charcoal,
     paper: white,
     line: "#333338",
     divider: "#2A2A2F",
@@ -427,7 +427,7 @@ export const darkTheme: Theme = {
     onBandTrack: "rgba(255, 255, 255, 0.2)",
   },
   status: {
-    neutral: { foreground: "#B4B4BC", background: "#26262A" },
+    neutral: { foreground: "#B4B4BC", background: charcoal },
     info: { foreground: "#AEB8FF", background: "#23263A" },
     success: { foreground: "#6FD6A0", background: "#14281D" },
     new: { foreground: "#F2C76B", background: "#2E2614" },
