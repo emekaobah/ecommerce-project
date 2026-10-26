@@ -22,14 +22,17 @@ import {
   Skeleton,
   Text,
   TextField,
+  TopBandScreen,
   useTheme,
+  useTopBand,
 } from '@oja/ui';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCollectOrder, useOrder, type Order } from '@/api/orders';
@@ -295,6 +298,8 @@ function Collected({ order }: Readonly<{ order: Order }>) {
   const theme = useTheme();
   const router = useRouter();
   const timeZone = useShopTimeZone();
+  const band = useTopBand();
+  const focused = useIsFocused();
   const collection = order.fulfilment.collection!;
   const line = [
     `Order #${order.display_id}`,
@@ -304,9 +309,9 @@ function Collected({ order }: Readonly<{ order: Order }>) {
   ].join(' · ');
 
   return (
-    <View style={styles.fill}>
-      <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }}>
-        <ConfirmationHero title="Collected" line={line} />
+    <TopBandScreen band={band} focused={focused}>
+      <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+        <ConfirmationHero band={band} title="Collected" line={line} />
         <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
           {(order.items ?? []).map((item) => {
             const quantity = Number(item.quantity);
@@ -320,11 +325,11 @@ function Collected({ order }: Readonly<{ order: Order }>) {
             );
           })}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
       <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2] }}>
         <Button label="Back to orders" size="main" onPress={() => router.dismissTo('/')} />
       </SafeAreaView>
-    </View>
+    </TopBandScreen>
   );
 }
 

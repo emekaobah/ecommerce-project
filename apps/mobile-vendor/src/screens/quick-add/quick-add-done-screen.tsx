@@ -1,7 +1,8 @@
-import { Button, StatusChip, Text, useTheme } from '@oja/ui';
+import { Button, StatusChip, Text, TopBandScreen, useTheme, useTopBand } from '@oja/ui';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConfirmationHero } from '../collect/confirmation-hero';
@@ -28,13 +29,16 @@ export function QuickAddDoneScreen() {
   const { result, title, price, stock, thumbnail } = useLocalSearchParams<DoneParams>();
   const proposed = result === 'proposed';
   const photo = theme.control.md;
+  const band = useTopBand();
+  const focused = useIsFocused();
 
   return (
-    <View style={styles.fill}>
+    <TopBandScreen band={band} focused={focused}>
       {/* The confirmation runs up under the status bar. */}
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: theme.space[6] }}>
+      <Animated.ScrollView {...band.scroll} contentContainerStyle={{ paddingBottom: theme.space[6] }}>
         <ConfirmationHero
+          band={band}
           title={proposed ? 'Sent for review' : `${title} is in your shop`}
           line={proposed ? "The catalogue team checks it before it goes on sale at your price." : 'Buyers can order it now.'}
         />
@@ -54,12 +58,12 @@ export function QuickAddDoneScreen() {
             icon={proposed ? 'clock' : 'check'}
           />
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
       <SafeAreaView edges={['bottom']} style={{ paddingHorizontal: theme.space[3], paddingTop: theme.space[2], gap: theme.space[2] }}>
         <Button label="Scan another" icon="scan" size="main" onPress={() => router.replace('/quick-add')} />
         <Button label="Back to orders" variant="secondary" onPress={() => router.dismissTo('/')} />
       </SafeAreaView>
-    </View>
+    </TopBandScreen>
   );
 }
 
