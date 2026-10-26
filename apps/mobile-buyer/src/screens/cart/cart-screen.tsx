@@ -9,6 +9,7 @@ import {
   InlineNote,
   QuantityStepper,
   ShopMark,
+  PhotoTile,
   Skeleton,
   StatusChip,
   StickyAction,
@@ -334,11 +335,11 @@ function CartLine({
   const photo = theme.control.md;
   return (
     <View style={[styles.row, { gap: theme.space[2], opacity: busy ? 0.6 : 1 }]}>
-      <View style={{ width: photo, height: photo, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+      <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
         {item.thumbnail ? (
           <Image source={item.thumbnail} contentFit="contain" style={[styles.fill, greyed ? styles.faded : null]} />
         ) : null}
-      </View>
+      </PhotoTile>
       <View style={[styles.fill, { gap: theme.space[1] }]}>
         <Text weight="bold" tone={greyed ? 'muted' : 'default'} numberOfLines={2}>
           {name}

@@ -23,6 +23,7 @@ import {
   GroupList,
   InlineNote,
   ListRow,
+  PhotoTile,
   PressableSurface,
   ShopMark,
   Skeleton,
@@ -364,9 +365,9 @@ function ItemLine({ item, currency }: Readonly<{ item: SellerOrder['items'][numb
   const thumb = theme.control.row;
   return (
     <View style={[styles.row, { gap: theme.space[3] }]}>
-      <View style={{ width: thumb, height: thumb, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+      <PhotoTile style={{ width: thumb, height: thumb, borderRadius: theme.radius.md }}>
         {item.thumbnail ? <Image source={item.thumbnail} contentFit="contain" style={styles.fill} /> : null}
-      </View>
+      </PhotoTile>
       <View style={styles.fill}>
         <Text weight="bold" numberOfLines={2}>
           {orderLineName(item)}

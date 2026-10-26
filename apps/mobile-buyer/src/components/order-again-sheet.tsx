@@ -11,7 +11,7 @@ import {
   shopStatusChip,
   type OrderAgainLine,
 } from '@oja/domain';
-import { Button, haptics, Icon, MAX_FONT_SCALE, InlineNote, PressableSurface, Skeleton, StatusChip, Text, useTheme, useToast } from '@oja/ui';
+import { Button, haptics, Icon, MAX_FONT_SCALE, InlineNote, PhotoTile, PressableSurface, Skeleton, StatusChip, Text, useTheme, useToast } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
@@ -319,9 +319,9 @@ function Line({ name, thumbnail, line, currency, ticked, onToggle, disabled }: R
       ringInset
       style={[styles.row, { gap: theme.space[2], minHeight: theme.hitArea, opacity: off ? 0.55 : 1 }]}>
       <Checkbox ticked={ticked} />
-      <View style={{ width: thumb, height: thumb, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+      <PhotoTile style={{ width: thumb, height: thumb, borderRadius: theme.radius.md }}>
         {thumbnail ? <Image source={thumbnail} contentFit="contain" style={styles.fill} /> : null}
-      </View>
+      </PhotoTile>
       <View style={styles.fill}>
         <Text weight="bold">{name}</Text>
         <Text variant="meta" tone="muted">

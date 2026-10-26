@@ -18,6 +18,7 @@ import {
   haptics,
   Icon,
   InlineNote,
+  PhotoTile,
   QuantityPill,
   Skeleton,
   Text,
@@ -117,9 +118,9 @@ function Line({ item, trailing, spoken }: Readonly<{ item: Item; trailing?: Reac
   const title = item.product_title ?? 'Item';
   return (
     <View accessible accessibilityLabel={[`${Number(item.quantity)} × ${title}`, spoken].filter(Boolean).join(', ')} style={[styles.row, { gap: theme.space[2] }]}>
-      <View style={{ width: photo, height: photo, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+      <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
         {item.thumbnail ? <Image source={{ uri: item.thumbnail }} contentFit="contain" style={StyleSheet.absoluteFill} /> : null}
-      </View>
+      </PhotoTile>
       <View style={styles.fill}>
         <Text weight="bold">{title}</Text>
         <Text variant="meta" tone="muted" tabular>{`× ${Number(item.quantity)}`}</Text>

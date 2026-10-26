@@ -214,6 +214,8 @@ export type Theme = {
     tile: string
     /** Behind product photos: white in both themes, with no outline. */
     productTile: string
+    /** Laid over a product tile and its photo together (`PhotoTile`): none in light; in dark, the page colour, dimming white to about #D8D8DC. */
+    photoVeil: string | null
     /** Dividers, card edges. */
     line: string
     /** The lighter rule between groups in a list: orders, shops in the cart, checkout and an order, reviews. */
@@ -323,6 +325,7 @@ export const lightTheme: Theme = {
     raised: white,
     tile: "#EEF0F7",
     productTile: white,
+    photoVeil: null,
     line: "#DDE1EE",
     divider: "#E4E6EE",
     control: "#80869E",
@@ -382,6 +385,7 @@ export const darkTheme: Theme = {
     raised: "#1C1C1F",
     tile: "#26262A",
     productTile: white,
+    photoVeil: "rgba(17, 17, 19, 0.16)",
     line: "#333338",
     divider: "#2A2A2F",
     control: "#7A7A83",

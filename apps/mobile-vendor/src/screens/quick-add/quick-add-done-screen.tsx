@@ -1,4 +1,4 @@
-import { Button, StatusChip, Text, TopBandScreen, useTheme, useTopBand } from '@oja/ui';
+import { Button, PhotoTile, StatusChip, Text, TopBandScreen, useTheme, useTopBand } from '@oja/ui';
 import { Image } from 'expo-image';
 import { Stack, useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -43,9 +43,9 @@ export function QuickAddDoneScreen() {
           line={proposed ? "The catalogue team checks it before it goes on sale at your price." : 'Buyers can order it now.'}
         />
         <View style={[styles.row, { padding: theme.space[4], gap: theme.space[2] }]}>
-          <View style={{ width: photo, height: photo, borderRadius: theme.radius.md, overflow: 'hidden', backgroundColor: theme.colors.productTile }}>
+          <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
             {thumbnail ? <Image source={{ uri: thumbnail }} contentFit="contain" style={StyleSheet.absoluteFill} /> : null}
-          </View>
+          </PhotoTile>
           <View style={styles.fill}>
             <Text weight="bold">{title}</Text>
             <Text variant="meta" tone="muted" tabular>

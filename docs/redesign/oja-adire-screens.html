@@ -788,6 +788,10 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 .B .pcard.off .ph img{opacity:.55; filter:grayscale(.7)}
 .D .pcard .ph, .D .rc .ph, .D .ln .ph, .D .hero, .D .thumbs span, .D .lrow > .ph{background:var(--p-ptile)}
 .B .hero{border-radius:0 0 24px 24px}
+/* Dark: one veil of the page colour (#111113 at 16%, the photoVeil token) over a product tile and its photo together, so white lands at about #D8D8DC and a pack shot's white still meets the tile (decided 2026-10-26 in #102). Buttons, badges and dots sit above it, undimmed. Not the pickup QR. */
+.D .pcard .ph, .D .rc .ph, .D .hc .ph, .D .ln .ph, .D .ag .ph, .D .thumbs span, .D .hero, .D .lrow > .ph, .D .pick .ph, .D .rline .ph, .D .tkrow .ph, .tiles4 .white.dk{position:relative}
+.D .pcard .ph::after, .D .rc .ph::after, .D .hc .ph::after, .D .ln .ph::after, .D .ag .ph::after, .D .thumbs span::after, .D .hero::after, .D .lrow > .ph::after, .D .pick .ph::after, .D .rline .ph::after, .D .tkrow .ph::after, .tiles4 .white.dk::after{content:""; position:absolute; inset:0; background:rgba(17,17,19,.16); border-radius:inherit; pointer-events:none; z-index:1}
+.D .ph > :not(img), .D .hero > :not(img){z-index:2}
 
 .flow-h + .flow-h{margin-top:-10px}
 
@@ -1338,7 +1342,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <tr><td><code>bgGrouped</code></td><td>#F7F8FC</td><td>#111113</td><td>Page behind grouped cards</td></tr>
         <tr><td><code>raised</code></td><td>#FFFFFF</td><td>#1C1C1F</td><td>Cards, inputs, sheets, tab bar</td></tr>
         <tr><td><code>tile</code></td><td>#EEF0F7</td><td>#26262A</td><td>Mist: secondary buttons, fact boxes, chips, skeletons</td></tr>
-        <tr><td><code>productTile</code></td><td>#FFFFFF</td><td>#FFFFFF</td><td>Behind product photos, in both themes</td></tr>
+        <tr><td><code>productTile</code></td><td>#FFFFFF</td><td>#FFFFFF</td><td>Behind product photos</td></tr>
+        <tr><td><code>photoVeil</code></td><td>none</td><td>#111113 at 16%</td><td>Over a product tile and its photo together (<code>PhotoTile</code>), so white reads #D8D8DC in dark; buttons and badges above it</td></tr>
         <tr><td><code>productTileLine</code></td><td>#E4E6EE</td><td>none</td><td>Inset edge of a product tile</td></tr>
         <tr><td><code>line</code></td><td>#DDE1EE</td><td>#333338</td><td>Dividers, card edges</td></tr>
         <tr><td><code>control</code></td><td>#80869E</td><td>#7A7A83</td><td>Input and checkbox outlines (3:1)</td></tr>
@@ -1507,7 +1512,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       </div>
     </div>
     <div class="imgrow">
-      <div class="imglab"><b>The same, in dark mode</b><span>Tiles stay white in dark mode, as most large shops do, so product colours stay true. A charcoal tile would turn every white pack shot into a glowing box.</span><span class="res pass">Chosen</span></div>
+      <div class="imglab"><b>The same, in dark mode</b><span>The white tile is kept in dark mode and dimmed with its photo by one veil, so white reads about #D8D8DC beside the #111113 page instead of glaring, and pack shots still blend into the tile. A charcoal tile would turn every white pack shot into a glowing box. (Decided 2026-10-26 in #102; tiles were full white before.)</span><span class="res pass">Chosen</span></div>
       <div class="tiles4 darkbg">
         <span class="t white dk"><img src="img/cat-rice.jpg" alt=""></span>
         <span class="t white dk"><img src="img/cat-palmoil.jpg" alt=""></span>
@@ -1519,7 +1524,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   <div class="sysc">
     <h3>Tile rules</h3>
     <ul>
-      <li>Every product tile is white with no outline, in both themes. Spacing separates the tiles (12 between columns, 16 between rows), and the price and name below anchor each one. The image is contained with a margin of about 10%, never cropped to fill.</li>
+      <li>Every product tile is white with no outline, dimmed in dark together with its photo (white reads about #D8D8DC). Spacing separates the tiles (12 between columns, 16 between rows), and the price and name below anchor each one. The image is contained with a margin of about 10%, never cropped to fill.</li>
       <li>On a white page, a white pack shot's tile edge disappears, so the product itself is the shape. The add button keeps a 44pt hit area in code.</li>
       <li>Vendor and Open Food Facts photos show whole, framed by the tile. That makes their mixed backgrounds look intended. The quick-add tip ("square, plain background, whole product in view") nudges new photos towards the pack-shot look.</li>
       <li>If background removal is built later, cutouts drop onto the same white tile and nothing else changes.</li>
