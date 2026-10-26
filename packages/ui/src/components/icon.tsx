@@ -28,6 +28,7 @@ import Share from "lucide-react-native/icons/share"
 import ShieldCheck from "lucide-react-native/icons/shield-check"
 import Star from "lucide-react-native/icons/star"
 import Store from "lucide-react-native/icons/store"
+import SunMoon from "lucide-react-native/icons/sun-moon"
 import Tag from "lucide-react-native/icons/tag"
 import TriangleAlert from "lucide-react-native/icons/triangle-alert"
 import Truck from "lucide-react-native/icons/truck"
@@ -77,6 +78,7 @@ const ICONS = {
   lock: Lock,
   filter: ListFilter,
   edit: Pencil,
+  appearance: SunMoon,
 }
 
 export type IconName = keyof typeof ICONS
