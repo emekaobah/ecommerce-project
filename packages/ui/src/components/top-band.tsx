@@ -49,6 +49,19 @@ export function useTopBand(): TopBandController {
   return useMemo(() => ({ scroll: { onScroll, scrollEventThrottle: 16 }, scrollY, height }), [onScroll, scrollY, height])
 }
 
+/**
+ * The pull-to-refresh spinner's colours on a screen that opens on the band, spread on its
+ * `RefreshControl`. iOS draws the spinner on the indigo pulled down above the band, so it is
+ * white; Android draws it on a disc over the content, so the disc is the band's indigo.
+ */
+export function useTopBandRefreshColors() {
+  const theme = useTheme()
+  return useMemo(
+    () => ({ tintColor: theme.colors.onBand, colors: [theme.colors.onBand], progressBackgroundColor: theme.colors.band }),
+    [theme.colors.onBand, theme.colors.band],
+  )
+}
+
 /** One pixel of the indigo under the band's top edge, so pulling down never opens a seam between them. */
 const OVERLAP = 1
 

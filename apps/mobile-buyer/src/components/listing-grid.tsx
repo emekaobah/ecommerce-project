@@ -1,4 +1,4 @@
-import { Skeleton, useGridColumns, useTheme, type TopBandController } from '@oja/ui';
+import { Skeleton, useGridColumns, useTheme, useTopBandRefreshColors, type TopBandController } from '@oja/ui';
 import type { ReactElement } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -39,6 +39,7 @@ export function ListingGrid({
 }>) {
   const theme = useTheme();
   const columns = useGridColumns();
+  const refreshColors = useTopBandRefreshColors();
   const data = listings ?? [];
   return (
     <Animated.FlatList
@@ -54,11 +55,7 @@ export function ListingGrid({
       columnWrapperStyle={columns > 1 ? { gap: theme.space[3], paddingHorizontal: theme.space[4] } : undefined}
       refreshControl={
         onRefresh ? (
-          <RefreshControl
-            refreshing={refreshing ?? false}
-            onRefresh={onRefresh}
-            tintColor={band ? theme.colors.onBand : undefined}
-          />
+          <RefreshControl refreshing={refreshing ?? false} onRefresh={onRefresh} {...(band ? refreshColors : undefined)} />
         ) : undefined
       }
       ListHeaderComponent={header}
