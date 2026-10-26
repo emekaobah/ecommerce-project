@@ -222,7 +222,7 @@ function Gallery({
                 width: i === page ? theme.space[4] : theme.space[2],
                 height: theme.space[2],
                 borderRadius: theme.radius.pill,
-                backgroundColor: i === page ? theme.colors.primary : theme.colors.line,
+                backgroundColor: i === page ? theme.colors.accent : theme.colors.photoDot,
               }}
             />
           ))}

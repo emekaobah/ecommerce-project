@@ -922,7 +922,8 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
 /* product full scroll */
 .B .gdots{position:absolute; left:0; right:0; bottom:12px; display:flex; justify-content:center; gap:8px; z-index:2}
 .B .gdots i{width:6px; height:6px; border-radius:50%; background:rgba(18,22,43,.25)}
-.B .gdots i.on{background:var(--p-indigo); width:16px; border-radius:3px}
+.D .gdots i{background:#7A7A83}
+.B .gdots i.on{background:var(--p-accent); width:16px; border-radius:3px}
 .B .vchips{display:flex; gap:8px}
 .B .vchips span{height:32px; padding:0 16px; border-radius:999px; background:var(--p-tile); display:grid; place-items:center; font-size:13px; font-weight:700}
 .B .vchips span.on{background:var(--p-indigo); color:#fff}
@@ -1343,7 +1344,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
         <tr><td><code>tile</code></td><td>#EEF0F7</td><td>#26262A</td><td>Mist: secondary buttons, fact boxes, chips, skeletons</td></tr>
         <tr><td><code>productTile</code></td><td>#FFFFFF</td><td>#26262A</td><td>Behind product photos (<code>PhotoTile</code>), which are transparent cut-outs</td></tr>
         <tr><td><code>paper</code></td><td>#FFFFFF</td><td>#FFFFFF</td><td>Behind the pickup QR and shop logos</td></tr>
-        <tr><td><code>productTileLine</code></td><td>#E4E6EE</td><td>none</td><td>Inset edge of a product tile</td></tr>
+        <tr><td><code>photoDot</code></td><td>#DDE1EE</td><td>#7A7A83</td><td>A photo carousel's dots for the photos not showing, on the product tile; the current one is <code>accent</code></td></tr>
         <tr><td><code>line</code></td><td>#DDE1EE</td><td>#333338</td><td>Dividers, card edges</td></tr>
         <tr><td><code>control</code></td><td>#80869E</td><td>#7A7A83</td><td>Input and checkbox outlines (3:1)</td></tr>
         <tr><td><code>ink</code></td><td>#12162B</td><td>#F2F2F4</td><td>Text</td></tr>
@@ -1533,7 +1534,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <li>Every product tile is white in Light and charcoal (<code>#26262A</code>) in Dark, with no outline and no veil. Spacing separates the tiles (12 between columns, 16 between rows), and the price and name below anchor each one. The image is contained with a margin of about 10%, never cropped to fill.</li>
       <li>Buttons, badges and carousel dots sit over the photo on the same tile. The add button keeps a 44pt hit area in code.</li>
       <li>Vendor and Open Food Facts photos show whole, framed by the tile. The quick-add tip ("square, plain background, whole product in view") nudges new photos towards the pack-shot look.</li>
-      <li>The pickup QR stays black on white, and shop logos and banners are unchanged, in both themes.</li>
+      <li>The pickup QR and shop logos sit on white in both themes, and shop banners show as uploaded.</li>
     </ul>
   </div>
 </section>
@@ -1542,7 +1543,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
   <div class="stack col">
     <span class="eyebrow">Dark mode</span>
     <h2>Neutral after dark, indigo where it means something</h2>
-    <p>Nine screens that carry the most weight, in dark mode. Surfaces are neutral charcoal with no brand tint, so indigo does the same jobs it does in light mode: the brand band, primary buttons, selection and links. Against a neutral page, the band reads as a branded surface rather than more navy. Product photos keep their own light backgrounds, and the pickup QR stays on white so scanners can read it.</p>
+    <p>Nine screens that carry the most weight, in dark mode. Surfaces are neutral charcoal with no brand tint, so indigo does the same jobs it does in light mode: the brand band, primary buttons, selection and links. Against a neutral page, the band reads as a branded surface rather than more navy. Product photos are cut-outs on a charcoal tile, and the pickup QR stays on white so scanners can read it.</p>
   </div>
   <div class="dk-intro">
     <div class="sysc">

@@ -214,6 +214,8 @@ export type Theme = {
     tile: string
     /** Behind product photos (`PhotoTile`), which are transparent cut-outs: white in light, the charcoal tile in dark, with no outline. */
     productTile: string
+    /** A photo carousel's dots for the photos not showing, on the product tile (the current one is `accent`). */
+    photoDot: string
     /** White in both themes: behind the pickup QR, which stays black on white, and shop logos. */
     paper: string
     /** Dividers, card edges. */
@@ -326,6 +328,7 @@ export const lightTheme: Theme = {
     raised: white,
     tile: "#EEF0F7",
     productTile: white,
+    photoDot: "#DDE1EE",
     paper: white,
     line: "#DDE1EE",
     divider: "#E4E6EE",
@@ -386,6 +389,7 @@ export const darkTheme: Theme = {
     raised: "#1C1C1F",
     tile: charcoal,
     productTile: charcoal,
+    photoDot: "#7A7A83",
     paper: white,
     line: "#333338",
     divider: "#2A2A2F",
