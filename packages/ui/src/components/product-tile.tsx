@@ -66,7 +66,7 @@ function CornerBadge({ soldOut, closed, deal }: Readonly<Pick<ProductTileProps, 
 }
 
 /**
- * A product in a rail or grid: the photo on its tile (`PhotoTile`: white, veiled in dark), contained
+ * A product in a rail or grid: the photo on its tile (`PhotoTile`: white in light, charcoal in dark), contained
  * with a 10% margin and no outline, then price, name and detail. Read as one item; the add and save buttons are
  * drawn small with a 44pt hit area and say which product they act on.
  */
@@ -79,58 +79,52 @@ export function ProductTile(props: Readonly<ProductTileProps>) {
 
   return (
     <PressableSurface accessibilityRole="button" accessibilityLabel={spokenTile(props)} onPress={onPress} style={{ gap: theme.space[1] }}>
-      <PhotoTile
-        style={[styles.photo, { borderRadius: theme.radius.md }]}
-        overlay={
-          <>
-            <CornerBadge soldOut={soldOut} closed={closed} deal={deal} />
-            {onToggleSave ? (
-              <PressableSurface
-                accessibilityRole="button"
-                accessibilityLabel={saved ? `Remove ${name} from saved` : `Save ${name}`}
-                accessibilityState={{ selected: saved }}
-                hitSlop={slop}
-                onPress={onToggleSave}
-                style={[
-                  styles.corner,
-                  theme.elevation.heart,
-                  { top: theme.space[2], right: theme.space[2], width: button, height: button, borderRadius: button / 2 },
-                  styles.heart,
-                ]}
-              >
-                {/* The heart sits on a white disc in both themes, so it keeps its light-theme colours. */}
-                <Icon name="heart" use="chip" color={saved ? lightTheme.colors.dangerText : lightTheme.colors.ink} filled={saved} />
-              </PressableSurface>
-            ) : null}
-            {onAdd && !unavailable ? (
-              <PressableSurface
-                accessibilityRole="button"
-                accessibilityLabel={`Add ${name} to cart`}
-                hitSlop={slop}
-                onPress={onAdd}
-                style={[
-                  styles.corner,
-                  {
-                    bottom: theme.space[2],
-                    right: theme.space[2],
-                    width: button,
-                    height: button,
-                    borderRadius: theme.radius.sm,
-                    backgroundColor: theme.colors.primary,
-                  },
-                ]}
-              >
-                <Icon name="plus" use="add" color={theme.colors.onPrimary} />
-              </PressableSurface>
-            ) : null}
-          </>
-        }
-      >
+      <PhotoTile style={[styles.photo, { borderRadius: theme.radius.md }]}>
         {imageUrl ? (
           <Image source={{ uri: imageUrl }} contentFit="contain" style={[styles.image, unavailable && styles.unavailable]} />
         ) : (
-          <Icon name="bag" color={lightTheme.colors.muted} />
+          <Icon name="bag" color={theme.colors.muted} />
         )}
+        <CornerBadge soldOut={soldOut} closed={closed} deal={deal} />
+        {onToggleSave ? (
+          <PressableSurface
+            accessibilityRole="button"
+            accessibilityLabel={saved ? `Remove ${name} from saved` : `Save ${name}`}
+            accessibilityState={{ selected: saved }}
+            hitSlop={slop}
+            onPress={onToggleSave}
+            style={[
+              styles.corner,
+              theme.elevation.heart,
+              { top: theme.space[2], right: theme.space[2], width: button, height: button, borderRadius: button / 2 },
+              styles.heart,
+            ]}
+          >
+            {/* The heart sits on a white disc in both themes, so it keeps its light-theme colours. */}
+            <Icon name="heart" use="chip" color={saved ? lightTheme.colors.dangerText : lightTheme.colors.ink} filled={saved} />
+          </PressableSurface>
+        ) : null}
+        {onAdd && !unavailable ? (
+          <PressableSurface
+            accessibilityRole="button"
+            accessibilityLabel={`Add ${name} to cart`}
+            hitSlop={slop}
+            onPress={onAdd}
+            style={[
+              styles.corner,
+              {
+                bottom: theme.space[2],
+                right: theme.space[2],
+                width: button,
+                height: button,
+                borderRadius: theme.radius.sm,
+                backgroundColor: theme.colors.primary,
+              },
+            ]}
+          >
+            <Icon name="plus" use="add" color={theme.colors.onPrimary} />
+          </PressableSurface>
+        ) : null}
       </PhotoTile>
       <View style={[styles.price, { gap: theme.space[1] }]}>
         <Text variant="strong" tabular>

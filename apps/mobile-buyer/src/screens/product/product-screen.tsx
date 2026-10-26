@@ -168,7 +168,7 @@ function StatusStrip() {
   return <View style={{ height: insets.top, backgroundColor: theme.colors.tile }} />;
 }
 
-/** Every photo, swiped sideways on its tile (white, veiled in dark) with dots for position; back and save over the top, unveiled. */
+/** Every photo, swiped sideways on its tile (white, charcoal in dark) with dots for position; back and save over the top. */
 function Gallery({
   images,
   dimmed,
@@ -180,33 +180,7 @@ function Gallery({
   const height = Math.round(width * HERO_ASPECT);
   return (
     <PhotoTile
-      style={{ height, borderBottomLeftRadius: theme.radius.sheet, borderBottomRightRadius: theme.radius.sheet }}
-      overlay={
-        <>
-          <View style={[styles.actions, { top: theme.space[1], left: theme.space[3], right: theme.space[3] }]}>
-            <RoundButton icon="back" label="Back" onPress={() => router.back()} />
-            {actions}
-          </View>
-          {images.length > 1 ? (
-            <View
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              style={[styles.dots, { bottom: theme.space[3], gap: theme.space[2] }]}>
-              {images.map((image, i) => (
-                <View
-                  key={image.id}
-                  style={{
-                    width: i === page ? theme.space[4] : theme.space[2],
-                    height: theme.space[2],
-                    borderRadius: theme.radius.pill,
-                    backgroundColor: i === page ? theme.colors.primary : theme.colors.line,
-                  }}
-                />
-              ))}
-            </View>
-          ) : null}
-        </>
-      }>
+      style={{ height, borderBottomLeftRadius: theme.radius.sheet, borderBottomRightRadius: theme.radius.sheet }}>
       <FlatList
         horizontal
         pagingEnabled
@@ -232,6 +206,28 @@ function Gallery({
           </View>
         }
       />
+      <View style={[styles.actions, { top: theme.space[1], left: theme.space[3], right: theme.space[3] }]}>
+        <RoundButton icon="back" label="Back" onPress={() => router.back()} />
+        {actions}
+      </View>
+      {images.length > 1 ? (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[styles.dots, { bottom: theme.space[3], gap: theme.space[2] }]}>
+          {images.map((image, i) => (
+            <View
+              key={image.id}
+              style={{
+                width: i === page ? theme.space[4] : theme.space[2],
+                height: theme.space[2],
+                borderRadius: theme.radius.pill,
+                backgroundColor: i === page ? theme.colors.primary : theme.colors.line,
+              }}
+            />
+          ))}
+        </View>
+      ) : null}
     </PhotoTile>
   );
 }
