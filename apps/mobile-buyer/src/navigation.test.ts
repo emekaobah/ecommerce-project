@@ -9,7 +9,7 @@ mock.module('expo-router', () => ({
   },
 }));
 
-const { closeSheetThen, openCartSheet } = await import('./navigation');
+const { cartLineListing, closeSheetThen, openCartSheet } = await import('./navigation');
 
 beforeEach(() => {
   calls.length = 0;
@@ -28,5 +28,22 @@ describe('openCartSheet', () => {
     openCartSheet();
 
     expect(calls).toEqual(['push /cart-sheet']);
+  });
+});
+
+describe('cartLineListing', () => {
+  test("is the line's product in its shop", () => {
+    expect(cartLineListing({ seller: { id: 'sel_1' } }, { product_id: 'prod_1' })).toEqual({
+      seller: { id: 'sel_1' },
+      product: { id: 'prod_1' },
+    });
+  });
+
+  test("is nothing once the shop stopped selling it, so the line doesn't open", () => {
+    expect(cartLineListing({ seller: null }, { product_id: 'prod_1' })).toBeNull();
+  });
+
+  test('is nothing for a line with no product', () => {
+    expect(cartLineListing({ seller: { id: 'sel_1' } }, { product_id: null })).toBeNull();
   });
 });

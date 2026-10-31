@@ -32,7 +32,7 @@ import { useCartSession } from '@/cart/cart-provider';
 import { SumRow } from '@/components/cart/summary';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
-import { closeSheetThen } from '@/navigation';
+import { cartLineListing, closeSheetThen, openListing } from '@/navigation';
 
 /** Goes to another screen from the cart. In the sheet, it closes first, so that screen opens over the one under it. */
 const LeaveCart = createContext<(go: () => void) => void>((go) => go());
@@ -190,9 +190,10 @@ function CartContents({
       leave(() => router.push('/sign-in'));
       return;
     }
-    if (!group.seller || !item.product_id) return;
+    const listing = cartLineListing(group, item);
+    if (!listing) return;
     saveForLater.mutate(
-      { sellerId: group.seller.id, productId: item.product_id, save: true },
+      { sellerId: listing.seller.id, productId: listing.product.id, save: true },
       { onSuccess: () => setQuantity.mutate({ itemId: item.id, quantity: 0 }) },
     );
   };
@@ -227,17 +228,21 @@ function CartContents({
                       }
                     : null
                 }>
-                {group.items.map((item) => (
-                  <CartLine
-                    key={item.id}
-                    item={item}
-                    available={!!seller}
-                    money={money}
-                    busy={pendingItemId === item.id || (saveForLater.isPending && saveForLater.variables?.productId === item.product_id)}
-                    onChange={(quantity) => setQuantity.mutate({ itemId: item.id, quantity })}
-                    onSave={() => save(group, item)}
-                  />
-                ))}
+                {group.items.map((item) => {
+                  const listing = cartLineListing(group, item);
+                  return (
+                    <CartLine
+                      key={item.id}
+                      item={item}
+                      available={!!seller}
+                      onOpen={listing ? () => leave(() => openListing(listing)) : null}
+                      money={money}
+                      busy={pendingItemId === item.id || (saveForLater.isPending && saveForLater.variables?.productId === item.product_id)}
+                      onChange={(quantity) => setQuantity.mutate({ itemId: item.id, quantity })}
+                      onSave={() => save(group, item)}
+                    />
+                  );
+                })}
               </ShopCard>
             );
           })}
@@ -358,11 +363,13 @@ function unitPriceLabel(item: CartItem, money: (amount: number) => string): stri
 
 /**
  * A cart line: its photo, name and price, and its quantity. A sold-out line stays, greyed, with
- * Remove and Save for later; one wanting more than is left offers to change to what is.
+ * Remove and Save for later; one wanting more than is left offers to change to what is. The photo
+ * and name open the product; the stepper and the line's buttons keep their own touch areas.
  */
 function CartLine({
   item,
   available,
+  onOpen,
   money,
   busy,
   onChange,
@@ -371,6 +378,8 @@ function CartLine({
   item: CartItem;
   /** False once the shop stopped selling it: it can only be removed. */
   available: boolean;
+  /** Opens the product in its shop; null once the shop stopped selling it. */
+  onOpen: (() => void) | null;
   money: (amount: number) => string;
   busy: boolean;
   onChange: (quantity: number) => void;
@@ -384,15 +393,31 @@ function CartLine({
   const photo = theme.control.md;
   return (
     <View style={[styles.row, { gap: theme.space[2], opacity: busy ? 0.6 : 1 }]}>
-      <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
-        {item.thumbnail ? (
-          <Image source={item.thumbnail} contentFit="contain" style={[styles.fill, greyed ? styles.faded : null]} />
-        ) : null}
-      </PhotoTile>
+      {/* The same link as the name, so a screen reader skips it. */}
+      <PressableSurface
+        disabled={!onOpen}
+        onPress={onOpen ?? undefined}
+        accessible={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={{ borderRadius: theme.radius.md }}>
+        <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
+          {item.thumbnail ? (
+            <Image source={item.thumbnail} contentFit="contain" style={[styles.fill, greyed ? styles.faded : null]} />
+          ) : null}
+        </PhotoTile>
+      </PressableSurface>
       <View style={[styles.fill, { gap: theme.space[1] }]}>
-        <Text weight="bold" tone={greyed ? 'muted' : 'default'} numberOfLines={2}>
-          {name}
-        </Text>
+        <PressableSurface
+          disabled={!onOpen}
+          onPress={onOpen ?? undefined}
+          accessibilityRole={onOpen ? 'link' : undefined}
+          accessibilityLabel={onOpen ? `Opens ${name}` : undefined}
+          style={styles.start}>
+          <Text weight="bold" tone={greyed ? 'muted' : 'default'} numberOfLines={2}>
+            {name}
+          </Text>
+        </PressableSurface>
         {soldOut ? (
           <StatusChip label="Sold out" tone="neutral" />
         ) : (
