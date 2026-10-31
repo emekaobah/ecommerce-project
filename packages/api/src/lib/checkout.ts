@@ -31,7 +31,7 @@ import { retrieveCartBySeller, type CartSeller, type CartSellerGroup } from "./c
 import { cutCartToStock } from "./cart-stock"
 import { deliveringToPin } from "./listings"
 import { escapeLike } from "./sql"
-import { offerLinePrice } from "./cart-lines"
+import { checkCartLines, type CartCheck } from "./cart-line-check"
 import { discountsByCode } from "./discount-funding"
 import {
   collectionPlacesOf,
@@ -595,12 +595,6 @@ async function collectedShops(scope: MedusaContainer, cart: CartRow): Promise<Se
   return new Set(methods.flatMap((m) => sellerByOption.get(m.shipping_option_id!) ?? []))
 }
 
-const linePrice = ({ unit_price, compare_at_unit_price, is_tax_inclusive }: LinePrice): LinePrice => ({
-  unit_price,
-  compare_at_unit_price,
-  is_tax_inclusive,
-})
-
 const samePrice = (a: LinePrice, b: LinePrice) =>
   a.unit_price === b.unit_price &&
   a.compare_at_unit_price === b.compare_at_unit_price &&
@@ -610,25 +604,27 @@ const samePrice = (a: LinePrice, b: LinePrice) =>
  * Lines are pinned to the price their offer had when added (`cart-lines.ts`); before the buyer
  * pays, each is brought to its offer's current price: unit price, compare-at price and tax
  * inclusivity, priced per offer, so two shops' offers of one variant keep their own prices.
- * Returns the lines whose price changed. A line whose shop stopped selling it has to be
- * removed first.
+ * Works from where the lines stand (`checkCartLines`). Returns the lines whose price changed.
+ * A line whose shop stopped selling it has to be removed first.
  */
-async function repriceLines(scope: MedusaContainer, cartId: string): Promise<CheckoutPriceChange[]> {
-  const { sellers } = await retrieveCartBySeller(scope, cartId)
-  if (sellers.some((g) => !g.seller)) {
+async function repriceLines(scope: MedusaContainer, cartId: string, { region_id, lines }: CartCheck): Promise<CheckoutPriceChange[]> {
+  if (lines.some((l) => !l.seller)) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
       "Some items are no longer sold by their shop. Remove them to check out."
     )
   }
-  const lines = sellers.flatMap((g) => g.items.map((item) => ({ item, seller: g.seller! })))
-  const prices = await Promise.all(lines.map(({ item }) => offerLinePrice(scope, cartId, item.offer_id!)))
-  const changes = lines.flatMap(({ item, seller }, i): CheckoutPriceChange[] => {
-    const was = linePrice(item)
-    const now = linePrice(prices[i])
+  const changes = lines.flatMap((line): CheckoutPriceChange[] => {
+    // Buyers can't see a shop that isn't live (onboarding gates, #26), so its offers aren't there to buy.
+    if (line.not_taking_orders === "left") throw new MedusaError(MedusaError.Types.NOT_FOUND, `Offer ${line.offer_id} not found`)
+    if (!region_id) throw new MedusaError(MedusaError.Types.INVALID_DATA, "The cart has no region to price it in")
+    if (!line.now) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, `Offer ${line.offer_id} has no price in the cart's currency`)
+    }
+    const { added_at: was, now } = line
     if (samePrice(was, now)) return []
-    const { id, product_title, variant_title, quantity } = item
-    return [{ line_item_id: id, seller, product_title, variant_title, quantity, was, now }]
+    const { line_item_id, product_title, variant_title, quantity } = line
+    return [{ line_item_id, seller: line.seller!, product_title, variant_title, quantity, was, now }]
   })
   const cartModule = scope.resolve(Modules.CART)
   // One line at a time: each update is a workflow on the same cart.
@@ -807,7 +803,7 @@ export async function prepareCheckout(
   notCompleted(cart)
   const customer = await scope.resolve(Modules.CUSTOMER).retrieveCustomer(customerId)
 
-  const priceChanges = await repriceLines(scope, cartId)
+  const priceChanges = await repriceLines(scope, cartId, await checkCartLines(scope, cartId))
   await dropEmptyShopDeliveries(scope, cart)
   const { sellers } = await retrieveCartBySeller(scope, cartId)
   const chosen = await pickupShops(scope, sellers, pickup)
@@ -936,13 +932,11 @@ export async function startCheckoutPayment(
   notCompleted(cart)
   await refuseIfAlreadyPaid(cart)
   // The cart may have changed since its address was set, and shops change prices.
-  const priceChanges = await repriceLines(scope, cartId)
+  // One look at where the lines stand: repricing leaves their quantities and stock as they are.
+  const check = await checkCartLines(scope, cartId)
+  const priceChanges = await repriceLines(scope, cartId, check)
   // Never charged for what sold out since it was added: it is taken off before paying, not refunded after.
-  const { changes: stockChanges, sellerIds: cutShops } = await cutCartToStock(
-    scope,
-    cartId,
-    (await retrieveCartBySeller(scope, cartId)).sellers
-  )
+  const { changes: stockChanges, sellerIds: cutShops } = await cutCartToStock(scope, cartId, check.lines)
   await dropEmptyShopDeliveries(scope, cart)
   // A cut parcel's delivery no longer stands: it is quoted again, so the buyer sees the new
   // total. The other shops' parcels are as they were, and keep the delivery the buyer chose.
