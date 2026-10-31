@@ -94,6 +94,9 @@ function RootStack() {
       <Stack.Screen name="seller/[id]" options={{ title: '' }} />
       <Stack.Screen name="category/[id]" options={{ title: '' }} />
       <Stack.Screen name="reviews" options={{ title: 'Reviews' }} />
+      {/* The cart over a product or an order, so the buyer comes back to it (the Cart tab would discard it). Guests
+          have carts, so it sits outside the guard. The platform's large sheet: the cart is too long to fit its contents. */}
+      <Stack.Screen name="cart-sheet" options={{ ...formSheet, sheetAllowedDetents: [1] }} />
       {/* Guests browse freely; checkout, orders, reviewing and the wishlist need a signed-in buyer (ADR 0001). */}
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="checkout/index" options={{ title: 'Checkout' }} />

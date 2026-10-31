@@ -37,3 +37,20 @@ export function openCategory(category: { id: string; name: string }) {
 export function openMyReviews() {
   router.push('/my-reviews');
 }
+
+/**
+ * Opens the cart as a sheet over the current screen, so the buyer comes back to it: switching to
+ * the Cart tab would discard a product or order opened above the tabs.
+ */
+export function openCartSheet() {
+  router.push('/cart-sheet');
+}
+
+/**
+ * Closes the sheet in front, then goes on. Called from a sheet route, so the next screen opens
+ * over the screen under the sheet rather than inside the sheet.
+ */
+export function closeSheetThen(go: () => void) {
+  router.back();
+  go();
+}
