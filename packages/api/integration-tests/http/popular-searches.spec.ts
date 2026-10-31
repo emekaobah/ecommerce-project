@@ -69,6 +69,13 @@ medusaIntegrationTestRunner({
         ).toBe(400)
         expect(await service().listSearchRecords({})).toHaveLength(0)
       })
+
+      it("records nothing for a region that doesn't exist, and refuses an overlong region id", async () => {
+        const { data } = await record("rice", phone(1), "reg_madeup")
+        expect(data).toEqual({ recorded: false })
+        expect(await status(record("rice", phone(1), `reg_${"x".repeat(100)}`))).toBe(400)
+        expect(await service().listSearchRecords({})).toHaveLength(0)
+      })
     })
 
     describe("publishPopularSearches", () => {
@@ -107,6 +114,16 @@ medusaIntegrationTestRunner({
         expect(new Set(kept.map((r) => r.term))).toEqual(new Set(["rice", "lantern"]))
       })
 
+      it("forgets a backlog bigger than one batch", async () => {
+        await searchedFrom("kaftan", 2500, 100)
+        await searchedFrom("lantern", 3, 1)
+
+        await publishPopularSearches(getContainer(), { minPhones: 3 })
+
+        const kept = await service().listSearchRecords({}, { select: ["term"] })
+        expect(kept.map((r) => r.term)).toEqual(["lantern", "lantern", "lantern"])
+      })
+
       it("leaves out blocklisted terms, though they find listings", async () => {
         // A shop names a product with a blocklisted word, so searching it finds the listing.
         const products = getContainer().resolve(Modules.PRODUCT)
@@ -130,6 +147,24 @@ medusaIntegrationTestRunner({
         await service().deleteSearchRecords((await service().listSearchRecords({}, { select: ["id"] })).map((r) => r.id))
         await publishPopularSearches(getContainer(), { minPhones: 3 })
         expect(await popular()).toEqual([])
+      })
+
+      it("publishes one list when two runs overlap", async () => {
+        await searchedFrom("rice", 6)
+        await searchedFrom("kaftan", 5)
+
+        const runs = await Promise.allSettled([
+          publishPopularSearches(getContainer(), { minPhones: 3 }),
+          publishPopularSearches(getContainer(), { minPhones: 3 }),
+        ])
+
+        expect(runs.some((r) => r.status === "fulfilled")).toBe(true)
+        expect(await popular()).toEqual(["rice", "kaftan"])
+      })
+
+      it("holds each rank of a region's list once", async () => {
+        await service().createPopularSearches({ region_id: regionId, term: "rice", rank: 0 })
+        await expect(service().createPopularSearches({ region_id: regionId, term: "kaftan", rank: 0 })).rejects.toThrow()
       })
     })
 

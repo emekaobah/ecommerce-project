@@ -15,6 +15,6 @@ const SearchRecord = model
     phone_id: model.text(),
     searched_at: model.dateTime(),
   })
-  .indexes([{ on: ["region_id", "searched_at"] }, { on: ["searched_at"] }])
+  .indexes([{ on: ["searched_at"] }])
 
 export default SearchRecord

@@ -1,6 +1,6 @@
 import type { MedusaResponse, MedusaStoreRequest } from "@medusajs/framework/http"
 import { popularSearchesOf } from "../../../lib/popular-searches"
-import type { StoreGetPopularSearchesType } from "../searches/validators"
+import type { StoreGetPopularSearchesType } from "./validators"
 
 export type StorePopularSearchesResponse = { popular_searches: string[] }
 

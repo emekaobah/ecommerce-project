@@ -2,7 +2,8 @@ import type { MedusaResponse, MedusaStoreRequest } from "@medusajs/framework/htt
 import { recordSearch } from "../../../lib/popular-searches"
 import type { StoreRecordSearchType } from "./validators"
 
-export type StoreRecordSearchResponse = { recorded: true }
+/** `recorded` is false for a region that doesn't exist. */
+export type StoreRecordSearchResponse = { recorded: boolean }
 
 /**
  * Records a search the buyer used, for popular searches (#124): the app calls it when a search is
@@ -11,6 +12,5 @@ export type StoreRecordSearchResponse = { recorded: true }
  */
 export const POST = async (req: MedusaStoreRequest<StoreRecordSearchType>, res: MedusaResponse<StoreRecordSearchResponse>) => {
   const { term, region_id, phone_id } = req.validatedBody
-  await recordSearch(req.scope, { term, region_id, phone_id })
-  res.json({ recorded: true })
+  res.json({ recorded: await recordSearch(req.scope, { term, region_id, phone_id }) })
 }

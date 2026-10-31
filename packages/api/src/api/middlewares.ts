@@ -62,7 +62,8 @@ import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validato
 import { AdminSetTopUpCap } from "./admin/courier-approvals/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
-import { StoreGetPopularSearches, StoreRecordSearch } from "./store/searches/validators";
+import { StoreRecordSearch } from "./store/searches/validators";
+import { StoreGetPopularSearches } from "./store/popular-searches/validators";
 import { reportServerErrors } from "./report-server-errors";
 import { answeringRefusalDetails } from "./refusal-details";
 import { showEachOrderItsOwnPaymentStatus } from "./admin/own-payment-status";

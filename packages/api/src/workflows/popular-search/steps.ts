@@ -20,36 +20,30 @@ export const recordSearchStep = createStep(
   }
 )
 
-/** Replaces the region's popular searches with `terms`, most popular first. */
+/** Replaces the region's popular searches with `terms`, most popular first; undone by putting the old list back. */
 export const publishPopularSearchesStep = createStep(
   "publish-popular-searches",
   async (input: PopularSearchesInput, { container }) => {
-    const service = popularSearchService(container)
-    const previous = await service.listPopularSearches({ region_id: input.region_id }, { order: { rank: "ASC" } })
-    if (previous.length) await service.deletePopularSearches(previous.map((p) => p.id))
-    const created = input.terms.length
-      ? await service.createPopularSearches(input.terms.map((term, rank) => ({ region_id: input.region_id, term, rank })))
-      : []
-    return new StepResponse(
-      { terms: input.terms },
-      { created: created.map((c) => c.id), previous: previous.map(({ region_id, term, rank }) => ({ region_id, term, rank })) }
-    )
+    const previous = await popularSearchService(container).replacePopularSearches(input.region_id, input.terms)
+    return new StepResponse({ terms: input.terms }, { region_id: input.region_id, previous })
   },
-  async (
-    compensation: { created: string[]; previous: { region_id: string; term: string; rank: number }[] } | undefined,
-    { container }
-  ) => {
-    if (!compensation) return
-    const service = popularSearchService(container)
-    if (compensation.created.length) await service.deletePopularSearches(compensation.created)
-    if (compensation.previous.length) await service.createPopularSearches(compensation.previous)
+  async (compensation: { region_id: string; previous: string[] } | undefined, { container }) => {
+    if (compensation) await popularSearchService(container).replacePopularSearches(compensation.region_id, compensation.previous)
   }
 )
+
+/** How many expired searches are deleted at a time, so a backlog is never loaded at once. */
+const FORGET_BATCH = 1000
 
 /** Deletes the searches recorded before `before`, for good: kept no longer than that. */
 export const forgetSearchesStep = createStep("forget-searches", async (input: { before: Date }, { container }) => {
   const service = popularSearchService(container)
-  const old = await service.listSearchRecords({ searched_at: { $lt: input.before } }, { select: ["id"] })
-  if (old.length) await service.deleteSearchRecords(old.map((r) => r.id))
-  return new StepResponse({ forgotten: old.length })
+  let forgotten = 0
+  let batch: { id: string }[]
+  do {
+    batch = await service.listSearchRecords({ searched_at: { $lt: input.before } }, { select: ["id"], take: FORGET_BATCH })
+    if (batch.length) await service.deleteSearchRecords(batch.map((r) => r.id))
+    forgotten += batch.length
+  } while (batch.length === FORGET_BATCH)
+  return new StepResponse({ forgotten })
 })
