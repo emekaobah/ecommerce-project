@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage, type Server } from "node:http"
 
 /** An email as the backend asks Resend to send it. */
-export type SentEmail = { from: string; to: string | string[]; subject: string; html?: string; text?: string }
+export type SentEmail = { from: string; to: string | string[]; subject: string; html?: string; text?: string; headers?: Record<string, string> }
 
 /**
  * Stands in for Resend's API: the backend's `RESEND_API_URL` points here. It accepts every email
