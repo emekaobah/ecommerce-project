@@ -118,7 +118,7 @@ function Results({
 
 /**
  * Before typing: the buyer's recent searches, then each department's sub-categories as photo
- * tiles under its heading, with "See all" opening the whole department.
+ * tiles under its heading (none for one with no sub-categories), with "See all" opening the whole department.
  */
 function Browse({
   recent,
@@ -156,7 +156,8 @@ function Browse({
               </Text>
               <SeeAll department={department} />
             </View>
-            <CategoryGrid categories={subCategories} />
+            {/* A department with no sub-categories is still listed: "See all" opens its products. */}
+            {subCategories.length ? <CategoryGrid categories={subCategories} /> : null}
           </View>
         ))
       ) : (
