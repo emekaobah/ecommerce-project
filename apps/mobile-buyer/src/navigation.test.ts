@@ -44,6 +44,19 @@ describe('closeSheetThen', () => {
     expect(calls).toEqual(['back', 'push /checkout']);
   });
 
+  test('ignores another tap while the sheet is closing, so the screen under it stays and opens one screen', () => {
+    closeSheetThen(() => calls.push('push /checkout'));
+    closeSheetThen(() => calls.push('push /product'));
+
+    stackSettled();
+
+    expect(calls).toEqual(['back', 'push /checkout']);
+
+    closeSheetThen(() => calls.push('push /product'));
+
+    expect(calls).toEqual(['back', 'push /checkout', 'back']);
+  });
+
   test("goes on anyway if the stack never says it settled, so a tap isn't lost", () => {
     closeSheetThen(() => calls.push('push /checkout'));
 
