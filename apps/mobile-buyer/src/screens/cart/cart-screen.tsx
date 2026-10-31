@@ -28,14 +28,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCart, useMoveShopToOwnCart, useSetCartItemQuantity, type Cart, type CartItem, type CartSellerGroup } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
 import { useToggleWishlist } from '@/api/wishlist';
+import { cartLineListing } from '@/cart/cart-line-listing';
 import { useCartSession } from '@/cart/cart-provider';
 import { SumRow } from '@/components/cart/summary';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
-import { cartLineListing, closeSheetThen, openListing } from '@/navigation';
+import { closeSheetThen, openListing } from '@/navigation';
+
+/** Goes to another screen from the Cart tab: straight there. */
+const leaveTab = (go: () => void) => go();
 
 /** Goes to another screen from the cart. In the sheet, it closes first, so that screen opens over the one under it. */
-const LeaveCart = createContext<(go: () => void) => void>((go) => go());
+const LeaveCart = createContext<(go: () => void) => void>(leaveTab);
 
 /** How anything in the cart opens another screen: `leave(() => router.push('/checkout'))`. */
 export const useLeaveCart = () => useContext(LeaveCart);
@@ -52,7 +56,7 @@ export function CartScreen({ inSheet = false }: Readonly<{ inSheet?: boolean }>)
   const { cartId, forgetCart } = useCartSession();
   const cart = useCart(cartId);
   const cartMissing = isNotFound(cart.error);
-  const leave = inSheet ? closeSheetThen : (go: () => void) => go();
+  const leave = inSheet ? closeSheetThen : leaveTab;
   const { refreshing, refresh } = usePullToRefresh(async () => {
     const result = await cart.refetch();
     if (result.isError && cart.data) toast({ message: "Couldn't refresh your cart", tone: 'problem' });
@@ -413,6 +417,8 @@ function CartLine({
           onPress={onOpen ?? undefined}
           accessibilityRole={onOpen ? 'link' : undefined}
           accessibilityLabel={onOpen ? `Opens ${name}` : undefined}
+          // A one-line name is shorter than the 44pt touch target.
+          hitSlop={theme.space[3]}
           style={styles.start}>
           <Text weight="bold" tone={greyed ? 'muted' : 'default'} numberOfLines={2}>
             {name}
