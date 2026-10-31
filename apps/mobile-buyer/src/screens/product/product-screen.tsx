@@ -213,14 +213,6 @@ function useProductScroll() {
   return { band, scrollY: band.scrollY, titleUnder, barBottom, galleryHeight, photoHeight, reduceMotion, onTitleLayout };
 }
 
-/** A worklet giving where the photo and bar stand at this frame's offset, for animated styles and reactions. */
-function positionWorklet({ scrollY, titleUnder, photoHeight, reduceMotion }: ProductScroll) {
-  return () => {
-    'worklet';
-    return productScrollPosition(scrollY.get(), { photoHeight, titleUnder: titleUnder.get(), reduceMotion });
-  };
-}
-
 /**
  * The bar fixed over the top, never replaced. At the top it is the photo tile's colour, so it
  * reads as part of the photo: back, and save when given, with no title. Once the big title has gone
@@ -230,14 +222,15 @@ function positionWorklet({ scrollY, titleUnder, photoHeight, reduceMotion }: Pro
 function ProductBar({ scroll, title, save }: Readonly<{ scroll: ProductScroll; title?: string; save?: ReactNode }>) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const position = positionWorklet(scroll);
+  // Read inside each worklet: Reanimated only follows shared values a worklet captures itself.
+  const { scrollY, titleUnder, photoHeight, reduceMotion } = scroll;
   const titled = useSharedValue(0);
   const { productTile, bg } = theme.colors;
   const fade = theme.motion.crossFade;
 
   // The bar changes once per crossing, cross-fading, not with every frame.
   useAnimatedReaction(
-    () => position().titled,
+    () => productScrollPosition(scrollY.get(), { photoHeight, titleUnder: titleUnder.get(), reduceMotion }).titled,
     (now, before) => {
       if (now !== before) titled.set(withTiming(now ? 1 : 0, { duration: fade }));
     }
@@ -307,12 +300,15 @@ function PullEdge({ scroll }: Readonly<{ scroll: ProductScroll }>) {
  */
 function ParallaxPhoto({ scroll, children }: Readonly<{ scroll: ProductScroll; children: ReactNode }>) {
   const theme = useTheme();
-  const position = positionWorklet(scroll);
+  // Read inside each worklet: Reanimated only follows shared values a worklet captures itself.
+  const { scrollY, titleUnder, photoHeight, reduceMotion } = scroll;
   const moved = useAnimatedStyle(() => {
-    const { translateY, scale } = position();
+    const { translateY, scale } = productScrollPosition(scrollY.get(), { photoHeight, titleUnder: titleUnder.get(), reduceMotion });
     return { transform: [{ translateY }, { scale }] };
   });
-  const veil = useAnimatedStyle(() => ({ opacity: position().dim }));
+  const veil = useAnimatedStyle(() => ({
+    opacity: productScrollPosition(scrollY.get(), { photoHeight, titleUnder: titleUnder.get(), reduceMotion }).dim,
+  }));
   return (
     <Animated.View
       style={[{ height: scroll.photoHeight, paddingTop: scroll.barBottom, backgroundColor: theme.colors.productTile }, moved]}>
