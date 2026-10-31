@@ -8,6 +8,7 @@ import { ADDRESS, buyerCheckout, eventually, GADGETS, GROCERY, LANTERN, RETURN_U
 import { fakeClerk } from "../helpers/clerk"
 import { fakeExpoPush, pushToken } from "../helpers/expo-push"
 import { fakePaystack } from "../helpers/paystack"
+import { fakeResend, type SentEmail } from "../helpers/resend"
 import { fakeShipbubble } from "../helpers/shipbubble"
 import { keepShopsOpen } from "../helpers/shop-hours"
 import { formatMoney } from "@oja/domain"
@@ -19,6 +20,8 @@ const clerk = fakeClerk()
 const paystack = fakePaystack(18000 + (process.pid % 1000))
 const shipbubble = fakeShipbubble(19000 + (process.pid % 1000))
 const expo = fakeExpoPush(20000 + (process.pid % 1000))
+const resend = fakeResend(29000 + (process.pid % 1000))
+const BACKEND_URL = "https://api.oja.test"
 // Set before the runner loads medusa-config.
 process.env.CLERK_JWT_KEY = clerk.jwtKey
 process.env.PAYSTACK_SECRET_KEY = paystack.secretKey
@@ -27,6 +30,11 @@ process.env.SHIPBUBBLE_API_KEY = shipbubble.apiKey
 process.env.SHIPBUBBLE_API_URL = shipbubble.apiUrl
 process.env.EXPO_ACCESS_TOKEN = expo.accessToken
 process.env.EXPO_PUSH_API_URL = expo.apiUrl
+process.env.RESEND_API_KEY = resend.apiKey
+process.env.RESEND_API_URL = resend.apiUrl
+process.env.RESEND_FROM = "Oja <orders@oja.test>"
+process.env.UNSUBSCRIBE_SECRET = "cart-reminders-spec-unsubscribe-secret"
+process.env.MERCUR_BACKEND_URL = BACKEND_URL
 
 const MINUTE = 60 * 1000
 const HOUR = 60 * MINUTE
@@ -45,7 +53,9 @@ const dueAt = (changedAt: number, delay = 4 * HOUR) => nextLagosHour(changedAt +
 
 // The cart reminder push (#137): a signed-in buyer's cart left unpaid and unchanged for four
 // hours is pushed to each of their devices once, between 9am and 8pm Lagos time, naming its shops
-// and top items, and opening the Cart tab. The job's function is called at set times.
+// and top items, and opening the Cart tab. The same reminder goes by email (#139), with the
+// current total and a signed link that unsubscribes the buyer from it. The job's function is
+// called at set times.
 medusaIntegrationTestRunner({
   inApp: true,
   env: {},
@@ -56,13 +66,14 @@ medusaIntegrationTestRunner({
     let buyers = 0
 
     beforeAll(async () => {
-      await Promise.all([paystack.start(), shipbubble.start(), expo.start()])
+      await Promise.all([paystack.start(), shipbubble.start(), expo.start(), resend.start()])
       await seedDemoWorld({ container: getContainer(), args: [] } as any)
       await keepShopsOpen(getContainer(), [GADGETS, GROCERY])
     })
-    afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop()]))
+    afterAll(() => Promise.all([paystack.stop(), shipbubble.stop(), expo.stop(), resend.stop()]))
     beforeEach(async () => {
       expo.reset()
+      resend.reset()
       await ada.load()
     })
     afterEach(async () => {
@@ -72,7 +83,12 @@ medusaIntegrationTestRunner({
     })
 
     /** A new signed-in buyer, so each test's carts and devices are its own. */
-    const newBuyer = () => ada.as(`buyer-${++buyers}-${process.pid}@oja.test`)
+    const newBuyer = () => newBuyerWithEmail().as
+    /** A new signed-in buyer and their email address. */
+    const newBuyerWithEmail = () => {
+      const email = `buyer-${++buyers}-${process.pid}@oja.test`
+      return { email, as: ada.as(email) }
+    }
     type As = ReturnType<typeof newBuyer>
     /** A device registering for pushes, as the buyer app does once its buyer is signed in. */
     const register = async (as: As) => {
@@ -111,6 +127,9 @@ medusaIntegrationTestRunner({
       return read()
     }
     const settledPushesTo = (token: string) => settled(() => expo.sentTo(token))
+    /** The emails an address has had, once at least `count` have arrived. */
+    const emailsTo = (address: string, count = 1) => eventually(async () => resend.sentTo(address), (sent) => sent.length >= count)
+    const settledEmailsTo = (address: string) => settled(() => resend.sentTo(address))
     /** Sets an offer's price; returns how to put it back. */
     const setPrice = async (shop: Shop, product: { title: string; price: number }, amount: number) => {
       const offerId = await ada.offerId(shop, product.title)
@@ -322,6 +341,143 @@ medusaIntegrationTestRunner({
         } finally {
           await restock()
         }
+      })
+    })
+
+    describe("the reminder email", () => {
+      const money = (amount: number) => formatMoney(amount, "ngn")
+      const PREFERENCES = "/store/customers/me/notification-preferences"
+      const preferencesOf = async (as: As) => (await api.get(PREFERENCES, as)).data.notification_preferences
+      /** The unsubscribe link an email carries in its List-Unsubscribe header. */
+      const unsubscribeLinkOf = (email: SentEmail) => {
+        const link = /^<(.+)>$/.exec(email.headers?.["List-Unsubscribe"] ?? "")?.[1]
+        if (!link) throw new Error(`no unsubscribe link in ${JSON.stringify(email.headers)}`)
+        return link
+      }
+      /** The backend path of a link, for the test client. */
+      const pathOf = (link: string) => {
+        expect(link.startsWith(`${BACKEND_URL}/`)).toBe(true)
+        return link.slice(BACKEND_URL.length)
+      }
+      const tokenOf = (email: SentEmail) => pathOf(unsubscribeLinkOf(email)).slice("/unsubscribe/".length)
+      const anyStatus = { validateStatus: () => true }
+      /** The one-click unsubscribe POST mail apps send (RFC 8058). */
+      const oneClick = (path: string) =>
+        api.post(path, "List-Unsubscribe=One-Click", { headers: { "content-type": "application/x-www-form-urlencoded" }, ...anyStatus })
+      /** A new buyer with a due two-shop cart, reminded once by email. */
+      const remindedByEmail = async () => {
+        const { email, as } = newBuyerWithEmail()
+        const cartId = await twoShopCart(as)
+        await remind(dueAt(await changedAt(cartId)))
+        const [sent] = await emailsTo(email)
+        return { email, as, sent }
+      }
+
+      it("goes to the buyer once alongside the push, with the push's content, the current total and a button to the cart", async () => {
+        const { email, as } = newBuyerWithEmail()
+        const phone = await register(as)
+        const cartId = await twoShopCart(as)
+        const due = dueAt(await changedAt(cartId))
+        await remind(due)
+
+        const [sent] = await emailsTo(email)
+        expect(sent.subject).toBe(`Your items from ${GADGETS.name} and 1 more shop`)
+        expect(sent.text).toContain(`${LANTERN.title} and ${RICE.title} are still in your cart.`)
+        for (const text of [GADGETS.name, GROCERY.name, LANTERN.title, RICE.title, money(LANTERN.price + 2 * RICE.price)])
+          expect(sent.text).toContain(text)
+        expect(sent.html).toContain('href="oja://cart"')
+        expect(await pushesTo(phone)).toHaveLength(1)
+
+        await remind(due)
+        await remind(new Date(due.getTime() + HOUR))
+        expect(await settledEmailsTo(email)).toHaveLength(1)
+      })
+
+      it("carries the good news the push does, and no discount", async () => {
+        const { email, as } = newBuyerWithEmail()
+        const cartId = await twoShopCart(as)
+        const restore = await setPrice(GADGETS, LANTERN, LANTERN.price - 1000)
+        try {
+          await remind(dueAt(await changedAt(cartId)))
+          const [sent] = await emailsTo(email)
+          expect(sent.text).toContain(`${LANTERN.title} is now ${money(LANTERN.price - 1000)}, down from ${money(LANTERN.price)}.`)
+          expect(sent.text).toContain(money(LANTERN.price - 1000 + 2 * RICE.price))
+          expect(sent.text?.toLowerCase()).not.toMatch(/discount|coupon|promo code/)
+        } finally {
+          await restore()
+        }
+      })
+
+      it("carries List-Unsubscribe and List-Unsubscribe-Post headers, and its link in the email too", async () => {
+        const { sent } = await remindedByEmail()
+
+        expect(sent.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click")
+        const link = unsubscribeLinkOf(sent)
+        expect(link.startsWith(`${BACKEND_URL}/unsubscribe/`)).toBe(true)
+        expect(sent.html).toContain(link)
+      })
+
+      it("isn't sent with the email switch off, while the push still follows its own switch", async () => {
+        const { email, as } = newBuyerWithEmail()
+        const phone = await register(as)
+        await api.post(PREFERENCES, { cart_reminder_email: false }, as)
+        const cartId = await twoShopCart(as)
+
+        await remind(dueAt(await changedAt(cartId)))
+
+        expect(await pushesTo(phone)).toHaveLength(1)
+        expect(await settledEmailsTo(email)).toEqual([])
+      })
+
+      it("unsubscribes the buyer from its link without signing in, which the preferences then show", async () => {
+        const { email, as, sent } = await remindedByEmail()
+
+        const res = await api.get(pathOf(unsubscribeLinkOf(sent)), anyStatus)
+
+        expect(res.status).toBe(200)
+        expect(res.headers["content-type"]).toMatch(/html/)
+        expect(res.data).toContain("You're unsubscribed")
+        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: false })
+
+        const cartId = await cartOf(as, [[GROCERY, RICE, 1]])
+        await remind(dueAt(await changedAt(cartId)))
+        expect(await settledEmailsTo(email)).toHaveLength(1)
+      })
+
+      it("unsubscribes the buyer with the one-click POST", async () => {
+        const { as, sent } = await remindedByEmail()
+
+        const res = await oneClick(pathOf(unsubscribeLinkOf(sent)))
+
+        expect(res.status).toBe(200)
+        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: false })
+      })
+
+      it("refuses a tampered or unknown unsubscribe link, leaving the buyer subscribed", async () => {
+        const ada = await remindedByEmail()
+        const bea = await remindedByEmail()
+        const [token, beasToken] = [tokenOf(ada.sent), tokenOf(bea.sent)]
+        const signatureAt = (t: string) => t.lastIndexOf(".")
+        const refused = [
+          // Its signature changed.
+          `${token.slice(0, -1)}${token.endsWith("A") ? "B" : "A"}`,
+          // Another buyer's signature on Ada's link.
+          `${token.slice(0, signatureAt(token))}${beasToken.slice(signatureAt(beasToken))}`,
+          // Ada's email link turned to another channel.
+          token.replace(/^[^.]+/, "cart_reminder_push"),
+          // Made up.
+          "cart_reminder_email.cus_01JUNKNOWN0000000000000000.bm90LWEtc2lnbmF0dXJl",
+          "nonsense",
+        ]
+
+        for (const bad of refused) {
+          const get = await api.get(`/unsubscribe/${bad}`, anyStatus)
+          expect(get.status).toBe(404)
+          expect(get.data).not.toContain("You're unsubscribed")
+          expect((await oneClick(`/unsubscribe/${bad}`)).status).toBe(404)
+        }
+        expect(await preferencesOf(ada.as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
+        expect(await preferencesOf(bea.as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
       })
     })
   },

@@ -31,7 +31,13 @@ export type EmailShopOrder = {
   paid: number
 }
 
-export function EmailLayout({ preview, heading, children }: Readonly<{ preview: string; heading: string; children: ReactNode }>) {
+/** `footer` goes under the closing line, e.g. an unsubscribe link. */
+export function EmailLayout({
+  preview,
+  heading,
+  children,
+  footer,
+}: Readonly<{ preview: string; heading: string; children: ReactNode; footer?: ReactNode }>) {
   return (
     <Html lang="en">
       <Head />
@@ -45,6 +51,7 @@ export function EmailLayout({ preview, heading, children }: Readonly<{ preview: 
           {children}
           <Hr style={{ borderColor: DIVIDER, margin: "32px 0 16px" }} />
           <Text style={secondary}>{`Open the ${PRODUCT_NAME} app to follow your orders.`}</Text>
+          {footer}
         </Container>
       </Body>
     </Html>
