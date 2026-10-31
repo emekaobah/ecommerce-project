@@ -2,6 +2,7 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "types": ["bun"],
     // `react` maps to React 19's types for every import, React Native libraries' included: the root's are React 18 (ADR 0016).
     "paths": {
       "@/*": [
