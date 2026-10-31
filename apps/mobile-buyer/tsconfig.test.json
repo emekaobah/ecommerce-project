@@ -1,0 +1,9 @@
+{
+  // The tests, with Bun's types; the app itself is checked without them (tsconfig.json).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun"]
+  },
+  "include": ["**/*.test.ts", "**/*.test.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules"]
+}

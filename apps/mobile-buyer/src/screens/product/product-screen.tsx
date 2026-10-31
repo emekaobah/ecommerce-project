@@ -213,8 +213,8 @@ function useProductScroll() {
   return { band, scrollY: band.scrollY, titleUnder, barBottom, galleryHeight, photoHeight, reduceMotion, onTitleLayout };
 }
 
-/** Where the photo and bar stand at this frame's offset. */
-function usePosition({ scrollY, titleUnder, photoHeight, reduceMotion }: ProductScroll) {
+/** A worklet giving where the photo and bar stand at this frame's offset, for animated styles and reactions. */
+function positionWorklet({ scrollY, titleUnder, photoHeight, reduceMotion }: ProductScroll) {
   return () => {
     'worklet';
     return productScrollPosition(scrollY.get(), { photoHeight, titleUnder: titleUnder.get(), reduceMotion });
@@ -230,7 +230,7 @@ function usePosition({ scrollY, titleUnder, photoHeight, reduceMotion }: Product
 function ProductBar({ scroll, title, save }: Readonly<{ scroll: ProductScroll; title?: string; save?: ReactNode }>) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const position = usePosition(scroll);
+  const position = positionWorklet(scroll);
   const titled = useSharedValue(0);
   const { productTile, bg } = theme.colors;
   const fade = theme.motion.crossFade;
@@ -307,7 +307,7 @@ function PullEdge({ scroll }: Readonly<{ scroll: ProductScroll }>) {
  */
 function ParallaxPhoto({ scroll, children }: Readonly<{ scroll: ProductScroll; children: ReactNode }>) {
   const theme = useTheme();
-  const position = usePosition(scroll);
+  const position = positionWorklet(scroll);
   const moved = useAnimatedStyle(() => {
     const { translateY, scale } = position();
     return { transform: [{ translateY }, { scale }] };
@@ -317,7 +317,7 @@ function ParallaxPhoto({ scroll, children }: Readonly<{ scroll: ProductScroll; c
     <Animated.View
       style={[{ height: scroll.photoHeight, paddingTop: scroll.barBottom, backgroundColor: theme.colors.productTile }, moved]}>
       {children}
-      <Animated.View style={[StyleSheet.absoluteFill, styles.veil, veil]} />
+      <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { backgroundColor: theme.colors.veil }, veil]} />
     </Animated.View>
   );
 }
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
   edge: { position: 'absolute', left: 0, right: 0, pointerEvents: 'none' },
   // Drawn after the photo, so it passes over the photo as the photo is held back.
   overPhoto: { zIndex: 1 },
-  veil: { backgroundColor: '#000000', pointerEvents: 'none' },
+  veil: { pointerEvents: 'none' },
   dots: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'center' },
   dimmed: { opacity: 0.55 },
 });
