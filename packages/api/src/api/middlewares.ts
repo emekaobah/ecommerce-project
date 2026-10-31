@@ -62,6 +62,7 @@ import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validato
 import { AdminSetTopUpCap } from "./admin/courier-approvals/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
+import { StoreGetPopularSearches, StoreRecordSearch } from "./store/searches/validators";
 import { reportServerErrors } from "./report-server-errors";
 import { answeringRefusalDetails } from "./refusal-details";
 import { showEachOrderItsOwnPaymentStatus } from "./admin/own-payment-status";
@@ -130,6 +131,17 @@ export default defineMiddlewares({
                 authenticate("customer", ["session", "bearer"], { allowUnauthenticated: true }),
                 validateAndTransformQuery(StoreGetShopParams, {}),
             ],
+        },
+        // Searches buyers use, and the popular ones, for everyone: no buyer is recorded (#124).
+        {
+            method: ["POST"],
+            matcher: "/store/searches",
+            middlewares: [validateAndTransformBody(StoreRecordSearch)],
+        },
+        {
+            method: ["GET"],
+            matcher: "/store/popular-searches",
+            middlewares: [validateAndTransformQuery(StoreGetPopularSearches, {})],
         },
         // Order again adds the ticked offers at once (#72); like add-to-cart, for guests too.
         {

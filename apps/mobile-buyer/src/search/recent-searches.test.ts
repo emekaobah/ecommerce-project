@@ -2,7 +2,13 @@ import { describe, expect, mock, test } from 'bun:test';
 
 // The hook's own collaborators; these tests exercise only how the list changes.
 mock.module('@clerk/expo', () => ({ useAuth: () => ({ isLoaded: false, userId: null }) }));
-mock.module('expo-secure-store', () => ({}));
+// Bun shares a mocked module across test files and can't add exports to it later, so it names
+// each function another file's mock (`search-phone-id.test.ts`) gives a body.
+mock.module('expo-secure-store', () => ({
+  getItemAsync: async () => null,
+  setItemAsync: async () => {},
+  deleteItemAsync: async () => {},
+}));
 
 const { recentReducer } = await import('./recent-searches');
 
