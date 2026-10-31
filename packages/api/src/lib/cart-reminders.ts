@@ -55,7 +55,8 @@ export type CartReminder = {
   content: CartReminderContent
 }
 
-const hours = (value: string | undefined, fallback: number, max: number) => {
+/** An env value as a number from 0 to `max`, or `fallback` when it is unset or isn't one. */
+const boundedEnvNumber = (value: string | undefined, fallback: number, max: number) => {
   const n = value === undefined || value.trim() === "" ? Number.NaN : Number(value)
   return Number.isFinite(n) && n >= 0 && n <= max ? n : fallback
 }
@@ -64,14 +65,17 @@ const hours = (value: string | undefined, fallback: number, max: number) => {
  * When reminders go out, from config: `CART_REMINDER_DELAY_HOURS` (default 4),
  * `CART_REMINDER_SEND_FROM_HOUR` and `CART_REMINDER_SEND_UNTIL_HOUR` (default 9 and 20) in
  * `CART_REMINDER_TIME_ZONE` (default Africa/Lagos). A value that isn't a number in range falls
- * back to its default.
+ * back to its default, and so do both hours when they leave no hour to send in (from at or after
+ * until), rather than never sending.
  */
 export function cartReminderSchedule(env: NodeJS.ProcessEnv = process.env): CartReminderSchedule {
   const d = CART_REMINDER_SCHEDULE
+  const from = boundedEnvNumber(env.CART_REMINDER_SEND_FROM_HOUR, d.send_from_hour, 23)
+  const until = boundedEnvNumber(env.CART_REMINDER_SEND_UNTIL_HOUR, d.send_until_hour, 24)
+  const window = from < until ? { send_from_hour: from, send_until_hour: until } : { send_from_hour: d.send_from_hour, send_until_hour: d.send_until_hour }
   return {
-    delay_hours: hours(env.CART_REMINDER_DELAY_HOURS, d.delay_hours, 24 * 30),
-    send_from_hour: hours(env.CART_REMINDER_SEND_FROM_HOUR, d.send_from_hour, 23),
-    send_until_hour: hours(env.CART_REMINDER_SEND_UNTIL_HOUR, d.send_until_hour, 24),
+    delay_hours: boundedEnvNumber(env.CART_REMINDER_DELAY_HOURS, d.delay_hours, 24 * 30),
+    ...window,
     time_zone: env.CART_REMINDER_TIME_ZONE?.trim() || d.time_zone,
   }
 }
