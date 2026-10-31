@@ -145,6 +145,16 @@ export async function shopStatusesOf(scope: Scope, sellerIds: string[], now = ne
   )
 }
 
+/** Why the shop takes no orders now: paused, closed for a date (ADR 0004), or no longer selling on Oja. */
+export type NotTakingOrders = "paused" | "closed" | "left"
+
+/** Why the shop can't take orders now, or null when it can: gone from Oja (no status), paused, or closed for a date. */
+export function notTakingOrders(status: ShopStatusView | null): NotTakingOrders | null {
+  if (!status) return "left"
+  if (status.orderable) return null
+  return status.state === "closed_until" && status.reason === "pause" ? "paused" : "closed"
+}
+
 /**
  * Refuses (400) when any of the shops is in a closed exception or paused: its items can't be
  * added to a cart or paid for until it reopens (ADR 0004). Outside its hours a shop still takes orders.

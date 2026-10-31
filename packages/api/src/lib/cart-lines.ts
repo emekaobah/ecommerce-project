@@ -1,6 +1,7 @@
 import type { AddToCartWorkflowInputDTO, MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { addToCartWorkflow } from "@medusajs/medusa/core-flows"
+import type { LinePrice } from "@oja/domain"
 import { priceOffers } from "./listings"
 import { isLive } from "./onboarding"
 import { refuseClosedShops } from "./shop-hours"
@@ -70,13 +71,22 @@ async function priceLine(scope: MedusaContainer, cart: CartPricing, offerId: str
   if (!priced) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, `Offer ${offerId} has no price in the cart's currency`)
   }
-  const { calculated_amount, original_amount, is_calculated_price_tax_inclusive } = priced.calculated_price
+  return { offer_id: offer.id, seller_id: offer.seller_id, variant_id: offer.variant_id, ...linePriceOf(priced.calculated_price) }
+}
+
+/** What a line is charged for one, from its offer's calculated price (`priceOffers`). */
+export function linePriceOf({
+  calculated_amount,
+  original_amount,
+  is_calculated_price_tax_inclusive,
+}: {
+  calculated_amount: unknown
+  original_amount?: unknown
+  is_calculated_price_tax_inclusive?: boolean | null
+}): LinePrice {
   const unitPrice = Number(calculated_amount)
   const originalPrice = Number(original_amount ?? calculated_amount)
   return {
-    offer_id: offer.id,
-    seller_id: offer.seller_id,
-    variant_id: offer.variant_id,
     unit_price: unitPrice,
     // A sale shows the shop's normal price struck through, as on the product page.
     compare_at_unit_price: originalPrice > unitPrice ? originalPrice : null,
