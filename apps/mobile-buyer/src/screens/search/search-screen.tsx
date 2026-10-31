@@ -16,9 +16,10 @@ import { useRecentSearches } from '@/search/recent-searches';
 
 /**
  * Search by product name, results grouped by shop; with no query, recent and popular searches
- * and the categories. A search is used when it's submitted, its chip tapped, or a product opened
- * from its results, not on each keystroke: only then is it remembered on the phone and recorded
- * for popular searches (#124).
+ * and the categories. A search is used when it's submitted, its Recent chip tapped, or a product
+ * opened from its results, not on each keystroke: only then is it remembered on the phone and
+ * recorded for popular searches (#124). A Popular chip is remembered but not recorded, or the
+ * popular list would feed its own counts.
  */
 export function SearchScreen() {
   const theme = useTheme();
@@ -27,13 +28,17 @@ export function SearchScreen() {
   const recent = useRecentSearches();
   const regionId = useRegion().region?.id;
   const popular = usePopularSearches(regionId);
-  const used = (term: string) => {
+  const recordUse = (term: string) => {
     recent.remember(term);
     recordSearch(regionId, term);
   };
   const searchAgain = (term: string) => {
     setQuery(term);
-    used(term);
+    recordUse(term);
+  };
+  const searchPopular = (term: string) => {
+    setQuery(term);
+    recent.remember(term);
   };
 
   return (
@@ -42,14 +47,20 @@ export function SearchScreen() {
         <SearchField
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={() => used(query)}
+          onSubmitEditing={() => recordUse(query)}
           placeholder="Search products"
         />
       </View>
       {search ? (
-        <Results search={search} onClear={() => setQuery('')} onOpenProduct={() => used(search)} />
+        <Results search={search} onClear={() => setQuery('')} onOpenProduct={() => recordUse(search)} />
       ) : (
-        <Browse recent={recent.searches} popular={popular.data ?? []} onSearch={searchAgain} onClearRecent={recent.clear} />
+        <Browse
+          recent={recent.searches}
+          popular={popular.data ?? []}
+          onSearchAgain={searchAgain}
+          onSearchPopular={searchPopular}
+          onClearRecent={recent.clear}
+        />
       )}
     </SafeAreaView>
   );
@@ -132,9 +143,16 @@ function Results({
 function Browse({
   recent,
   popular,
-  onSearch,
+  onSearchAgain,
+  onSearchPopular,
   onClearRecent,
-}: Readonly<{ recent: string[]; popular: string[]; onSearch: (search: string) => void; onClearRecent: () => void }>) {
+}: Readonly<{
+  recent: string[];
+  popular: string[];
+  onSearchAgain: (search: string) => void;
+  onSearchPopular: (search: string) => void;
+  onClearRecent: () => void;
+}>) {
   const theme = useTheme();
   const categories = useCategories();
 
@@ -156,8 +174,8 @@ function Browse({
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={[{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[8] }, !sections.length && styles.grow]}>
-      {recent.length ? <RecentSearches searches={recent} onSearch={onSearch} onClear={onClearRecent} /> : null}
-      {popular.length ? <PopularSearches searches={popular} onSearch={onSearch} /> : null}
+      {recent.length ? <RecentSearches searches={recent} onSearch={onSearchAgain} onClear={onClearRecent} /> : null}
+      {popular.length ? <PopularSearches searches={popular} onSearch={onSearchPopular} /> : null}
       {sections.length ? (
         sections.map(({ department, categories: subCategories }) => (
           <View key={department.id}>
