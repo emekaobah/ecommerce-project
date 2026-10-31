@@ -56,7 +56,13 @@ export function ShopShelf({
   seller,
   listings,
   currencyCode,
-}: Readonly<{ seller: RowSeller; listings: Pick<Listing, 'product' | 'offers' | 'deals'>[]; currencyCode: string }>) {
+  onOpenProduct,
+}: Readonly<{
+  seller: RowSeller;
+  listings: Pick<Listing, 'product' | 'offers' | 'deals'>[];
+  currencyCode: string;
+  onOpenProduct?: () => void;
+}>) {
   const theme = useTheme();
   return (
     <View style={{ gap: theme.space[2], paddingBottom: theme.space[3] }}>
@@ -64,7 +70,13 @@ export function ShopShelf({
       {listings.length ? (
         <ProductRail label={`Products from ${seller.name}`}>
           {listings.map((listing) => (
-            <ListingTile key={listing.product.id} listing={listing} seller={seller} currencyCode={currencyCode} />
+            <ListingTile
+              key={listing.product.id}
+              listing={listing}
+              seller={seller}
+              currencyCode={currencyCode}
+              onOpen={onOpenProduct}
+            />
           ))}
         </ProductRail>
       ) : null}
@@ -84,6 +96,7 @@ export function ShopResults({
   empty,
   footer,
   onEndReached,
+  onOpenProduct,
 }: Readonly<{
   listings: Listing[];
   currencyCode: string;
@@ -91,6 +104,8 @@ export function ShopResults({
   empty: ReactElement;
   footer?: ReactElement;
   onEndReached?: () => void;
+  /** Told when a product is opened from the results. */
+  onOpenProduct?: () => void;
 }>) {
   const theme = useTheme();
   const groups = groupByShop(listings);
@@ -108,7 +123,7 @@ export function ShopResults({
       onEndReached={onEndReached}
       onEndReachedThreshold={0.5}
       renderItem={({ item }: { item: ShopGroup<Listing> }) => (
-        <ShopShelf seller={item.seller} listings={item.listings} currencyCode={currencyCode} />
+        <ShopShelf seller={item.seller} listings={item.listings} currencyCode={currencyCode} onOpenProduct={onOpenProduct} />
       )}
     />
   );
