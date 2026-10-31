@@ -38,9 +38,15 @@ export type CartReminderCart = {
   paid: boolean
   /** When an item was last added, removed or changed in quantity (ISO 8601). */
   items_changed_at: string
-  /** When its buyer was last reminded about it (ISO 8601); null if never. */
-  reminded_at: string | null
+  /**
+   * The cart's last reminder, if any: when it was sent and when the cart's items had last changed
+   * then (ISO 8601). Its items changing since clears it.
+   */
+  reminded: CartReminded | null
 }
+
+/** A cart's reminder marker: when it was sent, and which change of the cart's items it was about. */
+export type CartReminded = { at: string; items_changed_at: string }
 
 /** The hour of the day at `at` in `timeZone`, 0–23. */
 const hourIn = (at: Date, timeZone: string) =>
@@ -56,7 +62,7 @@ export function cartReminderDue(cart: CartReminderCart, now: Date, schedule: Car
   if (!cart.signed_in || !cart.has_items || cart.paid) return false
   const changedAt = Date.parse(cart.items_changed_at)
   if (now.getTime() - changedAt < schedule.delay_hours * HOUR_MS) return false
-  if (cart.reminded_at && Date.parse(cart.reminded_at) >= changedAt) return false
+  if (cart.reminded && Date.parse(cart.reminded.items_changed_at) >= changedAt) return false
   const hour = hourIn(now, schedule.time_zone)
   return hour >= schedule.send_from_hour && hour < schedule.send_until_hour
 }

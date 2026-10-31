@@ -12,7 +12,7 @@ const idle: CartReminderCart = {
   has_items: true,
   paid: false,
   items_changed_at: lagos("10:00").toISOString(),
-  reminded_at: null,
+  reminded: null,
 }
 
 describe("cartReminderDue", () => {
@@ -38,13 +38,14 @@ describe("cartReminderDue", () => {
   })
 
   test("isn't due again once the buyer was reminded after its items last changed", () => {
-    const reminded = { ...idle, reminded_at: lagos("14:00").toISOString() }
+    const reminded = { ...idle, reminded: { at: lagos("14:00").toISOString(), items_changed_at: idle.items_changed_at } }
     expect(cartReminderDue(reminded, lagos("19:00"))).toBe(false)
     expect(cartReminderDue(reminded, new Date(lagos("14:00").getTime() + 30 * 24 * HOUR))).toBe(false)
   })
 
   test("is due again once its items changed after the reminder and were left alone again", () => {
-    const changedSince = { ...idle, reminded_at: lagos("14:00").toISOString(), items_changed_at: lagos("15:00").toISOString() }
+    const reminded = { at: lagos("14:00").toISOString(), items_changed_at: idle.items_changed_at }
+    const changedSince = { ...idle, reminded, items_changed_at: lagos("15:00").toISOString() }
     expect(cartReminderDue(changedSince, lagos("18:59"))).toBe(false)
     expect(cartReminderDue(changedSince, lagos("19:00"))).toBe(true)
   })
