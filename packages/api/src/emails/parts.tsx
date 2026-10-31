@@ -5,12 +5,13 @@ import type { ReactNode } from "react"
 // What the buyer emails share (#5), in the apps' monochrome look (docs/design.md): black ink,
 // grey secondary text and dividers.
 
-const INK = "#000000"
-const SECONDARY = "#545454"
-const DIVIDER = "#E2E2E2"
+export const INK = "#000000"
+export const SECONDARY = "#545454"
+export const DIVIDER = "#E2E2E2"
 const FONT = "Manrope, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
 
-const text = { color: INK, fontSize: "15px", lineHeight: "22px", margin: "0" }
+/** Body text. */
+export const text = { color: INK, fontSize: "15px", lineHeight: "22px", margin: "0" }
 const secondary = { ...text, color: SECONDARY, fontSize: "13px", lineHeight: "20px" }
 
 /** One line of a shop's order. */

@@ -1,6 +1,7 @@
 import {
   addressLines,
   buyerStatusPush,
+  CART_REMINDER_FROM,
   cartReminderPush,
   collectByLabel,
   courierChangedPush,
@@ -48,6 +49,7 @@ import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { SHIPBUBBLE_TIMEZONE } from "../modules/shipbubble"
 import type { CartReminder } from "./cart-reminders"
+import { backendUrl } from "./backend-url"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
 import { sendEmail } from "./email"
 import { fulfilmentService, fulfilmentsOf, switchedFrom, type Picks } from "./order-fulfilment"
@@ -481,13 +483,14 @@ const CART_SCREEN = "/cart"
 
 /**
  * Reminds the buyer of the cart they left (#137) on each of their devices, once per reminder
- * however often it is asked: its shops, top items and good news. Tapping it opens the Cart tab.
+ * however often it is asked: its shops, top items and good news. Tapping it opens the Cart tab;
+ * `from` marks an open from a reminder (story 38).
  */
 export async function pushCartReminder(scope: Scope, reminder: CartReminder): Promise<void> {
   await pushToDevices(scope, await buyerDevices(scope, reminder.customer_id), {
     template: "buyer-cart-reminder",
     ...cartReminderPush(reminder.content),
-    data: { url: CART_SCREEN, cart_id: reminder.cart_id },
+    data: { url: CART_SCREEN, cart_id: reminder.cart_id, from: CART_REMINDER_FROM },
     idempotencyKey: (to) => `buyer-cart-reminder:${reminder.key}:${to}`,
     about: `the reminder of cart ${reminder.cart_id}`,
   })
@@ -496,7 +499,7 @@ export async function pushCartReminder(scope: Scope, reminder: CartReminder): Pr
 /**
  * Emails the buyer the reminder of the cart they left (#139), once per reminder however often it
  * is asked: what the push says, the items and what they cost now, and a button that opens the
- * cart in the app. It carries a signed link that turns these emails off, also in the
+ * cart in the app (through an https page, api/open/cart, which webmail doesn't strip). It carries a signed link that turns these emails off, also in the
  * `List-Unsubscribe` headers mail apps offer one-click unsubscribe from. Without a signing secret
  * for that link it isn't sent, and that is logged.
  */
@@ -509,7 +512,7 @@ export async function emailCartReminder(scope: Scope, reminder: CartReminder): P
   await emailBuyer(scope, reminder.email, {
     template: "cart-reminder",
     subject: cartReminderPush(reminder.content).title,
-    body: <CartReminderEmail content={reminder.content} cartLink={`${appIdentity("buyer").scheme}:/${CART_SCREEN}`} unsubscribeLink={unsubscribe} />,
+    body: <CartReminderEmail content={reminder.content} cartLink={`${backendUrl()}/open/cart?from=${CART_REMINDER_FROM}`} unsubscribeLink={unsubscribe} />,
     key: `buyer-cart-reminder-email:${reminder.key}`,
     headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
   })

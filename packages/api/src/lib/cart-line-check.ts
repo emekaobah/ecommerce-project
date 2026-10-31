@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { LinePrice } from "@oja/domain"
 import { retrieveCartBySeller, type CartSeller } from "./cart"
 import { linePriceOf } from "./cart-lines"
+import { stockLineOf } from "./cart-stock"
 import { priceOffers } from "./listings"
 import { liveSellerIds } from "./onboarding"
 import { notTakingOrders, type NotTakingOrders, type ShopStatusView } from "./shop-hours"
@@ -94,22 +95,17 @@ export async function checkCartLines(scope: MedusaContainer, cartId: string, now
     lines: groups.flatMap((g) => {
       const shopStatus = g.live ? g.shop_status : null
       return g.items.map((item) => ({
-        line_item_id: item.id,
+        ...stockLineOf(item, g.seller),
         offer_id: item.offer_id,
-        seller: g.seller,
         product_id: item.product_id,
         variant_id: item.variant_id,
-        product_title: item.product_title,
-        variant_title: item.variant_title,
         thumbnail: item.thumbnail,
-        quantity: item.quantity,
         added_at: {
           unit_price: item.unit_price,
           compare_at_unit_price: item.compare_at_unit_price,
           is_tax_inclusive: item.is_tax_inclusive,
         },
         now: (g.live && item.offer_id && prices.get(item.offer_id)) || null,
-        available_quantity: item.available_quantity,
         shop_status: shopStatus,
         not_taking_orders: notTakingOrders(shopStatus),
       }))

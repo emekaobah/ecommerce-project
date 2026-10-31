@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
@@ -23,8 +24,11 @@ import { notificationPreferencesOf } from "./notification-preferences"
 // in their notification settings (#138).
 //
 // When a cart's items last changed comes from its line items' own timestamps, removed lines
-// included (Medusa soft-deletes them): created, quantity updated, or removed. The reminder marker
-// in the cart's metadata records which change it was about, so changing the items clears it.
+// included (Medusa soft-deletes them): created, updated, or removed; the delay runs from it. What
+// the reminder was about is a fingerprint of the cart's live lines (each line, its variant and
+// offer, and how many), kept in the marker in the cart's metadata: only the buyer changing the
+// items changes it, so a line the backend touches without changing it (checkout repricing it)
+// doesn't remind them again. Each channel's idempotency keys build on the fingerprint too.
 
 type Scope = Pick<MedusaContainer, "resolve">
 
@@ -46,12 +50,13 @@ export type CartReminder = {
   customer_id: string
   /** The cart's email address, for the email reminder (#139). */
   email: string | null
-  /** The cart and the change of its items this reminder is about; each channel's idempotency keys build on it (ADR 0008). */
+  /** The cart and the items this reminder is about; each channel's idempotency keys build on it (ADR 0008). */
   key: string
   content: CartReminderContent
 }
 
-const hours = (value: string | undefined, fallback: number, max: number) => {
+/** An env value as a number from 0 to `max`, or `fallback` when it is unset or isn't one. */
+const boundedEnvNumber = (value: string | undefined, fallback: number, max: number) => {
   const n = value === undefined || value.trim() === "" ? Number.NaN : Number(value)
   return Number.isFinite(n) && n >= 0 && n <= max ? n : fallback
 }
@@ -60,14 +65,17 @@ const hours = (value: string | undefined, fallback: number, max: number) => {
  * When reminders go out, from config: `CART_REMINDER_DELAY_HOURS` (default 4),
  * `CART_REMINDER_SEND_FROM_HOUR` and `CART_REMINDER_SEND_UNTIL_HOUR` (default 9 and 20) in
  * `CART_REMINDER_TIME_ZONE` (default Africa/Lagos). A value that isn't a number in range falls
- * back to its default.
+ * back to its default, and so do both hours when they leave no hour to send in (from at or after
+ * until), rather than never sending.
  */
 export function cartReminderSchedule(env: NodeJS.ProcessEnv = process.env): CartReminderSchedule {
   const d = CART_REMINDER_SCHEDULE
+  const from = boundedEnvNumber(env.CART_REMINDER_SEND_FROM_HOUR, d.send_from_hour, 23)
+  const until = boundedEnvNumber(env.CART_REMINDER_SEND_UNTIL_HOUR, d.send_until_hour, 24)
+  const window = from < until ? { send_from_hour: from, send_until_hour: until } : { send_from_hour: d.send_from_hour, send_until_hour: d.send_until_hour }
   return {
-    delay_hours: hours(env.CART_REMINDER_DELAY_HOURS, d.delay_hours, 24 * 30),
-    send_from_hour: hours(env.CART_REMINDER_SEND_FROM_HOUR, d.send_from_hour, 23),
-    send_until_hour: hours(env.CART_REMINDER_SEND_UNTIL_HOUR, d.send_until_hour, 24),
+    delay_hours: boundedEnvNumber(env.CART_REMINDER_DELAY_HOURS, d.delay_hours, 24 * 30),
+    ...window,
     time_zone: env.CART_REMINDER_TIME_ZONE?.trim() || d.time_zone,
   }
 }
@@ -79,10 +87,19 @@ type IdleCart = {
   email: string | null
   metadata: Record<string, unknown> | null
   items_changed_at: string
+  /** Its live lines' fingerprint (`CartReminderCart.items`). */
+  items: string
 }
 
 /** Items last changed: the latest any line was added, updated or removed (GREATEST skips NULLs). */
 const ITEMS_CHANGED_AT = "max(greatest(li.created_at, li.updated_at, li.deleted_at))"
+
+/** The cart's live lines, each as what it is and how many, in a stable order: what the buyer chose. */
+const LIVE_ITEMS =
+  "string_agg(concat_ws('|', li.id, li.variant_id, li.metadata->>'offer_id', li.quantity), ',' ORDER BY li.id) FILTER (WHERE li.deleted_at IS NULL)"
+
+/** A short fingerprint of a cart's live lines, for the marker and idempotency keys. */
+const fingerprint = (liveItems: string) => createHash("sha256").update(liveItems).digest("base64url").slice(0, 22)
 
 /**
  * Each signed-in buyer's open cart whose items changed most recently, if it still has items and
@@ -92,9 +109,12 @@ const ITEMS_CHANGED_AT = "max(greatest(li.created_at, li.updated_at, li.deleted_
  */
 async function latestCarts(scope: Scope, now: Date): Promise<IdleCart[]> {
   const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
-  const rows: (Omit<IdleCart, "items_changed_at"> & { items_changed_at: Date; live_items: string | number })[] = await knex("cart as c")
+  const rows: (Omit<IdleCart, "items_changed_at" | "items"> & { items_changed_at: Date; live_items: string | null })[] = await knex("cart as c")
     .join("cart_line_item as li", "li.cart_id", "c.id")
-    .whereNotNull("c.customer_id")
+    // A guest who gave an email has a customer too, without an account: only buyers who sign in are reminded.
+    .join("customer as cu", "cu.id", "c.customer_id")
+    .where("cu.has_account", true)
+    .whereNull("cu.deleted_at")
     .whereNull("c.completed_at")
     .whereNull("c.deleted_at")
     .whereRaw(`(c.metadata->>'shop_cart_of') IS NULL`)
@@ -106,16 +126,16 @@ async function latestCarts(scope: Scope, now: Date): Promise<IdleCart[]> {
       "c.email",
       "c.metadata",
       knex.raw(`${ITEMS_CHANGED_AT} AS items_changed_at`),
-      knex.raw("count(*) FILTER (WHERE li.deleted_at IS NULL) AS live_items")
+      knex.raw(`${LIVE_ITEMS} AS live_items`)
     )
   const latest = new Map<string, (typeof rows)[number]>()
   for (const row of rows) {
     const seen = latest.get(row.customer_id)
     if (!seen || row.items_changed_at > seen.items_changed_at) latest.set(row.customer_id, row)
   }
-  return [...latest.values()]
-    .filter((row) => Number(row.live_items) > 0)
-    .map(({ live_items: _, items_changed_at, ...row }) => ({ ...row, items_changed_at: new Date(items_changed_at).toISOString() }))
+  return [...latest.values()].flatMap(({ live_items, items_changed_at, ...row }) =>
+    live_items ? [{ ...row, items_changed_at: new Date(items_changed_at).toISOString(), items: fingerprint(live_items) }] : []
+  )
 }
 
 /** The carts whose payment has been taken, though not yet completed into orders. */
@@ -134,21 +154,28 @@ async function paidCarts(scope: Scope, cartIds: string[]): Promise<Set<string>> 
 
 const remindedOf = (metadata: Record<string, unknown> | null): CartReminded | null => {
   const marker = metadata?.[CART_REMINDED_KEY] as Partial<CartReminded> | undefined
-  return typeof marker?.at === "string" && typeof marker.items_changed_at === "string"
-    ? { at: marker.at, items_changed_at: marker.items_changed_at }
+  return typeof marker?.at === "string" && typeof marker.items_changed_at === "string" && typeof marker.items === "string"
+    ? { at: marker.at, items_changed_at: marker.items_changed_at, items: marker.items }
     : null
 }
 
-const reminderLine = (line: CartLineCheck): CartReminderLine => ({
-  shop: line.seller?.name ?? "",
-  product_title: line.product_title,
-  variant_title: line.variant_title,
-  quantity: line.quantity,
-  added_unit_price: line.added_at.unit_price,
-  unit_price: line.now?.unit_price ?? null,
-  available_quantity: line.available_quantity,
-  taking_orders: !!line.seller && line.not_taking_orders === null,
-})
+/** A line as the reminder sees it; a line no shop sells any more can't be bought, so it has none. */
+const reminderLine = (line: CartLineCheck): CartReminderLine[] => {
+  if (!line.seller) return []
+  return [
+    {
+      line_item_id: line.line_item_id,
+      shop: line.seller.name,
+      product_title: line.product_title,
+      variant_title: line.variant_title,
+      quantity: line.quantity,
+      added_unit_price: line.added_at.unit_price,
+      unit_price: line.now?.unit_price ?? null,
+      available_quantity: line.available_quantity,
+      taking_orders: line.not_taking_orders === null,
+    },
+  ]
+}
 
 /**
  * Sends a cart reminder on each channel the buyer hasn't turned off (#138). Each channel is told
@@ -166,17 +193,17 @@ export async function sendCartReminder(scope: Scope, reminder: CartReminder): Pr
 /** Reminds the buyer of one due cart, if anything in it can be bought now, and marks it reminded. */
 async function remindAbout(scope: Scope, cart: IdleCart, now: Date): Promise<void> {
   const check = await checkCartLines(scope as MedusaContainer, cart.id, now)
-  const content = cartReminderContent(check.lines.map(reminderLine), check.currency_code)
+  const content = cartReminderContent(check.lines.flatMap(reminderLine), check.currency_code)
   // Nothing to buy now: no reminder. It stays due, in case a shop restocks or reopens.
   if (!content) return
   await sendCartReminder(scope, {
     cart_id: cart.id,
     customer_id: cart.customer_id,
     email: cart.email,
-    key: `${cart.id}:${cart.items_changed_at}`,
+    key: `${cart.id}:${cart.items}`,
     content,
   })
-  const reminded: CartReminded = { at: now.toISOString(), items_changed_at: cart.items_changed_at }
+  const reminded: CartReminded = { at: now.toISOString(), items_changed_at: cart.items_changed_at, items: cart.items }
   await scope.resolve(Modules.CART).updateCarts(cart.id, { metadata: { ...cart.metadata, [CART_REMINDED_KEY]: reminded } })
 }
 
@@ -196,6 +223,7 @@ export async function remindIdleCarts(scope: Scope, now = new Date(), schedule =
         has_items: true,
         paid: paid.has(cart.id),
         items_changed_at: cart.items_changed_at,
+        items: cart.items,
         reminded: remindedOf(cart.metadata),
       },
       now,

@@ -28,6 +28,20 @@ export function useNotificationPreferences(userId: string | null | undefined) {
 const keysOf = (change: NotificationPreferencesChange) => Object.keys(change) as (keyof NotificationPreferences)[];
 
 /**
+ * The shown settings with each setting `change` named taken from `from`, but only where the
+ * switch still shows what the change set: one flipped again since is left as it is.
+ */
+const settleChange = (
+  shown: NotificationPreferences,
+  change: NotificationPreferencesChange,
+  from: NotificationPreferences,
+): NotificationPreferences => {
+  const next = { ...shown };
+  for (const name of keysOf(change)) if (shown[name] === change[name]) next[name] = from[name];
+  return next;
+};
+
+/**
  * Turning a setting on or off: the switch moves at once and the change saves. A save that fails
  * puts its switch back, unless it was flipped again since; one that succeeds keeps the server's
  * word for its own setting only, so a slower answer never undoes another switch flipped meanwhile.
@@ -49,18 +63,10 @@ export function changeNotificationPreferenceOptions(queryClient: QueryClient, us
     onError: (_error: unknown, change: NotificationPreferencesChange, context: { before?: NotificationPreferences } | undefined) => {
       const before = context?.before;
       if (!before) return;
-      update((shown) => {
-        const next = { ...shown };
-        for (const name of keysOf(change)) if (shown[name] === change[name]) next[name] = before[name];
-        return next;
-      });
+      update((shown) => settleChange(shown, change, before));
     },
     onSuccess: (saved: NotificationPreferences, change: NotificationPreferencesChange) => {
-      update((shown) => {
-        const next = { ...shown };
-        for (const name of keysOf(change)) if (shown[name] === change[name]) next[name] = saved[name];
-        return next;
-      });
+      update((shown) => settleChange(shown, change, saved));
     },
   };
 }

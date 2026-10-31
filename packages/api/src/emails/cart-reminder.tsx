@@ -1,6 +1,6 @@
 import { cartReminderPush, formatMoney, type CartReminderContent } from "@oja/domain"
 import { Button, Hr, Link, Section, Text } from "@react-email/components"
-import { AmountRow, EmailLayout, Note, Paragraph } from "./parts"
+import { AmountRow, DIVIDER, EmailLayout, INK, Note, Paragraph, SECONDARY, text } from "./parts"
 
 export type CartReminderProps = {
   content: CartReminderContent
@@ -25,7 +25,7 @@ export function CartReminderEmail({ content, cartLink, unsubscribeLink }: Readon
       footer={
         <Note>
           {"Don't want these reminders? "}
-          <Link href={unsubscribeLink} style={{ color: "#545454", textDecoration: "underline" }}>
+          <Link href={unsubscribeLink} style={{ color: SECONDARY, textDecoration: "underline" }}>
             Unsubscribe
           </Link>
         </Note>
@@ -34,23 +34,23 @@ export function CartReminderEmail({ content, cartLink, unsubscribeLink }: Readon
       <Paragraph>{push.body}</Paragraph>
       {content.shops.map((shop) => (
         <Section key={shop} style={{ marginTop: "16px" }}>
-          <Hr style={{ borderColor: "#E2E2E2", margin: "0 0 12px" }} />
-          <Text style={{ color: "#000000", fontSize: "15px", lineHeight: "22px", margin: "0 0 4px", fontWeight: 800 }}>{shop}</Text>
+          <Hr style={{ borderColor: DIVIDER, margin: "0 0 12px" }} />
+          <Text style={{ ...text, margin: "0 0 4px", fontWeight: 800 }}>{shop}</Text>
           {content.items
             .filter((item) => item.shop === shop)
             .map((item) => (
-              <AmountRow key={item.title} label={`${item.quantity} × ${item.title}`} amount={money(item.total)} />
+              <AmountRow key={item.line_item_id} label={`${item.quantity} × ${item.title}`} amount={money(item.total)} />
             ))}
         </Section>
       ))}
       <Section style={{ margin: "16px 0 24px" }}>
-        <Hr style={{ borderColor: "#E2E2E2", margin: "0 0 12px" }} />
+        <Hr style={{ borderColor: DIVIDER, margin: "0 0 12px" }} />
         <AmountRow label="Total today" amount={money(content.total)} strong />
         <Note>Before delivery.</Note>
       </Section>
       <Button
         href={cartLink}
-        style={{ backgroundColor: "#000000", color: "#FFFFFF", borderRadius: "999px", padding: "12px 20px", fontWeight: 700, fontSize: "15px" }}
+        style={{ backgroundColor: INK, color: "#FFFFFF", borderRadius: "999px", padding: "12px 20px", fontWeight: 700, fontSize: "15px" }}
       >
         Open your cart
       </Button>

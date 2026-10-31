@@ -9,6 +9,25 @@ import { stockLeftLabel } from "./stock"
 
 const HOUR_MS = 60 * 60 * 1000
 
+/**
+ * What a cart reminder's push data (`from`) and its email's link (`?from=`) carry, so an open from
+ * a reminder can be told apart from any other (story 38).
+ */
+export const CART_REMINDER_FROM = "cart_reminder"
+
+/**
+ * The analytics events that measure cart reminders (story 38). They are sent once PostHog is set
+ * up; nothing sends them yet.
+ */
+export const CART_REMINDER_EVENTS = {
+  /** A reminder went to the buyer. */
+  sent: "cart reminder sent",
+  /** The buyer opened the app from a reminder's push or email (`from` is `CART_REMINDER_FROM`). */
+  opened: "cart reminder opened",
+  /** The buyer checked out after opening a reminder. */
+  checkout: "checkout after cart reminder",
+} as const
+
 /** When reminders go out: how long a cart's items sit untouched first, and the hours of the day they may be sent in. */
 export type CartReminderSchedule = {
   /** How long the cart's items must be left alone. */
@@ -36,17 +55,25 @@ export type CartReminderCart = {
   has_items: boolean
   /** Completed or paid for. A checkout started and left unpaid isn't. */
   paid: boolean
-  /** When an item was last added, removed or changed in quantity (ISO 8601). */
+  /** When a line was last added, removed or touched (ISO 8601); the delay runs from it. */
   items_changed_at: string
   /**
-   * The cart's last reminder, if any: when it was sent and when the cart's items had last changed
-   * then (ISO 8601). Its items changing since clears it.
+   * What is in the cart: its lines, what each is and how many (a fingerprint the backend makes).
+   * It changes only when the buyer changes the items, never when a line is only repriced.
+   */
+  items: string
+  /**
+   * The cart's last reminder, if any. The buyer changing its items since (`items` differs) clears
+   * it; so does nothing else.
    */
   reminded: CartReminded | null
 }
 
-/** A cart's reminder marker: when it was sent, and which change of the cart's items it was about. */
-export type CartReminded = { at: string; items_changed_at: string }
+/**
+ * A cart's reminder marker: when it was sent, when the cart's lines had last changed then (ISO
+ * 8601), and the items it was about (`CartReminderCart.items`).
+ */
+export type CartReminded = { at: string; items_changed_at: string; items: string }
 
 /** The hour of the day at `at` in `timeZone`, 0–23. */
 const hourIn = (at: Date, timeZone: string) =>
@@ -56,19 +83,25 @@ const hourIn = (at: Date, timeZone: string) =>
  * Whether to remind the buyer about their cart now: it is a signed-in buyer's, has items and
  * isn't paid; its items have been left alone for the delay; they haven't been reminded since its
  * items last changed; and it is within the hours reminders are sent. A cart that falls due
- * overnight is due the next morning.
+ * overnight is due the next morning. Having been reminded, it is due again only once the buyer
+ * changes what is in it: a line repriced or otherwise touched by the backend doesn't count.
  */
 export function cartReminderDue(cart: CartReminderCart, now: Date, schedule: CartReminderSchedule = CART_REMINDER_SCHEDULE): boolean {
   if (!cart.signed_in || !cart.has_items || cart.paid) return false
   const changedAt = Date.parse(cart.items_changed_at)
   if (now.getTime() - changedAt < schedule.delay_hours * HOUR_MS) return false
-  if (cart.reminded && Date.parse(cart.reminded.items_changed_at) >= changedAt) return false
+  if (cart.reminded?.items === cart.items) return false
   const hour = hourIn(now, schedule.time_zone)
   return hour >= schedule.send_from_hour && hour < schedule.send_until_hour
 }
 
-/** A cart line as the reminder sees it: what it was added at, and where it stands now. */
+/**
+ * A cart line as the reminder sees it: what it was added at, and where it stands now. Only a line
+ * its shop still sells has one: a line without a shop can't be bought.
+ */
 export type CartReminderLine = {
+  line_item_id: string
+  /** Its shop's name. */
   shop: string
   product_title: string | null
   variant_title: string | null
@@ -85,6 +118,8 @@ export type CartReminderLine = {
 
 /** A line the buyer can buy now, as the reminder shows it. */
 export type CartReminderItem = {
+  /** Its cart line: two lines can share a title. */
+  line_item_id: string
   shop: string
   title: string
   /** As many as can be had now: a line wanting more than is left counts what is left, as checkout will. */
@@ -138,6 +173,7 @@ export function cartReminderContent(lines: CartReminderLine[], currencyCode: str
   const items = lines.filter(buyable).map((line): CartReminderItem => {
     const quantity = line.available_quantity === null ? line.quantity : Math.min(line.quantity, line.available_quantity)
     return {
+      line_item_id: line.line_item_id,
       shop: line.shop,
       title: titleOf(line),
       quantity,

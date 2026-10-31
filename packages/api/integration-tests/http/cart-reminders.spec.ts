@@ -153,7 +153,8 @@ medusaIntegrationTestRunner({
         const push = {
           title: `Your items from ${GADGETS.name} and 1 more shop`,
           body: `${LANTERN.title} and ${RICE.title} are still in your cart.`,
-          data: { url: "/cart", cart_id: cartId },
+          // `from` tells an open from a reminder apart (story 38).
+          data: { url: "/cart", cart_id: cartId, from: "cart_reminder" },
         }
         expect(await pushesTo(phone)).toEqual([expect.objectContaining(push)])
         expect(await pushesTo(tablet)).toEqual([expect.objectContaining(push)])
@@ -230,11 +231,32 @@ medusaIntegrationTestRunner({
 
         const due = dueAt(changed)
         await remind(due)
-        expect(await pushesTo(phone)).toEqual([expect.objectContaining({ data: { url: "/cart", cart_id: cartId } })])
+        expect(await pushesTo(phone)).toEqual([expect.objectContaining({ data: { url: "/cart", cart_id: cartId, from: "cart_reminder" } })])
 
         await api.post(`/store/carts/${cartId}/checkout`, { shipping_address: { ...ADDRESS, address_2: "Flat 4" } }, buyer)
         await remind(new Date(due.getTime() + 24 * HOUR))
         expect(await settledPushesTo(phone)).toHaveLength(1)
+      })
+
+      it("isn't sent again when checkout reprices its lines, which the buyer didn't change", async () => {
+        const { email, as: buyer } = newBuyerWithEmail()
+        const phone = await register(buyer)
+        const cartId = await twoShopCart(buyer)
+        await remind(dueAt(await changedAt(cartId)))
+        await pushesTo(phone)
+        await emailsTo(email)
+
+        const restore = await setPrice(GADGETS, LANTERN, LANTERN.price + 500)
+        try {
+          // Checkout puts the lantern's line at its new price.
+          await api.post(`/store/carts/${cartId}/checkout`, { shipping_address: ADDRESS }, buyer)
+          await remind(dueAt(await changedAt(cartId)))
+
+          expect(await settledPushesTo(phone)).toHaveLength(1)
+          expect(await settledEmailsTo(email)).toHaveLength(1)
+        } finally {
+          await restore()
+        }
       })
     })
 
@@ -245,6 +267,19 @@ medusaIntegrationTestRunner({
         await remind(dueAt(await changedAt(cartId)))
 
         expect(await settled(() => expo.messages())).toEqual([])
+      })
+
+      it("for a guest's cart with an email, whose guest customer has no account", async () => {
+        const email = `guest-${process.pid}@oja.test`
+        const cartId = await cartOf(null, [[GROCERY, RICE, 1]])
+        await api.post(`/store/carts/${cartId}`, { email }, { headers: ada.headers() })
+        const { data } = await ada.query().graph({ entity: "cart", fields: ["customer.has_account"], filters: { id: cartId } })
+        expect((data[0] as any).customer).toEqual(expect.objectContaining({ has_account: false }))
+
+        await remind(dueAt(await changedAt(cartId)))
+
+        expect(await settledEmailsTo(email)).toEqual([])
+        expect(expo.messages()).toEqual([])
       })
 
       it("for a paid cart", async () => {
@@ -385,12 +420,33 @@ medusaIntegrationTestRunner({
         expect(sent.text).toContain(`${LANTERN.title} and ${RICE.title} are still in your cart.`)
         for (const text of [GADGETS.name, GROCERY.name, LANTERN.title, RICE.title, money(LANTERN.price + 2 * RICE.price)])
           expect(sent.text).toContain(text)
-        expect(sent.html).toContain('href="oja://cart"')
+        // An https link, which webmail keeps, where an app link would be stripped; `from` marks an open from a reminder.
+        expect(sent.html).toContain(`href="${BACKEND_URL}/open/cart?from=cart_reminder"`)
         expect(await pushesTo(phone)).toHaveLength(1)
 
         await remind(due)
         await remind(new Date(due.getTime() + HOUR))
         expect(await settledEmailsTo(email)).toHaveLength(1)
+      })
+
+      it("its button's page opens the app's cart, with a button for when it doesn't open by itself", async () => {
+        const res = await api.get("/open/cart?from=cart_reminder", anyStatus)
+
+        expect(res.status).toBe(200)
+        expect(res.headers["content-type"]).toMatch(/html/)
+        const appLink = "oja://cart?from=cart_reminder"
+        expect(res.data).toContain(`<meta http-equiv="refresh" content="0;url=${appLink}">`)
+        expect(res.data).toContain(`<a href="${appLink}"`)
+        expect(res.data).toContain("Open Oja")
+      })
+
+      it("its button's page carries no marker it wasn't given, and no other value", async () => {
+        const plain = await api.get("/open/cart", anyStatus)
+        expect(plain.data).toContain('<a href="oja://cart"')
+
+        const odd = await api.get(`/open/cart?from=${encodeURIComponent('"><script>')}`, anyStatus)
+        expect(odd.data).toContain('<a href="oja://cart"')
+        expect(odd.data).not.toContain("<script>")
       })
 
       it("carries the good news the push does, and no discount", async () => {
@@ -429,10 +485,27 @@ medusaIntegrationTestRunner({
         expect(await settledEmailsTo(email)).toEqual([])
       })
 
-      it("unsubscribes the buyer from its link without signing in, which the preferences then show", async () => {
-        const { email, as, sent } = await remindedByEmail()
+      it("opening its link shows an Unsubscribe button and changes nothing, as a mail scanner fetching it mustn't", async () => {
+        const { as, sent } = await remindedByEmail()
 
         const res = await api.get(pathOf(unsubscribeLinkOf(sent)), anyStatus)
+
+        expect(res.status).toBe(200)
+        expect(res.headers["content-type"]).toMatch(/html/)
+        expect(res.data).toMatch(/<form method="post">/)
+        expect(res.data).toMatch(/<button[^>]*>Unsubscribe<\/button>/)
+        expect(res.data).not.toContain("You're unsubscribed")
+        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
+      })
+
+      it("unsubscribes the buyer from its page's button without signing in, which the preferences then show", async () => {
+        const { email, as, sent } = await remindedByEmail()
+
+        // The page's form posts back to the link, with no fields.
+        const res = await api.post(pathOf(unsubscribeLinkOf(sent)), "", {
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          ...anyStatus,
+        })
 
         expect(res.status).toBe(200)
         expect(res.headers["content-type"]).toMatch(/html/)
@@ -450,6 +523,7 @@ medusaIntegrationTestRunner({
         const res = await oneClick(pathOf(unsubscribeLinkOf(sent)))
 
         expect(res.status).toBe(200)
+        expect(res.data).toContain("You're unsubscribed")
         expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: false })
       })
 
@@ -473,7 +547,7 @@ medusaIntegrationTestRunner({
         for (const bad of refused) {
           const get = await api.get(`/unsubscribe/${bad}`, anyStatus)
           expect(get.status).toBe(404)
-          expect(get.data).not.toContain("You're unsubscribed")
+          expect(get.data).not.toContain("<form")
           expect((await oneClick(`/unsubscribe/${bad}`)).status).toBe(404)
         }
         expect(await preferencesOf(ada.as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })

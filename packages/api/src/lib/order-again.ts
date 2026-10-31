@@ -12,8 +12,6 @@ import { notTakingOrders, shopStatusesOf, type NotTakingOrders, type ShopStatusV
 // and whether the shop takes orders now; the app then adds the ticked offers to the cart in one
 // call (`POST /store/carts/:id/offer-lines`), which refuses as adding one offer does.
 
-export type { NotTakingOrders }
-
 /** The line's offer today, in the order's region. */
 export type OrderAgainOffer = {
   id: string

@@ -3,7 +3,7 @@ import { StepResponse, WorkflowResponse, createStep, createWorkflow } from "@med
 import { NOTIFICATION_PREFERENCE_MODULE, type NotificationPreferenceModuleService } from "../../modules/notification-preference"
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
-  NOTIFICATION_PREFERENCE_KEYS,
+  settingsOf,
   type NotificationPreferences,
   type NotificationPreferencesChange,
 } from "../../lib/notification-preferences"
@@ -14,9 +14,6 @@ type Saved = NotificationPreferences & { id: string }
 
 const preferenceService = (scope: Pick<MedusaContainer, "resolve">) =>
   scope.resolve<NotificationPreferenceModuleService>(NOTIFICATION_PREFERENCE_MODULE)
-
-const settingsOf = (row: NotificationPreferences): NotificationPreferences =>
-  Object.fromEntries(NOTIFICATION_PREFERENCE_KEYS.map((key) => [key, row[key]])) as NotificationPreferences
 
 /** Changes the buyer's settings named in the change, keeping the others; makes their row the first time. */
 export const setNotificationPreferencesStep = createStep(

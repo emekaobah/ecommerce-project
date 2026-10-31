@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
+import { backendUrl } from "./backend-url"
 import { setNotificationPreferences, type NotificationPreferenceKey } from "./notification-preferences"
 
 // Unsubscribe links (#139). An email a buyer can turn off carries a link that turns it off
@@ -14,8 +15,6 @@ type Scope = Pick<MedusaContainer, "resolve">
 /** The settings an emailed unsubscribe link can turn off. */
 export const UNSUBSCRIBABLE: readonly NotificationPreferenceKey[] = ["cart_reminder_email"]
 
-/** Where the backend is reached from outside, for links in emails: `MERCUR_BACKEND_URL` (the API's public origin), else the local server. */
-const backendUrl = (env: NodeJS.ProcessEnv) => (env.MERCUR_BACKEND_URL?.trim() || "http://localhost:9000").replace(/\/+$/, "")
 
 /** The secret unsubscribe links are signed with, or null when `UNSUBSCRIBE_SECRET` isn't set. */
 const secretOf = (env: NodeJS.ProcessEnv) => env.UNSUBSCRIBE_SECRET?.trim() || null
@@ -49,15 +48,21 @@ export function readUnsubscribeToken(token: string, env: NodeJS.ProcessEnv = pro
   return { customer_id: customerId, channel: channel as NotificationPreferenceKey }
 }
 
+/** What an unsubscribe link turns off, when it is genuine and its buyer still exists; else null. Changes nothing. */
+export async function checkUnsubscribeLink(scope: Scope, token: string): Promise<Unsubscribe | null> {
+  const link = readUnsubscribeToken(token)
+  if (!link) return null
+  const [customer] = await scope.resolve(Modules.CUSTOMER).listCustomers({ id: link.customer_id }, { select: ["id"] })
+  return customer ? link : null
+}
+
 /**
  * Turns off what an unsubscribe link names, for a buyer who still exists. False when the link
  * isn't genuine or its buyer is gone, and nothing changes.
  */
 export async function unsubscribe(scope: Scope, token: string): Promise<boolean> {
-  const link = readUnsubscribeToken(token)
+  const link = await checkUnsubscribeLink(scope, token)
   if (!link) return false
-  const [customer] = await scope.resolve(Modules.CUSTOMER).listCustomers({ id: link.customer_id }, { select: ["id"] })
-  if (!customer) return false
   await setNotificationPreferences(scope, link.customer_id, { [link.channel]: false })
   return true
 }
