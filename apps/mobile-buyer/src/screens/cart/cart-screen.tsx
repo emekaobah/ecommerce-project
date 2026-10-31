@@ -370,6 +370,31 @@ function unitPriceLabel(item: CartItem, money: (amount: number) => string): stri
   return item.compare_at_unit_price ? `${price} · was ${money(item.compare_at_unit_price)}` : price;
 }
 
+/** The line's photo, greyed with it. The same link as the name, so a screen reader skips it. */
+function LinePhoto({
+  thumbnail,
+  greyed,
+  onOpen,
+}: Readonly<{ thumbnail: CartItem['thumbnail']; greyed: boolean; onOpen: (() => void) | null }>) {
+  const theme = useTheme();
+  const photo = theme.control.md;
+  return (
+    <PressableSurface
+      disabled={!onOpen}
+      onPress={onOpen ?? undefined}
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ borderRadius: theme.radius.md }}>
+      <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
+        {thumbnail ? (
+          <Image source={thumbnail} contentFit="contain" style={[styles.fill, greyed ? styles.faded : null]} />
+        ) : null}
+      </PhotoTile>
+    </PressableSurface>
+  );
+}
+
 /**
  * A cart line: its photo, name and price, and its quantity. A sold-out line stays, greyed, with
  * Remove and Save for later; one wanting more than is left offers to change to what is. The photo
@@ -399,23 +424,9 @@ function CartLine({
   const shortfall = available ? stockShortfall(item.quantity, item.available_quantity) : null;
   const soldOut = shortfall?.type === 'sold_out';
   const greyed = soldOut || !available;
-  const photo = theme.control.md;
   return (
     <View style={[styles.row, { gap: theme.space[2], opacity: busy ? 0.6 : 1 }]}>
-      {/* The same link as the name, so a screen reader skips it. */}
-      <PressableSurface
-        disabled={!onOpen}
-        onPress={onOpen ?? undefined}
-        accessible={false}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={{ borderRadius: theme.radius.md }}>
-        <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
-          {item.thumbnail ? (
-            <Image source={item.thumbnail} contentFit="contain" style={[styles.fill, greyed ? styles.faded : null]} />
-          ) : null}
-        </PhotoTile>
-      </PressableSurface>
+      <LinePhoto thumbnail={item.thumbnail} greyed={greyed} onOpen={onOpen} />
       <View style={[styles.fill, { gap: theme.space[1] }]}>
         <PressableSurface
           disabled={!onOpen}

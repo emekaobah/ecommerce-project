@@ -32,18 +32,8 @@ export const publishPopularSearchesStep = createStep(
   }
 )
 
-/** How many expired searches are deleted at a time, so a backlog is never loaded at once. */
-const FORGET_BATCH = 1000
-
 /** Deletes the searches recorded before `before`, for good: kept no longer than that. */
 export const forgetSearchesStep = createStep("forget-searches", async (input: { before: Date }, { container }) => {
-  const service = popularSearchService(container)
-  let forgotten = 0
-  let batch: { id: string }[]
-  do {
-    batch = await service.listSearchRecords({ searched_at: { $lt: input.before } }, { select: ["id"], take: FORGET_BATCH })
-    if (batch.length) await service.deleteSearchRecords(batch.map((r) => r.id))
-    forgotten += batch.length
-  } while (batch.length === FORGET_BATCH)
+  const forgotten = await popularSearchService(container).forgetSearchRecords(input.before)
   return new StepResponse({ forgotten })
 })

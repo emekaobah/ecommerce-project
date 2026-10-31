@@ -79,12 +79,20 @@ function afterStackSettles(go: () => void) {
   waiting.add(once);
 }
 
+/** Whether a sheet is closing: a second tap meanwhile would close the screen under it too. */
+let closingSheet = false;
+
 /**
  * Closes the sheet in front, then, once it has gone, goes on. Called from a sheet route, so the
  * next screen opens over the screen under the sheet rather than inside the sheet.
  */
 export function closeSheetThen(go: () => void) {
-  afterStackSettles(go);
+  if (closingSheet) return;
+  closingSheet = true;
+  afterStackSettles(() => {
+    closingSheet = false;
+    go();
+  });
   router.back();
 }
 

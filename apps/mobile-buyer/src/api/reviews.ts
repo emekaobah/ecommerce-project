@@ -2,7 +2,7 @@ import type { ReviewKind, ReviewSubject } from '@oja/domain';
 import { skipToken, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { storeClient } from './client';
-import { summaryKeys } from './customer';
+import { refreshAccountSummary } from './customer';
 import { orderKeys } from './orders';
 
 export const reviewKeys = {
@@ -83,10 +83,10 @@ export function useSubmitReviews() {
 
 /** What a change to the buyer's reviews shows on: their orders, My reviews and the Account counts. */
 function refetchAfterReviewChange(queryClient: ReturnType<typeof useQueryClient>) {
+  refreshAccountSummary(queryClient);
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: orderKeys.all }),
     queryClient.invalidateQueries({ queryKey: reviewKeys.all }),
-    queryClient.invalidateQueries({ queryKey: summaryKeys.all }),
   ]);
 }
 

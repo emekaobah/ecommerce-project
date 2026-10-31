@@ -41,7 +41,7 @@ describe('forgetPreviousBuyer', () => {
     summary.answer("Bola's summary");
     await settle();
 
-    expect(queryClient.getQueryData(['orders'])).toBeUndefined();
+    expect(queryClient.getQueryCache().find({ queryKey: ['orders'] })).toBeUndefined();
     expect(summary.seen.slice(seenAfterChange)).not.toContain("Ada's summary");
     expect(summary.observer.getCurrentResult().data).toBe("Bola's summary");
   });
