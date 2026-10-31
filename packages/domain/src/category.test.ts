@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { departments } from "./category"
+import { categoryThumbnail, departments } from "./category"
 
 const category = (id: string, rank: number, parent_category_id: string | null = null) => ({
   id,
@@ -27,5 +27,20 @@ describe("departments", () => {
 
   test("leaves out a sub-category whose department isn't listed", () => {
     expect(departments([category("Rice", 0, "Hidden")])).toEqual([])
+  })
+})
+
+describe("categoryThumbnail", () => {
+  const icon = { url: "https://cdn/icon.png", is_thumbnail: false, type: "icon" }
+  const thumbnail = { url: "https://cdn/rice.webp", is_thumbnail: true, type: "image" }
+
+  test("is the image marked as the thumbnail, not the icon listed before it", () => {
+    expect(categoryThumbnail({ media_images: [icon, thumbnail] })).toBe("https://cdn/rice.webp")
+  })
+
+  test("is null when no image is marked as the thumbnail, or there are none", () => {
+    expect(categoryThumbnail({ media_images: [icon] })).toBeNull()
+    expect(categoryThumbnail({ media_images: [] })).toBeNull()
+    expect(categoryThumbnail({})).toBeNull()
   })
 })
