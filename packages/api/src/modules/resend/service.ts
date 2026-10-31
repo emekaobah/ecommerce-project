@@ -10,10 +10,18 @@ export type ResendOptions = {
   apiUrl?: string
 }
 
+/** The email headers a notification asks for in `provider_data.headers` (e.g. `List-Unsubscribe`, #139), if any. */
+function headersOf(providerData: Record<string, unknown> | null | undefined):Record<string, string> | undefined {
+  const headers = providerData?.headers
+  if (!headers || typeof headers !== "object") return undefined
+  const strings = Object.entries(headers).filter((entry): entry is [string, string] => typeof entry[1] === "string")
+  return strings.length ? Object.fromEntries(strings) : undefined
+}
+
 /**
  * Sends the `email` channel's notifications through Resend (#5). The caller renders the email:
  * `content.subject`, `content.html` and `content.text` go out as they are, from the configured
- * sender. The notification's `external_id` is Resend's id for the email. An email Resend refuses
+ * sender, with any headers in `provider_data.headers`. The notification's `external_id` is Resend's id for the email. An email Resend refuses
  * fails with Resend's message.
  */
 export class ResendNotificationProviderService extends AbstractNotificationProviderService {
@@ -43,6 +51,7 @@ export class ResendNotificationProviderService extends AbstractNotificationProvi
         subject: notification.content?.subject,
         html: notification.content?.html,
         text: notification.content?.text,
+        headers: headersOf(notification.provider_data),
       }),
     })
     const reply = (await res.json().catch(() => null)) as { id?: string; message?: string } | null

@@ -10,7 +10,7 @@ import {
   type CartReminderSchedule,
 } from "@oja/domain"
 import type { Knex } from "@medusajs/framework/mikro-orm/knex"
-import { pushCartReminder } from "./buyer-notifications"
+import { emailCartReminder, pushCartReminder } from "./buyer-notifications"
 import { checkCartLines, type CartLineCheck } from "./cart-line-check"
 import { errorMessage } from "./errors"
 import { notificationPreferencesOf } from "./notification-preferences"
@@ -19,8 +19,8 @@ import { notificationPreferencesOf } from "./notification-preferences"
 // unpaid, once per change of its items: four hours after its items last changed, between 9am
 // and 8pm Lagos time (`cartReminderDue` in @oja/domain decides). It names the shops and lines that
 // can be bought now, from the same check checkout reprices with (#135); a cart with none gets
-// nothing. The push goes out here (#137), unless the buyer turned it off in their notification
-// settings (#138); the email (#139) plugs into `sendCartReminder` the same way.
+// nothing. The push (#137) and the email (#139) go out here, each unless the buyer turned it off
+// in their notification settings (#138).
 //
 // When a cart's items last changed comes from its line items' own timestamps, removed lines
 // included (Medusa soft-deletes them): created, quantity updated, or removed. The reminder marker
@@ -157,7 +157,10 @@ const reminderLine = (line: CartLineCheck): CartReminderLine => ({
  */
 export async function sendCartReminder(scope: Scope, reminder: CartReminder): Promise<void> {
   const preferences = await notificationPreferencesOf(scope, reminder.customer_id)
-  if (preferences.cart_reminder_push) await pushCartReminder(scope, reminder)
+  await Promise.all([
+    preferences.cart_reminder_push && pushCartReminder(scope, reminder),
+    preferences.cart_reminder_email && emailCartReminder(scope, reminder),
+  ])
 }
 
 /** Reminds the buyer of one due cart, if anything in it can be bought now, and marks it reminded. */
