@@ -77,14 +77,12 @@ export function useRecentSearches() {
   const owner: MaybeOwner = isLoaded ? (userId ?? null) : undefined;
   const [recent, dispatch] = useReducer(recentReducer, { list: null, pending: [], changed: false });
   const { list, pending, changed } = recent;
-  const searches = useMemo(
-    () =>
-      owner !== undefined && list?.owner === owner
-        ? list.searches
-        : // While the list is read, the searches used meanwhile.
-          applySearchChanges([], (owner === undefined ? pending : pending.filter(isFor(owner))).map((p) => p.change)),
-    [owner, list, pending]
-  );
+  const searches = useMemo(() => {
+    if (owner !== undefined && list?.owner === owner) return list.searches;
+    // While the list is read, the searches used meanwhile.
+    const meanwhile = owner === undefined ? pending : pending.filter(isFor(owner));
+    return applySearchChanges([], meanwhile.map((p) => p.change));
+  }, [owner, list, pending]);
 
   useEffect(() => {
     if (owner === undefined) return;

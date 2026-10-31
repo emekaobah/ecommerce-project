@@ -114,7 +114,7 @@ medusaIntegrationTestRunner({
         expect(new Set(kept.map((r) => r.term))).toEqual(new Set(["rice", "lantern"]))
       })
 
-      it("forgets a backlog bigger than one batch", async () => {
+      it("forgets a backlog of thousands of searches", async () => {
         await searchedFrom("kaftan", 2500, 100)
         await searchedFrom("lantern", 3, 1)
 

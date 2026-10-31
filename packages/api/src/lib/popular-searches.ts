@@ -108,16 +108,39 @@ export async function publishPopularSearches(
     await scope.resolve(Modules.SALES_CHANNEL).listSalesChannels({ is_disabled: false }, { select: ["id"] })
   ).map((c) => c.id)
 
-  for (const regionId of regionIds) {
-    const terms: string[] = []
-    if (regions.has(regionId)) {
-      const countListings = await listingSearchCounter(scope as MedusaContainer, { regionId, salesChannelIds })
-      for (const { term } of candidates.filter((c) => c.region_id === regionId)) {
-        if (terms.length === POPULAR_SEARCHES_SHOWN) break
-        if (isBlockedSearch(term)) continue
-        if (await countListings(term)) terms.push(term)
-      }
-    }
-    await publishPopularSearchesWorkflow(scope as MedusaContainer).run({ input: { region_id: regionId, terms } })
-  }
+  // Regions are published side by side: each replaces only its own list.
+  await Promise.all(
+    regionIds.map(async (regionId) => {
+      const terms = regions.has(regionId) ? await popularTermsIn(scope, regionId, salesChannelIds, candidates) : []
+      await publishPopularSearchesWorkflow(scope as MedusaContainer).run({ input: { region_id: regionId, terms } })
+    })
+  )
+}
+
+/** The region's popular searches: its first few candidates that aren't blocklisted and find a listing there. */
+async function popularTermsIn(
+  scope: Scope,
+  regionId: string,
+  salesChannelIds: string[],
+  candidates: Candidate[]
+): Promise<string[]> {
+  const countListings = await listingSearchCounter(scope as MedusaContainer, { regionId, salesChannelIds })
+  const terms = candidates.filter((c) => c.region_id === regionId && !isBlockedSearch(c.term)).map((c) => c.term)
+  return firstFound(terms, countListings, POPULAR_SEARCHES_SHOWN)
+}
+
+/**
+ * The first `wanted` of `terms`, in order, that find a listing. As many terms are checked at once
+ * as are still wanted, so no more than that are counted in parallel and the rest only if needed.
+ */
+async function firstFound(
+  terms: string[],
+  countListings: (term: string) => Promise<number>,
+  wanted: number
+): Promise<string[]> {
+  if (!wanted || !terms.length) return []
+  const checked = terms.slice(0, wanted)
+  const counts = await Promise.all(checked.map(countListings))
+  const found = checked.filter((_, i) => counts[i])
+  return [...found, ...(await firstFound(terms.slice(wanted), countListings, wanted - found.length))]
 }
