@@ -1,5 +1,5 @@
 import type { ReceiverName } from '@oja/domain';
-import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import { storeClient } from './client';
 
@@ -55,4 +55,15 @@ export function useAccountSummary(userId: string | null | undefined) {
     queryKey: summaryKeys.me(userId ?? ''),
     queryFn: userId ? fetchAccountSummary : skipToken,
   });
+}
+
+/**
+ * Refreshes the Account counts after a write, without holding the write up: it's done whether or
+ * not the counts come back. A summary fetch already in flight started before the write, so it's
+ * cancelled rather than reused, which would keep the old counts.
+ */
+export function refreshAccountSummary(queryClient: QueryClient) {
+  void queryClient
+    .cancelQueries({ queryKey: summaryKeys.all })
+    .then(() => queryClient.invalidateQueries({ queryKey: summaryKeys.all }));
 }
