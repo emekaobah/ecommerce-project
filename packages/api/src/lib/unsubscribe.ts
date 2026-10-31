@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { Modules } from "@medusajs/framework/utils"
+import { backendUrl } from "./backend-url"
 import { setNotificationPreferences, type NotificationPreferenceKey } from "./notification-preferences"
 
 // Unsubscribe links (#139). An email a buyer can turn off carries a link that turns it off
@@ -14,8 +15,6 @@ type Scope = Pick<MedusaContainer, "resolve">
 /** The settings an emailed unsubscribe link can turn off. */
 export const UNSUBSCRIBABLE: readonly NotificationPreferenceKey[] = ["cart_reminder_email"]
 
-/** Where the backend is reached from outside, for links in emails: `MERCUR_BACKEND_URL` (the API's public origin), else the local server. */
-const backendUrl = (env: NodeJS.ProcessEnv) => (env.MERCUR_BACKEND_URL?.trim() || "http://localhost:9000").replace(/\/+$/, "")
 
 /** The secret unsubscribe links are signed with, or null when `UNSUBSCRIBE_SECRET` isn't set. */
 const secretOf = (env: NodeJS.ProcessEnv) => env.UNSUBSCRIBE_SECRET?.trim() || null

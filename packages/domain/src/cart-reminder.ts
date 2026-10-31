@@ -9,6 +9,25 @@ import { stockLeftLabel } from "./stock"
 
 const HOUR_MS = 60 * 60 * 1000
 
+/**
+ * What a cart reminder's push data (`from`) and its email's link (`?from=`) carry, so an open from
+ * a reminder can be told apart from any other (story 38).
+ */
+export const CART_REMINDER_FROM = "cart_reminder"
+
+/**
+ * The analytics events that measure cart reminders (story 38). They are sent once PostHog is set
+ * up; nothing sends them yet.
+ */
+export const CART_REMINDER_EVENTS = {
+  /** A reminder went to the buyer. */
+  sent: "cart reminder sent",
+  /** The buyer opened the app from a reminder's push or email (`from` is `CART_REMINDER_FROM`). */
+  opened: "cart reminder opened",
+  /** The buyer checked out after opening a reminder. */
+  checkout: "checkout after cart reminder",
+} as const
+
 /** When reminders go out: how long a cart's items sit untouched first, and the hours of the day they may be sent in. */
 export type CartReminderSchedule = {
   /** How long the cart's items must be left alone. */

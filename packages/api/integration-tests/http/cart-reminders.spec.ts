@@ -153,7 +153,8 @@ medusaIntegrationTestRunner({
         const push = {
           title: `Your items from ${GADGETS.name} and 1 more shop`,
           body: `${LANTERN.title} and ${RICE.title} are still in your cart.`,
-          data: { url: "/cart", cart_id: cartId },
+          // `from` tells an open from a reminder apart (story 38).
+          data: { url: "/cart", cart_id: cartId, from: "cart_reminder" },
         }
         expect(await pushesTo(phone)).toEqual([expect.objectContaining(push)])
         expect(await pushesTo(tablet)).toEqual([expect.objectContaining(push)])
@@ -230,7 +231,7 @@ medusaIntegrationTestRunner({
 
         const due = dueAt(changed)
         await remind(due)
-        expect(await pushesTo(phone)).toEqual([expect.objectContaining({ data: { url: "/cart", cart_id: cartId } })])
+        expect(await pushesTo(phone)).toEqual([expect.objectContaining({ data: { url: "/cart", cart_id: cartId, from: "cart_reminder" } })])
 
         await api.post(`/store/carts/${cartId}/checkout`, { shipping_address: { ...ADDRESS, address_2: "Flat 4" } }, buyer)
         await remind(new Date(due.getTime() + 24 * HOUR))
@@ -419,12 +420,33 @@ medusaIntegrationTestRunner({
         expect(sent.text).toContain(`${LANTERN.title} and ${RICE.title} are still in your cart.`)
         for (const text of [GADGETS.name, GROCERY.name, LANTERN.title, RICE.title, money(LANTERN.price + 2 * RICE.price)])
           expect(sent.text).toContain(text)
-        expect(sent.html).toContain('href="oja://cart"')
+        // An https link, which webmail keeps, where an app link would be stripped; `from` marks an open from a reminder.
+        expect(sent.html).toContain(`href="${BACKEND_URL}/open/cart?from=cart_reminder"`)
         expect(await pushesTo(phone)).toHaveLength(1)
 
         await remind(due)
         await remind(new Date(due.getTime() + HOUR))
         expect(await settledEmailsTo(email)).toHaveLength(1)
+      })
+
+      it("its button's page opens the app's cart, with a button for when it doesn't open by itself", async () => {
+        const res = await api.get("/open/cart?from=cart_reminder", anyStatus)
+
+        expect(res.status).toBe(200)
+        expect(res.headers["content-type"]).toMatch(/html/)
+        const appLink = "oja://cart?from=cart_reminder"
+        expect(res.data).toContain(`<meta http-equiv="refresh" content="0;url=${appLink}">`)
+        expect(res.data).toContain(`<a href="${appLink}"`)
+        expect(res.data).toContain("Open Oja")
+      })
+
+      it("its button's page carries no marker it wasn't given, and no other value", async () => {
+        const plain = await api.get("/open/cart", anyStatus)
+        expect(plain.data).toContain('<a href="oja://cart"')
+
+        const odd = await api.get(`/open/cart?from=${encodeURIComponent('"><script>')}`, anyStatus)
+        expect(odd.data).toContain('<a href="oja://cart"')
+        expect(odd.data).not.toContain("<script>")
       })
 
       it("carries the good news the push does, and no discount", async () => {
