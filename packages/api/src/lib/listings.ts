@@ -487,11 +487,17 @@ export async function listListings(
   return { listings: await listingsOf(scope, region, filters, groups), count: ranked.count, shopCount: ranked.shopCount }
 }
 
-/** How many listings match in a region, as `listListings` counts them, without loading any. */
-export async function countListings(scope: MedusaContainer, filters: ListingFilters): Promise<number> {
-  const region = await loadRegion(scope, filters.regionId)
-  const { count } = await rankListingPage(scope, await rankingFiltersOf(scope, region, filters), { limit: 1, offset: 0 })
-  return count
+/**
+ * Counts the listings a search finds in a region, as `listListings` counts them, without loading
+ * any. The region and its live shops are loaded once, for every search the counter is given.
+ */
+export async function listingSearchCounter(
+  scope: MedusaContainer,
+  filters: Pick<ListingFilters, "regionId" | "salesChannelIds">
+): Promise<(search: string) => Promise<number>> {
+  const ranking = await rankingFiltersOf(scope, await loadRegion(scope, filters.regionId), filters)
+  return async (search) =>
+    (await rankListingPage(scope, { ...ranking, words: searchWords(search) }, { limit: 1, offset: 0 })).count
 }
 
 /** The groups as listings, with their products and deals. */

@@ -7,7 +7,7 @@ import {
   publishPopularSearchesWorkflow,
   recordSearchWorkflow,
 } from "../workflows/popular-search/workflows"
-import { countListings } from "./listings"
+import { listingSearchCounter } from "./listings"
 import { BLOCKED_SEARCH_WORDS } from "./search-blocklist"
 
 // Popular searches on the Search tab (#124), Oja-wide in each region for now rather than near
@@ -36,15 +36,21 @@ export const normaliseSearch = (term: string) => term.trim().replaceAll(/\s+/g, 
 /** Whether any word of a normalised term is on the blocklist. */
 export const isBlockedSearch = (term: string) => term.split(" ").some((word) => BLOCKED_SEARCH_WORDS.has(word))
 
-/** Records a search a buyer used, normalised; without who they are. */
+/**
+ * Records a search a buyer used, normalised; without who they are. A region that doesn't exist
+ * isn't recorded, so made-up ids can't fill the table. Whether it was recorded.
+ */
 export async function recordSearch(
   scope: Scope,
   search: { term: string; region_id: string; phone_id: string },
   now = new Date()
-): Promise<void> {
+): Promise<boolean> {
+  const [region] = await scope.resolve(Modules.REGION).listRegions({ id: search.region_id }, { select: ["id"] })
+  if (!region) return false
   await recordSearchWorkflow(scope as MedusaContainer).run({
     input: { ...search, term: normaliseSearch(search.term), searched_at: now },
   })
+  return true
 }
 
 /** The region's popular searches, as last published, most popular first; none before the first run. */
@@ -96,7 +102,8 @@ export async function publishPopularSearches(
   const regions = new Set(
     (await scope.resolve(Modules.REGION).listRegions({ id: regionIds }, { select: ["id"] })).map((r) => r.id)
   )
-  // The listings a buyer could find: those in any sales channel that is on.
+  // The listings a buyer could find: those in any sales channel that is on. Oja has one, so this
+  // is the channel the app's publishable key opens.
   const salesChannelIds = (
     await scope.resolve(Modules.SALES_CHANNEL).listSalesChannels({ is_disabled: false }, { select: ["id"] })
   ).map((c) => c.id)
@@ -104,11 +111,11 @@ export async function publishPopularSearches(
   for (const regionId of regionIds) {
     const terms: string[] = []
     if (regions.has(regionId)) {
+      const countListings = await listingSearchCounter(scope as MedusaContainer, { regionId, salesChannelIds })
       for (const { term } of candidates.filter((c) => c.region_id === regionId)) {
         if (terms.length === POPULAR_SEARCHES_SHOWN) break
         if (isBlockedSearch(term)) continue
-        const found = await countListings(scope as MedusaContainer, { regionId, salesChannelIds, search: term })
-        if (found) terms.push(term)
+        if (await countListings(term)) terms.push(term)
       }
     }
     await publishPopularSearchesWorkflow(scope as MedusaContainer).run({ input: { region_id: regionId, terms } })

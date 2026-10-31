@@ -9,7 +9,9 @@
     "noEmit": true,
     "esModuleInterop": true,
     "types": ["bun"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    // The routes' types reach the backend's module services, which use its decorators.
+    "experimentalDecorators": true
   },
   "include": ["src"]
 }
