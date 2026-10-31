@@ -1,6 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { deleteLineItemsWorkflow, updateLineItemInCartWorkflow } from "@medusajs/medusa/core-flows"
 import { stockShortfall, type NotPlacedChange } from "@oja/domain"
+import type { CartItem } from "./cart"
 import type { CartLineCheck } from "./cart-line-check"
 
 // Cutting a cart to what its shops have left: starting payment does it before charging (#67), and
@@ -11,6 +12,16 @@ import type { CartLineCheck } from "./cart-line-check"
 export type StockLine = Pick<CartLineCheck, "line_item_id" | "product_title" | "variant_title" | "quantity" | "available_quantity"> & {
   seller: { id: string; name: string } | null
 }
+
+/** A cart group's line as cutting it to stock sees it, with the group's shop. */
+export const stockLineOf = <S extends StockLine["seller"]>(item: CartItem, seller: S) => ({
+  line_item_id: item.id,
+  product_title: item.product_title,
+  variant_title: item.variant_title,
+  quantity: item.quantity,
+  available_quantity: item.available_quantity,
+  seller,
+})
 
 /**
  * Removes the cart's sold-out lines and cuts those wanting more than is left to what is, from

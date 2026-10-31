@@ -5,7 +5,7 @@ import type { NotPlacedChange, NotPlacedReason } from "@oja/domain"
 import { applyShopPromotionsWorkflow } from "../workflows/checkout/apply-shop-promotions"
 import { removeCartDeliveriesWorkflow } from "../workflows/checkout/remove-cart-deliveries"
 import { retrieveCartBySeller } from "./cart"
-import { cutCartToStock } from "./cart-stock"
+import { cutCartToStock, stockLineOf } from "./cart-stock"
 
 // Fixing a paid cart that failed to become orders, once it is refunded (#38): as checkout does
 // when prices change, the buyer then sees what changed and pays the new total.
@@ -34,7 +34,7 @@ export async function fixUnplacedCart(
     causes.add("unavailable")
   }
   if (gone.length) await deleteLineItemsWorkflow(container).run({ input: { cart_id: cartId, ids: gone.map((l) => l.id) } })
-  const lines = sellers.flatMap((g) => g.items.map((item) => ({ ...item, line_item_id: item.id, seller: g.seller })))
+  const lines = sellers.flatMap((g) => g.items.map((item) => stockLineOf(item, g.seller)))
   const { changes: cut } = await cutCartToStock(container, cartId, lines)
   if (cut.length) causes.add("sold_out")
   changes.push(...cut)
