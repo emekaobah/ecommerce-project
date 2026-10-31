@@ -1,6 +1,7 @@
 import {
   addressLines,
   buyerStatusPush,
+  cartReminderPush,
   collectByLabel,
   courierChangedPush,
   deliveryEstimate,
@@ -45,6 +46,7 @@ import { RefundByHandEmail } from "../emails/refund-by-hand"
 import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { SHIPBUBBLE_TIMEZONE } from "../modules/shipbubble"
+import type { CartReminder } from "./cart-reminders"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
 import { sendEmail } from "./email"
 import { fulfilmentService, fulfilmentsOf, switchedFrom, type Picks } from "./order-fulfilment"
@@ -465,6 +467,23 @@ export async function askForRefundAccount(scope: Scope, refundId: string, remind
       about: `the bank account refund ${refund.id} needs`,
     }),
   ])
+}
+
+/** The buyer app's Cart tab, which a cart reminder opens. */
+const CART_SCREEN = "/cart"
+
+/**
+ * Reminds the buyer of the cart they left (#137) on each of their devices, once per reminder
+ * however often it is asked: its shops, top items and good news. Tapping it opens the Cart tab.
+ */
+export async function pushCartReminder(scope: Scope, reminder: CartReminder): Promise<void> {
+  await pushToDevices(scope, await buyerDevices(scope, reminder.customer_id), {
+    template: "buyer-cart-reminder",
+    ...cartReminderPush(reminder.content),
+    data: { url: CART_SCREEN, cart_id: reminder.cart_id },
+    idempotencyKey: (to) => `buyer-cart-reminder:${reminder.key}:${to}`,
+    about: `the reminder of cart ${reminder.cart_id}`,
+  })
 }
 
 /** The buyer app's checkout for a cart, which a push about a cart that wasn't placed opens. */
