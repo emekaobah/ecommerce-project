@@ -18,6 +18,8 @@ import { usePushRegistration } from '@/push/push-registration';
 import { useOpenTappedPush } from '@/push/use-open-tapped-push';
 import { RegionProvider } from '@/region/region-provider';
 import { useClearCacheOnUserChange } from '@/session/use-clear-cache-on-user-change';
+// Throwaway #140 device test: registers the Live Activity token listeners at startup.
+import '@/live-activity-spike/register';
 
 initSentry(env.sentryDsn);
 

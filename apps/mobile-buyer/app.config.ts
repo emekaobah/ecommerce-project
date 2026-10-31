@@ -62,6 +62,8 @@ const config: ExpoConfig = {
     ],
     // Pushes about the buyer's orders (#27, #28).
     'expo-notifications',
+    // Throwaway #140 device test: one Live Activity whose tokens go to a log server on the Mac.
+    ['expo-widgets', { enablePushNotifications: true, groupIdentifier: `group.${bundleId}` }],
     // Crash reporting (#19). Release builds upload source maps and debug symbols when
     // SENTRY_AUTH_TOKEN is set, and skip the upload otherwise.
     [
