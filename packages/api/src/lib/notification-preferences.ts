@@ -20,12 +20,16 @@ export type NotificationPreferencesChange = Partial<NotificationPreferences>
 /** A buyer who never changed a setting has them all on. */
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = { cart_reminder_push: true, cart_reminder_email: true }
 
+/** Just the settings, from a saved row or anything else carrying them. */
+export const settingsOf = (row: NotificationPreferences): NotificationPreferences =>
+  Object.fromEntries(NOTIFICATION_PREFERENCE_KEYS.map((key) => [key, row[key]])) as NotificationPreferences
+
 /** The buyer's notification settings. */
 export async function notificationPreferencesOf(scope: Scope, customerId: string): Promise<NotificationPreferences> {
   const service = scope.resolve<NotificationPreferenceModuleService>(NOTIFICATION_PREFERENCE_MODULE)
   const [saved] = await service.listNotificationPreferences({ customer_id: customerId })
   if (!saved) return { ...DEFAULT_NOTIFICATION_PREFERENCES }
-  return Object.fromEntries(NOTIFICATION_PREFERENCE_KEYS.map((key) => [key, saved[key]])) as NotificationPreferences
+  return settingsOf(saved)
 }
 
 /** Changes the buyer's settings named in `change`, keeping the others; returns them all. */
