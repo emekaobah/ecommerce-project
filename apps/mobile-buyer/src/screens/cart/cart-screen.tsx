@@ -96,10 +96,14 @@ export function CartScreen({ inSheet = false }: Readonly<{ inSheet?: boolean }>)
   return (
     <LeaveCart.Provider value={leave}>
       {inSheet ? (
-        // The sheet starts below the status bar, so it needs no top inset.
-        <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+        // The sheet starts below the status bar, so it needs no top inset. The cart's scroll view sits
+        // in a view of its own: a formSheet resizes a scroll view among its first children itself,
+        // placing it over the header, rather than leaving it to the layout.
+        <View collapsable={false} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
           <SheetHeader />
-          {content()}
+          <View collapsable={false} style={styles.fill}>
+            {content()}
+          </View>
         </View>
       ) : (
         <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
@@ -118,6 +122,7 @@ function SheetHeader() {
   const theme = useTheme();
   return (
     <View
+      collapsable={false}
       style={[
         styles.row,
         { gap: theme.space[2], paddingTop: theme.space[4], paddingBottom: theme.space[2], paddingLeft: theme.space[4], paddingRight: theme.space[2] },
