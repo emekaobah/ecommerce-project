@@ -96,6 +96,14 @@ export function closeSheetThen(go: () => void) {
   router.back();
 }
 
+/**
+ * Opens the notification consent sheet (#136) once the stack is still: after signing in, the
+ * sign-in screen is still closing, and a sheet pushed meanwhile can be dropped.
+ */
+export function openPushConsent() {
+  afterStackSettles(() => router.push('/push-consent'));
+}
+
 /** A root stack route, with the state of the navigator inside it once that has one. */
 type StackRoute = { name: string; state?: { index?: number; routes: readonly { name: string }[] } };
 
