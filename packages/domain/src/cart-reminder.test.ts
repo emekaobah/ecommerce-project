@@ -12,6 +12,7 @@ const idle: CartReminderCart = {
   has_items: true,
   paid: false,
   items_changed_at: lagos("10:00").toISOString(),
+  items: "lantern x1, rice x2",
   reminded: null,
 }
 
@@ -37,17 +38,23 @@ describe("cartReminderDue", () => {
     expect(cartReminderDue({ ...idle, paid: true }, now)).toBe(false)
   })
 
-  test("isn't due again once the buyer was reminded after its items last changed", () => {
-    const reminded = { ...idle, reminded: { at: lagos("14:00").toISOString(), items_changed_at: idle.items_changed_at } }
+  test("isn't due again once the buyer was reminded about the items in it", () => {
+    const reminded = { ...idle, reminded: { at: lagos("14:00").toISOString(), items_changed_at: idle.items_changed_at, items: idle.items } }
     expect(cartReminderDue(reminded, lagos("19:00"))).toBe(false)
     expect(cartReminderDue(reminded, new Date(lagos("14:00").getTime() + 30 * 24 * HOUR))).toBe(false)
   })
 
-  test("is due again once its items changed after the reminder and were left alone again", () => {
-    const reminded = { at: lagos("14:00").toISOString(), items_changed_at: idle.items_changed_at }
-    const changedSince = { ...idle, reminded, items_changed_at: lagos("15:00").toISOString() }
+  test("is due again once the buyer changed its items after the reminder and left them alone again", () => {
+    const reminded = { at: lagos("14:00").toISOString(), items_changed_at: idle.items_changed_at, items: idle.items }
+    const changedSince = { ...idle, reminded, items_changed_at: lagos("15:00").toISOString(), items: "lantern x1, rice x3" }
     expect(cartReminderDue(changedSince, lagos("18:59"))).toBe(false)
     expect(cartReminderDue(changedSince, lagos("19:00"))).toBe(true)
+  })
+
+  test("isn't due again when its lines were touched after the reminder without the items changing, as checkout repricing a line does", () => {
+    const reminded = { at: lagos("14:00").toISOString(), items_changed_at: idle.items_changed_at, items: idle.items }
+    const repriced = { ...idle, reminded, items_changed_at: lagos("15:00").toISOString() }
+    expect(cartReminderDue(repriced, lagos("19:00"))).toBe(false)
   })
 
   test("is sent from 9am until 8pm Lagos time", () => {

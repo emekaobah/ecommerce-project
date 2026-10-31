@@ -36,17 +36,25 @@ export type CartReminderCart = {
   has_items: boolean
   /** Completed or paid for. A checkout started and left unpaid isn't. */
   paid: boolean
-  /** When an item was last added, removed or changed in quantity (ISO 8601). */
+  /** When a line was last added, removed or touched (ISO 8601); the delay runs from it. */
   items_changed_at: string
   /**
-   * The cart's last reminder, if any: when it was sent and when the cart's items had last changed
-   * then (ISO 8601). Its items changing since clears it.
+   * What is in the cart: its lines, what each is and how many (a fingerprint the backend makes).
+   * It changes only when the buyer changes the items, never when a line is only repriced.
+   */
+  items: string
+  /**
+   * The cart's last reminder, if any. The buyer changing its items since (`items` differs) clears
+   * it; so does nothing else.
    */
   reminded: CartReminded | null
 }
 
-/** A cart's reminder marker: when it was sent, and which change of the cart's items it was about. */
-export type CartReminded = { at: string; items_changed_at: string }
+/**
+ * A cart's reminder marker: when it was sent, when the cart's lines had last changed then (ISO
+ * 8601), and the items it was about (`CartReminderCart.items`).
+ */
+export type CartReminded = { at: string; items_changed_at: string; items: string }
 
 /** The hour of the day at `at` in `timeZone`, 0–23. */
 const hourIn = (at: Date, timeZone: string) =>
@@ -56,13 +64,14 @@ const hourIn = (at: Date, timeZone: string) =>
  * Whether to remind the buyer about their cart now: it is a signed-in buyer's, has items and
  * isn't paid; its items have been left alone for the delay; they haven't been reminded since its
  * items last changed; and it is within the hours reminders are sent. A cart that falls due
- * overnight is due the next morning.
+ * overnight is due the next morning. Having been reminded, it is due again only once the buyer
+ * changes what is in it: a line repriced or otherwise touched by the backend doesn't count.
  */
 export function cartReminderDue(cart: CartReminderCart, now: Date, schedule: CartReminderSchedule = CART_REMINDER_SCHEDULE): boolean {
   if (!cart.signed_in || !cart.has_items || cart.paid) return false
   const changedAt = Date.parse(cart.items_changed_at)
   if (now.getTime() - changedAt < schedule.delay_hours * HOUR_MS) return false
-  if (cart.reminded && Date.parse(cart.reminded.items_changed_at) >= changedAt) return false
+  if (cart.reminded?.items === cart.items) return false
   const hour = hourIn(now, schedule.time_zone)
   return hour >= schedule.send_from_hour && hour < schedule.send_until_hour
 }

@@ -236,6 +236,27 @@ medusaIntegrationTestRunner({
         await remind(new Date(due.getTime() + 24 * HOUR))
         expect(await settledPushesTo(phone)).toHaveLength(1)
       })
+
+      it("isn't sent again when checkout reprices its lines, which the buyer didn't change", async () => {
+        const { email, as: buyer } = newBuyerWithEmail()
+        const phone = await register(buyer)
+        const cartId = await twoShopCart(buyer)
+        await remind(dueAt(await changedAt(cartId)))
+        await pushesTo(phone)
+        await emailsTo(email)
+
+        const restore = await setPrice(GADGETS, LANTERN, LANTERN.price + 500)
+        try {
+          // Checkout puts the lantern's line at its new price.
+          await api.post(`/store/carts/${cartId}/checkout`, { shipping_address: ADDRESS }, buyer)
+          await remind(dueAt(await changedAt(cartId)))
+
+          expect(await settledPushesTo(phone)).toHaveLength(1)
+          expect(await settledEmailsTo(email)).toHaveLength(1)
+        } finally {
+          await restore()
+        }
+      })
     })
 
     describe("no push", () => {
