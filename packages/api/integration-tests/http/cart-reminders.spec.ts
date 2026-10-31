@@ -240,6 +240,25 @@ medusaIntegrationTestRunner({
         expect(await settledPushesTo(phone)).toHaveLength(1)
       })
 
+      it("for a buyer who turned cart reminder pushes off, whose order pushes still arrive", async () => {
+        const preferences = "/store/customers/me/notification-preferences"
+        await api.post(preferences, { cart_reminder_push: false }, ada.ada())
+        try {
+          const phone = await register(ada.ada())
+          const { cartId: paidCartId } = await ada.paidCheckout()
+          carts.push(paidCartId)
+          // Ada's phone is still told her order is confirmed.
+          expect(await pushesTo(phone)).toEqual([expect.objectContaining({ title: expect.stringMatching(/confirmed$/) })])
+
+          const cartId = await twoShopCart(ada.ada())
+          await remind(dueAt(await changedAt(cartId)))
+
+          expect(await settledPushesTo(phone)).toHaveLength(1)
+        } finally {
+          await api.post(preferences, { cart_reminder_push: true }, ada.ada())
+        }
+      })
+
       it("for a cart with nothing that can be bought now", async () => {
         const buyer = newBuyer()
         const phone = await register(buyer)

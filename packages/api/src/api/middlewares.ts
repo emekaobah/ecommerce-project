@@ -62,6 +62,7 @@ import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validato
 import { AdminSetTopUpCap } from "./admin/courier-approvals/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
+import { StoreUpdateNotificationPreferences } from "./store/customers/me/notification-preferences/validators";
 import { StoreRecordSearch } from "./store/searches/validators";
 import { StoreGetPopularSearches } from "./store/popular-searches/validators";
 import { reportServerErrors } from "./report-server-errors";
@@ -276,6 +277,12 @@ export default defineMiddlewares({
             method: ["POST"],
             matcher: "/store/customers/me/addresses/:address_id",
             middlewares: [savedAddressesNeedPins, savedAddressesValidatedForDelivery],
+        },
+        // The buyer turns a notification setting on or off (#138).
+        {
+            method: ["POST"],
+            matcher: "/store/customers/me/notification-preferences",
+            middlewares: [validateAndTransformBody(StoreUpdateNotificationPreferences)],
         },
         // A signed-in buyer's device registers for pushes, and is removed at sign-out (#27).
         {
