@@ -6,7 +6,9 @@ import {
   ErrorState,
   Group,
   GroupList,
+  Icon,
   InlineNote,
+  PressableSurface,
   QuantityStepper,
   ShopMark,
   PhotoTile,
@@ -19,7 +21,7 @@ import {
 } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,15 +32,27 @@ import { useCartSession } from '@/cart/cart-provider';
 import { SumRow } from '@/components/cart/summary';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { closeSheetThen } from '@/navigation';
 
-/** The cart, a card per shop: each shop ships, and becomes an order, on its own. */
-export function CartScreen() {
+/** Goes to another screen from the cart. In the sheet, it closes first, so that screen opens over the one under it. */
+const LeaveCart = createContext<(go: () => void) => void>((go) => go());
+
+/** How anything in the cart opens another screen: `leave(() => router.push('/checkout'))`. */
+export const useLeaveCart = () => useContext(LeaveCart);
+
+/**
+ * The cart, a card per shop: each shop ships, and becomes an order, on its own. The Cart tab shows
+ * it with the tab's title; `inSheet` shows it over the screen it was opened from (`openCartSheet`),
+ * with a smaller title and ✕.
+ */
+export function CartScreen({ inSheet = false }: Readonly<{ inSheet?: boolean }>) {
   const theme = useTheme();
   const toast = useToast();
   const { isSignedIn } = useAuth();
   const { cartId, forgetCart } = useCartSession();
   const cart = useCart(cartId);
   const cartMissing = isNotFound(cart.error);
+  const leave = inSheet ? closeSheetThen : (go: () => void) => go();
   const { refreshing, refresh } = usePullToRefresh(async () => {
     const result = await cart.refetch();
     if (result.isError && cart.data) toast({ message: "Couldn't refresh your cart", tone: 'problem' });
@@ -55,8 +69,8 @@ export function CartScreen() {
           icon="bag"
           title="Nothing in your cart yet"
           body="Start with the shops open near you, or pick up where you left off in your saved items."
-          action={{ label: 'Browse shops near you', onPress: () => router.navigate('/') }}
-          secondaryAction={{ label: 'See your saved items', onPress: () => router.push(isSignedIn ? '/wishlist' : '/sign-in') }}
+          action={{ label: 'Browse shops near you', onPress: () => leave(() => router.navigate('/')) }}
+          secondaryAction={{ label: 'See your saved items', onPress: () => leave(() => router.push(isSignedIn ? '/wishlist' : '/sign-in')) }}
         />
       );
     }
@@ -76,12 +90,45 @@ export function CartScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
-      <Text variant="titleRoot" style={{ paddingTop: theme.space[1], paddingBottom: theme.space[2], paddingHorizontal: theme.space[4] }}>
+    <LeaveCart.Provider value={leave}>
+      {inSheet ? (
+        // The sheet starts below the status bar, so it needs no top inset.
+        <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+          <SheetHeader />
+          {content()}
+        </View>
+      ) : (
+        <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+          <Text variant="titleRoot" style={{ paddingTop: theme.space[1], paddingBottom: theme.space[2], paddingHorizontal: theme.space[4] }}>
+            Cart
+          </Text>
+          {content()}
+        </SafeAreaView>
+      )}
+    </LeaveCart.Provider>
+  );
+}
+
+/** The sheet's own header: a smaller "Cart" and ✕, which closes it, as swiping down does. */
+function SheetHeader() {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.row,
+        { gap: theme.space[2], paddingTop: theme.space[4], paddingBottom: theme.space[2], paddingLeft: theme.space[4], paddingRight: theme.space[2] },
+      ]}>
+      <Text variant="titlePushed" accessibilityRole="header" style={styles.fill}>
         Cart
       </Text>
-      {content()}
-    </SafeAreaView>
+      <PressableSurface
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        onPress={() => router.back()}
+        style={[styles.centred, { width: theme.hitArea, height: theme.hitArea }]}>
+        <Icon name="x" use="step" color={theme.colors.ink} />
+      </PressableSurface>
+    </View>
   );
 }
 
@@ -96,6 +143,7 @@ function CartContents({
 }: Readonly<{ cartId: string; cart: Cart; refreshing: boolean; onRefresh: () => void }>) {
   const theme = useTheme();
   const { isSignedIn } = useAuth();
+  const leave = useLeaveCart();
   const setQuantity = useSetCartItemQuantity(cartId);
   const moveShopToOwnCart = useMoveShopToOwnCart(cartId);
   const saveForLater = useToggleWishlist();
@@ -107,17 +155,18 @@ function CartContents({
   const shops = cart.sellers.filter((group) => group.seller);
 
   // Checkout is protected; a guest goes through the sign-in modal first (ADR 0001).
-  const checkout = () => router.push(isSignedIn ? '/checkout' : '/sign-in');
+  const checkout = () => leave(() => router.push(isSignedIn ? '/checkout' : '/sign-in'));
   // With several shops in the cart, one shop's items can be paid for on their own (#11): they
   // move to a shop cart, checked out like any other; the rest stays in this cart.
   const paysShopByShop = cart.sellers.length > 1;
   const checkoutShop = (sellerId: string) => {
     if (!isSignedIn) {
-      router.push('/sign-in');
+      leave(() => router.push('/sign-in'));
       return;
     }
+    // Not called if the sheet was closed in the meantime: the callback goes with the screen.
     moveShopToOwnCart.mutate(sellerId, {
-      onSuccess: (shopCart) => router.push({ pathname: '/checkout', params: { cartId: shopCart.id } }),
+      onSuccess: (shopCart) => leave(() => router.push({ pathname: '/checkout', params: { cartId: shopCart.id } })),
     });
   };
   // Checkout can't start while a line has none left: the main button clears them all, one at a
@@ -138,7 +187,7 @@ function CartContents({
   // Saved items are the buyer's wishlist: the line goes there, then leaves the cart.
   const save = (group: CartSellerGroup, item: CartItem) => {
     if (!isSignedIn) {
-      router.push('/sign-in');
+      leave(() => router.push('/sign-in'));
       return;
     }
     if (!group.seller || !item.product_id) return;
@@ -433,5 +482,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
   start: { alignSelf: 'flex-start' },
+  centred: { alignItems: 'center', justifyContent: 'center' },
   faded: { opacity: 0.5 },
 });

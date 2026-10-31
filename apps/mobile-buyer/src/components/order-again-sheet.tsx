@@ -13,7 +13,6 @@ import {
 } from '@oja/domain';
 import { Button, haptics, Icon, MAX_FONT_SCALE, InlineNote, PhotoTile, PressableSurface, Skeleton, StatusChip, Text, useTheme, useToast } from '@oja/ui';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +23,7 @@ import { useOrderAgain, type OrderAgain } from '@/api/orders';
 import { useShop } from '@/api/shops';
 import { useCartSession } from '@/cart/cart-provider';
 import { useDeliveringTo } from '@/delivering-to/delivering-to-provider';
+import { openCartSheet } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
 import { SheetModal } from './sheet-modal';
@@ -144,7 +144,8 @@ function Preview({ previews, currency, onAdded, onRefused, linesMaxHeight }: Rea
         onAdded();
         toast({
           message: `${itemsLabel(summary.count)} added`,
-          action: { label: 'View cart', onPress: () => router.navigate('/cart') },
+          // A sheet over the order, which the Cart tab would discard.
+          action: { label: 'View cart', onPress: openCartSheet },
         });
       },
       onError: (error) => {

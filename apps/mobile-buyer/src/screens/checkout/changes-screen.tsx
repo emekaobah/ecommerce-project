@@ -7,6 +7,7 @@ import { View } from 'react-native';
 import { checkoutKeys, useCheckout, useStartPayment } from '@/api/checkout';
 import { isAlreadyPaid, useFailureMessage } from '@/api/errors';
 import { useDeliveringToId } from '@/delivering-to/delivering-to-provider';
+import { openCartSheet } from '@/navigation';
 
 import { PAYMENT_RETURN_URL } from './review-step';
 
@@ -69,10 +70,11 @@ export function ChangesScreen() {
         onConfirm={canPay ? pay : () => router.back()}
         loading={startPayment.isPending}
         backLabel="Back to cart"
-        // Pops the sheet and checkout together, as going back does, so a shop cart's items return to the cart.
+        // Pops the sheet and checkout together, as going back does, so a shop cart's items return to the cart,
+        // then opens the cart over the screen checkout started from rather than discarding it for the Cart tab.
         onBack={() => {
           router.dismiss(2);
-          router.navigate('/cart');
+          openCartSheet();
         }}
       />
     </View>

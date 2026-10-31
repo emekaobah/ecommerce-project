@@ -48,7 +48,7 @@ import { Price } from '@/components/price';
 import { ReviewsPreview } from '@/components/reviews';
 import { ShopStars } from '@/components/shop-facts';
 import { ShopStatusBadge } from '@/components/shop-status';
-import { openShop } from '@/navigation';
+import { openCartSheet, openShop } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
 type Offer = ListingDetail['offers'][number];
@@ -481,6 +481,7 @@ function SoldOutNote({ shop }: Readonly<{ shop: string }>) {
  * (ADR 0004), disables Add, and the in-cart quantity with it.
  */
 function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offer; name: string; currencyCode: string; orderable: boolean }>) {
+  const toast = useToast();
   const { cartId, cartIdForAdding } = useCartSession();
   const cart = useCart(cartId);
   const add = useAddToCart(cartIdForAdding);
@@ -499,7 +500,8 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
         label="In cart · View cart"
         variant="secondary"
         tone="accent"
-        onPress={() => router.navigate('/cart')}
+        // A sheet over the product, so closing it comes back here, scrolled where it was.
+        onPress={openCartSheet}
         leading={
           <QuantityStepper
             value={line.quantity}
@@ -523,7 +525,13 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
       loading={add.isPending}
       // Until the cart is known, adding could start a second one.
       disabled={cartId === undefined || !orderable}
-      onPress={() => add.mutate({ offerId: offer.id, quantity })}
+      // The toast confirms the add without leaving the page; the bar has switched to the cart's quantity.
+      onPress={() =>
+        add.mutate(
+          { offerId: offer.id, quantity },
+          { onSuccess: () => toast({ message: 'Added to your cart', action: { label: 'View cart', onPress: openCartSheet } }) }
+        )
+      }
       note={add.error ? `Couldn't add ${name} to your cart. Try again.` : null}
       leading={
         <QuantityStepper
