@@ -95,8 +95,13 @@ export function cartReminderDue(cart: CartReminderCart, now: Date, schedule: Car
   return hour >= schedule.send_from_hour && hour < schedule.send_until_hour
 }
 
-/** A cart line as the reminder sees it: what it was added at, and where it stands now. */
+/**
+ * A cart line as the reminder sees it: what it was added at, and where it stands now. Only a line
+ * its shop still sells has one: a line without a shop can't be bought.
+ */
 export type CartReminderLine = {
+  line_item_id: string
+  /** Its shop's name. */
   shop: string
   product_title: string | null
   variant_title: string | null
@@ -113,6 +118,8 @@ export type CartReminderLine = {
 
 /** A line the buyer can buy now, as the reminder shows it. */
 export type CartReminderItem = {
+  /** Its cart line: two lines can share a title. */
+  line_item_id: string
   shop: string
   title: string
   /** As many as can be had now: a line wanting more than is left counts what is left, as checkout will. */
@@ -166,6 +173,7 @@ export function cartReminderContent(lines: CartReminderLine[], currencyCode: str
   const items = lines.filter(buyable).map((line): CartReminderItem => {
     const quantity = line.available_quantity === null ? line.quantity : Math.min(line.quantity, line.available_quantity)
     return {
+      line_item_id: line.line_item_id,
       shop: line.shop,
       title: titleOf(line),
       quantity,

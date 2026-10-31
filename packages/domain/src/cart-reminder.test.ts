@@ -87,7 +87,9 @@ describe("cartReminderDue", () => {
   })
 })
 
+let lines = 0
 const line = (over: Partial<CartReminderLine> & Pick<CartReminderLine, "product_title">): CartReminderLine => ({
+  line_item_id: `cali_${++lines}`,
   shop: "Mama Put Groceries",
   variant_title: null,
   quantity: 1,
@@ -106,8 +108,26 @@ describe("cartReminderContent", () => {
     expect(cartReminderContent([rice, lantern], "ngn")).toEqual({
       shops: ["Mama Put Groceries", "Lekki Gadgets"],
       items: [
-        { shop: "Mama Put Groceries", title: "Ofada Rice 5kg", quantity: 2, unit_price: 8500, total: 17000, price_drop: null, left: null },
-        { shop: "Lekki Gadgets", title: "Rechargeable LED Lantern", quantity: 1, unit_price: 12000, total: 12000, price_drop: null, left: null },
+        {
+          line_item_id: rice.line_item_id,
+          shop: "Mama Put Groceries",
+          title: "Ofada Rice 5kg",
+          quantity: 2,
+          unit_price: 8500,
+          total: 17000,
+          price_drop: null,
+          left: null,
+        },
+        {
+          line_item_id: lantern.line_item_id,
+          shop: "Lekki Gadgets",
+          title: "Rechargeable LED Lantern",
+          quantity: 1,
+          unit_price: 12000,
+          total: 12000,
+          price_drop: null,
+          left: null,
+        },
       ],
       good_news: null,
       total: 29000,
@@ -128,6 +148,12 @@ describe("cartReminderContent", () => {
     expect(content?.shops).toEqual(["Yaba Shoes"])
     expect(content?.items.map((i) => i.title)).toEqual(["Sandals"])
     expect(content?.total).toBe(1000)
+  })
+
+  test("keeps two lines with the same title in one shop apart by their line ids", () => {
+    const [a, b] = [line({ product_title: "Ofada Rice 5kg" }), line({ product_title: "Ofada Rice 5kg" })]
+    const content = cartReminderContent([a, b], "ngn")
+    expect(content?.items.map((i) => i.line_item_id)).toEqual([a.line_item_id, b.line_item_id])
   })
 
   test("is nothing when nothing in the cart can be bought now", () => {

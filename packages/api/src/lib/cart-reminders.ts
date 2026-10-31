@@ -159,16 +159,23 @@ const remindedOf = (metadata: Record<string, unknown> | null): CartReminded | nu
     : null
 }
 
-const reminderLine = (line: CartLineCheck): CartReminderLine => ({
-  shop: line.seller?.name ?? "",
-  product_title: line.product_title,
-  variant_title: line.variant_title,
-  quantity: line.quantity,
-  added_unit_price: line.added_at.unit_price,
-  unit_price: line.now?.unit_price ?? null,
-  available_quantity: line.available_quantity,
-  taking_orders: !!line.seller && line.not_taking_orders === null,
-})
+/** A line as the reminder sees it; a line no shop sells any more can't be bought, so it has none. */
+const reminderLine = (line: CartLineCheck): CartReminderLine[] => {
+  if (!line.seller) return []
+  return [
+    {
+      line_item_id: line.line_item_id,
+      shop: line.seller.name,
+      product_title: line.product_title,
+      variant_title: line.variant_title,
+      quantity: line.quantity,
+      added_unit_price: line.added_at.unit_price,
+      unit_price: line.now?.unit_price ?? null,
+      available_quantity: line.available_quantity,
+      taking_orders: line.not_taking_orders === null,
+    },
+  ]
+}
 
 /**
  * Sends a cart reminder on each channel the buyer hasn't turned off (#138). Each channel is told
@@ -186,7 +193,7 @@ export async function sendCartReminder(scope: Scope, reminder: CartReminder): Pr
 /** Reminds the buyer of one due cart, if anything in it can be bought now, and marks it reminded. */
 async function remindAbout(scope: Scope, cart: IdleCart, now: Date): Promise<void> {
   const check = await checkCartLines(scope as MedusaContainer, cart.id, now)
-  const content = cartReminderContent(check.lines.map(reminderLine), check.currency_code)
+  const content = cartReminderContent(check.lines.flatMap(reminderLine), check.currency_code)
   // Nothing to buy now: no reminder. It stays due, in case a shop restocks or reopens.
   if (!content) return
   await sendCartReminder(scope, {

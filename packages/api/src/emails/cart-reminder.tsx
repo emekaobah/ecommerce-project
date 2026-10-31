@@ -39,7 +39,7 @@ export function CartReminderEmail({ content, cartLink, unsubscribeLink }: Readon
           {content.items
             .filter((item) => item.shop === shop)
             .map((item) => (
-              <AmountRow key={item.title} label={`${item.quantity} × ${item.title}`} amount={money(item.total)} />
+              <AmountRow key={item.line_item_id} label={`${item.quantity} × ${item.title}`} amount={money(item.total)} />
             ))}
         </Section>
       ))}
