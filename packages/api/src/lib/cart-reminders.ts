@@ -107,7 +107,10 @@ async function latestCarts(scope: Scope, now: Date): Promise<IdleCart[]> {
   const knex = scope.resolve<Knex>(ContainerRegistrationKeys.PG_CONNECTION)
   const rows: (Omit<IdleCart, "items_changed_at" | "items"> & { items_changed_at: Date; live_items: string | null })[] = await knex("cart as c")
     .join("cart_line_item as li", "li.cart_id", "c.id")
-    .whereNotNull("c.customer_id")
+    // A guest who gave an email has a customer too, without an account: only buyers who sign in are reminded.
+    .join("customer as cu", "cu.id", "c.customer_id")
+    .where("cu.has_account", true)
+    .whereNull("cu.deleted_at")
     .whereNull("c.completed_at")
     .whereNull("c.deleted_at")
     .whereRaw(`(c.metadata->>'shop_cart_of') IS NULL`)

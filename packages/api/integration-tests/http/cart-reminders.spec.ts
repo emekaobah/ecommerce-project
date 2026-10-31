@@ -268,6 +268,19 @@ medusaIntegrationTestRunner({
         expect(await settled(() => expo.messages())).toEqual([])
       })
 
+      it("for a guest's cart with an email, whose guest customer has no account", async () => {
+        const email = `guest-${process.pid}@oja.test`
+        const cartId = await cartOf(null, [[GROCERY, RICE, 1]])
+        await api.post(`/store/carts/${cartId}`, { email }, { headers: ada.headers() })
+        const { data } = await ada.query().graph({ entity: "cart", fields: ["customer.has_account"], filters: { id: cartId } })
+        expect((data[0] as any).customer).toEqual(expect.objectContaining({ has_account: false }))
+
+        await remind(dueAt(await changedAt(cartId)))
+
+        expect(await settledEmailsTo(email)).toEqual([])
+        expect(expo.messages()).toEqual([])
+      })
+
       it("for a paid cart", async () => {
         const phone = await register(ada.ada())
         const { cartId } = await ada.paidCheckout()
