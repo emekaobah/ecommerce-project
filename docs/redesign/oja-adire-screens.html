@@ -1221,7 +1221,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <ul>
         <li>Every screen was checked against the code on 21 Oct 2026. Where a screen needs backend work, its notes say so; the work is in the redesign readiness spec: In progress / Past orders and order search, the shops route for Home, stock in listings, cart and payment, the shop's closing time, logos and banners, receipt totals, refunds that name their items, Order again, vendor stage counts and the new-order alarm.</li>
         <li>Deals are shown the way the backend has them: a shop's sale price crossed out, and its automatic promotion as a badge. There's no deals feed or countdown, because sale end dates don't reach the buyer.</li>
-        <li>Shops show the logo and banner they upload in the vendor panel, falling back to a monogram and the indigo pattern. Categories have no images, so they are name chips.</li>
+        <li>Shops show the logo and banner they upload in the vendor panel, falling back to a monogram and the indigo pattern. Categories show the thumbnail an admin uploads on the category's Media card: as photo tiles on Search before typing, contained on the product tile and never cropped, with a plain mist tile until one is uploaded. Home's category chips stay names.</li>
         <li>Search matches product names only, so it has no filters or sort. Shops rank by distance band (under 5, 5–15, over 15 km), then by how fast they ship, and distances show in whole kilometres so no shop can be pinpointed (ADR 0011).</li>
         <li>Reviews show an average and count, with no star breakdown or photos. Reject reasons are free text; cancelling an accepted order picks one of four reasons, with a note for "Other".</li>
         <li>There are no delivery areas: every courier delivers nationwide, and checkout finds a shop it can't deliver from by its courier rates. Perishable items go only with couriers arriving by the end of the next day, otherwise pickup.</li>
@@ -1778,7 +1778,7 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <h4>What each part is, and where its data comes from</h4>
       <ol>
         <li><b>Band.</b> The delivery address the buyer chose, their first name from their account, and search. <span class="src2">delivering-to · Clerk · <code>GET /store/listings?q=</code></span></li>
-        <li><b>Category chips.</b> The store's top-level categories, as names: categories carry no images. <span class="src2"><code>useCategories</code></span></li>
+        <li><b>Category chips.</b> The store's top-level categories, as names; their thumbnails show on Search's category tiles instead. <span class="src2"><code>useCategories</code></span></li>
         <li><b>Near you.</b> A page of shops, each with its logo (or monogram), distance, open state with today's closing time, and its top products. Shops rank by distance band, then ship time, then distance, so a nearer shop can follow one in the same band that ships faster; distances are whole kilometres. Sale prices show crossed out, and a shop's automatic promotion shows as its "10% off at this shop" badge. A sold-out product shows "Sold out" in place of its add button. <span class="src2">new <code>GET /store/shops</code>, ranked in the database · <code>closes_at</code> · <code>seller.logo</code> · <code>offerPrice</code> · <code>dealLabel</code></span></li>
         <li><b>End of list.</b> More shops load as the buyer scrolls; after the last one, a way to change the address. Every live shop in the region is listed: couriers deliver nationwide, so there is no delivery area. <span class="src2">shops paging</span></li>
       </ol>
@@ -1800,7 +1800,6 @@ td .src{display:block; margin-top:6px; font-size:12.5px; color:var(--muted)}
       <ul>
         <li>A deals section with a countdown: sale end dates stay inside the shop's price list and never reach the buyer, and listings can't be filtered to "on sale".</li>
         <li>A "Buy again" rail, "market staples" and a featured shop on Home. Order again lives on delivered orders instead (After purchase); a Home rail can follow once that proves useful.</li>
-        <li>Category images: categories carry none.</li>
       </ul>
     </div>
   </div>

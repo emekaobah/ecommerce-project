@@ -31,12 +31,23 @@ export function ListingTile({
   seller,
   currencyCode,
   detail,
-}: Readonly<{ listing: TileListing; seller: TileSeller; currencyCode: string; detail?: string | null }>) {
+  onOpen,
+}: Readonly<{
+  listing: TileListing;
+  seller: TileSeller;
+  currencyCode: string;
+  detail?: string | null;
+  /** Told when the tile opens the product's page (Search remembers the search that found it). */
+  onOpen?: () => void;
+}>) {
   const { cartIdForAdding } = useCartSession();
   const add = useAddToCart(cartIdForAdding);
   const toast = useToast();
   const price = listingPrice(listing.offers);
-  const open = () => openListing({ seller, product: listing.product });
+  const open = () => {
+    onOpen?.();
+    openListing({ seller, product: listing.product });
+  };
   const [deal] = listing.deals;
   const name = listing.product.title;
   const only = listing.offers.length === 1 ? listing.offers[0] : undefined;
