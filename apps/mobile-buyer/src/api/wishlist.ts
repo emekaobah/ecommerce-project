@@ -2,6 +2,7 @@ import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/reac
 
 import { cartKeys } from './cart';
 import { storeClient } from './client';
+import { refreshAccountSummary } from './customer';
 
 export const wishlistKeys = {
   all: ['wishlist'] as const,
@@ -24,9 +25,13 @@ export function useWishlist(userId: string | null | undefined, regionId: string 
   });
 }
 
+/** What a saved-item change shows on: the wishlist and the Account counts. */
 function useRefetchWishlistAfterWrite() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: wishlistKeys.all });
+  return () => {
+    refreshAccountSummary(queryClient);
+    return queryClient.invalidateQueries({ queryKey: wishlistKeys.all });
+  };
 }
 
 /** Saves a product from the shop it is shown in, or removes it. */
@@ -57,10 +62,12 @@ export function useMoveToCart(cartIdForAdding: () => Promise<string>) {
         quantity: 1,
       });
     },
-    onSettled: () =>
-      Promise.all([
+    onSettled: () => {
+      refreshAccountSummary(queryClient);
+      return Promise.all([
         queryClient.invalidateQueries({ queryKey: wishlistKeys.all }),
         queryClient.invalidateQueries({ queryKey: cartKeys.all }),
-      ]),
+      ]);
+    },
   });
 }

@@ -194,11 +194,13 @@ export const motion = {
 
 /**
  * Light is flat and dark lifts surfaces with lighter greys (bg, then raised, then tile). Only
- * these float: the map's locate button and pin, and the save heart on a photo.
+ * these float: the map's locate button and pin, the save heart on a photo, and a product's
+ * details where their straight top edge slides over its photo.
  */
 export const elevation = {
   floating: { boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.15)" },
   heart: { boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.15)" },
+  overPhoto: { boxShadow: "0px -4px 12px rgba(0, 0, 0, 0.1)" },
 } as const
 
 export type Theme = {
@@ -263,6 +265,8 @@ export type Theme = {
     pressed: string
     /** Behind sheets. */
     scrim: string
+    /** Over a product's photo as its details slide over it; the screen animates its opacity (productScrollPosition). */
+    veil: string
     /** The adire pattern's strokes, on the band in both themes. */
     pattern: string
     /** The skeleton shimmer's sweep. */
@@ -318,6 +322,7 @@ const leaf = "#186441"
 const ember = "#90411A"
 const red = "#AA2318"
 const scrim = "rgba(0, 0, 0, 0.6)"
+const veil = "#000000"
 const pattern = "#5767C2"
 
 export const lightTheme: Theme = {
@@ -356,6 +361,7 @@ export const lightTheme: Theme = {
     dangerBg: "#FBEAE8",
     pressed: "rgba(18, 22, 43, 0.12)",
     scrim,
+    veil,
     pattern,
     shimmer: "rgba(255, 255, 255, 0.55)",
     inverse: "#12162B",
@@ -417,6 +423,7 @@ export const darkTheme: Theme = {
     dangerBg: "#3A1717",
     pressed: "rgba(255, 255, 255, 0.12)",
     scrim,
+    veil,
     pattern,
     shimmer: "rgba(255, 255, 255, 0.06)",
     inverse: "#E9EBF5",

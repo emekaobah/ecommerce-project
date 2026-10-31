@@ -5,9 +5,12 @@ import {
   ErrorState,
   FactTile,
   Icon,
+  type IconName,
   InlineNote,
+  NoTopScrollEdge,
   PhotoTile,
   PressableSurface,
+  productScrollPosition,
   ProductRail,
   QuantityStepper,
   ShopMark,
@@ -17,11 +20,20 @@ import {
   Text,
   useTheme,
   useToast,
+  useTopBand,
 } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router, Stack } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { FlatList, Linking, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { FlatList, Linking, StyleSheet, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
+import Animated, {
+  interpolateColor,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAddToCart, useCart, useSetCartItemQuantity } from '@/api/cart';
@@ -34,10 +46,9 @@ import { ListingTile } from '@/components/listing-tile';
 import { PerishableNotice } from '@/components/perishable';
 import { Price } from '@/components/price';
 import { ReviewsPreview } from '@/components/reviews';
-import { RoundButton } from '@/components/round-button';
 import { ShopStars } from '@/components/shop-facts';
 import { ShopStatusBadge } from '@/components/shop-status';
-import { openShop } from '@/navigation';
+import { openCartSheet, openShop } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
 
 type Offer = ListingDetail['offers'][number];
@@ -67,6 +78,7 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
   const region = useRegion();
   const listing = useListing(region.region?.id, sellerId, productId);
   const [chosenId, setChosenId] = useState<string | undefined>(undefined);
+  const scroll = useProductScroll();
 
   if (region.error) {
     return (
@@ -104,7 +116,8 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
     return (
       <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
         {hideHeader}
-        <ProductSkeleton />
+        <ProductSkeleton scroll={scroll} />
+        <ProductBar scroll={scroll} />
         <StickyAction label="Add to cart" price="—" disabled onPress={() => undefined} />
       </View>
     );
@@ -119,41 +132,54 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
   return (
     <View style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
       {hideHeader}
-      <StatusStrip />
-      <ScrollView contentInsetAdjustmentBehavior="never" contentContainerStyle={{ paddingBottom: theme.space[8] }}>
-        <Gallery
-          images={product.images}
-          dimmed={soldOut}
-          actions={<SaveButton sellerId={seller.id} productId={product.id} name={product.title} />}
-        />
-        <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[3], gap: theme.space[2] }}>
-          <ShopLine seller={seller} />
-          <Text variant="titleNamed">{product.title}</Text>
-          {product.subtitle ? <Text tone="muted">{product.subtitle}</Text> : null}
-          {selected ? <Price price={offerPrice(selected)} currencyCode={currencyCode} variant="titleNamed" /> : null}
-          <DealBadges deals={listing.data.deals} all />
-          {offers.length > 1 && selected ? <SizeChips offers={offers} selectedId={selected.id} onSelect={setChosenId} /> : null}
-          <ShopStatusBadge status={seller.shop_status} withNote delivered />
-          {soldOut ? (
-            <SoldOutNote shop={seller.name} />
-          ) : (
-            <View style={[styles.row, { gap: theme.space[2] }]}>
-              <DeliveryFact listing={listing.data} offer={selected} currencyCode={currencyCode} />
-              <PickupFact pickup={seller.pickup} />
+      <PullEdge scroll={scroll} />
+      <NoTopScrollEdge>
+        <Animated.ScrollView
+          {...scroll.band.scroll}
+          contentInsetAdjustmentBehavior="never"
+          contentContainerStyle={{ paddingBottom: theme.space[8] }}>
+          <ParallaxPhoto scroll={scroll}>
+            <Gallery images={product.images} dimmed={soldOut} height={scroll.galleryHeight} />
+          </ParallaxPhoto>
+          {/* The details slide over the photo: a straight top edge with a soft shadow, no rounded sheet. */}
+          <View style={[styles.overPhoto, { backgroundColor: theme.colors.bg }, theme.elevation.overPhoto]}>
+            <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[3], gap: theme.space[2] }}>
+              <ShopLine seller={seller} />
+              <Text variant="titleNamed" onLayout={scroll.onTitleLayout}>
+                {product.title}
+              </Text>
+              {product.subtitle ? <Text tone="muted">{product.subtitle}</Text> : null}
+              {selected ? <Price price={offerPrice(selected)} currencyCode={currencyCode} variant="titleNamed" /> : null}
+              <DealBadges deals={listing.data.deals} all />
+              {offers.length > 1 && selected ? <SizeChips offers={offers} selectedId={selected.id} onSelect={setChosenId} /> : null}
+              <ShopStatusBadge status={seller.shop_status} withNote delivered />
+              {soldOut ? (
+                <SoldOutNote shop={seller.name} />
+              ) : (
+                <View style={[styles.row, { gap: theme.space[2] }]}>
+                  <DeliveryFact listing={listing.data} offer={selected} currencyCode={currencyCode} />
+                  <PickupFact pickup={seller.pickup} />
+                </View>
+              )}
+              {product.perishable ? <PerishableNotice /> : null}
+              {product.description ? (
+                <Text style={{ lineHeight: theme.type.body.fontSize * 1.5, paddingTop: theme.space[1] }}>{product.description}</Text>
+              ) : null}
             </View>
-          )}
-          {product.perishable ? <PerishableNotice /> : null}
-          {product.description ? (
-            <Text style={{ lineHeight: theme.type.body.fontSize * 1.5, paddingTop: theme.space[1] }}>{product.description}</Text>
-          ) : null}
-        </View>
-        <Details product={product} />
-        <Section>
-          <ReviewsPreview kind="product" id={productId} title={product.title} />
-        </Section>
-        <Attribution credits={product.attribution} />
-        <MoreFromShop regionId={region.region.id} currencyCode={currencyCode} seller={seller} productId={productId} />
-      </ScrollView>
+            <Details product={product} />
+            <Section>
+              <ReviewsPreview kind="product" id={productId} title={product.title} />
+            </Section>
+            <Attribution credits={product.attribution} />
+            <MoreFromShop regionId={region.region.id} currencyCode={currencyCode} seller={seller} productId={productId} />
+          </View>
+        </Animated.ScrollView>
+      </NoTopScrollEdge>
+      <ProductBar
+        scroll={scroll}
+        title={product.title}
+        save={<SaveButton sellerId={seller.id} productId={product.id} name={product.title} />}
+      />
       {selected ? (
         <BuyBar offer={selected} name={product.title} currencyCode={currencyCode} orderable={seller.shop_status.orderable} />
       ) : null}
@@ -161,26 +187,144 @@ function ShopProduct({ sellerId, productId }: Readonly<{ sellerId: string; produ
   );
 }
 
-/** A tinted strip behind the status bar, so the white photo panel starts below it in either theme. */
-function StatusStrip() {
+type ProductScroll = ReturnType<typeof useProductScroll>;
+
+/**
+ * The product screen's scroll, as the shop page tracks its own (`useTopBand`): the offset on the
+ * UI thread, the fixed bar's foot, the photo's height under it, and the offset at which the big
+ * title goes under the bar, measured once it lays out.
+ */
+function useProductScroll() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  return <View style={{ height: insets.top, backgroundColor: theme.colors.tile }} />;
+  const { width } = useWindowDimensions();
+  const band = useTopBand();
+  const reduceMotion = useReducedMotion();
+  const titleUnder = useSharedValue(0);
+  const barBottom = insets.top + theme.hitArea;
+  const galleryHeight = Math.round(width * HERO_ASPECT);
+  // From the screen's top edge: the photo tile runs up under the bar and the status bar.
+  const photoHeight = barBottom + galleryHeight;
+  // The title sits in the details' first block, which starts where the photo ends.
+  const onTitleLayout = (event: LayoutChangeEvent) => {
+    const { y, height } = event.nativeEvent.layout;
+    titleUnder.set(photoHeight + y + height - barBottom);
+  };
+  return { band, scrollY: band.scrollY, titleUnder, barBottom, galleryHeight, photoHeight, reduceMotion, onTitleLayout };
 }
 
-/** Every photo, swiped sideways on its tile (white, charcoal in dark) with dots for position; back and save over the top. */
-function Gallery({
-  images,
-  dimmed,
-  actions,
-}: Readonly<{ images: ListingDetail['product']['images']; dimmed: boolean; actions: ReactNode }>) {
+/**
+ * The bar fixed over the top, never replaced. At the top it is the photo tile's colour, so it
+ * reads as part of the photo: back, and save when given, with no title. Once the big title has gone
+ * under it, the title shows small, the bar takes the page colour and a hairline appears beneath;
+ * scrolling back up reverses it. It runs up behind the status bar.
+ */
+function ProductBar({ scroll, title, save }: Readonly<{ scroll: ProductScroll; title?: string; save?: ReactNode }>) {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  // Read inside each worklet: Reanimated only follows shared values a worklet captures itself.
+  const { scrollY, titleUnder, photoHeight, reduceMotion } = scroll;
+  const titled = useSharedValue(0);
+  const { productTile, bg } = theme.colors;
+  const fade = theme.motion.crossFade;
+
+  // The bar changes once per crossing, cross-fading, not with every frame.
+  useAnimatedReaction(
+    () => productScrollPosition(scrollY.get(), { photoHeight, titleUnder: titleUnder.get(), reduceMotion }).titled,
+    (now, before) => {
+      if (now !== before) titled.set(withTiming(now ? 1 : 0, { duration: fade }));
+    }
+  );
+  const bar = useAnimatedStyle(() => ({ backgroundColor: interpolateColor(titled.get(), [0, 1], [productTile, bg]) }));
+  const shown = useAnimatedStyle(() => ({ opacity: titled.get() }));
+
+  return (
+    <Animated.View style={[styles.bar, { paddingTop: insets.top, paddingHorizontal: theme.space[1] }, bar]}>
+      <View style={[styles.row, { height: theme.hitArea, gap: theme.space[1] }]}>
+        <BarButton icon="back" label="Back" onPress={() => router.back()} />
+        {/* The big title is what a screen reader reads; this is its echo for the eye. */}
+        <Animated.View style={[styles.fill, shown]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {title ? (
+            <Text weight="bold" numberOfLines={1} style={styles.centredText}>
+              {title}
+            </Text>
+          ) : null}
+        </Animated.View>
+        <View style={{ minWidth: theme.hitArea }}>{save}</View>
+      </View>
+      <Animated.View style={[styles.hairline, { backgroundColor: theme.colors.line }, shown]} />
+    </Animated.View>
+  );
+}
+
+/** A bare icon button in the bar: back, save. */
+function BarButton({
+  icon,
+  label,
+  onPress,
+  selected,
+}: Readonly<{ icon: IconName; label: string; onPress: () => void; selected?: boolean }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={selected === undefined ? undefined : { selected }}
+      onPress={onPress}
+      style={[styles.center, { width: theme.hitArea, height: theme.hitArea, borderRadius: theme.radius.md }]}>
+      <Icon name={icon} color={selected ? theme.colors.dangerText : theme.colors.ink} filled={selected} />
+    </PressableSurface>
+  );
+}
+
+/**
+ * The photo tile's colour above the photo's top edge, followed down when the page is pulled, so
+ * the photo never shows a gap above it, even under Reduce Motion when it doesn't stretch.
+ */
+function PullEdge({ scroll }: Readonly<{ scroll: ProductScroll }>) {
+  const theme = useTheme();
+  const { height } = useWindowDimensions();
+  const { scrollY } = scroll;
+  const pull = useAnimatedStyle(() => ({ transform: [{ translateY: Math.max(0, -scrollY.get()) }] }));
+  return (
+    <Animated.View
+      style={[styles.edge, { top: 1 - height, height, backgroundColor: theme.colors.productTile }, pull]}
+    />
+  );
+}
+
+/**
+ * The photo as the first thing in the scroll view, running up under the bar. It moves at about
+ * half speed and dims slightly as the details slide over it, and stretches when pulled down, all
+ * on the UI thread; under Reduce Motion it scrolls with the page. Straight corners.
+ */
+function ParallaxPhoto({ scroll, children }: Readonly<{ scroll: ProductScroll; children: ReactNode }>) {
+  const theme = useTheme();
+  // Read inside each worklet: Reanimated only follows shared values a worklet captures itself.
+  const { scrollY, titleUnder, photoHeight, reduceMotion } = scroll;
+  const moved = useAnimatedStyle(() => {
+    const { translateY, scale } = productScrollPosition(scrollY.get(), { photoHeight, titleUnder: titleUnder.get(), reduceMotion });
+    return { transform: [{ translateY }, { scale }] };
+  });
+  const veil = useAnimatedStyle(() => ({
+    opacity: productScrollPosition(scrollY.get(), { photoHeight, titleUnder: titleUnder.get(), reduceMotion }).dim,
+  }));
+  return (
+    <Animated.View
+      style={[{ height: scroll.photoHeight, paddingTop: scroll.barBottom, backgroundColor: theme.colors.productTile }, moved]}>
+      {children}
+      <Animated.View style={[StyleSheet.absoluteFill, styles.veil, { backgroundColor: theme.colors.veil }, veil]} />
+    </Animated.View>
+  );
+}
+
+/** Every photo, swiped sideways on its tile (white, charcoal in dark) with dots for position. */
+function Gallery({ images, dimmed, height }: Readonly<{ images: ListingDetail['product']['images']; dimmed: boolean; height: number }>) {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const [page, setPage] = useState(0);
-  const height = Math.round(width * HERO_ASPECT);
   return (
-    <PhotoTile
-      style={{ height, borderBottomLeftRadius: theme.radius.sheet, borderBottomRightRadius: theme.radius.sheet }}>
+    <PhotoTile style={{ height }}>
       <FlatList
         horizontal
         pagingEnabled
@@ -206,10 +350,6 @@ function Gallery({
           </View>
         }
       />
-      <View style={[styles.actions, { top: theme.space[1], left: theme.space[3], right: theme.space[3] }]}>
-        <RoundButton icon="back" label="Back" onPress={() => router.back()} />
-        {actions}
-      </View>
       {images.length > 1 ? (
         <View
           accessibilityElementsHidden
@@ -337,6 +477,7 @@ function SoldOutNote({ shop }: Readonly<{ shop: string }>) {
  * (ADR 0004), disables Add, and the in-cart quantity with it.
  */
 function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offer; name: string; currencyCode: string; orderable: boolean }>) {
+  const toast = useToast();
   const { cartId, cartIdForAdding } = useCartSession();
   const cart = useCart(cartId);
   const add = useAddToCart(cartIdForAdding);
@@ -355,7 +496,8 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
         label="In cart · View cart"
         variant="secondary"
         tone="accent"
-        onPress={() => router.navigate('/cart')}
+        // A sheet over the product, so closing it comes back here, scrolled where it was.
+        onPress={openCartSheet}
         leading={
           <QuantityStepper
             value={line.quantity}
@@ -379,7 +521,13 @@ function BuyBar({ offer, name, currencyCode, orderable }: Readonly<{ offer: Offe
       loading={add.isPending}
       // Until the cart is known, adding could start a second one.
       disabled={cartId === undefined || !orderable}
-      onPress={() => add.mutate({ offerId: offer.id, quantity })}
+      // The toast confirms the add without leaving the page; the bar has switched to the cart's quantity.
+      onPress={() =>
+        add.mutate(
+          { offerId: offer.id, quantity },
+          { onSuccess: () => toast({ message: 'Added to your cart', action: { label: 'View cart', onPress: openCartSheet } }) }
+        )
+      }
       note={add.error ? `Couldn't add ${name} to your cart. Try again.` : null}
       leading={
         <QuantityStepper
@@ -409,7 +557,7 @@ function BarWithNote({ note, ...action }: Readonly<StickyActionProps & { note: s
   );
 }
 
-/** The heart over the photo: saves the product from this shop; a guest is sent to sign in first. */
+/** The heart in the bar: saves the product from this shop; a guest is sent to sign in first. */
 function SaveButton({ sellerId, productId, name }: Readonly<{ sellerId: string; productId: string; name: string }>) {
   const toast = useToast();
   const { isSignedIn, userId } = useAuth();
@@ -418,9 +566,9 @@ function SaveButton({ sellerId, productId, name }: Readonly<{ sellerId: string; 
   const toggle = useToggleWishlist();
   const saved = isSaved(wishlist.data ?? [], sellerId, productId);
 
-  if (!isSignedIn) return <RoundButton icon="heart" label={`Save ${name}`} onPress={() => router.push('/sign-in')} />;
+  if (!isSignedIn) return <BarButton icon="heart" label={`Save ${name}`} onPress={() => router.push('/sign-in')} />;
   return (
-    <RoundButton
+    <BarButton
       icon="heart"
       label={saved ? `Remove ${name} from saved` : `Save ${name}`}
       selected={saved}
@@ -532,19 +680,13 @@ function MoreFromShop({
   );
 }
 
-/** The photo, name, price and facts in their shapes; back works straight away. */
-function ProductSkeleton() {
+/** The photo, name, price and facts in their shapes, under the bar, whose back works straight away. */
+function ProductSkeleton({ scroll }: Readonly<{ scroll: ProductScroll }>) {
   const theme = useTheme();
-  const { width } = useWindowDimensions();
-  const height = Math.round(width * HERO_ASPECT);
   return (
     <View accessible accessibilityLabel="Loading product">
-      <StatusStrip />
-      <View style={{ height }}>
-        <Skeleton height={height} style={StyleSheet.absoluteFill} />
-        <View style={[styles.actions, { top: theme.space[1], left: theme.space[3], right: theme.space[3] }]}>
-          <RoundButton icon="back" label="Back" onPress={() => router.back()} />
-        </View>
+      <View style={{ paddingTop: scroll.barBottom, backgroundColor: theme.colors.productTile }}>
+        <Skeleton height={scroll.galleryHeight} style={styles.straight} />
       </View>
       <View style={{ padding: theme.space[4], gap: theme.space[3] }}>
         <Skeleton width="45%" height={theme.space[3]} />
@@ -565,7 +707,14 @@ const styles = StyleSheet.create({
   wrap: { flexWrap: 'wrap' },
   start: { alignSelf: 'flex-start' },
   center: { alignItems: 'center', justifyContent: 'center' },
-  actions: { position: 'absolute', flexDirection: 'row', justifyContent: 'space-between' },
+  straight: { borderRadius: 0 },
+  centredText: { textAlign: 'center' },
+  bar: { position: 'absolute', top: 0, left: 0, right: 0 },
+  hairline: { height: StyleSheet.hairlineWidth },
+  edge: { position: 'absolute', left: 0, right: 0, pointerEvents: 'none' },
+  // Drawn after the photo, so it passes over the photo as the photo is held back.
+  overPhoto: { zIndex: 1 },
+  veil: { pointerEvents: 'none' },
   dots: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'center' },
   dimmed: { opacity: 0.55 },
 });

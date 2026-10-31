@@ -13,6 +13,7 @@ import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
 import { AddressPromptProvider } from '@/delivering-to/address-prompt-provider';
 import { DeliveringToProvider } from '@/delivering-to/delivering-to-provider';
+import { stackSettled } from '@/navigation';
 import { usePushRegistration } from '@/push/push-registration';
 import { useOpenTappedPush } from '@/push/use-open-tapped-push';
 import { RegionProvider } from '@/region/region-provider';
@@ -79,6 +80,8 @@ function RootStack() {
 
   return (
     <Stack
+      // Tells what waits on a sheet closing that it has gone (closeSheetThen).
+      unstable_nativeProps={{ onFinishTransitioning: stackSettled }}
       screenOptions={{
         headerTintColor: theme.colors.ink,
         headerTitleStyle: { fontFamily: theme.type.titlePushed.fontFamily, color: theme.colors.ink },
@@ -94,6 +97,9 @@ function RootStack() {
       <Stack.Screen name="seller/[id]" options={{ title: '' }} />
       <Stack.Screen name="category/[id]" options={{ title: '' }} />
       <Stack.Screen name="reviews" options={{ title: 'Reviews' }} />
+      {/* The cart over a product or an order, so the buyer comes back to it (the Cart tab would discard it). Guests
+          have carts, so it sits outside the guard. The platform's large sheet: the cart is too long to fit its contents. */}
+      <Stack.Screen name="cart-sheet" options={{ ...formSheet, sheetAllowedDetents: [1] }} />
       {/* Guests browse freely; checkout, orders, reviewing and the wishlist need a signed-in buyer (ADR 0001). */}
       <Stack.Protected guard={isSignedIn}>
         <Stack.Screen name="checkout/index" options={{ title: 'Checkout' }} />

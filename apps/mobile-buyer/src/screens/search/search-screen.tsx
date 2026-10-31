@@ -1,33 +1,76 @@
-import { departments } from '@oja/domain';
-import { EmptyState, ErrorState, Icon, ListRow, SearchField, Text, useTheme } from '@oja/ui';
+import { categoryThumbnail, departments } from '@oja/domain';
+import { EmptyState, ErrorState, Icon, PhotoTile, PressableSurface, SearchField, Text, useTheme } from '@oja/ui';
+import { Image } from 'expo-image';
 import { useState } from 'react';
-import { SectionList, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useCategories } from '@/api/categories';
+import { useCategories, type Category } from '@/api/categories';
 import { useListingResults } from '@/api/listings';
+import { recordSearch, usePopularSearches } from '@/api/searches';
 import { resultsLabel, ShopResults, ShopShelfSkeleton } from '@/components/shop-results';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { openCategory } from '@/navigation';
 import { useRegion } from '@/region/region-provider';
+import { useRecentSearches } from '@/search/recent-searches';
 
-/** Search by product name, results grouped by shop; with no query, browse by category. */
+/**
+ * Search by product name, results grouped by shop; with no query, recent and popular searches
+ * and the categories. A search is used when it's submitted, its Recent chip tapped, or a product
+ * opened from its results, not on each keystroke: only then is it remembered on the phone and
+ * recorded for popular searches (#124). A Popular chip is remembered but not recorded, or the
+ * popular list would feed its own counts.
+ */
 export function SearchScreen() {
   const theme = useTheme();
   const [query, setQuery] = useState('');
   const search = useDebouncedValue(query.trim(), 300);
+  const recent = useRecentSearches();
+  const regionId = useRegion().region?.id;
+  const popular = usePopularSearches(regionId);
+  const recordUse = (term: string) => {
+    recent.remember(term);
+    recordSearch(regionId, term);
+  };
+  const searchAgain = (term: string) => {
+    setQuery(term);
+    recordUse(term);
+  };
+  const searchPopular = (term: string) => {
+    setQuery(term);
+    recent.remember(term);
+  };
 
   return (
     <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <View style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[2], paddingBottom: theme.space[2] }}>
-        <SearchField value={query} onChangeText={setQuery} placeholder="Search products" />
+        <SearchField
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={() => recordUse(query)}
+          placeholder="Search products"
+        />
       </View>
-      {search ? <Results search={search} onClear={() => setQuery('')} /> : <Browse />}
+      {search ? (
+        <Results search={search} onClear={() => setQuery('')} onOpenProduct={() => recordUse(search)} />
+      ) : (
+        <Browse
+          recent={recent.searches}
+          popular={popular.data ?? []}
+          onSearchAgain={searchAgain}
+          onSearchPopular={searchPopular}
+          onClearRecent={recent.clear}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
-function Results({ search, onClear }: Readonly<{ search: string; onClear: () => void }>) {
+function Results({
+  search,
+  onClear,
+  onOpenProduct,
+}: Readonly<{ search: string; onClear: () => void; onOpenProduct: () => void }>) {
   const theme = useTheme();
   const region = useRegion();
   const results = useListingResults(region.region?.id, { search });
@@ -66,6 +109,7 @@ function Results({ search, onClear }: Readonly<{ search: string; onClear: () => 
     <ShopResults
       listings={results.data.pages.flatMap((page) => page.listings)}
       currencyCode={region.region.currency_code}
+      onOpenProduct={onOpenProduct}
       header={
         <Text
           variant="label"
@@ -91,7 +135,24 @@ function Results({ search, onClear }: Readonly<{ search: string; onClear: () => 
   );
 }
 
-function Browse() {
+/**
+ * Before typing: the buyer's recent searches, then Oja's popular ones, then each department's
+ * sub-categories as photo tiles under its heading (none for one with no sub-categories), with
+ * "See all" opening the whole department. Either list is left out while it's empty.
+ */
+function Browse({
+  recent,
+  popular,
+  onSearchAgain,
+  onSearchPopular,
+  onClearRecent,
+}: Readonly<{
+  recent: string[];
+  popular: string[];
+  onSearchAgain: (search: string) => void;
+  onSearchPopular: (search: string) => void;
+  onClearRecent: () => void;
+}>) {
   const theme = useTheme();
   const categories = useCategories();
 
@@ -107,38 +168,184 @@ function Browse() {
   }
   if (!categories.data) return null;
 
-  // A row for everything in the department, then one per sub-category.
-  const sections = departments(categories.data).map(({ department, categories: subCategories }) => ({
-    title: department.name,
-    department,
-    data: [department, ...subCategories],
-  }));
+  const sections = departments(categories.data);
   return (
-    <SectionList
-      sections={sections}
-      keyExtractor={(category, index) => `${category.id}:${index}`}
+    <ScrollView
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
-      stickySectionHeadersEnabled={false}
-      contentContainerStyle={[{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[8] }, !sections.length && styles.grow]}
-      ListEmptyComponent={<EmptyState title="No categories yet" body="Search for a product by name." icon="search" />}
-      renderSectionHeader={({ section }) => (
-        <Text
-          variant="heading"
-          style={{ paddingTop: theme.space[6], paddingBottom: theme.space[1] }}>
-          {section.title}
-        </Text>
+      contentContainerStyle={[{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[8] }, !sections.length && styles.grow]}>
+      {recent.length ? <RecentSearches searches={recent} onSearch={onSearchAgain} onClear={onClearRecent} /> : null}
+      {popular.length ? <PopularSearches searches={popular} onSearch={onSearchPopular} /> : null}
+      {sections.length ? (
+        sections.map(({ department, categories: subCategories }) => (
+          <View key={department.id}>
+            <View style={[styles.between, { gap: theme.space[3], paddingTop: theme.space[6], paddingBottom: theme.space[3] }]}>
+              <Text variant="heading" accessibilityRole="header" style={styles.fill}>
+                {department.name}
+              </Text>
+              <SeeAll department={department} />
+            </View>
+            {/* A department with no sub-categories is still listed: "See all" opens its products. */}
+            {subCategories.length ? <CategoryGrid categories={subCategories} /> : null}
+          </View>
+        ))
+      ) : (
+        <EmptyState title="No categories yet" body="Search for a product by name." icon="search" />
       )}
-      renderItem={({ item, section }) => (
-        <ListRow
-          title={item.id === section.department.id ? `All ${item.name.toLowerCase()}` : item.name}
-          onPress={() => openCategory(item)}
-          trailing={<Icon name="fwd" use="chip" color={theme.colors.muted} />}
-        />
-      )}
-    />
+    </ScrollView>
   );
 }
+
+/** "See all": the whole department, as its category page lists it. */
+function SeeAll({ department }: Readonly<{ department: Category }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="link"
+      accessibilityLabel={`See all ${department.name.toLowerCase()}`}
+      hitSlop={theme.space[3]}
+      onPress={() => openCategory(department)}>
+      <Text variant="meta" weight="bold" tone="link">
+        See all
+      </Text>
+    </PressableSurface>
+  );
+}
+
+/** A department's sub-categories, three to a row. */
+function CategoryGrid({ categories }: Readonly<{ categories: Category[] }>) {
+  const theme = useTheme();
+  const { width } = useWindowDimensions();
+  const gap = theme.space[2];
+  const tile = (width - theme.space[4] * 2 - gap * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
+  return (
+    <View style={[styles.wrap, { columnGap: gap, rowGap: theme.space[3] }]}>
+      {categories.map((category) => (
+        <CategoryTile key={category.id} category={category} width={tile} />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * A sub-category: its thumbnail contained on the product-tile colour, never cropped, or a plain
+ * mist tile with a muted icon when an admin hasn't uploaded one; its name beneath.
+ */
+function CategoryTile({ category, width }: Readonly<{ category: Category; width: number }>) {
+  const theme = useTheme();
+  const thumbnail = categoryThumbnail(category);
+  const photo = [styles.photo, { borderRadius: theme.radius.lg }];
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityLabel={category.name}
+      onPress={() => openCategory(category)}
+      style={{ width, gap: theme.space[2] }}>
+      {thumbnail ? (
+        <PhotoTile style={photo}>
+          <Image source={{ uri: thumbnail }} contentFit="contain" style={styles.image} />
+        </PhotoTile>
+      ) : (
+        <View style={[photo, { backgroundColor: theme.colors.tile }]}>
+          <Icon name="bag" color={theme.colors.muted} />
+        </View>
+      )}
+      <Text variant="meta" weight="bold" numberOfLines={2} style={styles.center}>
+        {category.name}
+      </Text>
+    </PressableSurface>
+  );
+}
+
+/** The buyer's recent searches as chips, newest first: one runs again on tap, and Clear removes them all. */
+function RecentSearches({
+  searches,
+  onSearch,
+  onClear,
+}: Readonly<{ searches: string[]; onSearch: (search: string) => void; onClear: () => void }>) {
+  const theme = useTheme();
+  return (
+    <View style={{ paddingTop: theme.space[2] }}>
+      <View style={[styles.between, { minHeight: theme.hitArea }]}>
+        <Text
+          variant="label"
+          weight="extrabold"
+          tone="muted"
+          accessibilityRole="header"
+          style={[styles.caps, { letterSpacing: theme.type.label.fontSize * CAPS_TRACKING_EM }]}>
+          Recent searches
+        </Text>
+        <PressableSurface
+          accessibilityRole="button"
+          accessibilityLabel="Clear recent searches"
+          hitSlop={theme.space[3]}
+          onPress={onClear}>
+          <Text variant="meta" weight="bold" tone="link">
+            Clear
+          </Text>
+        </PressableSurface>
+      </View>
+      <View style={[styles.wrap, { gap: theme.space[2] }]}>
+        {searches.map((search) => (
+          <SearchChip key={search} search={search} recent onPress={() => onSearch(search)} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** Oja's popular searches as chips, most popular first, as the backend last published them: one runs on tap. */
+function PopularSearches({ searches, onSearch }: Readonly<{ searches: string[]; onSearch: (search: string) => void }>) {
+  const theme = useTheme();
+  return (
+    <View style={{ paddingTop: theme.space[2] }}>
+      <View style={[styles.between, { minHeight: theme.hitArea }]}>
+        <Text
+          variant="label"
+          weight="extrabold"
+          tone="muted"
+          accessibilityRole="header"
+          style={[styles.caps, { letterSpacing: theme.type.label.fontSize * CAPS_TRACKING_EM }]}>
+          Popular on Oja
+        </Text>
+      </View>
+      <View style={[styles.wrap, { gap: theme.space[2] }]}>
+        {searches.map((search) => (
+          <SearchChip key={search} search={search} onPress={() => onSearch(search)} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** A search as a chip; a recent one has a clock. */
+function SearchChip({ search, recent = false, onPress }: Readonly<{ search: string; recent?: boolean; onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityHint={recent ? 'Searches again' : 'Searches for this'}
+      onPress={onPress}
+      style={[
+        styles.chip,
+        {
+          minHeight: theme.space[8],
+          gap: theme.space[1],
+          paddingHorizontal: theme.space[3],
+          borderRadius: theme.radius.md,
+          backgroundColor: theme.colors.tile,
+        },
+      ]}>
+      {recent ? <Icon name="clock" use="chip" color={theme.colors.muted} /> : null}
+      <Text variant="meta" weight="bold">
+        {search}
+      </Text>
+    </PressableSurface>
+  );
+}
+
+/** Sub-category tiles sit three to a row, as the catalogue draws them. */
+const GRID_COLUMNS = 3;
 
 /** Caps labels track out by .06em, as the catalogue's section labels (`.lbl2`) do. */
 const CAPS_TRACKING_EM = 0.06;
@@ -146,5 +353,12 @@ const CAPS_TRACKING_EM = 0.06;
 const styles = StyleSheet.create({
   container: { flex: 1 },
   grow: { flexGrow: 1 },
+  fill: { flex: 1 },
   caps: { textTransform: 'uppercase' },
+  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap' },
+  chip: { flexDirection: 'row', alignItems: 'center' },
+  photo: { aspectRatio: 1, alignItems: 'center', justifyContent: 'center', padding: '12%' },
+  image: { width: '100%', height: '100%' },
+  center: { textAlign: 'center' },
 });

@@ -6,7 +6,9 @@ import {
   ErrorState,
   Group,
   GroupList,
+  Icon,
   InlineNote,
+  PressableSurface,
   QuantityStepper,
   ShopMark,
   PhotoTile,
@@ -19,26 +21,42 @@ import {
 } from '@oja/ui';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCart, useMoveShopToOwnCart, useSetCartItemQuantity, type Cart, type CartItem, type CartSellerGroup } from '@/api/cart';
 import { isNotFound } from '@/api/errors';
 import { useToggleWishlist } from '@/api/wishlist';
+import { cartLineListing } from '@/cart/cart-line-listing';
 import { useCartSession } from '@/cart/cart-provider';
 import { SumRow } from '@/components/cart/summary';
 import { PerishableChip, PerishableRule } from '@/components/perishable';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { closeSheetThen, openListing } from '@/navigation';
 
-/** The cart, a card per shop: each shop ships, and becomes an order, on its own. */
-export function CartScreen() {
+/** Goes to another screen from the Cart tab: straight there. */
+const leaveTab = (go: () => void) => go();
+
+/** Goes to another screen from the cart. In the sheet, it closes first, so that screen opens over the one under it. */
+const LeaveCart = createContext<(go: () => void) => void>(leaveTab);
+
+/** How anything in the cart opens another screen: `leave(() => router.push('/checkout'))`. */
+export const useLeaveCart = () => useContext(LeaveCart);
+
+/**
+ * The cart, a card per shop: each shop ships, and becomes an order, on its own. The Cart tab shows
+ * it with the tab's title; `inSheet` shows it over the screen it was opened from (`openCartSheet`),
+ * with a smaller title and ✕.
+ */
+export function CartScreen({ inSheet = false }: Readonly<{ inSheet?: boolean }>) {
   const theme = useTheme();
   const toast = useToast();
   const { isSignedIn } = useAuth();
   const { cartId, forgetCart } = useCartSession();
   const cart = useCart(cartId);
   const cartMissing = isNotFound(cart.error);
+  const leave = inSheet ? closeSheetThen : leaveTab;
   const { refreshing, refresh } = usePullToRefresh(async () => {
     const result = await cart.refetch();
     if (result.isError && cart.data) toast({ message: "Couldn't refresh your cart", tone: 'problem' });
@@ -55,8 +73,8 @@ export function CartScreen() {
           icon="bag"
           title="Nothing in your cart yet"
           body="Start with the shops open near you, or pick up where you left off in your saved items."
-          action={{ label: 'Browse shops near you', onPress: () => router.navigate('/') }}
-          secondaryAction={{ label: 'See your saved items', onPress: () => router.push(isSignedIn ? '/wishlist' : '/sign-in') }}
+          action={{ label: 'Browse shops near you', onPress: () => leave(() => router.navigate('/')) }}
+          secondaryAction={{ label: 'See your saved items', onPress: () => leave(() => router.push(isSignedIn ? '/wishlist' : '/sign-in')) }}
         />
       );
     }
@@ -76,12 +94,50 @@ export function CartScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
-      <Text variant="titleRoot" style={{ paddingTop: theme.space[1], paddingBottom: theme.space[2], paddingHorizontal: theme.space[4] }}>
+    <LeaveCart.Provider value={leave}>
+      {inSheet ? (
+        // The sheet starts below the status bar, so it needs no top inset. The cart's scroll view sits
+        // in a view of its own: a formSheet resizes a scroll view among its first children itself,
+        // placing it over the header, rather than leaving it to the layout.
+        <View collapsable={false} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+          <SheetHeader />
+          <View collapsable={false} style={styles.fill}>
+            {content()}
+          </View>
+        </View>
+      ) : (
+        <SafeAreaView edges={['top']} style={[styles.fill, { backgroundColor: theme.colors.bg }]}>
+          <Text variant="titleRoot" style={{ paddingTop: theme.space[1], paddingBottom: theme.space[2], paddingHorizontal: theme.space[4] }}>
+            Cart
+          </Text>
+          {content()}
+        </SafeAreaView>
+      )}
+    </LeaveCart.Provider>
+  );
+}
+
+/** The sheet's own header: a smaller "Cart" and ✕, which closes it, as swiping down does. */
+function SheetHeader() {
+  const theme = useTheme();
+  return (
+    <View
+      collapsable={false}
+      style={[
+        styles.row,
+        { gap: theme.space[2], paddingTop: theme.space[4], paddingBottom: theme.space[2], paddingLeft: theme.space[4], paddingRight: theme.space[2] },
+      ]}>
+      <Text variant="titlePushed" accessibilityRole="header" style={styles.fill}>
         Cart
       </Text>
-      {content()}
-    </SafeAreaView>
+      <PressableSurface
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        onPress={() => router.back()}
+        style={[styles.centred, { width: theme.hitArea, height: theme.hitArea }]}>
+        <Icon name="x" use="step" color={theme.colors.ink} />
+      </PressableSurface>
+    </View>
   );
 }
 
@@ -96,6 +152,7 @@ function CartContents({
 }: Readonly<{ cartId: string; cart: Cart; refreshing: boolean; onRefresh: () => void }>) {
   const theme = useTheme();
   const { isSignedIn } = useAuth();
+  const leave = useLeaveCart();
   const setQuantity = useSetCartItemQuantity(cartId);
   const moveShopToOwnCart = useMoveShopToOwnCart(cartId);
   const saveForLater = useToggleWishlist();
@@ -107,17 +164,18 @@ function CartContents({
   const shops = cart.sellers.filter((group) => group.seller);
 
   // Checkout is protected; a guest goes through the sign-in modal first (ADR 0001).
-  const checkout = () => router.push(isSignedIn ? '/checkout' : '/sign-in');
+  const checkout = () => leave(() => router.push(isSignedIn ? '/checkout' : '/sign-in'));
   // With several shops in the cart, one shop's items can be paid for on their own (#11): they
   // move to a shop cart, checked out like any other; the rest stays in this cart.
   const paysShopByShop = cart.sellers.length > 1;
   const checkoutShop = (sellerId: string) => {
     if (!isSignedIn) {
-      router.push('/sign-in');
+      leave(() => router.push('/sign-in'));
       return;
     }
+    // Not called if the sheet was closed in the meantime: the callback goes with the screen.
     moveShopToOwnCart.mutate(sellerId, {
-      onSuccess: (shopCart) => router.push({ pathname: '/checkout', params: { cartId: shopCart.id } }),
+      onSuccess: (shopCart) => leave(() => router.push({ pathname: '/checkout', params: { cartId: shopCart.id } })),
     });
   };
   // Checkout can't start while a line has none left: the main button clears them all, one at a
@@ -138,12 +196,13 @@ function CartContents({
   // Saved items are the buyer's wishlist: the line goes there, then leaves the cart.
   const save = (group: CartSellerGroup, item: CartItem) => {
     if (!isSignedIn) {
-      router.push('/sign-in');
+      leave(() => router.push('/sign-in'));
       return;
     }
-    if (!group.seller || !item.product_id) return;
+    const listing = cartLineListing(group, item);
+    if (!listing) return;
     saveForLater.mutate(
-      { sellerId: group.seller.id, productId: item.product_id, save: true },
+      { sellerId: listing.seller.id, productId: listing.product.id, save: true },
       { onSuccess: () => setQuantity.mutate({ itemId: item.id, quantity: 0 }) },
     );
   };
@@ -178,17 +237,21 @@ function CartContents({
                       }
                     : null
                 }>
-                {group.items.map((item) => (
-                  <CartLine
-                    key={item.id}
-                    item={item}
-                    available={!!seller}
-                    money={money}
-                    busy={pendingItemId === item.id || (saveForLater.isPending && saveForLater.variables?.productId === item.product_id)}
-                    onChange={(quantity) => setQuantity.mutate({ itemId: item.id, quantity })}
-                    onSave={() => save(group, item)}
-                  />
-                ))}
+                {group.items.map((item) => {
+                  const listing = cartLineListing(group, item);
+                  return (
+                    <CartLine
+                      key={item.id}
+                      item={item}
+                      available={!!seller}
+                      onOpen={listing ? () => leave(() => openListing(listing)) : null}
+                      money={money}
+                      busy={pendingItemId === item.id || (saveForLater.isPending && saveForLater.variables?.productId === item.product_id)}
+                      onChange={(quantity) => setQuantity.mutate({ itemId: item.id, quantity })}
+                      onSave={() => save(group, item)}
+                    />
+                  );
+                })}
               </ShopCard>
             );
           })}
@@ -307,13 +370,40 @@ function unitPriceLabel(item: CartItem, money: (amount: number) => string): stri
   return item.compare_at_unit_price ? `${price} · was ${money(item.compare_at_unit_price)}` : price;
 }
 
+/** The line's photo, greyed with it. The same link as the name, so a screen reader skips it. */
+function LinePhoto({
+  thumbnail,
+  greyed,
+  onOpen,
+}: Readonly<{ thumbnail: CartItem['thumbnail']; greyed: boolean; onOpen: (() => void) | null }>) {
+  const theme = useTheme();
+  const photo = theme.control.md;
+  return (
+    <PressableSurface
+      disabled={!onOpen}
+      onPress={onOpen ?? undefined}
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ borderRadius: theme.radius.md }}>
+      <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
+        {thumbnail ? (
+          <Image source={thumbnail} contentFit="contain" style={[styles.fill, greyed ? styles.faded : null]} />
+        ) : null}
+      </PhotoTile>
+    </PressableSurface>
+  );
+}
+
 /**
  * A cart line: its photo, name and price, and its quantity. A sold-out line stays, greyed, with
- * Remove and Save for later; one wanting more than is left offers to change to what is.
+ * Remove and Save for later; one wanting more than is left offers to change to what is. The photo
+ * and name open the product; the stepper and the line's buttons keep their own touch areas.
  */
 function CartLine({
   item,
   available,
+  onOpen,
   money,
   busy,
   onChange,
@@ -322,6 +412,8 @@ function CartLine({
   item: CartItem;
   /** False once the shop stopped selling it: it can only be removed. */
   available: boolean;
+  /** Opens the product in its shop; null once the shop stopped selling it. */
+  onOpen: (() => void) | null;
   money: (amount: number) => string;
   busy: boolean;
   onChange: (quantity: number) => void;
@@ -332,18 +424,22 @@ function CartLine({
   const shortfall = available ? stockShortfall(item.quantity, item.available_quantity) : null;
   const soldOut = shortfall?.type === 'sold_out';
   const greyed = soldOut || !available;
-  const photo = theme.control.md;
   return (
     <View style={[styles.row, { gap: theme.space[2], opacity: busy ? 0.6 : 1 }]}>
-      <PhotoTile style={{ width: photo, height: photo, borderRadius: theme.radius.md }}>
-        {item.thumbnail ? (
-          <Image source={item.thumbnail} contentFit="contain" style={[styles.fill, greyed ? styles.faded : null]} />
-        ) : null}
-      </PhotoTile>
+      <LinePhoto thumbnail={item.thumbnail} greyed={greyed} onOpen={onOpen} />
       <View style={[styles.fill, { gap: theme.space[1] }]}>
-        <Text weight="bold" tone={greyed ? 'muted' : 'default'} numberOfLines={2}>
-          {name}
-        </Text>
+        <PressableSurface
+          disabled={!onOpen}
+          onPress={onOpen ?? undefined}
+          accessibilityRole={onOpen ? 'link' : undefined}
+          accessibilityLabel={onOpen ? `Opens ${name}` : undefined}
+          // A one-line name is shorter than the 44pt touch target.
+          hitSlop={theme.space[3]}
+          style={styles.start}>
+          <Text weight="bold" tone={greyed ? 'muted' : 'default'} numberOfLines={2}>
+            {name}
+          </Text>
+        </PressableSurface>
         {soldOut ? (
           <StatusChip label="Sold out" tone="neutral" />
         ) : (
@@ -433,5 +529,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center' },
   start: { alignSelf: 'flex-start' },
+  centred: { alignItems: 'center', justifyContent: 'center' },
   faded: { opacity: 0.5 },
 });

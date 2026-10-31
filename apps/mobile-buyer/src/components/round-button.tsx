@@ -1,7 +1,7 @@
 import { Icon, PressableSurface, useTheme, type IconName } from '@oja/ui';
 import { StyleSheet } from 'react-native';
 
-/** A round-cornered button over a banner or a product photo: back, save. Raised, so it reads on any image. */
+/** A round-cornered button over a shop's banner: back. Raised, so it reads on any image. */
 export function RoundButton({
   icon,
   label,

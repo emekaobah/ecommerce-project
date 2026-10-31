@@ -17,3 +17,11 @@ export function departments<C extends BrowseCategory>(categories: C[]): Departme
       categories: categories.filter((c) => c.parent_category_id === department.id).sort(byRank),
     }))
 }
+
+/** A category's image as Mercur lists it: its icon (`type: "icon"`), thumbnail and banner share the list. */
+export type CategoryImage = { url: string; is_thumbnail: boolean; type?: string | null }
+
+/** The photo a category's tile shows: the image an admin marked as its thumbnail, or null for a plain tile. */
+export function categoryThumbnail(category: { media_images?: readonly CategoryImage[] | null }): string | null {
+  return category.media_images?.find((image) => image.is_thumbnail)?.url ?? null
+}

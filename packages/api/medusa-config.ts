@@ -262,6 +262,8 @@ module.exports = withMercur({
     { resolve: './src/modules/collection-point' },
     // A copy of each shop's pickup pin that listings measure distance from in SQL (ADR 0014).
     { resolve: './src/modules/shop-pin' },
+    // The searches buyers use, without who they are, and the popular ones published from them (#124).
+    { resolve: './src/modules/popular-search' },
     { resolve: '@medusajs/medusa/file', options: { providers: [fileProvider] } },
   ],
 })
