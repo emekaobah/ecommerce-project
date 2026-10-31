@@ -194,11 +194,13 @@ export const motion = {
 
 /**
  * Light is flat and dark lifts surfaces with lighter greys (bg, then raised, then tile). Only
- * these float: the map's locate button and pin, and the save heart on a photo.
+ * these float: the map's locate button and pin, the save heart on a photo, and a product's
+ * details where their straight top edge slides over its photo.
  */
 export const elevation = {
   floating: { boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.15)" },
   heart: { boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.15)" },
+  overPhoto: { boxShadow: "0px -4px 12px rgba(0, 0, 0, 0.1)" },
 } as const
 
 export type Theme = {
