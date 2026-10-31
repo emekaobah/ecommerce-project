@@ -258,6 +258,8 @@ module.exports = withMercur({
     { resolve: './src/modules/shop-hours' },
     // Each device's Expo push token, and the buyer or shop member signed in on it (#27).
     { resolve: './src/modules/push-token' },
+    // Each buyer's notification settings, e.g. cart reminders by push and by email (#138).
+    { resolve: './src/modules/notification-preference' },
     // Where each shop's buyers collect pickup orders, for shops that offer pickup (#12).
     { resolve: './src/modules/collection-point' },
     // A copy of each shop's pickup pin that listings measure distance from in SQL (ADR 0014).
