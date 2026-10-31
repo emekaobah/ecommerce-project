@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useCategories, type Category } from '@/api/categories';
 import { useListingResults } from '@/api/listings';
+import { recordSearch, usePopularSearches } from '@/api/searches';
 import { resultsLabel, ShopResults, ShopShelfSkeleton } from '@/components/shop-results';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { openCategory } from '@/navigation';
@@ -14,18 +15,25 @@ import { useRegion } from '@/region/region-provider';
 import { useRecentSearches } from '@/search/recent-searches';
 
 /**
- * Search by product name, results grouped by shop; with no query, recent searches and the
- * categories. A search is remembered when it's submitted or a product is opened from its
- * results, not on each keystroke.
+ * Search by product name, results grouped by shop; with no query, recent and popular searches
+ * and the categories. A search is used when it's submitted, its chip tapped, or a product opened
+ * from its results, not on each keystroke: only then is it remembered on the phone and recorded
+ * for popular searches (#124).
  */
 export function SearchScreen() {
   const theme = useTheme();
   const [query, setQuery] = useState('');
   const search = useDebouncedValue(query.trim(), 300);
   const recent = useRecentSearches();
+  const regionId = useRegion().region?.id;
+  const popular = usePopularSearches(regionId);
+  const used = (term: string) => {
+    recent.remember(term);
+    recordSearch(regionId, term);
+  };
   const searchAgain = (term: string) => {
     setQuery(term);
-    recent.remember(term);
+    used(term);
   };
 
   return (
@@ -34,14 +42,14 @@ export function SearchScreen() {
         <SearchField
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={() => recent.remember(query)}
+          onSubmitEditing={() => used(query)}
           placeholder="Search products"
         />
       </View>
       {search ? (
-        <Results search={search} onClear={() => setQuery('')} onOpenProduct={() => recent.remember(search)} />
+        <Results search={search} onClear={() => setQuery('')} onOpenProduct={() => used(search)} />
       ) : (
-        <Browse recent={recent.searches} onSearch={searchAgain} onClearRecent={recent.clear} />
+        <Browse recent={recent.searches} popular={popular.data ?? []} onSearch={searchAgain} onClearRecent={recent.clear} />
       )}
     </SafeAreaView>
   );
@@ -117,14 +125,16 @@ function Results({
 }
 
 /**
- * Before typing: the buyer's recent searches, then each department's sub-categories as photo
- * tiles under its heading (none for one with no sub-categories), with "See all" opening the whole department.
+ * Before typing: the buyer's recent searches, then Oja's popular ones, then each department's
+ * sub-categories as photo tiles under its heading (none for one with no sub-categories), with
+ * "See all" opening the whole department. Either list is left out while it's empty.
  */
 function Browse({
   recent,
+  popular,
   onSearch,
   onClearRecent,
-}: Readonly<{ recent: string[]; onSearch: (search: string) => void; onClearRecent: () => void }>) {
+}: Readonly<{ recent: string[]; popular: string[]; onSearch: (search: string) => void; onClearRecent: () => void }>) {
   const theme = useTheme();
   const categories = useCategories();
 
@@ -147,6 +157,7 @@ function Browse({
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={[{ paddingHorizontal: theme.space[4], paddingBottom: theme.space[8] }, !sections.length && styles.grow]}>
       {recent.length ? <RecentSearches searches={recent} onSearch={onSearch} onClear={onClearRecent} /> : null}
+      {popular.length ? <PopularSearches searches={popular} onSearch={onSearch} /> : null}
       {sections.length ? (
         sections.map(({ department, categories: subCategories }) => (
           <View key={department.id}>
@@ -235,7 +246,6 @@ function RecentSearches({
   onClear,
 }: Readonly<{ searches: string[]; onSearch: (search: string) => void; onClear: () => void }>) {
   const theme = useTheme();
-  const chip = theme.space[8];
   return (
     <View style={{ paddingTop: theme.space[2] }}>
       <View style={[styles.between, { minHeight: theme.hitArea }]}>
@@ -259,29 +269,60 @@ function RecentSearches({
       </View>
       <View style={[styles.wrap, { gap: theme.space[2] }]}>
         {searches.map((search) => (
-          <PressableSurface
-            key={search}
-            accessibilityRole="button"
-            accessibilityHint="Searches again"
-            onPress={() => onSearch(search)}
-            style={[
-              styles.chip,
-              {
-                minHeight: chip,
-                gap: theme.space[1],
-                paddingHorizontal: theme.space[3],
-                borderRadius: theme.radius.md,
-                backgroundColor: theme.colors.tile,
-              },
-            ]}>
-            <Icon name="clock" use="chip" color={theme.colors.muted} />
-            <Text variant="meta" weight="bold">
-              {search}
-            </Text>
-          </PressableSurface>
+          <SearchChip key={search} search={search} recent onPress={() => onSearch(search)} />
         ))}
       </View>
     </View>
+  );
+}
+
+/** Oja's popular searches as chips, most popular first, as the backend last published them: one runs on tap. */
+function PopularSearches({ searches, onSearch }: Readonly<{ searches: string[]; onSearch: (search: string) => void }>) {
+  const theme = useTheme();
+  return (
+    <View style={{ paddingTop: theme.space[2] }}>
+      <View style={[styles.between, { minHeight: theme.hitArea }]}>
+        <Text
+          variant="label"
+          weight="extrabold"
+          tone="muted"
+          accessibilityRole="header"
+          style={[styles.caps, { letterSpacing: theme.type.label.fontSize * CAPS_TRACKING_EM }]}>
+          Popular on Oja
+        </Text>
+      </View>
+      <View style={[styles.wrap, { gap: theme.space[2] }]}>
+        {searches.map((search) => (
+          <SearchChip key={search} search={search} onPress={() => onSearch(search)} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** A search as a chip; a recent one has a clock. */
+function SearchChip({ search, recent = false, onPress }: Readonly<{ search: string; recent?: boolean; onPress: () => void }>) {
+  const theme = useTheme();
+  return (
+    <PressableSurface
+      accessibilityRole="button"
+      accessibilityHint={recent ? 'Searches again' : 'Searches for this'}
+      onPress={onPress}
+      style={[
+        styles.chip,
+        {
+          minHeight: theme.space[8],
+          gap: theme.space[1],
+          paddingHorizontal: theme.space[3],
+          borderRadius: theme.radius.md,
+          backgroundColor: theme.colors.tile,
+        },
+      ]}>
+      {recent ? <Icon name="clock" use="chip" color={theme.colors.muted} /> : null}
+      <Text variant="meta" weight="bold">
+        {search}
+      </Text>
+    </PressableSurface>
   );
 }
 
