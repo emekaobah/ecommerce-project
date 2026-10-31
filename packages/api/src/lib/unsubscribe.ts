@@ -49,15 +49,21 @@ export function readUnsubscribeToken(token: string, env: NodeJS.ProcessEnv = pro
   return { customer_id: customerId, channel: channel as NotificationPreferenceKey }
 }
 
+/** What an unsubscribe link turns off, when it is genuine and its buyer still exists; else null. Changes nothing. */
+export async function checkUnsubscribeLink(scope: Scope, token: string): Promise<Unsubscribe | null> {
+  const link = readUnsubscribeToken(token)
+  if (!link) return null
+  const [customer] = await scope.resolve(Modules.CUSTOMER).listCustomers({ id: link.customer_id }, { select: ["id"] })
+  return customer ? link : null
+}
+
 /**
  * Turns off what an unsubscribe link names, for a buyer who still exists. False when the link
  * isn't genuine or its buyer is gone, and nothing changes.
  */
 export async function unsubscribe(scope: Scope, token: string): Promise<boolean> {
-  const link = readUnsubscribeToken(token)
+  const link = await checkUnsubscribeLink(scope, token)
   if (!link) return false
-  const [customer] = await scope.resolve(Modules.CUSTOMER).listCustomers({ id: link.customer_id }, { select: ["id"] })
-  if (!customer) return false
   await setNotificationPreferences(scope, link.customer_id, { [link.channel]: false })
   return true
 }

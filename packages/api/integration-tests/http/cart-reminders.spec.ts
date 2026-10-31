@@ -463,10 +463,27 @@ medusaIntegrationTestRunner({
         expect(await settledEmailsTo(email)).toEqual([])
       })
 
-      it("unsubscribes the buyer from its link without signing in, which the preferences then show", async () => {
-        const { email, as, sent } = await remindedByEmail()
+      it("opening its link shows an Unsubscribe button and changes nothing, as a mail scanner fetching it mustn't", async () => {
+        const { as, sent } = await remindedByEmail()
 
         const res = await api.get(pathOf(unsubscribeLinkOf(sent)), anyStatus)
+
+        expect(res.status).toBe(200)
+        expect(res.headers["content-type"]).toMatch(/html/)
+        expect(res.data).toMatch(/<form method="post">/)
+        expect(res.data).toMatch(/<button[^>]*>Unsubscribe<\/button>/)
+        expect(res.data).not.toContain("You're unsubscribed")
+        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
+      })
+
+      it("unsubscribes the buyer from its page's button without signing in, which the preferences then show", async () => {
+        const { email, as, sent } = await remindedByEmail()
+
+        // The page's form posts back to the link, with no fields.
+        const res = await api.post(pathOf(unsubscribeLinkOf(sent)), "", {
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          ...anyStatus,
+        })
 
         expect(res.status).toBe(200)
         expect(res.headers["content-type"]).toMatch(/html/)
@@ -484,6 +501,7 @@ medusaIntegrationTestRunner({
         const res = await oneClick(pathOf(unsubscribeLinkOf(sent)))
 
         expect(res.status).toBe(200)
+        expect(res.data).toContain("You're unsubscribed")
         expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: false })
       })
 
@@ -507,7 +525,7 @@ medusaIntegrationTestRunner({
         for (const bad of refused) {
           const get = await api.get(`/unsubscribe/${bad}`, anyStatus)
           expect(get.status).toBe(404)
-          expect(get.data).not.toContain("You're unsubscribed")
+          expect(get.data).not.toContain("<form")
           expect((await oneClick(`/unsubscribe/${bad}`)).status).toBe(404)
         }
         expect(await preferencesOf(ada.as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
