@@ -1,13 +1,13 @@
 import { formatMoney, paymentRefusal } from '@oja/domain';
 import { ChangesSheet, InlineNote, useTheme, type ChangesSheetChange } from '@oja/ui';
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { View } from 'react-native';
 
 import { checkoutKeys, useCheckout, useStartPayment } from '@/api/checkout';
 import { isAlreadyPaid, useFailureMessage } from '@/api/errors';
 import { useDeliveringToId } from '@/delivering-to/delivering-to-provider';
-import { openCartSheet } from '@/navigation';
+import { backToCart } from '@/navigation';
 
 import { PAYMENT_RETURN_URL } from './review-step';
 
@@ -20,6 +20,7 @@ export function ChangesScreen() {
   const theme = useTheme();
   const { cartId } = useLocalSearchParams<{ cartId: string }>();
   const queryClient = useQueryClient();
+  const navigation = useNavigation();
   const checkout = useCheckout(cartId, { addressId: useDeliveringToId() });
   // Left by the Pay button that found the changes; a payment that changes again replaces it.
   const changes = useQuery<ChangesSheetChange[]>({ queryKey: checkoutKeys.changes(cartId), queryFn: skipToken }).data ?? [];
@@ -70,12 +71,8 @@ export function ChangesScreen() {
         onConfirm={canPay ? pay : () => router.back()}
         loading={startPayment.isPending}
         backLabel="Back to cart"
-        // Pops the sheet and checkout together, as going back does, so a shop cart's items return to the cart,
-        // then opens the cart over the screen checkout started from rather than discarding it for the Cart tab.
-        onBack={() => {
-          router.dismiss(2);
-          openCartSheet();
-        }}
+        // The root stack, which holds this sheet, checkout and the screen checkout started from.
+        onBack={() => backToCart(navigation.getState())}
       />
     </View>
   );

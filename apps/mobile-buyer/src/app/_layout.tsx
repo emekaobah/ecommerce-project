@@ -13,6 +13,7 @@ import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
 import { AddressPromptProvider } from '@/delivering-to/address-prompt-provider';
 import { DeliveringToProvider } from '@/delivering-to/delivering-to-provider';
+import { stackSettled } from '@/navigation';
 import { usePushRegistration } from '@/push/push-registration';
 import { useOpenTappedPush } from '@/push/use-open-tapped-push';
 import { RegionProvider } from '@/region/region-provider';
@@ -79,6 +80,8 @@ function RootStack() {
 
   return (
     <Stack
+      // Tells what waits on a sheet closing that it has gone (closeSheetThen).
+      unstable_nativeProps={{ onFinishTransitioning: stackSettled }}
       screenOptions={{
         headerTintColor: theme.colors.ink,
         headerTitleStyle: { fontFamily: theme.type.titlePushed.fontFamily, color: theme.colors.ink },

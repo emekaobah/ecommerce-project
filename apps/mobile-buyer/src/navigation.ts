@@ -8,14 +8,6 @@ export function openListing(listing: { seller: Pick<Listing['seller'], 'id'>; pr
   router.push({ pathname: '/product/[id]', params: { id: listing.product.id, seller: listing.seller.id } });
 }
 
-/**
- * The product a cart line opens, in the shop it's from (`openListing`): none once that shop
- * stopped selling it (`seller` is null), so the line opens nothing.
- */
-export function cartLineListing(group: { seller: { id: string } | null }, item: { product_id: string | null }) {
-  return group.seller && item.product_id ? { seller: { id: group.seller.id }, product: { id: item.product_id } } : null;
-}
-
 /** Opens a shop's page: its header and every product it sells. */
 export function openShop(seller: Pick<Listing['seller'], 'id'>) {
   router.push({ pathname: '/seller/[id]', params: { id: seller.id } });
@@ -54,11 +46,66 @@ export function openCartSheet() {
   router.push('/cart-sheet');
 }
 
+/** What goes on once the root stack's transition in flight ends: `afterStackSettles`. */
+const waiting = new Set<() => void>();
+
 /**
- * Closes the sheet in front, then goes on. Called from a sheet route, so the next screen opens
- * over the screen under the sheet rather than inside the sheet.
+ * Called by the root stack when a native transition ends (react-native-screens'
+ * `onFinishTransitioning`): a sheet has gone, or a screen has been pushed or popped.
+ */
+export function stackSettled() {
+  const settled = [...waiting];
+  waiting.clear();
+  settled.forEach((go) => go());
+}
+
+/** Longer than any sheet or push takes: past it, the stack is taken to have settled without saying so. */
+const SETTLE_FALLBACK_MS = 1000;
+
+/**
+ * Goes on once the transition just started ends: pushing while a native sheet is still
+ * dismissing can drop the push, or land it under the sheet.
+ */
+function afterStackSettles(go: () => void) {
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(fallback);
+    waiting.delete(once);
+    go();
+  };
+  const fallback = setTimeout(once, SETTLE_FALLBACK_MS);
+  waiting.add(once);
+}
+
+/**
+ * Closes the sheet in front, then, once it has gone, goes on. Called from a sheet route, so the
+ * next screen opens over the screen under the sheet rather than inside the sheet.
  */
 export function closeSheetThen(go: () => void) {
+  afterStackSettles(go);
   router.back();
-  go();
+}
+
+/** A root stack route, with the state of the navigator inside it once that has one. */
+type StackRoute = { name: string; state?: { index?: number; routes: readonly { name: string }[] } };
+
+/** Whether a root stack route is the tabs showing the Cart tab. Until a tab is chosen, they show Home. */
+function isCartTab(route: StackRoute | undefined) {
+  const tabs = route?.name === '(tabs)' ? route.state : undefined;
+  return tabs?.routes[tabs.index ?? 0]?.name === 'cart';
+}
+
+/**
+ * Back to the cart from checkout's changes sheet: pops the sheet and checkout together, as going
+ * back does, so a shop cart's items return to the cart. Checkout started from the Cart tab is back
+ * on it; from anywhere else, the cart opens as a sheet over that screen once checkout has gone,
+ * rather than discarding it for the Cart tab.
+ */
+export function backToCart(stack: { routes: readonly StackRoute[] } | undefined) {
+  const routes = stack?.routes ?? [];
+  const checkout = routes.findLastIndex((route) => route.name === 'checkout/index');
+  if (!isCartTab(routes[checkout - 1])) afterStackSettles(openCartSheet);
+  router.dismiss(2);
 }
