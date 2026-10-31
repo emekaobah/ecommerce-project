@@ -2,6 +2,7 @@ import { addressBook, savedAddressEdit, type PinnedDeliveryAddress } from '@oja/
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { storeClient } from './client';
+import { summaryKeys } from './customer';
 
 // The buyer's saved delivery addresses (#18): Medusa's customer addresses, the landmark and the
 // pin they confirmed in each one's metadata (ADR 0002).
@@ -27,9 +28,14 @@ export function useSavedAddresses(userId: string | null | undefined) {
   });
 }
 
+/** What an address change shows on: the address book and the Account counts. */
 function useRefetchAddressesAfterWrite() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: addressKeys.all });
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: addressKeys.all }),
+      queryClient.invalidateQueries({ queryKey: summaryKeys.all }),
+    ]);
 }
 
 /** Saves a new address, or an edit of a saved one (`id`), with the pin the buyer confirmed. */
