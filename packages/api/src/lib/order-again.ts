@@ -5,15 +5,12 @@ import { availableQuantities } from "./availability"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderItem } from "./buyer-orders"
 import { priceOffers } from "./listings"
 import { isLive } from "./onboarding"
-import { shopStatusesOf, type ShopStatusView } from "./shop-hours"
+import { notTakingOrders, shopStatusesOf, type NotTakingOrders, type ShopStatusView } from "./shop-hours"
 
 // Order again (#72): the buyer reorders one shop's part of an order they received. The preview
 // shows each line's offer today, at today's price against what was paid and with what is left,
 // and whether the shop takes orders now; the app then adds the ticked offers to the cart in one
 // call (`POST /store/carts/:id/offer-lines`), which refuses as adding one offer does.
-
-/** Why the shop takes no orders now: paused, closed for a date (ADR 0004), or no longer selling on Oja. */
-export type NotTakingOrders = "paused" | "closed" | "left"
 
 /** The line's offer today, in the order's region. */
 export type OrderAgainOffer = {
@@ -101,13 +98,6 @@ export async function orderAgainPreview(
       }
     }),
   }
-}
-
-/** Why the shop can't take orders now, or null when it can: gone from Oja, paused, or closed for a date. */
-function notTakingOrders(status: ShopStatusView | null): NotTakingOrders | null {
-  if (!status) return "left"
-  if (status.orderable) return null
-  return status.state === "closed_until" && status.reason === "pause" ? "paused" : "closed"
 }
 
 /** Why a past item can't be added today: no longer sold, or sold out; null when it can. */

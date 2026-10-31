@@ -59,6 +59,9 @@ const sharedVariables = [
   // Resend (#5): the API key, and the sender, an address on a domain verified in Resend.
   "RESEND_API_KEY",
   "RESEND_FROM",
+  // Signs the unsubscribe links in emails a buyer can turn off (#139); without it those emails
+  // aren't sent. A long random value; changing it breaks links already sent.
+  "UNSUBSCRIBE_SECRET",
 ] as const
 
 export default defineRailway((ctx) => {

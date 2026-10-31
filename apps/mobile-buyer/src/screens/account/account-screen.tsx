@@ -33,7 +33,7 @@ function reviewsLine({ reviews_written, orders_to_review }: AccountSummary): str
 
 /**
  * The buyer's own things in one list (#73): who is signed in, their addresses, saved items and
- * reviews with counts from one summary request, Appearance, and Sign out, which says what happens
+ * reviews with counts from one summary request, Notifications (#138), Appearance, and Sign out, which says what happens
  * to the cart. Guests get the sign-in prompt and Appearance, which belongs to the phone (#102).
  */
 export function AccountScreen() {
@@ -134,6 +134,7 @@ function SignedIn() {
           onPress={() => router.push('/wishlist')}
         />
         <AccountRow icon="star" title="My reviews" subtitle={subtitle(reviewsLine)} loading={summary.isPending} onPress={openMyReviews} />
+        <AccountRow icon="bell" title="Notifications" onPress={() => router.push('/notifications')} />
         <AppearanceRow />
         <ListRow
           title={signingOut ? 'Signing out…' : 'Sign out'}

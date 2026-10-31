@@ -119,7 +119,11 @@ function RootStack() {
         <Stack.Screen name="pickup/[id]" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="review/[id]" options={{ title: 'Review' }} />
         <Stack.Screen name="my-reviews" options={{ title: 'My reviews' }} />
+        <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
         <Stack.Screen name="refund/[id]" options={{ title: 'Refund' }} />
+        {/* Before iOS's notification prompt (#136). Only Continue closes it, so iOS's prompt is where the buyer
+            allows or declines, and the sheet is shown once. */}
+        <Stack.Screen name="push-consent" options={{ ...formSheet, gestureEnabled: false, sheetGrabberVisible: false }} />
       </Stack.Protected>
       {/* Appearance is the phone's, not the account's, so guests choose it too. */}
       <Stack.Screen name="appearance" options={formSheet} />

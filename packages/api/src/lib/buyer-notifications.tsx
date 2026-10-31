@@ -1,6 +1,8 @@
 import {
   addressLines,
   buyerStatusPush,
+  CART_REMINDER_FROM,
+  cartReminderPush,
   collectByLabel,
   courierChangedPush,
   deliveryEstimate,
@@ -30,6 +32,7 @@ import {
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { ReactElement } from "react"
+import { CartReminderEmail } from "../emails/cart-reminder"
 import { CheckoutNotPlacedEmail } from "../emails/checkout-not-placed"
 import { CollectedReceiptEmail } from "../emails/collected-receipt"
 import { CourierChangedEmail } from "../emails/courier-changed"
@@ -45,6 +48,8 @@ import { RefundByHandEmail } from "../emails/refund-by-hand"
 import { renderEmail } from "../emails/render"
 import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { SHIPBUBBLE_TIMEZONE } from "../modules/shipbubble"
+import type { CartReminder } from "./cart-reminders"
+import { backendUrl } from "./backend-url"
 import { retrieveBuyerOrderGroup, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
 import { sendEmail } from "./email"
 import { fulfilmentService, fulfilmentsOf, switchedFrom, type Picks } from "./order-fulfilment"
@@ -54,6 +59,7 @@ import { NOT_COLLECTED_NOTE } from "./pickup-hold"
 import { pushToDevices } from "./push-devices"
 import { shopHoursOf } from "./shop-hours"
 import type { StoredNotPlaced } from "./unplaced-checkout"
+import { unsubscribeLink } from "./unsubscribe"
 
 // What buyers are told about their orders (#5): a confirmation once their checkout is paid and
 // a receipt once a shop's order is delivered, each by email and push, and a push as each shop's
@@ -161,7 +167,11 @@ const orderPushData = (checkout: BuyerCheckout, orderId: string) => ({
  * Emails the buyer, once per `key` however often it is asked. Logged, not thrown, when it can't
  * be sent: the buyer still has the push and the app.
  */
-async function emailBuyer(scope: Scope, to: string | null, email: { template: string; subject: string; body: ReactElement; key: string }) {
+async function emailBuyer(
+  scope: Scope,
+  to: string | null,
+  email: { template: string; subject: string; body: ReactElement; key: string; headers?: Record<string, string> }
+) {
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
   if (!to) {
     logger.warn(`Not sending ${email.key}: the order has no email address`)
@@ -174,6 +184,7 @@ async function emailBuyer(scope: Scope, to: string | null, email: { template: st
     content: { subject: email.subject, html, text },
     idempotency_key: email.key,
     about: email.key,
+    ...(email.headers && { provider_data: { headers: email.headers } }),
   })
 }
 
@@ -465,6 +476,46 @@ export async function askForRefundAccount(scope: Scope, refundId: string, remind
       about: `the bank account refund ${refund.id} needs`,
     }),
   ])
+}
+
+/** The buyer app's Cart tab, which a cart reminder opens. */
+const CART_SCREEN = "/cart"
+
+/**
+ * Reminds the buyer of the cart they left (#137) on each of their devices, once per reminder
+ * however often it is asked: its shops, top items and good news. Tapping it opens the Cart tab;
+ * `from` marks an open from a reminder (story 38).
+ */
+export async function pushCartReminder(scope: Scope, reminder: CartReminder): Promise<void> {
+  await pushToDevices(scope, await buyerDevices(scope, reminder.customer_id), {
+    template: "buyer-cart-reminder",
+    ...cartReminderPush(reminder.content),
+    data: { url: CART_SCREEN, cart_id: reminder.cart_id, from: CART_REMINDER_FROM },
+    idempotencyKey: (to) => `buyer-cart-reminder:${reminder.key}:${to}`,
+    about: `the reminder of cart ${reminder.cart_id}`,
+  })
+}
+
+/**
+ * Emails the buyer the reminder of the cart they left (#139), once per reminder however often it
+ * is asked: what the push says, the items and what they cost now, and a button that opens the
+ * cart in the app (through an https page, api/open/cart, which webmail doesn't strip). It carries a signed link that turns these emails off, also in the
+ * `List-Unsubscribe` headers mail apps offer one-click unsubscribe from. Without a signing secret
+ * for that link it isn't sent, and that is logged.
+ */
+export async function emailCartReminder(scope: Scope, reminder: CartReminder): Promise<void> {
+  const unsubscribe = unsubscribeLink(reminder.customer_id, "cart_reminder_email")
+  if (!unsubscribe) {
+    scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Not emailing the reminder of cart ${reminder.cart_id}: UNSUBSCRIBE_SECRET isn't set`)
+    return
+  }
+  await emailBuyer(scope, reminder.email, {
+    template: "cart-reminder",
+    subject: cartReminderPush(reminder.content).title,
+    body: <CartReminderEmail content={reminder.content} cartLink={`${backendUrl()}/open/cart?from=${CART_REMINDER_FROM}`} unsubscribeLink={unsubscribe} />,
+    key: `buyer-cart-reminder-email:${reminder.key}`,
+    headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+  })
 }
 
 /** The buyer app's checkout for a cart, which a push about a cart that wasn't placed opens. */

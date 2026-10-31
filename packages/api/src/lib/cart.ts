@@ -148,8 +148,8 @@ function toItem(row: ItemRow, offerId: string | null, perishable: boolean, avail
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0)
 
-/** The cart with its items grouped by the shop selling them, or not found. */
-export async function retrieveCartBySeller(scope: MedusaContainer, cartId: string): Promise<CartBySeller> {
+/** The cart with its items grouped by the shop selling them, each shop's status as of `now`, or not found. */
+export async function retrieveCartBySeller(scope: MedusaContainer, cartId: string, now = new Date()): Promise<CartBySeller> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "cart",
@@ -210,7 +210,7 @@ export async function retrieveCartBySeller(scope: MedusaContainer, cartId: strin
     )
     groups.set(key, group)
   })
-  const statuses = await shopStatusesOf(scope, [...groups.values()].flatMap((g) => (g.seller ? [g.seller.id] : [])))
+  const statuses = await shopStatusesOf(scope, [...groups.values()].flatMap((g) => (g.seller ? [g.seller.id] : [])), now)
   const sellerGroups = [...groups.values()].map((g) => ({
     ...g,
     shop_status: g.seller ? statuses.get(g.seller.id)! : null,
