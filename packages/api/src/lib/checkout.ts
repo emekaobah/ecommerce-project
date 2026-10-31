@@ -614,10 +614,11 @@ async function repriceLines(scope: MedusaContainer, cartId: string, { region_id,
       "Some items are no longer sold by their shop. Remove them to check out."
     )
   }
+  // Buyers can't see a shop that isn't live (onboarding gates, #26), so its offers aren't there to buy.
+  const left = lines.find((l) => l.not_taking_orders === "left")
+  if (left) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Offer ${left.offer_id} not found`)
+  if (lines.length && !region_id) throw new MedusaError(MedusaError.Types.INVALID_DATA, "The cart has no region to price it in")
   const changes = lines.flatMap((line): CheckoutPriceChange[] => {
-    // Buyers can't see a shop that isn't live (onboarding gates, #26), so its offers aren't there to buy.
-    if (line.not_taking_orders === "left") throw new MedusaError(MedusaError.Types.NOT_FOUND, `Offer ${line.offer_id} not found`)
-    if (!region_id) throw new MedusaError(MedusaError.Types.INVALID_DATA, "The cart has no region to price it in")
     if (!line.now) {
       throw new MedusaError(MedusaError.Types.INVALID_DATA, `Offer ${line.offer_id} has no price in the cart's currency`)
     }
