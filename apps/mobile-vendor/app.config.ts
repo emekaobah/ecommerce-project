@@ -1,11 +1,14 @@
 // Relative import of a plain-JS module: Expo's config loader doesn't transpile workspace TypeScript.
-import { APPLE_TEAM_ID, appIdentity } from '../../packages/domain/src/app-identity.js';
+import { apnsEnvironment, APPLE_TEAM_ID, appIdentity } from '../../packages/domain/src/app-identity.js';
 import { NEW_ORDER_ALARM } from '../../packages/domain/src/new-order-alarm.js';
 import { fontFiles } from '../../packages/ui/src/fonts.js';
 import type { ExpoConfig } from 'expo/config';
 
 // Name, scheme and bundle id derive from the product-name constant in @oja/domain.
 const { name, slug, scheme, bundleId } = appIdentity('vendor');
+
+// Which of Apple's push services this build uses. The widgets library's default is development (#146).
+const push = apnsEnvironment(process.env.EAS_BUILD_PROFILE);
 
 const config: ExpoConfig = {
   name,
@@ -21,7 +24,7 @@ const config: ExpoConfig = {
     bundleIdentifier: bundleId,
     appleTeamId: APPLE_TEAM_ID,
     // A new order's push is time-sensitive, breaking through Focus (#71); not a critical alert.
-    entitlements: { 'com.apple.developer.usernotifications.time-sensitive': true },
+    entitlements: { 'com.apple.developer.usernotifications.time-sensitive': true, 'aps-environment': push.entitlement },
   },
   android: {
     package: bundleId,
@@ -58,6 +61,8 @@ const config: ExpoConfig = {
     // Pushes for new orders, the accept deadline and courier pickups (#27). A new order rings
     // Oja's alarm, bundled here (#71).
     ['expo-notifications', { sounds: [NEW_ORDER_ALARM.soundAsset] }],
+    // The shop's orders on the Lock Screen and in the Dynamic Island (#133). EAS provisions the extension.
+    ['expo-widgets', { enablePushNotifications: true, frequentUpdates: true, groupIdentifier: `group.${bundleId}` }],
     // The new-order takeover loops the alarm while the app is open (#83). Playback only, in the
     // foreground: no microphone, no background audio.
     [
@@ -76,7 +81,7 @@ const config: ExpoConfig = {
     ],
   ],
   // Expo push tokens are issued per EAS project; without one the app runs but gets no pushes.
-  extra: { eas: { projectId: process.env.EAS_PROJECT_ID || undefined } },
+  extra: { eas: { projectId: process.env.EAS_PROJECT_ID || undefined }, apnsEnvironment: push.host },
   // Metro resolves react, react-native and every autolinked native module to the copy this app
   // links, though Bun's isolated install keeps same-version copies elsewhere (ADR 0012).
   experiments: { typedRoutes: true, reactCompiler: true, autolinkingModuleResolution: true },
