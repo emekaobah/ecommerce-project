@@ -233,7 +233,8 @@ medusaIntegrationTestRunner({
         expect(dismissal).toBeGreaterThan(Date.now())
         expect(dismissal).toBeLessThan(Date.now() + HOUR)
         // Every push still goes, for a buyer with activities off and a phone whose update got nowhere.
-        expect(pushedTitles(phone.device)).toEqual(expect.arrayContaining([`Courier booked for order ${number}`, `Order ${number} picked up`, `Order ${number} delivered`]))
+        const told = [`Courier booked for order ${number}`, `Order ${number} picked up`, `Order ${number} delivered`]
+        await eventually(async () => pushedTitles(phone.device), (titles) => told.every((title) => titles.includes(title)))
       })
 
       it("sends nothing more once it has ended", async () => {
