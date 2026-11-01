@@ -1,5 +1,6 @@
 import { createVendorClient } from '@oja/api-client';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { vendorClient } from '@/api/client';
 import { env } from '@/config/env';
@@ -15,7 +16,8 @@ async function register(): Promise<string | null> {
   try {
     const pushToken = await devicePushToken();
     if (!pushToken) return null;
-    await vendorClient.vendor.pushTokens.mutate({ token: pushToken });
+    await vendorClient.vendor.pushTokens.mutate({ token: pushToken, platform: Platform.OS === 'android' ? 'android' : 'ios' });
+    liveActivityTokens.pushTokenRegistered(pushToken);
     return pushToken;
   } catch (error) {
     // Pushes are a convenience: the order list still refreshes on its own.

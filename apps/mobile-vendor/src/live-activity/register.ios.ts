@@ -1,48 +1,24 @@
-import { apnsEnvironment, LIVE_ACTIVITY_KEY_HEADER } from '@oja/domain';
-import Constants from 'expo-constants';
-import * as SecureStore from 'expo-secure-store';
+import { LIVE_ACTIVITY_KEY_HEADER } from '@oja/domain';
 import { addPushToStartTokenListener, type LiveActivity } from 'expo-widgets';
 import { AppState, Platform } from 'react-native';
-import { createVendorClient } from '@oja/api-client';
 
-import { vendorClient } from '@/api/client';
 import { env } from '@/config/env';
-import type { Session } from '@/session/session-store';
 
+import { phoneReporter } from './phone-reporter';
 import { shopActivity, type ShopActivityContent } from './shop-activity';
-import { tokenReporter, type TokenReport } from './token-reporter';
+import type { TokenReport } from './token-reporter';
 
 // Imported by the root layout, so it runs at JS startup, on a background launch too: that launch
 // only runs the root layout's imports, and iOS hands the tokens over then (#140).
 
-const KEY_ITEM = 'oja.live-activity-key';
-// A background launch can run on a locked phone, which a default keychain item won't open for.
-const KEYCHAIN = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
 /** A push-started activity can appear while the JS is running, and iOS says nothing to it. */
 const SCAN_EVERY_MS = 2000;
 /** The server starts this app's activities by push, which iOS only allows from here. */
 const FIRST_PUSH_TO_START_IOS = 17.2;
 
-const environment = ((Constants.expoConfig?.extra as { apnsEnvironment?: 'sandbox' | 'production' } | undefined)?.apnsEnvironment ??
-  apnsEnvironment(undefined).host) as 'sandbox' | 'production';
-
-const withKey = (key: string | null) => ({ fetchOptions: { headers: (key ? { [LIVE_ACTIVITY_KEY_HEADER]: key } : {}) as Record<string, string> } });
-
-const reporter = tokenReporter<Session>({
-  readKey: () => SecureStore.getItemAsync(KEY_ITEM, KEYCHAIN),
-  saveKey: (key) => SecureStore.setItemAsync(KEY_ITEM, key, KEYCHAIN),
-  clearKey: () => SecureStore.deleteItemAsync(KEY_ITEM, KEYCHAIN),
-  register: async (key) => {
-    const { device } = await vendorClient.vendor.liveActivityDevices.mutate({ environment, ...withKey(key) });
-    return device.key;
-  },
-  remove: async (key, session) => {
-    // The session is already cleared by now, and this must never sign anyone out itself.
-    const client = createVendorClient({ baseUrl: env.apiUrl, getToken: () => session.token, getSellerId: () => session.sellerId });
-    await client.vendor.liveActivityDevices.current.delete(withKey(key));
-  },
+const reporter = phoneReporter({
   // Only the phone's key. Not through `vendorClient`, whose 401 would sign the member out.
-  post: async (key, report: TokenReport) => {
+  post: async (key, report: TokenReport, environment) => {
     const { status } = await fetch(`${env.apiUrl}/vendor/live-activity-tokens`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', [LIVE_ACTIVITY_KEY_HEADER]: key },
@@ -99,6 +75,8 @@ AppState.addEventListener('change', (state) => {
 
 export const liveActivityTokens = {
   ...reporter,
+  /** Android links its Expo token to the phone: iOS's activities don't go through Expo. */
+  pushTokenRegistered(_token: string) {},
   /** Whether this phone can run the shop's activity, so the switch shows. */
   available: Number.parseFloat(String(Platform.Version)) >= FIRST_PUSH_TO_START_IOS,
 };

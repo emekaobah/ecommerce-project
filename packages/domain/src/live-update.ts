@@ -1,5 +1,7 @@
 import { BUYER_ACTIVITY_DISMISS_AFTER_MS, type BuyerActivityContent, type BuyerActivityOutcome } from "./buyer-activity"
+import { ORDER_STAGES, type OrderStage } from "./order-stage"
 import type { StatusSymbol } from "./status"
+import type { VendorActivityContent } from "./vendor-activity"
 
 /**
  * Android's counterpart of a Live Activity (#133): an Android 16 Live Update, or an ongoing
@@ -62,6 +64,17 @@ export type LiveUpdateMessage = {
   revision: number
   url: string
   content: BuyerActivityContent
+}
+
+/** A message about a shop's orders. `show` starts or updates it, `remove` takes it away: a shop closing leaves nothing to see. */
+export type VendorLiveUpdateMessage = {
+  live_update: "vendor_shop"
+  action: "show" | "remove"
+  seller_id: string
+  /** The server's time, so a late push can't undo a newer one. */
+  revision: number
+  url: string
+  content: VendorActivityContent
 }
 
 /** As long as iOS keeps an activity on the Lock Screen (8 hours, then up to 4 more). A later milestone shows it again. */
@@ -142,14 +155,96 @@ export function buyerLiveUpdateView({ order_id, revision, url, content }: LiveUp
   }
 }
 
-/** The message in what the phone's notification task was given; null for anything else. */
-export function readLiveUpdateMessage(payload: unknown): LiveUpdateMessage | null {
+export function vendorLiveUpdateMessage({
+  action,
+  sellerId,
+  url,
+  content,
+  at,
+}: {
+  action: VendorLiveUpdateMessage["action"]
+  sellerId: string
+  url: string
+  content: VendorActivityContent
+  at: number
+}): VendorLiveUpdateMessage {
+  return { live_update: "vendor_shop", action, seller_id: sellerId, revision: at, url, content }
+}
+
+// The catalogue's stage colours on the Android card, in each appearance.
+const STAGE_COLORS: Record<OrderStage, ThemedColor> = {
+  new: { light: "#C98A1A", dark: "#F2C76B" },
+  picking: ACCENT,
+  ready: { light: "#186441", dark: "#6FD6A0" },
+  out: { light: "#494F66", dark: "#B4B4BC" },
+}
+
+const URGENT: ThemedColor = { light: "#84391A", dark: "#F0A474" }
+
+/** As on the shop's Lock Screen. */
+const shownCount = (count: number) => (count > 99 ? "99+" : String(count))
+
+/**
+ * One segment per stage with orders in it, sized by its count (#141). It isn't progress, so Android
+ * neither dims part of it nor draws a tracker. Null shows the whole text instead (BigTextStyle):
+ * with no orders there's nothing to draw, and it's the fallback if a device check shows this reads
+ * as progress after all (#133).
+ */
+function stageBar(counts: VendorActivityContent["counts"]): LiveUpdateProgress | null {
+  const segments = ORDER_STAGES.filter((stage) => counts[stage] > 0).map((stage) => ({ length: counts[stage], color: STAGE_COLORS[stage] }))
+  if (!segments.length) return null
+  return {
+    segments,
+    points: [],
+    position: segments.reduce((total, segment) => total + segment.length, 0),
+    tracker: null,
+    styledByProgress: false,
+  }
+}
+
+/**
+ * A shop's orders as a notification, as drawn in the screens catalogue (#141). The chip has no text
+ * of its own, so Android shows the countdown there, ticking it itself from `countdownTo`.
+ */
+export function vendorLiveUpdateView({ seller_id, revision, url, content }: VendorLiveUpdateMessage): LiveUpdateView {
+  const { shop, counts, deadline, urgent } = content
+  return {
+    id: seller_id,
+    revision,
+    url,
+    title: counts.new ? `${shownCount(counts.new)} new ${counts.new === 1 ? "order" : "orders"} to accept` : "No new orders",
+    text: `${shownCount(counts.picking)} picking · ${shownCount(counts.ready)} ready · ${shownCount(counts.out)} out`,
+    // Words as well as the colour: checked on Android 17, a promoted notification draws its timer and icon in the system's colours.
+    subText: urgent ? `Under 2 hours · ${shop}` : shop,
+    chip: null,
+    icon: deadline ? "clock" : "bag",
+    ongoing: true,
+    timeoutMs: LIVE_UPDATE_TIMEOUT_MS,
+    color: urgent ? URGENT : ACCENT,
+    progress: stageBar(counts),
+    olderBar: null,
+    countdownTo: deadline ? Date.parse(deadline) : null,
+  }
+}
+
+function messageIn(payload: unknown): Record<string, unknown> | null {
   const dataString = (payload as { data?: { dataString?: unknown } } | null)?.data?.dataString
   if (typeof dataString !== "string") return null
   try {
-    const message = JSON.parse(dataString) as Partial<LiveUpdateMessage> | null
-    return message?.live_update ? (message as LiveUpdateMessage) : null
+    return JSON.parse(dataString) as Record<string, unknown> | null
   } catch {
     return null
   }
+}
+
+/** The message in what the phone's notification task was given; null for anything else. */
+export function readLiveUpdateMessage(payload: unknown): LiveUpdateMessage | null {
+  const message = messageIn(payload)
+  return message?.live_update ? (message as LiveUpdateMessage) : null
+}
+
+/** `readLiveUpdateMessage`, in the vendor app. */
+export function readVendorLiveUpdateMessage(payload: unknown): VendorLiveUpdateMessage | null {
+  const message = messageIn(payload)
+  return message?.live_update === "vendor_shop" ? (message as unknown as VendorLiveUpdateMessage) : null
 }

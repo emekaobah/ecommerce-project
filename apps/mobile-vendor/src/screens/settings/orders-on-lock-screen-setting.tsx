@@ -7,7 +7,7 @@ import { liveActivityTokens } from '@/live-activity/register';
 
 /**
  * "Orders on Lock Screen" (#146): the shop's order counts on this phone's Lock Screen and in the
- * Dynamic Island. Off until turned on, for this phone and this shop, and open to any member, since
+ * Dynamic Island, or as an ongoing notification on Android (#149). Off until turned on, for this phone and this shop, and open to any member, since
  * the phone in the shop is often held by staff. A save that fails flips back and says so.
  */
 export function OrdersOnLockScreenSetting({ sellerId }: Readonly<{ sellerId: string }>) {

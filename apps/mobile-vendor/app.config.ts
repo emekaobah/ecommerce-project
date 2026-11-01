@@ -28,6 +28,8 @@ const config: ExpoConfig = {
   },
   android: {
     package: bundleId,
+    // Firebase's client config, without which Android gives no Expo push token: no pushes, no Live Update.
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
     predictiveBackGestureEnabled: false,
     // Lets the member allow the new-order alarm through Do Not Disturb from Settings (#83).
     permissions: ['android.permission.ACCESS_NOTIFICATION_POLICY'],

@@ -22,6 +22,9 @@ export type DevicePush = {
   alert?: ExpoPushAlert
 }
 
+/** The devices a push didn't reach: `gone` have been forgotten, `failed` may work next time. */
+export type PushOutcome = { gone: string[]; failed: string[] }
+
 /** A push with nothing to show: only the app's background task sees it. */
 export type DeviceDataPush = Omit<DevicePush, "title" | "body" | "alert"> & { ttl: number }
 
@@ -34,10 +37,10 @@ export async function pushToDevices(scope: Scope, devices: string[], push: Devic
   await sendToDevices(scope, devices, push, { subject: push.title, text: push.body }, push.alert ?? null)
 }
 
-/** `pushToDevices`, for a message the app handles itself (#148). */
-export async function pushDataToDevices(scope: Scope, devices: string[], push: DeviceDataPush): Promise<void> {
+/** `pushToDevices`, for a message the app handles itself (#148). Says how it went for whoever keeps track of what each device has. */
+export async function pushDataToDevices(scope: Scope, devices: string[], push: DeviceDataPush): Promise<PushOutcome> {
   const dataOnly: ExpoDataOnly = { data_only: true, ttl: push.ttl }
-  await sendToDevices(scope, devices, push, {}, dataOnly)
+  return sendToDevices(scope, devices, push, {}, dataOnly)
 }
 
 async function sendToDevices(
@@ -46,8 +49,8 @@ async function sendToDevices(
   push: Pick<DevicePush, "template" | "data" | "idempotencyKey" | "about">,
   content: { subject?: string; text?: string },
   providerData: ExpoPushAlert | ExpoDataOnly | null
-): Promise<void> {
-  if (!devices.length) return
+): Promise<PushOutcome> {
+  if (!devices.length) return { gone: [], failed: [] }
   const notifications = scope.resolve(Modules.NOTIFICATION)
   const sent = await Promise.allSettled(
     devices.map((to) =>
@@ -63,12 +66,17 @@ async function sendToDevices(
     )
   )
   const gone: string[] = []
+  const failed: string[] = []
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
   sent.forEach((result, i) => {
     if (result.status === "fulfilled") return
     const reason = errorMessage(result.reason)
     if (reason.includes(DEVICE_NOT_REGISTERED)) gone.push(devices[i])
-    else logger.warn(`Pushing ${push.about} failed: ${reason}`)
+    else {
+      failed.push(devices[i])
+      logger.warn(`Pushing ${push.about} failed: ${reason}`)
+    }
   })
   await forgetPushDevices(scope, gone)
+  return { gone, failed }
 }
