@@ -25,5 +25,15 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  // Bun's test types stay out of the app: tsconfig.test.json checks the tests with them.
+  "exclude": [
+    "node_modules",
+    "babel.config.js",
+    "metro.config.js",
+    "android",
+    "ios",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

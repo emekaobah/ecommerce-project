@@ -173,6 +173,7 @@ export {
   nextOpening,
   openingLabel,
   openTimeBetween,
+  dateIn,
   shopStatus,
   shopStatusChip,
   shopStatusLabel,
