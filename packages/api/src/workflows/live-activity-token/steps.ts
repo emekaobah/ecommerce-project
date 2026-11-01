@@ -49,6 +49,20 @@ export const removeLiveActivityDeviceStep = createStep(
   }
 )
 
+/** A buyer's Android phone signed out, which cleared what it showed: those orders don't come back when it signs in again. */
+export const forgetBuyerLiveUpdatesStep = createStep(
+  "forget-buyer-live-updates",
+  async ({ push_token, customer_id }: { push_token: string; customer_id: string }, { container }) => {
+    const devices = service(container)
+    const rows = await devices.listBuyerLiveUpdates({ push_token, customer_id }, { take: null })
+    if (rows.length) await devices.deleteBuyerLiveUpdates(rows.map(({ id }) => id))
+    return new StepResponse({ forgotten: rows.length }, rows.map(({ push_token, customer_id, order_id, ended_at }) => ({ push_token, customer_id, order_id, ended_at })))
+  },
+  async (deleted, { container }) => {
+    if (deleted?.length) await service(container).createBuyerLiveUpdates(deleted)
+  }
+)
+
 export type ReportTokenInput = { device_id: string; environment: Environment; token: string } & (
   | { kind: "push_to_start" }
   /** `subject_id`: what the activity's url names, the buyer's own order or the member's own shop, when it names one. */
