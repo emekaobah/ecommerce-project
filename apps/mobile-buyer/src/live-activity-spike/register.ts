@@ -15,15 +15,27 @@ function report(kind: string, body: Record<string, unknown> = {}) {
   }).catch(() => {});
 }
 
-const watched = new Set<string>();
+// Held for the life of the JS: the library cancels an activity's token observer when its object is released.
+const watched = new Map<string, { activity: LiveActivity<SpikeProps>; tokenSeen: boolean }>();
 
 function watch(activity: LiveActivity<SpikeProps>, via: string) {
   const activityId = activity.getId();
   if (watched.has(activityId)) return;
-  watched.add(activityId);
+  watched.set(activityId, { activity, tokenSeen: false });
   report('activity-seen', { activityId, via });
   activity.addPushTokenListener((event) => report('activity-update-token', { ...event, via }));
-  void activity.getPushToken().then((token) => report('activity-get-push-token', { activityId, token, via }));
+}
+
+// Asks each activity for its token again until it has one, in case the listener misses it.
+function askForTokens() {
+  for (const [activityId, entry] of watched) {
+    if (entry.tokenSeen) continue;
+    void entry.activity.getPushToken().then((token) => {
+      if (!token || entry.tokenSeen) return;
+      entry.tokenSeen = true;
+      report('activity-get-push-token', { activityId, token });
+    });
+  }
 }
 
 function scan(via: string) {
@@ -39,5 +51,8 @@ if (Platform.OS === 'ios' && url) {
     if (state === 'active') scan('foreground');
   });
   // A push-started activity can appear while the JS is already running.
-  setInterval(() => scan('poll'), 5000);
+  setInterval(() => {
+    scan('poll');
+    askForTokens();
+  }, 1000);
 }
