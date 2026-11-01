@@ -1,6 +1,7 @@
 import {
   appIdentity,
   dateIn,
+  liveActivityOutlived,
   nearestAcceptDeadline,
   shopStatus,
   VENDOR_ACTIVITY_FACTORY,
@@ -87,17 +88,21 @@ type Running = {
   subject_id: string | null
   token: string | null
   environment: "sandbox" | "production"
+  started_at: Date | string
   sent_content: Record<string, unknown> | null
   sent_at: Date | string | null
 }
 
-/** Ends one activity. One Apple couldn't be told about stays running, for the job to try again. */
+/**
+ * Ends one activity. One Apple couldn't be told about stays running, for the job to try again,
+ * until iOS will have let it go by itself. One Apple says is gone has its token forgotten.
+ */
 async function endActivity(scope: Scope, activity: Running, content: VendorActivityContent, now: Date) {
   const android = activity.token ? undefined : await androidPhoneOf(scope, activity.device_id)
   if (android) {
     // A moment older than a start it may be making way for: Android draws whichever is newest.
     const sent = await pushShopLiveUpdate(scope, android, activity.subject_id!, activityUrl(activity.subject_id!), "remove", content, now.getTime() - 1)
-    if (sent === "failed") return
+    if (sent === "failed" && !liveActivityOutlived(activity.started_at, now)) return
   } else if (activity.token) {
     const sent = await sender(scope).send({
       event: "end",
@@ -108,7 +113,11 @@ async function endActivity(scope: Scope, activity: Running, content: VendorActiv
       content: { factory: VENDOR_ACTIVITY_FACTORY, props: content },
       dismissAt: now,
     })
-    if (sent.status === "failed") return
+    if (sent.status === "failed" && !liveActivityOutlived(activity.started_at, now)) return
+    if (sent.status === "token_rejected") {
+      await tokens(scope).updateLiveActivities({ id: activity.id, ended_at: now, token: null })
+      return
+    }
   }
   await tokens(scope).updateLiveActivities({ id: activity.id, ended_at: now })
 }
@@ -129,7 +138,7 @@ async function sendUpdate(scope: Scope, activity: Updatable, content: VendorActi
         })
       ).status
   if (status === "sent") await tokens(scope).updateLiveActivities({ id: activity.id, sent_content: content, sent_at: now })
-  if (status === "token_rejected") await tokens(scope).updateLiveActivities({ id: activity.id, ended_at: now })
+  if (status === "token_rejected") await tokens(scope).updateLiveActivities({ id: activity.id, ended_at: now, token: null })
 }
 
 /** A running activity something can be pushed to: by its Apple token, or `android`, the phone's Expo token. */

@@ -459,6 +459,40 @@ medusaIntegrationTestRunner({
         expect(endsOf(second)).toHaveLength(1)
       })
 
+      const rowsWith = (token: string) => getContainer().resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE).listLiveActivities({ token })
+
+      it.each([["410", "unregister"], ["BadDeviceToken", "rejectAsBad"]] as const)("forgets a token an update hears %s for", async (_, how) => {
+        const { update } = await running()
+        apns[how](update)
+
+        await paidOrders()
+
+        await eventually(() => rowsWith(update), (held: unknown[]) => held.length === 0)
+      })
+
+      it.each([["410", "unregister"], ["BadDeviceToken", "rejectAsBad"]] as const)("forgets a token an ending hears %s for", async (_, how) => {
+        const { member, update } = await running()
+        apns[how](update)
+
+        await api.post("/vendor/shop-hours/pause", {}, member)
+
+        await eventually(() => rowsWith(update), (held: unknown[]) => held.length === 0)
+      })
+
+      it("stops trying an ending once iOS has let the activity go", async () => {
+        const { member, update } = await running()
+        apns.fail(update)
+        await api.post("/vendor/shop-hours/pause", {}, member)
+        await endActivitiesOfClosedShops(getContainer())
+        const later = new Date(Date.now() + 13 * HOUR)
+
+        await endActivitiesOfClosedShops(getContainer(), later)
+        const tries = apns.attemptsTo(update)
+        await endActivitiesOfClosedShops(getContainer(), later)
+
+        expect(apns.attemptsTo(update)).toBe(tries)
+      })
+
       it("stops trying a rejected update token: the activity is over", async () => {
         const { member, update, pushToStart } = await running()
         apns.unregister(update)
