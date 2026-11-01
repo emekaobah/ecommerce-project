@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { tokenReporter, type PostResult, type TokenReporterPorts } from './token-reporter';
+import { tokenReporter, type PostResult, type TokenReporterPorts } from '@oja/expo-live-activity';
 
 type Session = { token: string };
 const SESSION: Session = { token: 'member' };
@@ -19,6 +19,7 @@ function phone(heldKey: string | null = null) {
     remove: mock(async (_key: string, _session: Session) => {}),
     post: mock(async (): Promise<PostResult> => 'ok'),
     endActivities: mock(() => {}),
+    subjectField: 'seller_id',
   } satisfies TokenReporterPorts<Session>;
   return { ports, reporter: tokenReporter(ports), key: () => key };
 }
