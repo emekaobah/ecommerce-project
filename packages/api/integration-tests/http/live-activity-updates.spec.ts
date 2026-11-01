@@ -3,6 +3,7 @@ import { formatMoney } from "@oja/domain"
 import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PERISHABLE_CATEGORIES, SEED_PRODUCTS } from "../../src/scripts/seed-data"
 import { endBuyerActivities } from "../../src/lib/buyer-live-activity"
+import { setNotificationPreferences } from "../../src/lib/notification-preferences"
 import { expirePickupHolds } from "../../src/lib/pickup-hold-expiry"
 import { LIVE_ACTIVITY_TOKEN_MODULE } from "../../src/modules/live-activity-token"
 import { ADDRESS, buyerCheckout, eventually, GROCERY, RETURN_URL, RICE } from "../helpers/checkout"
@@ -445,6 +446,127 @@ medusaIntegrationTestRunner({
         expect(end.aps.event).toBe("end")
         expect(end.aps["dismissal-date"]).toBeLessThanOrEqual(Date.now() / 1000 + 1)
         expect(props(end).step.label).toBe("Being prepared")
+      })
+    })
+
+    describe("the Orders on Lock Screen switch", () => {
+      const PREFERENCES = "/store/customers/me/notification-preferences"
+      const turn = (orders_on_lock_screen: boolean) => api.post(PREFERENCES, { orders_on_lock_screen }, ada())
+      const accepted = (number: string) => `Order ${number} accepted`
+      /** Off without the route's ending, as when a start was already on its way as the buyer flipped it. */
+      const offWithActivitiesStillRunning = async (phone: { pushToStart: string }) => {
+        const [device] = await activities().listLiveActivityDevices({ push_to_start_token: phone.pushToStart })
+        await setNotificationPreferences(getContainer(), device.actor_id, { orders_on_lock_screen: false })
+      }
+      /** A phone below iOS 17.2, which starts activities itself when the server says it owes them. */
+      const olderIPhone = async () => (await api.post("/store/live-activity-devices", { environment: "sandbox" }, ada())).data.device.key as string
+      const owedTo = async (key: string) =>
+        (await api.get("/store/live-activities/owed", { headers: { ...ada().headers, [KEY_HEADER]: key } })).data.activities.map((a: any) => a.order_id)
+
+      afterEach(() => turn(true))
+
+      it("starts no activity with it off, and the accepted push goes, even to a phone whose activity alert would replace it", async () => {
+        const phone = await iPhone()
+        await following(phone)
+        await turn(false)
+        const { orderId, number } = await paidOrder()
+        apns.reset()
+        expo.reset()
+
+        await post(`${orderId}/accept`)
+
+        await eventually(async () => pushedTitles(phone.device), (titles) => titles.includes(accepted(number)))
+        expect(apns.sentTo(phone.pushToStart)).toEqual([])
+      })
+
+      it("ends a running activity when it's turned off, and nothing more reaches it while the pushes go on", async () => {
+        const phone = await iPhone()
+        const { orderId, number, token } = await following(phone)
+
+        await turn(false)
+
+        const [end] = await sentTo(token)
+        expect(end.aps.event).toBe("end")
+        expect(end.aps["dismissal-date"]).toBeLessThanOrEqual(Date.now() / 1000 + 1)
+
+        apns.reset()
+        expo.reset()
+        await pack(orderId)
+        await post(`${orderId}/book-label`)
+        await eventually(async () => pushedTitles(phone.device), (titles) => titles.includes(`Courier booked for order ${number}`))
+        expect(apns.sentTo(token)).toEqual([])
+        expect(apns.sentTo(phone.pushToStart)).toEqual([])
+      })
+
+      it("lets the next shop order start one once it's back on, and leaves the order it ended alone", async () => {
+        const phone = await iPhone()
+        const earlier = await following(phone)
+        await turn(false)
+        await sentTo(earlier.token)
+        await turn(true)
+        apns.reset()
+
+        await pack(earlier.orderId)
+        await post(`${earlier.orderId}/book-label`)
+        await settle()
+        expect(apns.sentTo(phone.pushToStart)).toEqual([])
+
+        const { orderId } = await paidOrder()
+        await post(`${orderId}/accept`)
+        const [start] = await sentTo(phone.pushToStart)
+        expect(start.aps.event).toBe("start")
+      })
+
+      it("doesn't restart past iOS's 8 hours with it off: the activity ends and the milestone's push goes", async () => {
+        const phone = await iPhone()
+        const { orderId, number, token } = await following(phone)
+        await pack(orderId)
+        await sentTo(token)
+        await startedAgo(orderId, 7 * HOUR)
+        await offWithActivitiesStillRunning(phone)
+        apns.reset()
+        expo.reset()
+
+        await post(`${orderId}/book-label`)
+
+        await eventually(async () => pushedTitles(phone.device), (titles) => titles.includes(`Courier booked for order ${number}`))
+        const [end] = await sentTo(token)
+        expect(end.aps.event).toBe("end")
+        expect(apns.sentTo(phone.pushToStart)).toEqual([])
+      })
+
+      it("ends at once an activity whose token arrives with it off", async () => {
+        const phone = await iPhone()
+        const { orderId } = await paidOrder()
+        await post(`${orderId}/accept`)
+        await sentTo(phone.pushToStart)
+        await offWithActivitiesStillRunning(phone)
+
+        const token = await reportToken(phone.key, orderId)
+
+        const [end] = await sentTo(token)
+        expect(end.aps.event).toBe("end")
+      })
+
+      it("owes a phone below iOS 17.2 nothing with it off, and only later orders once it's back on", async () => {
+        const key = await olderIPhone()
+        const { orderId: earlier } = await paidOrder()
+        await post(`${earlier}/accept`)
+        await api.post("/store/live-activities", { order_id: earlier, activity_id: `activity-${earlier}`, environment: "sandbox" }, withKey(key))
+        const token = await reportToken(key, earlier, undefined, `activity-${earlier}`)
+        await sentTo(token)
+
+        await turn(false)
+        await sentTo(token, 2)
+        const { orderId: whileOff } = await paidOrder()
+        await post(`${whileOff}/accept`)
+        await settle()
+        expect(await owedTo(key)).toEqual([])
+
+        await turn(true)
+        const owed = await owedTo(key)
+        expect(owed).toContain(whileOff)
+        expect(owed).not.toContain(earlier)
       })
     })
 

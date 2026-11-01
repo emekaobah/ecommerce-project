@@ -12,7 +12,7 @@ process.env.CLERK_JWT_KEY = clerk.jwtKey
 const PATH = "/store/customers/me/notification-preferences"
 
 // A buyer's notification settings (#138) are kept on the server, so they hold on any phone the
-// buyer signs in on. Both cart reminder channels are on until the buyer turns one off.
+// buyer signs in on. Each is on until the buyer turns it off.
 medusaIntegrationTestRunner({
   inApp: true,
   env: {},
@@ -41,19 +41,28 @@ medusaIntegrationTestRunner({
     const preferencesOf = async (as: object) => (await api.get(PATH, as)).data.notification_preferences
     const change = async (as: object, body: object) => (await api.post(PATH, body, as)).data.notification_preferences
 
-    it("has both cart reminders on for a buyer who hasn't changed them", async () => {
-      expect(await preferencesOf(buyer("ada-defaults@oja.test"))).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
+    it("has every setting on for a buyer who hasn't changed them", async () => {
+      expect(await preferencesOf(buyer("ada-defaults@oja.test"))).toEqual({ cart_reminder_push: true, cart_reminder_email: true, orders_on_lock_screen: true })
     })
 
     it("keeps a change, leaving the other setting as it was", async () => {
       const ada = buyer("ada-changes@oja.test")
 
-      expect(await change(ada, { cart_reminder_push: false })).toEqual({ cart_reminder_push: false, cart_reminder_email: true })
-      expect(await preferencesOf(ada)).toEqual({ cart_reminder_push: false, cart_reminder_email: true })
+      expect(await change(ada, { cart_reminder_push: false })).toEqual({ cart_reminder_push: false, cart_reminder_email: true, orders_on_lock_screen: true })
+      expect(await preferencesOf(ada)).toEqual({ cart_reminder_push: false, cart_reminder_email: true, orders_on_lock_screen: true })
 
       await change(ada, { cart_reminder_email: false })
       await change(ada, { cart_reminder_push: true })
-      expect(await preferencesOf(ada)).toEqual({ cart_reminder_push: true, cart_reminder_email: false })
+      expect(await preferencesOf(ada)).toEqual({ cart_reminder_push: true, cart_reminder_email: false, orders_on_lock_screen: true })
+    })
+
+    it("has Orders on Lock Screen on until the buyer turns it off, and on again if they turn it back on", async () => {
+      const ada = buyer("ada-lock-screen@oja.test")
+
+      expect((await preferencesOf(ada)).orders_on_lock_screen).toBe(true)
+      expect(await change(ada, { orders_on_lock_screen: false })).toEqual({ cart_reminder_push: true, cart_reminder_email: true, orders_on_lock_screen: false })
+      expect((await preferencesOf(ada)).orders_on_lock_screen).toBe(false)
+      expect((await change(ada, { orders_on_lock_screen: true })).orders_on_lock_screen).toBe(true)
     })
 
     it("are the buyer's own: another buyer's change doesn't touch them", async () => {
@@ -62,8 +71,8 @@ medusaIntegrationTestRunner({
 
       await change(bola, { cart_reminder_push: false, cart_reminder_email: false })
 
-      expect(await preferencesOf(ada)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
-      expect(await preferencesOf(bola)).toEqual({ cart_reminder_push: false, cart_reminder_email: false })
+      expect(await preferencesOf(ada)).toEqual({ cart_reminder_push: true, cart_reminder_email: true, orders_on_lock_screen: true })
+      expect(await preferencesOf(bola)).toEqual({ cart_reminder_push: false, cart_reminder_email: false, orders_on_lock_screen: true })
     })
 
     it("can't be read or changed without signing in", async () => {
@@ -75,8 +84,9 @@ medusaIntegrationTestRunner({
       const ada = buyer("ada-refused@oja.test")
 
       expect(await status(api.post(PATH, { cart_reminder_push: "no" }, ada))).toBe(400)
-      expect(await status(api.post(PATH, { orders_on_lock_screen: false }, ada))).toBe(400)
-      expect(await preferencesOf(ada)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
+      expect(await status(api.post(PATH, { orders_on_lock_screen: "no" }, ada))).toBe(400)
+      expect(await status(api.post(PATH, { something_else: false }, ada))).toBe(400)
+      expect(await preferencesOf(ada)).toEqual({ cart_reminder_push: true, cart_reminder_email: true, orders_on_lock_screen: true })
     })
   },
 })

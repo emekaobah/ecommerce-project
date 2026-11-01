@@ -126,4 +126,4 @@ AppState.addEventListener('change', (state) => {
   }
 });
 
-export const liveActivityTokens = reporter;
+export const liveActivityTokens = { ...reporter, available: true };
