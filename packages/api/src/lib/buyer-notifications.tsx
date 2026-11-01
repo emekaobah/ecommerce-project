@@ -112,7 +112,7 @@ async function buyerCheckout(scope: Scope, groupId: string): Promise<BuyerChecko
 }
 
 /** A shop's order as its buyer is told about it, and the checkout it was part of. */
-async function buyerOrder(scope: Scope, orderId: string): Promise<{ checkout: BuyerCheckout; order: BuyerOrder } | null> {
+export async function buyerOrder(scope: Scope, orderId: string): Promise<{ checkout: BuyerCheckout; order: BuyerOrder } | null> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({ entity: "order_group_order", fields: ["order_group_id"], filters: { order_id: orderId } })
   const groupId = (data[0] as unknown as { order_group_id: string } | undefined)?.order_group_id
@@ -225,9 +225,9 @@ export async function confirmCheckout(scope: Scope, groupId: string, now = new D
 
 /**
  * Pushes the buyer that one of their orders reached `state` (#5), on each of their devices,
- * when it is a state they are told about (`buyerStatusPush`).
+ * when it is a state they are told about (`buyerStatusPush`). `except`: devices told another way.
  */
-export async function pushOrderState(scope: Scope, orderId: string, state: FulfilmentState): Promise<void> {
+export async function pushOrderState(scope: Scope, orderId: string, state: FulfilmentState, { except = [] }: { except?: string[] } = {}): Promise<void> {
   const found = await buyerOrder(scope, orderId)
   if (!found) return
   const { checkout, order } = found
@@ -244,7 +244,8 @@ export async function pushOrderState(scope: Scope, orderId: string, state: Fulfi
   // An order can reach a state again (a courier label rebooked after the shipper cancelled it):
   // the device is told each time, once.
   const reachedAt = record?.reached?.[state] ?? ""
-  await pushToDevices(scope, await buyerDevices(scope, checkout.customer_id), {
+  const devices = (await buyerDevices(scope, checkout.customer_id)).filter((device) => !except.includes(device))
+  await pushToDevices(scope, devices, {
     template: `buyer-order-${state.replaceAll("_", "-")}`,
     ...push,
     data: orderPushData(checkout, orderId),

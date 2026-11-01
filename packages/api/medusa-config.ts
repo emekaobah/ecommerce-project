@@ -258,6 +258,7 @@ module.exports = withMercur({
     { resolve: './src/modules/shop-hours' },
     // Each device's Expo push token, and the buyer or shop member signed in on it (#27).
     { resolve: './src/modules/push-token' },
+    { resolve: './src/modules/live-activity-token' },
     // Live Activity pushes, sent straight to Apple rather than through Expo (ADR 0017, #142).
     // Without Apple's push key it logs and sends nothing.
     {
