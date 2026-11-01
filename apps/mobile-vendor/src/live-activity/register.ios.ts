@@ -1,11 +1,11 @@
-import { LIVE_ACTIVITY_KEY_HEADER, vendorActivitySellerId } from '@oja/domain';
+import { LIVE_ACTIVITY_KEY_HEADER, vendorActivitySellerId, type VendorActivityContent } from '@oja/domain';
 import { addPushToStartTokenListener, type LiveActivity } from 'expo-widgets';
 import { AppState, Platform } from 'react-native';
 
 import { env } from '@/config/env';
 
 import { phoneReporter } from './phone-reporter';
-import { shopActivity, type ShopActivityContent } from './shop-activity';
+import { shopActivity } from './shop-activity';
 import type { TokenReport } from './token-reporter';
 
 // Imported by the root layout, so it runs at JS startup, on a background launch too: that launch
@@ -36,7 +36,7 @@ const reporter = phoneReporter({
  * The shop an activity is for, from the url the server started it with. The library doesn't expose
  * it, so `patches/expo-widgets` adds `getUrl` (ADR 0018). Null once the activity has gone.
  */
-function shopOf(activity: LiveActivity<ShopActivityContent>) {
+function shopOf(activity: LiveActivity<VendorActivityContent>) {
   try {
     return vendorActivitySellerId(activity.getUrl());
   } catch {
@@ -45,11 +45,11 @@ function shopOf(activity: LiveActivity<ShopActivityContent>) {
 }
 
 // Held for the life of the JS: the library cancels an activity's token observer when its object is released (#140).
-const watched = new Map<string, LiveActivity<ShopActivityContent>>();
+const watched = new Map<string, LiveActivity<VendorActivityContent>>();
 /** Activities whose token has arrived this launch: until then, each scan asks again. */
 const tokenSeen = new Set<string>();
 
-function watch(activity: LiveActivity<ShopActivityContent>) {
+function watch(activity: LiveActivity<VendorActivityContent>) {
   const id = activity.getId();
   if (watched.has(id)) return;
   watched.set(id, activity);
@@ -59,7 +59,7 @@ function watch(activity: LiveActivity<ShopActivityContent>) {
   });
 }
 
-async function askForToken(activity: LiveActivity<ShopActivityContent>) {
+async function askForToken(activity: LiveActivity<VendorActivityContent>) {
   // Null until the member answers iOS's Allow prompt, which can take minutes or never come (#140).
   const token = await activity.getPushToken().catch(() => null);
   if (!token || tokenSeen.has(activity.getId())) return;
