@@ -1,6 +1,6 @@
 import type { BuyerActivityContent } from '@oja/domain';
 
-export type TokenReport = { kind: 'push_to_start'; token: string } | { kind: 'activity'; activity_id: string; token: string };
+export type TokenReport = { kind: 'push_to_start'; token: string } | { kind: 'activity'; activity_id: string; token: string; order_id?: string };
 
 /** How a post went: `revoked` means the server no longer knows the key (its buyer signed out). */
 export type PostResult = 'ok' | 'failed' | 'revoked';
@@ -25,6 +25,8 @@ export type TokenReporterPorts = {
   recordStarted: (key: string, orderId: string, activityId: string) => Promise<void>;
   /** Below iOS 17.2 the server can't start activities, so the app does. */
   startsActivitiesItself: () => boolean;
+  /** Ends this phone's activities on the phone itself. */
+  endActivities: () => void;
 };
 
 const reportId = (report: TokenReport) => (report.kind === 'activity' ? `activity:${report.activity_id}` : 'push_to_start');
@@ -109,8 +111,9 @@ export function tokenReporter(ports: TokenReporterPorts) {
       pushToStart = token;
       add({ kind: 'push_to_start', token });
     },
-    activityToken(activityId: string, token: string) {
-      add({ kind: 'activity', activity_id: activityId, token });
+    /** `orderId`: the shop order the activity's url names, which is how the server knows which it is. */
+    activityToken(activityId: string, token: string, orderId?: string | null) {
+      add({ kind: 'activity', activity_id: activityId, token, ...(orderId ? { order_id: orderId } : {}) });
     },
     /** A buyer's session is ready. Runs on every launch: it's how a key is issued and a phone changes hands. */
     signedIn() {
@@ -136,6 +139,12 @@ export function tokenReporter(ports: TokenReporterPorts) {
       expoPushToken = null;
       pending.clear();
       unrecorded.clear();
+      try {
+        // The server is about to forget their tokens, so these could never be updated, and one may show a pickup code.
+        ports.endActivities();
+      } catch (error) {
+        console.warn('Ending the Live Activities failed', error);
+      }
       await run(async () => {
         const key = await heldKey();
         if (!key) return;

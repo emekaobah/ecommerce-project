@@ -1,4 +1,4 @@
-import { apnsEnvironment, LIVE_ACTIVITY_KEY_HEADER, type BuyerActivityContent } from '@oja/domain';
+import { apnsEnvironment, buyerActivityOrderId, LIVE_ACTIVITY_KEY_HEADER, type BuyerActivityContent } from '@oja/domain';
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { addPushToStartTokenListener, type LiveActivity } from 'expo-widgets';
@@ -64,7 +64,22 @@ const reporter = tokenReporter({
     if (!ok) throw new Error(`Recording activity ${activityId} failed`);
   },
   startsActivitiesItself: () => Number.parseFloat(String(Platform.Version)) < FIRST_PUSH_TO_START_IOS,
+  endActivities: () => {
+    for (const activity of orderActivity.getInstances()) void activity.end('immediate').catch(() => {});
+  },
 });
+
+/**
+ * The shop order an activity is for, from the url the server or this app started it with. The
+ * library doesn't expose it, so `patches/expo-widgets` adds `getUrl` (ADR 0018). Null once the activity has gone.
+ */
+function orderIdOf(activity: LiveActivity<BuyerActivityContent>) {
+  try {
+    return buyerActivityOrderId(activity.getUrl());
+  } catch {
+    return null;
+  }
+}
 
 // Held for the life of the JS: the library cancels an activity's token observer when its object is released (#140).
 const watched = new Map<string, LiveActivity<BuyerActivityContent>>();
@@ -75,7 +90,7 @@ function watch(activity: LiveActivity<BuyerActivityContent>) {
   watched.set(id, activity);
   activity.addPushTokenListener(({ activityId, pushToken }) => {
     tokenSeen.add(activityId);
-    reporter.activityToken(activityId, pushToken);
+    reporter.activityToken(activityId, pushToken, orderIdOf(activity));
   });
 }
 
@@ -87,7 +102,7 @@ async function askForToken(activity: LiveActivity<BuyerActivityContent>) {
   const token = await activity.getPushToken().catch(() => null);
   if (!token || tokenSeen.has(activity.getId())) return;
   tokenSeen.add(activity.getId());
-  reporter.activityToken(activity.getId(), token);
+  reporter.activityToken(activity.getId(), token, orderIdOf(activity));
 }
 
 function scan() {
