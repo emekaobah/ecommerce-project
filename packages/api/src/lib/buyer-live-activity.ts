@@ -21,6 +21,7 @@ import { hashDeviceKey } from "../workflows/live-activity-token/steps"
 import { buyerOrder } from "./buyer-notifications"
 import { errorMessage } from "./errors"
 import { listBuyerOrderGroups, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
+import { ordersOnLockScreenOn } from "./notification-preferences"
 
 // A buyer's shop order on their Lock Screen and in the Dynamic Island (#133). Pushes go straight
 // to Apple (ADR 0017), and what reaches the phone isn't known from Apple's answer, so the normal
@@ -138,6 +139,7 @@ export async function startBuyerActivity(scope: Scope, orderId: string): Promise
   const found = await buyerOrder(scope, orderId)
   if (!found) return []
   const { checkout, order } = found
+  if (!(await ordersOnLockScreenOn(scope, checkout.customer_id))) return []
   const store = tokens(scope)
   const devices = await store.listLiveActivityDevices({
     app: "buyer",
@@ -194,6 +196,12 @@ async function updateBuyerActivity(scope: Scope, orderId: string, state: Fulfilm
   const alert = alerts ? alertOf(found, content, state) : null
 
   const rows = await runningActivities(scope, orderId, checkout.customer_id)
+  if (!rows.length) return []
+  // One running with the switch off got past it, or outlived a failed ending: it ends, and never restarts.
+  if (!(await ordersOnLockScreenOn(scope, checkout.customer_id))) {
+    await Promise.all(rows.map((row) => finish(scope, row, content, new Date())))
+    return []
+  }
   const replaced = await Promise.all(
     rows.map(async (row) => {
       if (alert && row.device.push_to_start_token && buyerActivityRestarts(state, new Date(row.started_at), new Date())) {
@@ -286,8 +294,8 @@ export async function catchUpBuyerActivity(scope: Scope, activityId: string): Pr
   if (action === "none") return
   const content = contentOf(found.checkout.number, found.order, state as ActivityState)
   if (action === "end") await finish(scope, row, content, new Date(Date.now() + BUYER_ACTIVITY_DISMISS_AFTER_MS))
-  // Ended already, by a restart or the buyer's switch, while its token was on the way.
-  else if (row.ended_at) await finish(scope, row, content, new Date())
+  // Ended already, by a restart or the buyer's switch, while its token was on the way; or the switch went off as it started.
+  else if (row.ended_at || !(await ordersOnLockScreenOn(scope, found.checkout.customer_id))) await finish(scope, row, content, new Date())
   else await sendToActivity(scope, row, { ...contentPush(content), event: "update", priority: 5 })
 }
 
@@ -320,24 +328,25 @@ export type OwedActivity = { order_id: string; url: string; content: BuyerActivi
 
 /**
  * The buyer's accepted shop orders this phone should be showing and doesn't, for a phone on iOS
- * below 17.2 to start itself. Empty for a phone the server starts by push.
+ * below 17.2 to start itself. Empty for a phone the server starts by push, and with "Orders on Lock
+ * Screen" off. An order whose activity that switch ended stays ended, as it does on a newer phone.
  */
 export async function owedBuyerActivities(scope: Scope, customerId: string, key: string): Promise<OwedActivity[]> {
   const store = tokens(scope)
   const [device] = await store.listLiveActivityDevices({ key_hash: hashDeviceKey(key), actor_type: "customer", actor_id: customerId })
   if (!device || device.push_to_start_token) return []
+  if (!(await ordersOnLockScreenOn(scope, customerId))) return []
   const { order_groups } = await listBuyerOrderGroups(scope, customerId, { phase: "in_progress" }, null)
   const orders = order_groups.flatMap((group: BuyerOrderGroup) =>
     group.orders.filter((order) => RUNS_AN_ACTIVITY.has(order.fulfilment.state)).map((order) => ({ group, order }))
   )
   if (!orders.length) return []
-  const running = await store.listLiveActivities({
+  const held = await store.listLiveActivities({
     device_id: device.id,
     kind: "buyer_shop_order",
     subject_id: orders.map(({ order }) => order.id),
-    ended_at: null,
   })
-  const started = new Set(running.map((activity) => activity.subject_id))
+  const started = new Set(held.map((activity) => activity.subject_id))
   return orders
     .filter(({ order }) => !started.has(order.id))
     .map(({ group, order }) => ({
