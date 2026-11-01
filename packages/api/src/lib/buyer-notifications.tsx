@@ -561,7 +561,7 @@ export async function tellCartNotPlaced(scope: Scope, { cart_id, customer_id, em
  * and an email with the code, where to collect, the shop's hours and when to collect by. Once
  * each, however often it is asked.
  */
-export async function tellReadyForPickup(scope: Scope, orderId: string): Promise<void> {
+export async function tellReadyForPickup(scope: Scope, orderId: string, { except = [] }: { except?: string[] } = {}): Promise<void> {
   const found = await buyerOrder(scope, orderId)
   if (!found) return
   const { checkout, order } = found
@@ -569,7 +569,7 @@ export async function tellReadyForPickup(scope: Scope, orderId: string): Promise
   const code = order.pickup?.code
   const collectBy = order.fulfilment.collect_by
   await Promise.all([
-    pushOrderState(scope, orderId, "ready_for_pickup"),
+    pushOrderState(scope, orderId, "ready_for_pickup", { except }),
     // Collected already: the code is spent, and the receipt follows.
     place &&
       code &&

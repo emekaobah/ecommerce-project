@@ -25,6 +25,7 @@ function fakes(overrides: Partial<TokenReporterPorts> = {}) {
     startActivity: mock((_content: OwedActivity['content'], _url: string) => 'activity-started'),
     recordStarted: mock(async (_key: string, _order: string, _activity: string) => {}),
     startsActivitiesItself: () => false,
+    endActivities: mock(() => {}),
   } satisfies TokenReporterPorts;
   return { ports: { ...ports, ...overrides } as typeof ports, setKey: (key: string) => (storedKey = key), key: () => storedKey };
 }
@@ -32,6 +33,45 @@ function fakes(overrides: Partial<TokenReporterPorts> = {}) {
 const settled = async (reporter: ReturnType<typeof tokenReporter>) => reporter.idle();
 const pushToStart = { kind: 'push_to_start', token: 'abc' };
 const activity = { kind: 'activity', activity_id: 'a1', token: 'def' };
+
+describe('which order an activity is for', () => {
+  test('its token is reported with the order its url names, so the server can follow it', async () => {
+    const f = fakes();
+    f.setKey('held-key');
+    const reporter = tokenReporter(f.ports);
+
+    reporter.activityToken('a1', 'def', 'order_1');
+    await settled(reporter);
+
+    expect(f.ports.post).toHaveBeenCalledWith('held-key', { ...activity, order_id: 'order_1' });
+  });
+});
+
+describe('signing out', () => {
+  test("ends the activities on the phone: nothing can update them any more, and one may show a pickup code", async () => {
+    const f = fakes();
+    f.setKey('held-key');
+    const reporter = tokenReporter(f.ports);
+
+    await reporter.signingOut();
+
+    expect(f.ports.endActivities).toHaveBeenCalledTimes(1);
+  });
+
+  test('still forgets the phone if iOS refuses to end them', async () => {
+    const f = fakes({
+      endActivities: mock(() => {
+        throw new Error('gone');
+      }),
+    });
+    f.setKey('held-key');
+    const reporter = tokenReporter(f.ports);
+
+    await reporter.signingOut();
+
+    expect(f.ports.remove).toHaveBeenCalledWith('held-key');
+  });
+});
 
 describe('a launch before auth is restored', () => {
   let f: ReturnType<typeof fakes>;

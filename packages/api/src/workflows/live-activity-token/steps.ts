@@ -51,7 +51,8 @@ export const removeLiveActivityDeviceStep = createStep(
 
 export type ReportTokenInput = { device_id: string; environment: Environment; token: string } & (
   | { kind: "push_to_start" }
-  | { kind: "activity"; activity_id: string }
+  /** `subject_id`: the buyer's own order the activity's url names, when it names one. */
+  | { kind: "activity"; activity_id: string; subject_id?: string }
 )
 
 /** Takes a token from the phone, repeats included; a token another row holds has moved to this phone. */
@@ -64,7 +65,7 @@ export const reportLiveActivityTokenStep = createStep(
       const others = holders.filter((other) => other.id !== input.device_id)
       if (others.length) await devices.updateLiveActivityDevices(others.map(({ id }) => ({ id, push_to_start_token: null })))
       await devices.updateLiveActivityDevices({ id: input.device_id, environment: input.environment, push_to_start_token: input.token })
-      return new StepResponse({ token: input.token })
+      return new StepResponse({ token: input.token, catch_up: null as string | null, spare: false })
     }
     const held = await devices.listLiveActivities({ $or: [{ apple_id: input.activity_id }, { token: input.token }] })
     // A sign-out that never reached the server left the activity on the phone's old row.
@@ -72,20 +73,39 @@ export const reportLiveActivityTokenStep = createStep(
     if (stale.length) await devices.deleteLiveActivities(stale.map((activity) => activity.id))
     const known = held.find((activity) => activity.device_id === input.device_id)
     const { app } = await devices.retrieveLiveActivityDevice(input.device_id)
-    if (known) await devices.updateLiveActivities({ id: known.id, apple_id: input.activity_id, token: input.token, environment: input.environment })
-    else if (app === "vendor") await recordShopActivityToken(devices, input)
-    else {
-      await devices.createLiveActivities({
-        device_id: input.device_id,
-        kind: "buyer_shop_order",
-        apple_id: input.activity_id,
-        token: input.token,
-        environment: input.environment,
-        started_at: new Date(),
-      })
+    const reported = { apple_id: input.activity_id, token: input.token, environment: input.environment }
+    let catch_up: string | null = null
+    let spare = false
+    if (known) {
+      await devices.updateLiveActivities({ id: known.id, ...reported })
+      // The server recorded its start, the phone named it, and only now can it be sent anything.
+      if (!known.token && app === "buyer") catch_up = known.id
+    } else if (app === "vendor") {
+      await recordShopActivityToken(devices, input)
+    } else {
+      const about = input.subject_id ? await devices.listLiveActivities({ device_id: input.device_id, kind: "buyer_shop_order", subject_id: input.subject_id }, { order: { started_at: "DESC" } }) : []
+      const running = about.find((activity) => !activity.ended_at)
+      // The row its start left, running or ended while it waited for this.
+      const started = running && !running.apple_id ? running : !running ? about.find((activity) => !activity.apple_id && !activity.token) : undefined
+      if (started) {
+        await devices.updateLiveActivities({ id: started.id, ...reported })
+        catch_up = started.id
+      } else if (running) {
+        spare = true
+      } else {
+        const created = await devices.createLiveActivities({
+          device_id: input.device_id,
+          kind: "buyer_shop_order",
+          subject_id: input.subject_id ?? null,
+          ...reported,
+          started_at: new Date(),
+        })
+        // One the server has no row for: Apple's answer to its start got lost, say. It can still be followed.
+        if (input.subject_id) catch_up = created.id
+      }
     }
     await devices.updateLiveActivityDevices({ id: input.device_id, environment: input.environment, update_token_reported_at: new Date() })
-    return new StepResponse({ token: input.token })
+    return new StepResponse({ token: input.token, catch_up, spare })
   }
 )
 
