@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import type { ShopHours } from "./shop-hours"
 import { liveActivityPayloadBytes, MAX_ACTIVITY_CONTENT_BYTES } from "./buyer-activity"
-import { nearestAcceptDeadline, vendorActivityContent, VENDOR_ACTIVITY_FACTORY } from "./vendor-activity"
+import {
+  nearestAcceptDeadline,
+  vendorActivityAlert,
+  vendorActivityContent,
+  vendorActivityUpdateDue,
+  VENDOR_ACTIVITY_FACTORY,
+  type VendorActivityContent,
+} from "./vendor-activity"
 
 const COUNTS = { new: 2, picking: 1, ready: 3, out: 4 }
 
@@ -76,5 +83,55 @@ describe("nearestAcceptDeadline", () => {
       pauses: [],
     }
     expect(nearestAcceptDeadline(["2026-11-02T09:00:00.000Z"], now, hours)).toBeNull()
+  })
+})
+
+describe("vendorActivityUpdateDue", () => {
+  const now = new Date("2026-11-02T10:00:00.000Z")
+  const ago = (seconds: number) => new Date(now.getTime() - seconds * 1000)
+  const current: VendorActivityContent = { shop: "Iya Bisi", counts: COUNTS, deadline: "2026-11-02T14:00:00.000Z", urgent: false }
+
+  test("nothing has been sent yet: anything shown is news", () => {
+    expect(vendorActivityUpdateDue(null, current, now)).toBe(true)
+  })
+
+  test("nothing changed: nothing to send, however long it has been", () => {
+    expect(vendorActivityUpdateDue({ content: { ...current, counts: { ...COUNTS } }, at: ago(3600) }, current, now)).toBe(false)
+  })
+
+  test("the same content in another key order, as Postgres hands back JSON, hasn't changed", () => {
+    const stored = { urgent: false, deadline: current.deadline, counts: { out: 4, ready: 3, picking: 1, new: 2 }, shop: "Iya Bisi" }
+    expect(vendorActivityUpdateDue({ content: stored, at: ago(3600) }, current, now)).toBe(false)
+  })
+
+  test("a count, the deadline or the urgency changed: due", () => {
+    const sent = { content: current, at: ago(60) }
+    expect(vendorActivityUpdateDue(sent, { ...current, counts: { ...COUNTS, ready: 4 } }, now)).toBe(true)
+    expect(vendorActivityUpdateDue(sent, { ...current, deadline: "2026-11-02T15:00:00.000Z" }, now)).toBe(true)
+    expect(vendorActivityUpdateDue(sent, { ...current, deadline: null }, now)).toBe(true)
+    expect(vendorActivityUpdateDue(sent, { ...current, urgent: true }, now)).toBe(true)
+  })
+
+  test("a change waits until 30 seconds after the last push", () => {
+    const changed = { ...current, counts: { ...COUNTS, ready: 4 } }
+    expect(vendorActivityUpdateDue({ content: current, at: ago(29) }, changed, now)).toBe(false)
+    expect(vendorActivityUpdateDue({ content: current, at: ago(30) }, changed, now)).toBe(true)
+  })
+})
+
+describe("vendorActivityAlert", () => {
+  const content: VendorActivityContent = { shop: "Iya Bisi", counts: { ...COUNTS, new: 1 }, deadline: "2026-11-02T14:00:00.000Z", urgent: true }
+
+  test("a new order says how many are waiting", () => {
+    expect(vendorActivityAlert("new_order", content)).toEqual({ title: "Iya Bisi", body: "New order. 1 waiting to accept." })
+    expect(vendorActivityAlert("new_order", { ...content, counts: COUNTS })).toEqual({ title: "Iya Bisi", body: "New order. 2 waiting to accept." })
+  })
+
+  test("the last two hours says what the drawing's label says", () => {
+    expect(vendorActivityAlert("deadline_near", content)).toEqual({ title: "Iya Bisi", body: "An order has under 2 hours to accept." })
+  })
+
+  test("has no sound: the shop's own pushes carry the alarm", () => {
+    expect(vendorActivityAlert("new_order", content)).not.toHaveProperty("sound")
   })
 })

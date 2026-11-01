@@ -375,7 +375,8 @@ medusaIntegrationTestRunner({
         await api.post("/vendor/shop-hours/pause", {}, owner.gadgets)
 
         await eventually(async () => apns.sentTo(gadgetsUpdate), (sent) => sent.length >= 1)
-        expect(apns.sentTo(groceryUpdate)).toEqual([])
+        // The second order's alert reached it; the other shop's pause didn't.
+        expect(apns.sentTo(groceryUpdate).map((p) => p.aps.event)).toEqual(["update"])
       })
 
       it("doesn't guess whose token it is when two activities on the phone are waiting for one", async () => {

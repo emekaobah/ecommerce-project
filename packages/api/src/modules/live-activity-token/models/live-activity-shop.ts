@@ -7,6 +7,8 @@ const LiveActivityShop = model
     id: model.id({ prefix: "lashop" }).primaryKey(),
     device: model.belongsTo(() => LiveActivityDevice, { mappedBy: "shops" }),
     seller_id: model.text(),
+    /** Set when the shop was seen closed, cleared when it was next seen open: that's how an opening is noticed (#147). */
+    closed_seen_at: model.dateTime().nullable(),
   })
   .indexes([{ on: ["device_id", "seller_id"], unique: true }, { on: ["seller_id"] }])
 

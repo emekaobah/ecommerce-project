@@ -1,6 +1,6 @@
 import { acceptDeadline, acceptTimeLeft } from "./accept-deadline"
 import { clip } from "./buyer-activity"
-import type { OrderStage } from "./order-stage"
+import { ORDER_STAGES, type OrderStage } from "./order-stage"
 import type { ShopHours } from "./shop-hours"
 
 /**
@@ -45,4 +45,32 @@ export function nearestAcceptDeadline(placedAt: string[], now: Date, hours: Shop
   if (!deadlines.length) return null
   const at = deadlines.reduce((nearest, deadline) => (Date.parse(deadline) < Date.parse(nearest) ? deadline : nearest))
   return { at, urgent: acceptTimeLeft(at, now, hours).urgent }
+}
+
+/** What was last sent to a phone: the content, and when. */
+export type VendorActivitySent = { content: VendorActivityContent; at: Date }
+
+/** At most one batched update in this long. Alerting updates don't wait for it. */
+const BATCH_MS = 30 * 1000
+
+const sameContent = (a: VendorActivityContent, b: VendorActivityContent) =>
+  a.shop === b.shop && a.deadline === b.deadline && a.urgent === b.urgent && ORDER_STAGES.every((stage) => a.counts[stage] === b.counts[stage])
+
+/**
+ * Whether a phone should be sent `current` in the next batch: the shop's content differs from what
+ * the phone last got, and the last push was long enough ago. Several changes between two checks are
+ * one update. It compares what was sent with what's true now, so nothing has to remember a change.
+ */
+export function vendorActivityUpdateDue(sent: VendorActivitySent | null, current: VendorActivityContent, now: Date): boolean {
+  if (!sent) return true
+  return !sameContent(sent.content, current) && now.getTime() - sent.at.getTime() >= BATCH_MS
+}
+
+/** The moments that update the activity at once, with an alert (priority 10). */
+export type VendorActivityMoment = "new_order" | "deadline_near"
+
+/** What the alert says. It has no sound: the new-order and reminder pushes keep theirs. */
+export function vendorActivityAlert(moment: VendorActivityMoment, content: VendorActivityContent): { title: string; body: string } {
+  const body = moment === "new_order" ? `New order. ${content.counts.new} waiting to accept.` : "An order has under 2 hours to accept."
+  return { title: content.shop, body }
 }
