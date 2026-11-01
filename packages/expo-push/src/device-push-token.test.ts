@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { pushTokenSource, type PushModules } from './device-push-token';
+import { pushPlatform, pushTokenSource, type PushModules } from './device-push-token';
 
 /** The behaviour `pushTokenSource` asks for a notification that arrives with the app open. */
 async function behaviourOf(content: { title: string | null; body: string | null }) {
@@ -19,5 +19,12 @@ describe('with the app open', () => {
 
   test("a data-only message shows nothing: there'd be a blank notification", async () => {
     expect(await behaviourOf({ title: null, body: null })).toEqual({ shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: false, shouldShowList: false });
+  });
+});
+
+describe('pushPlatform', () => {
+  test('tells Android from everything else', () => {
+    expect(pushPlatform('android')).toBe('android');
+    expect(pushPlatform('ios')).toBe('ios');
   });
 });
