@@ -29,7 +29,7 @@ import { ordersOnLockScreenOn } from "./notification-preferences"
 
 type Scope = Pick<MedusaContainer, "resolve">
 
-const tokens = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
+const tokenStore = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
 
 type DeviceFacts = { update_token_reported_at: Date | string | null }
 
@@ -41,7 +41,7 @@ type DeviceFacts = { update_token_reported_at: Date | string | null }
  */
 export const activityAlertReplacesPush = (device: DeviceFacts) => device.update_token_reported_at != null
 
-const senderOf = (scope: Scope) => scope.resolve<LiveActivityPushModuleService>(LIVE_ACTIVITY_PUSH_MODULE)
+const sender = (scope: Scope) => scope.resolve<LiveActivityPushModuleService>(LIVE_ACTIVITY_PUSH_MODULE)
 
 type Found = NonNullable<Awaited<ReturnType<typeof buyerOrder>>>
 const contentPush = (content: BuyerActivityContent) => ({ app: "buyer" as const, content: { factory: BUYER_ACTIVITY_FACTORY, props: content } })
@@ -54,18 +54,18 @@ const alertOf = ({ checkout }: Found, content: BuyerActivityContent, state: Fulf
 
 /** The running activities of an order on its buyer's phones. A phone that has since moved to someone else gets no more of it. */
 async function runningActivities(scope: Scope, orderId: string, customerId: string) {
-  const rows = await tokens(scope).listLiveActivities({ kind: "buyer_shop_order", subject_id: orderId, ended_at: null }, { relations: ["device"] })
+  const rows = await tokenStore(scope).listLiveActivities({ kind: "buyer_shop_order", subject_id: orderId, ended_at: null }, { relations: ["device"] })
   return rows.filter((row) => row.device.actor_type === "customer" && row.device.actor_id === customerId)
 }
 
 type Row = Awaited<ReturnType<typeof runningActivities>>[number]
 /** An update or end, needing only the row's token and environment. */
-type ToAnActivity = LiveActivityPush extends infer P ? (P extends { event: "update" | "end" } ? Omit<P, "token" | "environment"> : never) : never
+type OnRunningActivity = LiveActivityPush extends infer P ? (P extends { event: "update" | "end" } ? Omit<P, "token" | "environment"> : never) : never
 
 /** Sends to an activity's own token, forgetting the activity if Apple says it's gone. */
-async function sendToActivity(scope: Scope, row: Pick<Row, "id" | "token" | "environment">, push: ToAnActivity) {
-  const sent = await senderOf(scope).send({ ...push, token: row.token!, environment: row.environment })
-  if (sent.status === "token_rejected") await tokens(scope).deleteLiveActivities(row.id)
+async function sendToActivity(scope: Scope, row: Pick<Row, "id" | "token" | "environment">, push: OnRunningActivity) {
+  const sent = await sender(scope).send({ ...push, token: row.token!, environment: row.environment })
+  if (sent.status === "token_rejected") await tokenStore(scope).deleteLiveActivities(row.id)
   return sent
 }
 
@@ -81,7 +81,7 @@ async function startOnDevice(
   content: BuyerActivityContent,
   alert: LiveActivityAlert
 ) {
-  const store = tokens(scope)
+  const store = tokenStore(scope)
   let claim: { id: string }
   try {
     claim = await store.createLiveActivities({
@@ -95,7 +95,7 @@ async function startOnDevice(
     scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Recording the Live Activity of order ${orderId} failed: ${errorMessage(error)}`)
     return false
   }
-  const sent = await senderOf(scope).send({
+  const sent = await sender(scope).send({
     ...contentPush(content),
     event: "start",
     token: device.push_to_start_token!,
@@ -123,7 +123,7 @@ export async function startBuyerActivity(scope: Scope, orderId: string): Promise
   if (!found) return []
   const { checkout, order } = found
   if (!(await ordersOnLockScreenOn(scope, checkout.customer_id))) return []
-  const store = tokens(scope)
+  const store = tokenStore(scope)
   const devices = await store.listLiveActivityDevices({
     app: "buyer",
     actor_type: "customer",
@@ -153,7 +153,7 @@ export async function startBuyerActivity(scope: Scope, orderId: string): Promise
  * old has to stop being the running one before it.
  */
 async function restartOnDevice(scope: Scope, found: Found, row: Row, content: BuyerActivityContent, alert: LiveActivityAlert) {
-  const store = tokens(scope)
+  const store = tokenStore(scope)
   const endedAt = new Date()
   await store.updateLiveActivities({ id: row.id, ended_at: endedAt })
   if (!(await startOnDevice(scope, found, row.subject_id!, row.device, content, alert))) {
@@ -223,7 +223,7 @@ async function finish(scope: Scope, row: Pick<Row, "id" | "token" | "environment
   const sent = row.token ? await sendToActivity(scope, row, { ...contentPush(content), event: "end", priority: 10, dismissAt }) : null
   if (sent?.status === "token_rejected") return
   if (sent?.status === "failed" && !liveActivityOutlived(row.started_at, now)) {
-    await tokens(scope).updateLiveActivities({ id: row.id, end_content: content as unknown as Record<string, unknown>, end_dismiss_at: dismissAt })
+    await tokenStore(scope).updateLiveActivities({ id: row.id, end_content: content as unknown as Record<string, unknown>, end_dismiss_at: dismissAt })
     return
   }
   await settleEnding(scope, row, now)
@@ -231,11 +231,11 @@ async function finish(scope: Scope, row: Pick<Row, "id" | "token" | "environment
 
 /** Nothing more is owed to this activity. */
 const settleEnding = (scope: Scope, row: Pick<Row, "id" | "ended_at">, now: Date) =>
-  tokens(scope).updateLiveActivities({ id: row.id, ended_at: row.ended_at ?? now, end_content: null, end_dismiss_at: null })
+  tokenStore(scope).updateLiveActivities({ id: row.id, ended_at: row.ended_at ?? now, end_content: null, end_dismiss_at: null })
 
 /** The minute job: endings Apple couldn't take, with the final state they were first sent with. */
 export async function retryBuyerActivityEndings(scope: Scope, now = new Date()): Promise<void> {
-  const rows = await tokens(scope).listLiveActivities({ kind: "buyer_shop_order", end_dismiss_at: { $ne: null } }, { relations: ["device"], take: null })
+  const rows = await tokenStore(scope).listLiveActivities({ kind: "buyer_shop_order", end_dismiss_at: { $ne: null } }, { relations: ["device"], take: null })
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
   await Promise.all(
     rows.map(async (row) => {
@@ -268,7 +268,7 @@ export async function endNotCollectedActivity(scope: Scope, { id, amount, kept }
  */
 export async function endBuyerActivities(scope: Scope, customerId: string): Promise<void> {
   await removeBuyerLiveUpdates(scope, customerId)
-  const store = tokens(scope)
+  const store = tokenStore(scope)
   const devices = await store.listLiveActivityDevices({ app: "buyer", actor_type: "customer", actor_id: customerId })
   if (!devices.length) return
   const rows = await store.listLiveActivities({ device_id: devices.map(({ id }) => id), kind: "buyer_shop_order", ended_at: null })
@@ -309,7 +309,7 @@ export type LiveActivityTokenReported =
  * missed: accepting has already moved the order on to picking, and the order may have finished.
  */
 export async function catchUpBuyerActivity(scope: Scope, activityId: string): Promise<void> {
-  const [row] = await tokens(scope).listLiveActivities({ id: activityId })
+  const [row] = await tokenStore(scope).listLiveActivities({ id: activityId })
   if (!row?.token || !row.subject_id) return
   const found = await buyerOrder(scope, row.subject_id)
   if (!found) return
@@ -332,7 +332,7 @@ export async function endSpareBuyerActivity(
   const state = found?.order.fulfilment.state
   if (!found || !state || buyerActivityPlan(state).action === "none") return
   const content = contentOf(found.checkout.number, found.order, state as ActivityState)
-  await senderOf(scope).send({ ...contentPush(content), event: "end", token, environment, priority: 10, dismissAt: new Date() })
+  await sender(scope).send({ ...contentPush(content), event: "end", token, environment, priority: 10, dismissAt: new Date() })
 }
 
 export type OwedActivity = { order_id: string; url: string; content: BuyerActivityContent }
@@ -343,7 +343,7 @@ export type OwedActivity = { order_id: string; url: string; content: BuyerActivi
  * Screen" off. An order whose activity that switch ended stays ended, as it does on a newer phone.
  */
 export async function owedBuyerActivities(scope: Scope, customerId: string, key: string): Promise<OwedActivity[]> {
-  const store = tokens(scope)
+  const store = tokenStore(scope)
   const [device] = await store.listLiveActivityDevices({ key_hash: hashDeviceKey(key), actor_type: "customer", actor_id: customerId })
   if (!device || device.push_to_start_token) return []
   if (!(await ordersOnLockScreenOn(scope, customerId))) return []

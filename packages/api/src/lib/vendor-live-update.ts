@@ -9,7 +9,7 @@ import { pushDataToDevices } from "./push-devices"
 type Scope = Pick<MedusaContainer, "resolve">
 
 /** Which of these phones are Android, by what each said when it registered for pushes: phone id to Expo token. */
-export async function androidPhones(scope: Scope, phones: { id: string; push_token?: string | null }[]): Promise<Map<string, string>> {
+export async function androidPhonesAmong(scope: Scope, phones: { id: string; push_token?: string | null }[]): Promise<Map<string, string>> {
   const linked = phones.filter((phone) => phone.push_token)
   if (!linked.length) return new Map()
   const rows = await scope

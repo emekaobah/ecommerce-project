@@ -22,7 +22,7 @@ import { errorMessage } from "./errors"
 import { fulfilmentService } from "./order-fulfilment"
 import { stageCounts } from "./order-stages"
 import { shopHoursOf } from "./shop-hours"
-import { androidPhones, pushShopLiveUpdate } from "./vendor-live-update"
+import { androidPhonesAmong, pushShopLiveUpdate } from "./vendor-live-update"
 
 // A shop's orders on the Lock Screen of phones that turned it on (#146): one activity per shop per
 // phone, from the day's first new order until the shop closes or pauses. Pushes go straight to
@@ -38,7 +38,7 @@ import { androidPhones, pushShopLiveUpdate } from "./vendor-live-update"
 
 type Scope = Pick<MedusaContainer, "resolve">
 
-const tokens = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
+const tokenStore = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
 const sender = (scope: Scope) => scope.resolve<LiveActivityPushModuleService>(LIVE_ACTIVITY_PUSH_MODULE)
 
 /** What tapping the activity opens: that shop's orders, acting for it. */
@@ -68,7 +68,7 @@ export async function shopActivityContent(scope: Scope, sellerId: string, hours:
 
 /** Phones that have it on for the shop, whose member is still in the shop. */
 async function phonesOfShop(scope: Scope, sellerId: string) {
-  const store = tokens(scope)
+  const store = tokenStore(scope)
   const shops = await store.listLiveActivityShops({ seller_id: sellerId }, { select: ["device_id"], take: null })
   if (!shops.length) return []
   const { data } = await scope
@@ -128,14 +128,14 @@ async function endActivity(scope: Scope, activity: Running, content: VendorActiv
   // A moment older than a start it may be making way for: Android draws whichever is newest.
   const status = await pushTo(scope, { ...activity, android }, activity.subject_id!, { event: "end", content, at: now.getTime() - 1, moment: `end:${activity.id}`, dismissAt: now })
   if (status === "failed" && !liveActivityOutlived(activity.started_at, now)) return
-  await tokens(scope).updateLiveActivities({ id: activity.id, ended_at: now, ...(status === "token_rejected" ? { token: null } : {}) })
+  await tokenStore(scope).updateLiveActivities({ id: activity.id, ended_at: now, ...(status === "token_rejected" ? { token: null } : {}) })
 }
 
 /** Sends an update and records what Apple accepted. One it says is gone is over; a failed push is tried by the next batch. */
 async function sendUpdate(scope: Scope, activity: Updatable, content: VendorActivityContent, priority: 5 | 10, now: Date, moment: string, alert?: LiveActivityAlert) {
   const status = await pushTo(scope, activity, activity.subject_id!, { event: "update", priority, alert, content, at: now.getTime(), moment })
-  if (status === "sent") await tokens(scope).updateLiveActivities({ id: activity.id, sent_content: content, sent_at: now })
-  if (status === "token_rejected") await tokens(scope).updateLiveActivities({ id: activity.id, ended_at: now, token: null })
+  if (status === "sent") await tokenStore(scope).updateLiveActivities({ id: activity.id, sent_content: content, sent_at: now })
+  if (status === "token_rejected") await tokenStore(scope).updateLiveActivities({ id: activity.id, ended_at: now, token: null })
 }
 
 /** A running activity something can be pushed to: by its Apple token, or `android`, the phone's Expo token. */
@@ -146,11 +146,11 @@ type Updatable = Running & { android: string | null }
  * yet catches up in a batch; an Android phone needs none.
  */
 async function updatable(scope: Scope, filter: { subject_id: string | { $ne: null } }): Promise<Updatable[]> {
-  const store = tokens(scope)
+  const store = tokenStore(scope)
   const rows = (await store.listLiveActivities({ kind: "vendor_shop", ended_at: null, ...filter }, { take: null })) as unknown as Running[]
   const waiting = rows.filter((row) => !row.token)
   const android = waiting.length
-    ? await androidPhones(scope, await store.listLiveActivityDevices({ id: waiting.map((row) => row.device_id) }, { select: ["id", "push_token"], take: null }))
+    ? await androidPhonesAmong(scope, await store.listLiveActivityDevices({ id: waiting.map((row) => row.device_id) }, { select: ["id", "push_token"], take: null }))
     : new Map<string, string>()
   return rows.flatMap((row) => {
     if (row.token) return [{ ...row, android: null as string | null }]
@@ -161,17 +161,17 @@ async function updatable(scope: Scope, filter: { subject_id: string | { $ne: nul
 
 /** The Expo token of this phone, if it's an Android one. */
 async function androidPhoneOf(scope: Scope, deviceId: string) {
-  const devices = await tokens(scope).listLiveActivityDevices({ id: deviceId }, { select: ["id", "push_token"] })
-  return (await androidPhones(scope, devices)).get(deviceId)
+  const devices = await tokenStore(scope).listLiveActivityDevices({ id: deviceId }, { select: ["id", "push_token"] })
+  return (await androidPhonesAmong(scope, devices)).get(deviceId)
 }
 
 /** Starts the activity on these phones, unless it's already running since today. Answers those it started. */
 async function startOnPhones(scope: Scope, sellerId: string, phones: Awaited<ReturnType<typeof phonesOfShop>>, hours: ShopHours | null, content: VendorActivityContent, now: Date) {
-  const store = tokens(scope)
+  const store = tokenStore(scope)
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
   const timeZone = hours?.time_zone ?? SHIPBUBBLE_TIMEZONE
   const today = dateIn(now.getTime(), timeZone)
-  const android = await androidPhones(scope, phones)
+  const android = await androidPhonesAmong(scope, phones)
   const started = new Set<string>()
 
   await Promise.all(
@@ -232,7 +232,7 @@ export async function memberOfShop(scope: Scope, memberId: string, sellerId: str
  * once, so it can't stay up out of hours. One it does want is the minute job's to keep current.
  */
 export async function catchUpShopActivity(scope: Scope, activityId: string, now = new Date()): Promise<void> {
-  const [row] = await tokens(scope).listLiveActivities({ id: activityId })
+  const [row] = await tokenStore(scope).listLiveActivities({ id: activityId })
   if (!row?.token || !row.subject_id) return
   const hours = await hoursOfShop(scope, row.subject_id, now)
   const phones = await phonesOfShop(scope, row.subject_id)
@@ -293,7 +293,7 @@ export async function alertDeadlineNear(scope: Scope, orderId: string, now: Date
 
 /** Ends the shop's activity on every phone running it. */
 export async function endShopActivity(scope: Scope, sellerId: string, now = new Date()): Promise<void> {
-  const running = await tokens(scope).listLiveActivities({ kind: "vendor_shop", subject_id: sellerId, ended_at: null }, { take: null })
+  const running = await tokenStore(scope).listLiveActivities({ kind: "vendor_shop", subject_id: sellerId, ended_at: null }, { take: null })
   if (!running.length) return
   const hours = await hoursOfShop(scope, sellerId, now)
   const content = await shopActivityContent(scope, sellerId, hours, now)
@@ -302,7 +302,7 @@ export async function endShopActivity(scope: Scope, sellerId: string, now = new 
 
 /** Ends the activities of shops not open now: closed by their hours, or a pause that couldn't be told at once. */
 export async function endActivitiesOfClosedShops(scope: Scope, now = new Date()): Promise<void> {
-  const running = await tokens(scope).listLiveActivities(
+  const running = await tokenStore(scope).listLiveActivities(
     { kind: "vendor_shop", subject_id: { $ne: null }, ended_at: null },
     { select: ["subject_id"], take: null }
   )
@@ -321,7 +321,7 @@ export async function endActivitiesOfClosedShops(scope: Scope, now = new Date())
  * waits for a new order. The marks are in the database, so an opening during a restart is still seen.
  */
 export async function noticeShopsOpeningAndClosing(scope: Scope, now = new Date(), sellerId?: string): Promise<void> {
-  const store = tokens(scope)
+  const store = tokenStore(scope)
   const shops = await store.listLiveActivityShops(sellerId ? { seller_id: sellerId } : {}, { select: ["id", "seller_id", "device_id", "closed_seen_at"], take: null })
   if (!shops.length) return
   const hours = await shopHoursOf(scope, shops.map((shop) => shop.seller_id), now)

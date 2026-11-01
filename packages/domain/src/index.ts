@@ -139,12 +139,12 @@ export {
   buyerLiveUpdateMessage,
   buyerLiveUpdateView,
   LIVE_UPDATE_TTL_SECONDS,
-  readLiveUpdateMessage,
+  readBuyerLiveUpdateMessage,
   readVendorLiveUpdateMessage,
   vendorLiveUpdateMessage,
   vendorLiveUpdateView,
 } from "./live-update"
-export type { LiveUpdateIcon, LiveUpdateMessage, LiveUpdateProgress, LiveUpdateView, ThemedColor, VendorLiveUpdateMessage } from "./live-update"
+export type { LiveUpdateIcon, BuyerLiveUpdateMessage, LiveUpdateProgress, LiveUpdateView, ThemedColor, VendorLiveUpdateMessage } from "./live-update"
 export { nearestAcceptDeadline, VENDOR_ACTIVITY_FACTORY, vendorActivityAlert, vendorActivityContent, vendorActivitySellerId, vendorActivityUpdateDue, vendorActivityUrl } from "./vendor-activity"
 export type { NearestDeadline, VendorActivityContent, VendorActivityMoment, VendorActivitySent, VendorActivityShop } from "./vendor-activity"
 export type { Reached, TimelineStep } from "./timeline"

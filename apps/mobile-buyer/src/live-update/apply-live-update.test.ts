@@ -1,11 +1,11 @@
 import { describe, expect, mock, test } from 'bun:test';
 
-import { buyerActivityContent, buyerActivityUrl, buyerLiveUpdateMessage, type LiveUpdateMessage } from '@oja/domain';
+import { buyerActivityContent, buyerActivityUrl, buyerLiveUpdateMessage, type BuyerLiveUpdateMessage } from '@oja/domain';
 
 import { applyLiveUpdate } from './apply-live-update';
 
 const content = buyerActivityContent({ number: 'OJ-2412', shop: 'Iya Bisi Foodstuff', method: 'delivery', state: 'picking', currency_code: 'ngn' });
-const message = (action: LiveUpdateMessage['action']) =>
+const message = (action: BuyerLiveUpdateMessage['action']) =>
   buyerLiveUpdateMessage({ action, orderId: 'order_1', url: buyerActivityUrl('oja', 'group_1', 'order_1'), content, at: 1000 });
 const payload = (data: unknown) => ({ data: { dataString: JSON.stringify(data) } });
 const ports = () => ({ show: mock(() => {}), cancel: mock(() => {}) });
