@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { formatMoney } from "@oja/domain"
 import { seedDemoWorld } from "../../src/scripts/seed"
 import { SEED_PERISHABLE_CATEGORIES, SEED_PRODUCTS } from "../../src/scripts/seed-data"
-import { endBuyerActivities } from "../../src/lib/buyer-live-activity"
+import { endBuyerActivities, retryBuyerActivityEndings } from "../../src/lib/buyer-live-activity"
 import { setNotificationPreferences } from "../../src/lib/notification-preferences"
 import { expirePickupHolds } from "../../src/lib/pickup-hold-expiry"
 import { LIVE_ACTIVITY_TOKEN_MODULE } from "../../src/modules/live-activity-token"
@@ -420,6 +420,91 @@ medusaIntegrationTestRunner({
         const [update] = await sentTo(token)
         expect(update.aps.event).toBe("update")
         await eventually(async () => pushedTitles(phone.device), (titles) => titles.includes(`Courier booked for order ${number}`))
+      })
+    })
+
+    describe("an ending Apple couldn't take", () => {
+      const turn = (orders_on_lock_screen: boolean) => api.post("/store/customers/me/notification-preferences", { orders_on_lock_screen }, ada())
+      afterEach(() => turn(true))
+      /** The minute job, until it has got this ending through. */
+      const retriedInto = (token: string) =>
+        eventually(
+          async () => {
+            await retryBuyerActivityEndings(getContainer())
+            return apns.sentTo(token).filter((p) => p.aps.event === "end")
+          },
+          (ended) => ended.length >= 1
+        )
+
+      it("is tried again with the same final state until it lands, and then only once", async () => {
+        const phone = await iPhone()
+        const { orderId, token } = await following(phone)
+        apns.fail(token)
+
+        await post(`${orderId}/cancel`, { reason: "items_unavailable" })
+        await eventually(async () => apns.attemptsTo(token), (tries) => tries >= 1)
+        await settle()
+        expect(apns.sentTo(token)).toEqual([])
+
+        apns.recover(token)
+        const [ended] = await retriedInto(token)
+
+        expect(JSON.parse(ended.aps["content-state"].props).outcome).toMatchObject({ kind: "cancelled", by: "seller", reason: "Items unavailable" })
+        await retryBuyerActivityEndings(getContainer())
+        expect(apns.sentTo(token).filter((p) => p.aps.event === "end")).toHaveLength(1)
+      })
+
+      it("is tried again when the switch's ending failed, and sends no update meanwhile", async () => {
+        const phone = await iPhone()
+        const { orderId, token } = await following(phone)
+        apns.fail(token)
+
+        await turn(false)
+        await eventually(async () => apns.attemptsTo(token), (tries) => tries >= 1)
+        await turn(true)
+        await settle()
+        const tries = apns.attemptsTo(token)
+        await pack(orderId)
+        await settle()
+        expect(apns.attemptsTo(token)).toBe(tries)
+
+        apns.recover(token)
+        await retriedInto(token)
+      })
+
+      it("is tried again when a restart's ending of the old activity failed", async () => {
+        const phone = await iPhone()
+        const { orderId, token } = await following(phone)
+        await pack(orderId)
+        await sentTo(token)
+        apns.reset()
+        await startedAgo(orderId, 7 * HOUR)
+        apns.fail(token)
+
+        await post(`${orderId}/book-label`)
+
+        await sentTo(phone.pushToStart)
+        await eventually(async () => apns.attemptsTo(token), (tries) => tries >= 1)
+        await settle()
+        apns.recover(token)
+        await retriedInto(token)
+      })
+
+      it("stops once iOS has let the activity go, so a dead token isn't tried for ever", async () => {
+        const phone = await iPhone()
+        const { orderId, token } = await following(phone)
+        apns.fail(token)
+        await post(`${orderId}/cancel`, { reason: "items_unavailable" })
+        await eventually(async () => apns.attemptsTo(token), (tries) => tries >= 1)
+        await settle()
+        const tries = apns.attemptsTo(token)
+
+        await retryBuyerActivityEndings(getContainer(), new Date(Date.now() + 13 * HOUR))
+        await retryBuyerActivityEndings(getContainer())
+
+        expect(apns.attemptsTo(token)).toBe(tries)
+        const [row] = await activities().listLiveActivities({ token })
+        expect(row.ended_at).not.toBeNull()
       })
     })
 

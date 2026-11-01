@@ -20,6 +20,9 @@ const LiveActivity = model
     /** What Apple last accepted for this phone, and when: what the shop's batched updates compare against (#147). */
     sent_content: model.json().nullable(),
     sent_at: model.dateTime().nullable(),
+    /** An ending Apple couldn't take, for the minute job to try again: what it shows, and until when. */
+    end_content: model.json().nullable(),
+    end_dismiss_at: model.dateTime().nullable(),
     environment: model.enum([...APNS_ENVIRONMENTS]),
     started_at: model.dateTime(),
     ended_at: model.dateTime().nullable(),

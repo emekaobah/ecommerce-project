@@ -6,6 +6,7 @@ import {
   buyerActivityRestarts,
   buyerActivityUrl,
   buyerStatusPush,
+  liveActivityOutlived,
   orderNumber,
   type BuyerActivityContent,
   type FulfilmentState,
@@ -154,12 +155,13 @@ export async function startBuyerActivity(scope: Scope, orderId: string): Promise
  */
 async function restartOnDevice(scope: Scope, found: Found, row: Row, content: BuyerActivityContent, alert: { title: string; body: string; sound?: string }) {
   const store = tokens(scope)
-  await store.updateLiveActivities({ id: row.id, ended_at: new Date() })
+  const endedAt = new Date()
+  await store.updateLiveActivities({ id: row.id, ended_at: endedAt })
   if (!(await startOnDevice(scope, found, row.subject_id!, row.device, content, alert))) {
     await store.updateLiveActivities({ id: row.id, ended_at: null })
     return false
   }
-  if (row.token) await sendToActivity(scope, row, { ...contentPush(content), event: "end", priority: 10, dismissAt: new Date() })
+  await finish(scope, { ...row, ended_at: endedAt }, content, new Date())
   return true
 }
 
@@ -186,7 +188,8 @@ async function updateBuyerActivity(scope: Scope, orderId: string, state: Fulfilm
     return []
   }
   const replaced = await Promise.all(
-    rows.map(async (row) => {
+    // One whose ending is being tried again is over, whatever the switch says now.
+    rows.filter((row) => !row.end_dismiss_at).map(async (row) => {
       if (alert && row.device.push_to_start_token && buyerActivityRestarts(state, new Date(row.started_at), new Date())) {
         if (await restartOnDevice(scope, found, row, content, alert)) return activityAlertReplacesPush(row.device) ? row.device.push_token : null
       }
@@ -212,9 +215,41 @@ export async function endBuyerActivity(scope: Scope, orderId: string, state: Act
   ])
 }
 
-async function finish(scope: Scope, row: Pick<Row, "id" | "token" | "environment" | "ended_at">, content: BuyerActivityContent, dismissAt: Date) {
+/**
+ * Ends one activity. An ending Apple couldn't take stays to be tried again by
+ * `retryBuyerActivityEndings`, until iOS will have let the activity go by itself.
+ */
+async function finish(scope: Scope, row: Pick<Row, "id" | "token" | "environment" | "ended_at" | "started_at">, content: BuyerActivityContent, dismissAt: Date) {
+  const now = new Date()
   const sent = row.token ? await sendToActivity(scope, row, { ...contentPush(content), event: "end", priority: 10, dismissAt }) : null
-  if (sent?.status !== "token_rejected" && !row.ended_at) await tokens(scope).updateLiveActivities({ id: row.id, ended_at: new Date() })
+  if (sent?.status === "token_rejected") return
+  if (sent?.status === "failed" && !liveActivityOutlived(row.started_at, now)) {
+    await tokens(scope).updateLiveActivities({ id: row.id, end_content: content as unknown as Record<string, unknown>, end_dismiss_at: dismissAt })
+    return
+  }
+  await settleEnding(scope, row, now)
+}
+
+/** Nothing more is owed to this activity. */
+const settleEnding = (scope: Scope, row: Pick<Row, "id" | "ended_at">, now: Date) =>
+  tokens(scope).updateLiveActivities({ id: row.id, ended_at: row.ended_at ?? now, end_content: null, end_dismiss_at: null })
+
+/** The minute job: endings Apple couldn't take, with the final state they were first sent with. */
+export async function retryBuyerActivityEndings(scope: Scope, now = new Date()): Promise<void> {
+  const rows = await tokens(scope).listLiveActivities({ kind: "buyer_shop_order", end_dismiss_at: { $ne: null } }, { relations: ["device"], take: null })
+  const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  await Promise.all(
+    rows.map(async (row) => {
+      const found = row.subject_id ? await buyerOrder(scope, row.subject_id) : null
+      const stillTheirs = found && row.device.actor_type === "customer" && row.device.actor_id === found.checkout.customer_id
+      if (!stillTheirs || liveActivityOutlived(row.started_at, now)) {
+        logger.warn(`Gave up ending Live Activity ${row.id}: ${stillTheirs ? "iOS has let it go by now" : "its phone has moved on"}`)
+        await settleEnding(scope, row, now)
+        return
+      }
+      await finish(scope, row, row.end_content as unknown as BuyerActivityContent, new Date(row.end_dismiss_at!))
+    })
+  )
 }
 
 /** A pickup order's hold ended: `order_fulfilment.not_collected`'s data says what's refunded and which lines aren't. */
