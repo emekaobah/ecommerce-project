@@ -27,6 +27,9 @@ const reporter = phoneReporter({
     if (status === 401) return 'revoked';
     return status >= 200 && status < 300 ? 'ok' : 'failed';
   },
+  endActivities: () => {
+    for (const activity of shopActivity.getInstances()) void activity.end('immediate').catch(() => {});
+  },
 });
 
 /**

@@ -14,6 +14,8 @@ export type TokenReporterPorts<Session> = {
   remove: (key: string, session: Session) => Promise<void>;
   /** Needs only the key. */
   post: (key: string, report: TokenReport) => Promise<PostResult>;
+  /** Ends this phone's activities on the phone itself. */
+  endActivities: () => void;
 };
 
 const reportId = (report: TokenReport) => (report.kind === 'activity' ? `activity:${report.activity_id}` : 'push_to_start');
@@ -103,6 +105,12 @@ export function tokenReporter<Session>(ports: TokenReporterPorts<Session>) {
     /** Before sign-out, with the session as it was. */
     async signingOut(session: Session | undefined) {
       pending.clear();
+      try {
+        // The server is about to forget their tokens, so these could never be updated or ended.
+        ports.endActivities();
+      } catch (error) {
+        console.warn('Ending the Live Activities failed', error);
+      }
       inBackground(async () => {
         const key = await heldKey();
         if (!key) return;

@@ -18,6 +18,7 @@ function phone(heldKey: string | null = null) {
     register: mock(async (held: string | null) => held ?? 'issued-key'),
     remove: mock(async (_key: string, _session: Session) => {}),
     post: mock(async (): Promise<PostResult> => 'ok'),
+    endActivities: mock(() => {}),
   } satisfies TokenReporterPorts<Session>;
   return { ports, reporter: tokenReporter(ports), key: () => key };
 }
@@ -85,6 +86,23 @@ describe('tokenReporter', () => {
     await device.reporter.signingOut(SESSION);
 
     expect(device.ports.remove).toHaveBeenCalledWith('issued-key', SESSION);
+    expect(device.key()).toBeNull();
+  });
+
+  test('sign-out ends what the phone is showing: the server is about to forget its tokens', async () => {
+    await device.reporter.signingOut(SESSION);
+
+    expect(device.ports.endActivities).toHaveBeenCalledTimes(1);
+  });
+
+  test('sign-out still forgets the phone if its activities can\'t be ended', async () => {
+    device = phone('held-key');
+    device.ports.endActivities.mockImplementationOnce(() => {
+      throw new Error('gone');
+    });
+    await device.reporter.signingOut(SESSION);
+
+    expect(device.ports.remove).toHaveBeenCalledWith('held-key', SESSION);
     expect(device.key()).toBeNull();
   });
 

@@ -10,7 +10,7 @@ import { phoneReporter } from './phone-reporter';
 
 let pushToken: string | undefined;
 
-const reporter = phoneReporter({ post: async () => 'ok', pushToken: () => pushToken });
+const reporter = phoneReporter({ post: async () => 'ok', pushToken: () => pushToken, endActivities: cancelAllLiveUpdates });
 
 export const liveActivityTokens = {
   ...reporter,
@@ -23,7 +23,6 @@ export const liveActivityTokens = {
   },
   /** Before sign-out: forgets the phone, and clears what's showing about its shops. */
   async signingOut(session: Session | undefined) {
-    cancelAllLiveUpdates();
     pushToken = undefined;
     await reporter.signingOut(session);
   },

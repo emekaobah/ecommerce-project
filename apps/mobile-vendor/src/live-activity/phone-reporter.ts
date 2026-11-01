@@ -23,10 +23,13 @@ const withKey = (key: string | null) => ({ fetchOptions: { headers: (key ? { [LI
 export function phoneReporter({
   post,
   pushToken = () => undefined,
+  endActivities,
 }: {
   post: (key: string, report: TokenReport, environment: Environment) => Promise<PostResult>;
   /** What the server pushes this phone through, if not Apple. */
   pushToken?: () => string | undefined;
+  /** What sign-out clears from the phone. */
+  endActivities: () => void;
 }) {
   return tokenReporter<Session>({
     readKey: () => SecureStore.getItemAsync(KEY_ITEM, KEYCHAIN),
@@ -43,5 +46,6 @@ export function phoneReporter({
       await client.vendor.liveActivityDevices.current.delete(withKey(key));
     },
     post: (key, report) => post(key, report, environment),
+    endActivities,
   });
 }
