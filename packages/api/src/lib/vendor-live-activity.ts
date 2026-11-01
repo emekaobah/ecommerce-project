@@ -15,7 +15,7 @@ import {
 } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { LIVE_ACTIVITY_PUSH_MODULE, type LiveActivityPushModuleService } from "../modules/live-activity-push"
+import { LIVE_ACTIVITY_PUSH_MODULE, type ApnsEnvironment, type LiveActivityAlert, type LiveActivityPushModuleService } from "../modules/live-activity-push"
 import { LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
 import { SHIPBUBBLE_TIMEZONE } from "../modules/shipbubble"
 import { errorMessage } from "./errors"
@@ -87,7 +87,7 @@ type Running = {
   device_id: string
   subject_id: string | null
   token: string | null
-  environment: "sandbox" | "production"
+  environment: ApnsEnvironment
   started_at: Date | string
   sent_content: Record<string, unknown> | null
   sent_at: Date | string | null
@@ -123,7 +123,7 @@ async function endActivity(scope: Scope, activity: Running, content: VendorActiv
 }
 
 /** Sends an update and records what Apple accepted. One it says is gone is over; a failed push is tried by the next batch. Android draws it silently: the normal pushes do its alerting. */
-async function sendUpdate(scope: Scope, activity: Updatable, content: VendorActivityContent, priority: 5 | 10, now: Date, moment: string, alert?: { title: string; body: string }) {
+async function sendUpdate(scope: Scope, activity: Updatable, content: VendorActivityContent, priority: 5 | 10, now: Date, moment: string, alert?: LiveActivityAlert) {
   const status = activity.android
     ? await pushShopLiveUpdate(scope, activity.android, activity.subject_id!, activityUrl(activity.subject_id!), "show", content, now.getTime(), moment)
     : (
@@ -253,7 +253,7 @@ export async function catchUpShopActivity(scope: Scope, activityId: string, now 
 /** A second activity on a phone for a shop it already follows has no row to follow it by: it ends at once. */
 export async function endSpareShopActivity(
   scope: Scope,
-  { seller_id, token, environment }: { seller_id: string; token: string; environment: "sandbox" | "production" },
+  { seller_id, token, environment }: { seller_id: string; token: string; environment: ApnsEnvironment },
   now = new Date()
 ): Promise<void> {
   const hours = (await shopHoursOf(scope, [seller_id], now)).get(seller_id) ?? null

@@ -5,6 +5,7 @@ export const LIVE_ACTIVITY_PUSH_MODULE = "liveActivityPush"
 export { LiveActivityPushModuleService }
 export type {
   ApnsEnvironment,
+  LiveActivityAlert,
   LiveActivityApp,
   LiveActivityPush,
   LiveActivityPushOptions,

@@ -1,10 +1,10 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { randomBytes } from "node:crypto"
+import type { ApnsEnvironment } from "../../modules/live-activity-push"
 import { hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../../modules/live-activity-token"
 
 type Scope = Pick<MedusaContainer, "resolve">
-type Environment = "sandbox" | "production"
 type Actor = { actor_type: "customer" | "member"; actor_id: string }
 
 const service = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
@@ -16,7 +16,7 @@ const SHOP_FIELDS = ["id", "device_id", "seller_id", "closed_seen_at"] as const
 /** A row's own columns, as they stood: what a step that changed or deleted it puts back. */
 const saved = <T extends object, K extends keyof T>(row: T, fields: readonly K[]) => Object.fromEntries(fields.map((field) => [field, row[field]])) as Pick<T, K>
 
-export type RegisterDeviceInput = Actor & { app: "buyer" | "vendor"; key?: string; environment: Environment; push_token?: string }
+export type RegisterDeviceInput = Actor & { app: "buyer" | "vendor"; key?: string; environment: ApnsEnvironment; push_token?: string }
 
 type SavedDevice = Pick<Awaited<ReturnType<LiveActivityTokenModuleService["retrieveLiveActivityDevice"]>>, (typeof DEVICE_FIELDS)[number]>
 type RegisterUndo = { unlinked: { id: string; push_token: string | null }[]; previous?: SavedDevice; created?: string }
@@ -102,7 +102,7 @@ type ReportUndo = {
   created?: string
 }
 
-export type ReportTokenInput = { device_id: string; environment: Environment; token: string } & (
+export type ReportTokenInput = { device_id: string; environment: ApnsEnvironment; token: string } & (
   | { kind: "push_to_start" }
   /** `subject_id`: what the activity's url names, the buyer's own order or the member's own shop, when it names one. */
   | { kind: "activity"; activity_id: string; subject_id?: string }
@@ -177,7 +177,7 @@ export const reportLiveActivityTokenStep = createStep(
   }
 )
 
-export type RecordStartInput = { device_id: string; order_id: string; activity_id: string; environment: Environment }
+export type RecordStartInput = { device_id: string; order_id: string; activity_id: string; environment: ApnsEnvironment }
 
 /** The phone started an activity itself (iOS below 17.2), so the server knows which order it is for. */
 export const recordLiveActivityStartedStep = createStep(
@@ -187,11 +187,11 @@ export const recordLiveActivityStartedStep = createStep(
     const [running] = await devices.listLiveActivities({ device_id, kind: "buyer_shop_order", subject_id: order_id, ended_at: null })
     if (running) {
       await devices.updateLiveActivities({ id: running.id, apple_id: activity_id, environment })
-      const undo: { previous?: { id: string; apple_id: string | null; environment: Environment }; created?: string } = { previous: { id: running.id, apple_id: running.apple_id, environment: running.environment } }
+      const undo: { previous?: { id: string; apple_id: string | null; environment: ApnsEnvironment }; created?: string } = { previous: { id: running.id, apple_id: running.apple_id, environment: running.environment } }
       return new StepResponse({ activity_id }, undo)
     }
     const created = await devices.createLiveActivities({ device_id, kind: "buyer_shop_order", subject_id: order_id, apple_id: activity_id, environment, started_at: new Date() })
-    const undo: { previous?: { id: string; apple_id: string | null; environment: Environment }; created?: string } = { created: created.id }
+    const undo: { previous?: { id: string; apple_id: string | null; environment: ApnsEnvironment }; created?: string } = { created: created.id }
     return new StepResponse({ activity_id }, undo)
   },
   async (undo, { container }) => {

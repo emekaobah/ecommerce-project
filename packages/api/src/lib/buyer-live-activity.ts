@@ -13,7 +13,7 @@ import {
 } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { LIVE_ACTIVITY_PUSH_MODULE, type LiveActivityPushModuleService } from "../modules/live-activity-push"
+import { LIVE_ACTIVITY_PUSH_MODULE, type ApnsEnvironment, type LiveActivityAlert, type LiveActivityPushModuleService } from "../modules/live-activity-push"
 import type { LiveActivityPush } from "../modules/live-activity-push/service"
 import { hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
 import { buyerOrder } from "./buyer-notifications"
@@ -77,9 +77,9 @@ async function startOnDevice(
   scope: Scope,
   { checkout }: Found,
   orderId: string,
-  device: { id: string; environment: "sandbox" | "production"; push_to_start_token: string | null },
+  device: { id: string; environment: ApnsEnvironment; push_to_start_token: string | null },
   content: BuyerActivityContent,
-  alert: { title: string; body: string; sound?: string }
+  alert: LiveActivityAlert
 ) {
   const store = tokens(scope)
   let claim: { id: string }
@@ -152,7 +152,7 @@ export async function startBuyerActivity(scope: Scope, orderId: string): Promise
  * Apple took the start; if not, the old activity stays as it was. The new row comes first, so the
  * old has to stop being the running one before it.
  */
-async function restartOnDevice(scope: Scope, found: Found, row: Row, content: BuyerActivityContent, alert: { title: string; body: string; sound?: string }) {
+async function restartOnDevice(scope: Scope, found: Found, row: Row, content: BuyerActivityContent, alert: LiveActivityAlert) {
   const store = tokens(scope)
   const endedAt = new Date()
   await store.updateLiveActivities({ id: row.id, ended_at: endedAt })
@@ -300,9 +300,9 @@ export const LIVE_ACTIVITY_TOKEN_REPORTED = "live_activity.token_reported"
 /** An activity to catch up, by its row, or a second one for an order already followed, which has none. */
 export type LiveActivityTokenReported =
   | { id: string }
-  | { spare: { order_id: string; token: string; environment: "sandbox" | "production" } }
+  | { spare: { order_id: string; token: string; environment: ApnsEnvironment } }
   | { shop_activity: string }
-  | { spare_shop: { seller_id: string; token: string; environment: "sandbox" | "production" } }
+  | { spare_shop: { seller_id: string; token: string; environment: ApnsEnvironment } }
 
 /**
  * An activity's token has arrived, seconds or days after its start, so it can be told what it
@@ -326,7 +326,7 @@ export async function catchUpBuyerActivity(scope: Scope, activityId: string): Pr
 /** A second activity on a phone for an order it already follows has no row to follow it by: it ends at once. */
 export async function endSpareBuyerActivity(
   scope: Scope,
-  { order_id, token, environment }: { order_id: string; token: string; environment: "sandbox" | "production" }
+  { order_id, token, environment }: { order_id: string; token: string; environment: ApnsEnvironment }
 ): Promise<void> {
   const found = await buyerOrder(scope, order_id)
   const state = found?.order.fulfilment.state
