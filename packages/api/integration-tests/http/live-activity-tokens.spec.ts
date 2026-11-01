@@ -1,5 +1,7 @@
+import { WorkflowResponse, createStep, createWorkflow } from "@medusajs/framework/workflows-sdk"
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { seedDemoWorld } from "../../src/scripts/seed"
+import { hashDeviceKey, registerLiveActivityDeviceStep, removeLiveActivityDeviceStep, type RegisterDeviceInput } from "../../src/workflows/live-activity-token/steps"
 import { buyerCheckout, eventually, GADGETS, GROCERY } from "../helpers/checkout"
 import { apnsToken, fakeApns } from "../helpers/apns"
 import { fakeClerk } from "../helpers/clerk"
@@ -299,6 +301,52 @@ medusaIntegrationTestRunner({
         expect(await status(api.delete("/store/live-activity-devices/current", withKey(phone.key)))).toBe(401)
         await api.delete("/store/live-activity-devices/current", signedInWithKey(phone.key, ben))
         expect(await status(reportPushToStart(phone.key))).toBe(200)
+      })
+
+      describe("in a workflow that fails after it", () => {
+        const failing = createStep("live-activity-test-failure", async () => {
+          throw new Error("failed afterwards")
+        })
+        const removeThenFail = createWorkflow("remove-live-activity-device-then-fail", (input: { key: string; actor_type: "customer" | "member"; actor_id: string }) => {
+          removeLiveActivityDeviceStep(input)
+          failing()
+          return new WorkflowResponse({})
+        })
+        const registerThenFail = createWorkflow("register-live-activity-device-then-fail", (input: RegisterDeviceInput) => {
+          registerLiveActivityDeviceStep(input)
+          failing()
+          return new WorkflowResponse({})
+        })
+        const actorOf = async (key: string) => {
+          const [device] = await getContainer().resolve<any>("liveActivityToken").listLiveActivityDevices({ key_hash: hashDeviceKey(key) })
+          return device
+        }
+
+        it("puts the phone, its tokens and its activities back on removal", async () => {
+          const phone = await iPhone()
+          const update = await reportActivityToken(phone.key)
+          const { actor_id } = await actorOf(phone.key)
+
+          const { errors } = await removeThenFail(getContainer()).run({ input: { key: phone.key, actor_type: "customer", actor_id }, throwOnError: false })
+
+          expect(errors).toHaveLength(1)
+          expect(await status(reportPushToStart(phone.key, phone.pushToStart))).toBe(200)
+          const [row] = await getContainer().resolve<any>("liveActivityToken").listLiveActivities({ token: update })
+          expect(row.device_id).toBe((await actorOf(phone.key)).id)
+        })
+
+        it("leaves the phone as it was when registering again", async () => {
+          const phone = await iPhone()
+          const before = await actorOf(phone.key)
+
+          await registerThenFail(getContainer()).run({
+            input: { app: "buyer", actor_type: "customer", actor_id: "someone_else", key: phone.key, environment: "production" },
+            throwOnError: false,
+          })
+
+          const after = await actorOf(phone.key)
+          expect([after.actor_id, after.environment]).toEqual([before.actor_id, before.environment])
+        })
       })
 
       it("moves the phone to whoever signs in next, and its token with it", async () => {
