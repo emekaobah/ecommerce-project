@@ -1,9 +1,12 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { endActivitiesOfClosedShops } from "../lib/vendor-live-activity"
+import { keepShopActivitiesCurrent } from "../lib/vendor-live-activity"
 
-/** Ends shops' Live Activities when they close; nothing else says a shop's hours have passed (#146). */
-export default async function endClosedShopActivitiesJob(container: MedusaContainer) {
-  await endActivitiesOfClosedShops(container)
+/**
+ * Each minute: ends the Live Activities of shops that closed, starts them for shops that opened
+ * with orders waiting, and sends the batch of count and deadline changes (#146, #147).
+ */
+export default async function keepShopActivitiesCurrentJob(container: MedusaContainer) {
+  await keepShopActivitiesCurrent(container)
 }
 
-export const config = { name: "end-closed-shop-activities", schedule: "* * * * *" }
+export const config = { name: "keep-shop-activities-current", schedule: "* * * * *" }

@@ -17,6 +17,9 @@ const LiveActivity = model
     apple_id: model.text().nullable(),
     /** Its update token. */
     token: model.text().nullable(),
+    /** What Apple last accepted for this phone, and when: what the shop's batched updates compare against (#147). */
+    sent_content: model.json().nullable(),
+    sent_at: model.dateTime().nullable(),
     environment: model.enum([...APNS_ENVIRONMENTS]),
     started_at: model.dateTime(),
     ended_at: model.dateTime().nullable(),
