@@ -95,12 +95,6 @@ export default class LiveActivityPushModuleService {
     }
   }
 
-  /** Closes the connections to Apple. A later `send` opens them again. */
-  close() {
-    for (const session of this.sessions.values()) session.close()
-    this.sessions.clear()
-  }
-
   private failed(push: LiveActivityPush, reason: string): LiveActivityPushResult {
     // Only the start of the token: enough to tell devices apart in the logs.
     this.logger.warn(`Live Activity ${push.event} to ${push.token.slice(0, 8)}… failed: ${reason}`)
