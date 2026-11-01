@@ -4,8 +4,7 @@ import { z } from "@medusajs/framework/zod"
 import { LIVE_ACTIVITY_KEY_HEADER } from "@oja/domain"
 import { LIVE_ACTIVITY_TOKEN_REPORTED, type LiveActivityTokenReported } from "../lib/buyer-live-activity"
 import { memberOfShop } from "../lib/vendor-live-activity"
-import { LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
-import { hashDeviceKey } from "../workflows/live-activity-token/steps"
+import { hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
 import {
   registerLiveActivityDeviceWorkflow,
   removeLiveActivityDeviceWorkflow,

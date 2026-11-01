@@ -4,8 +4,7 @@ import { z } from "@medusajs/framework/zod"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { buyerOrder } from "../lib/buyer-notifications"
 import { LIVE_ACTIVITY_TOKEN_REPORTED, owedBuyerActivities, type LiveActivityTokenReported, type OwedActivity } from "../lib/buyer-live-activity"
-import { APNS_ENVIRONMENTS, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
-import { hashDeviceKey } from "../workflows/live-activity-token/steps"
+import { APNS_ENVIRONMENTS, hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
 import {
   recordLiveActivityStartedWorkflow,
   registerLiveActivityDeviceWorkflow,

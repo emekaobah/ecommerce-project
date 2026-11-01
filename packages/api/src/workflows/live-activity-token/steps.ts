@@ -1,15 +1,13 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
-import { createHash, randomBytes } from "node:crypto"
-import { LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../../modules/live-activity-token"
+import { randomBytes } from "node:crypto"
+import { hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../../modules/live-activity-token"
 
 type Scope = Pick<MedusaContainer, "resolve">
 type Environment = "sandbox" | "production"
 type Actor = { actor_type: "customer" | "member"; actor_id: string }
 
 const service = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
-
-export const hashDeviceKey = (key: string) => createHash("sha256").update(key).digest("hex")
 
 const DEVICE_FIELDS = ["id", "app", "actor_type", "actor_id", "key_hash", "push_token", "push_to_start_token", "environment", "update_token_reported_at"] as const
 const ACTIVITY_FIELDS = ["id", "device_id", "kind", "subject_id", "apple_id", "token", "sent_content", "sent_at", "end_content", "end_dismiss_at", "environment", "started_at", "ended_at"] as const
