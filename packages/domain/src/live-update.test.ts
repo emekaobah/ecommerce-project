@@ -181,6 +181,11 @@ describe("the shop as a notification", () => {
     expect(shown.icon).toBe("bag")
   })
 
+  test("says so in words in the last two hours, as Android 17 draws neither the timer nor the icon in our colour", () => {
+    expect(view({ urgent: true }).subText).toBe("Under 2 hours · Iya Bisi Foodstuff")
+    expect(view({ urgent: false }).subText).toBe("Iya Bisi Foodstuff")
+  })
+
   test("turns ember in the last two hours", () => {
     expect(view({ urgent: true }).color).toEqual({ light: "#84391A", dark: "#F0A474" })
     expect(view({ urgent: false }).color).toEqual({ light: "#1B2559", dark: "#AEB8FF" })

@@ -214,7 +214,8 @@ export function vendorLiveUpdateView({ seller_id, revision, url, content }: Vend
     url,
     title: counts.new ? `${shownCount(counts.new)} new ${counts.new === 1 ? "order" : "orders"} to accept` : "No new orders",
     text: `${shownCount(counts.picking)} picking · ${shownCount(counts.ready)} ready · ${shownCount(counts.out)} out`,
-    subText: shop,
+    // Words as well as the colour: checked on Android 17, a promoted notification draws its timer and icon in the system's colours.
+    subText: urgent ? `Under 2 hours · ${shop}` : shop,
     chip: null,
     icon: deadline ? "clock" : "bag",
     ongoing: true,
