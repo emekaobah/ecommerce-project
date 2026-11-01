@@ -403,7 +403,8 @@ medusaIntegrationTestRunner({
         await placeOrder()
         await eventually(async () => expo.sentTo(device), (sent) => sent.length >= 1)
 
-        expect(apns.sentTo(update)).toEqual([])
+        // Its ending may already have gone: the token's arrival ends it at once with the switch off.
+        expect(apns.sentTo(update).filter((p) => p.aps.event !== "end")).toEqual([])
       })
 
       it("updates only the shop that changed", async () => {
