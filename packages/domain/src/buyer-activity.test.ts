@@ -1,5 +1,15 @@
 import { describe, expect, test } from "bun:test"
-import { BUYER_ACTIVITY_FACTORY, buyerActivityContent, liveActivityPayloadBytes, MAX_ACTIVITY_CONTENT_BYTES } from "./buyer-activity"
+import {
+  BUYER_ACTIVITY_FACTORY,
+  buyerActivityContent,
+  buyerActivityOrderId,
+  buyerActivityPlan,
+  buyerActivityRestarts,
+  buyerActivityUrl,
+  liveActivityPayloadBytes,
+  MAX_ACTIVITY_CONTENT_BYTES,
+} from "./buyer-activity"
+import { buyerStatusPush } from "./buyer-push"
 import { formatMoney } from "./money"
 
 const order = { number: "OJ-2412", shop: "Iya Bisi Foodstuff", currency_code: "ngn" }
@@ -86,6 +96,69 @@ describe("buyerActivityContent", () => {
     })
     expect(content.step).toMatchObject({ label: "Not collected", short: "Not collected", icon: "x", index: 5, total: 5 })
     expect(content.outcome).toEqual({ kind: "not_collected", refund: formatMoney(5000, "ngn"), kept: "2 × Tomatoes" })
+  })
+})
+
+describe("what each fulfilment state does to the activity", () => {
+  test.each([
+    ["new", "none", false, 5],
+    ["rejected", "none", false, 5],
+    ["accepted", "start", true, 10],
+    ["picking", "update", false, 5],
+    ["partially_available", "update", false, 5],
+    ["packed", "update", false, 5],
+    ["label_booked", "update", true, 10],
+    ["courier_confirmed", "update", false, 5],
+    ["handed_to_courier", "update", true, 10],
+    ["in_transit", "update", false, 5],
+    ["ready_for_pickup", "update", true, 10],
+    ["delivered", "end", false, 10],
+    ["collected", "end", false, 10],
+    ["cancelled", "end", false, 10],
+    ["not_collected", "end", false, 10],
+  ] as const)("%s: %s, alert %s, priority %i", (state, action, alert, priority) => {
+    expect(buyerActivityPlan(state)).toEqual({ action, alert, priority })
+  })
+
+  test("an update alerts exactly where the buyer already gets the state's push", () => {
+    const order = { number: "OJ-1", shop: "Shop", rejected_by: null }
+    for (const state of ["picking", "partially_available", "packed", "label_booked", "courier_confirmed", "handed_to_courier", "in_transit", "ready_for_pickup"] as const) {
+      expect(buyerActivityPlan(state).alert).toBe(buyerStatusPush(state, order) !== null)
+    }
+  })
+})
+
+describe("restarting past iOS's 8 hours", () => {
+  const HOUR = 60 * 60 * 1000
+  const started = new Date("2026-11-01T08:00:00Z")
+  const after = (hours: number) => new Date(started.getTime() + hours * HOUR)
+
+  test("a pushed milestone about 7 hours or more after the start restarts it", () => {
+    expect(buyerActivityRestarts("label_booked", started, after(7))).toBe(true)
+    expect(buyerActivityRestarts("handed_to_courier", started, after(30))).toBe(true)
+    expect(buyerActivityRestarts("ready_for_pickup", started, after(7))).toBe(true)
+  })
+
+  test("sooner, it's an ordinary update", () => {
+    expect(buyerActivityRestarts("label_booked", started, after(6.9))).toBe(false)
+  })
+
+  test("a step with no push never restarts it, nor does an ending", () => {
+    expect(buyerActivityRestarts("in_transit", started, after(30))).toBe(false)
+    expect(buyerActivityRestarts("delivered", started, after(30))).toBe(false)
+  })
+})
+
+describe("which shop order an activity is for", () => {
+  test("its url opens the checkout's order screen and names the shop order", () => {
+    const url = buyerActivityUrl("oja", "ordgrp_1", "order_2")
+    expect(url).toBe("oja://order/ordgrp_1?shop_order=order_2")
+    expect(buyerActivityOrderId(url)).toBe("order_2")
+  })
+
+  test("a url that names none reads as none", () => {
+    expect(buyerActivityOrderId("oja://order/ordgrp_1")).toBeNull()
+    expect(buyerActivityOrderId(null)).toBeNull()
   })
 })
 

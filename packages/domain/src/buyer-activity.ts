@@ -18,6 +18,68 @@ export const BUYER_ACTIVITY_FACTORY = "BuyerOrderActivity"
 /** The header a phone's Live Activity key travels in (ADR 0018): out of URLs and logs. */
 export const LIVE_ACTIVITY_KEY_HEADER = "x-live-activity-key"
 
+/**
+ * What a shop order's state does to its activity, in one place. `alert` is on the updates the
+ * buyer already gets a push about, and the start, whose alert stands in for its push on an iPhone
+ * that has shown it runs activities. An end doesn't alert: its state's own push still goes, so
+ * the buyer is told once. Apple's hourly budget counts priority 10, so only these use it.
+ */
+export type BuyerActivityPlan = { action: "none" | "start" | "update" | "end"; alert: boolean; priority: 5 | 10 }
+
+const QUIET: BuyerActivityPlan = { action: "update", alert: false, priority: 5 }
+const ALERTING: BuyerActivityPlan = { action: "update", alert: true, priority: 10 }
+const ENDING: BuyerActivityPlan = { action: "end", alert: false, priority: 10 }
+const NOTHING: BuyerActivityPlan = { action: "none", alert: false, priority: 5 }
+
+const BUYER_ACTIVITY_PLANS: Record<FulfilmentState, BuyerActivityPlan> = {
+  new: NOTHING,
+  // Only from new, before there's an activity. Its push is unchanged.
+  rejected: NOTHING,
+  accepted: { action: "start", alert: true, priority: 10 },
+  picking: QUIET,
+  partially_available: QUIET,
+  packed: QUIET,
+  label_booked: ALERTING,
+  courier_confirmed: QUIET,
+  handed_to_courier: ALERTING,
+  in_transit: QUIET,
+  ready_for_pickup: ALERTING,
+  delivered: ENDING,
+  collected: ENDING,
+  cancelled: ENDING,
+  not_collected: ENDING,
+}
+
+export const buyerActivityPlan = (state: FulfilmentState) => BUYER_ACTIVITY_PLANS[state]
+
+/** iOS ends an activity at 8 hours, so a pushed milestone this long after the start begins a fresh one. */
+const RESTART_AFTER_MS = 7 * 60 * 60 * 1000
+
+/** Whether reaching `state` starts a fresh activity in place of one that began at `startedAt`. */
+export const buyerActivityRestarts = (state: FulfilmentState, startedAt: Date, now: Date) => {
+  const { action, alert } = buyerActivityPlan(state)
+  return action === "update" && alert && now.getTime() - startedAt.getTime() >= RESTART_AFTER_MS
+}
+
+/** How long a finished order stays on the Lock Screen. */
+export const BUYER_ACTIVITY_DISMISS_AFTER_MS = 30 * 60 * 1000
+
+const SHOP_ORDER_PARAM = "shop_order"
+
+/**
+ * What tapping an activity opens: the checkout's order screen. It also names the shop order,
+ * because the url is the one thing about an activity that the server sets in its push-to-start
+ * and the app can read back (ADR 0018), and it stays the same for the activity's whole life.
+ */
+export const buyerActivityUrl = (scheme: string, groupId: string, orderId: string) =>
+  `${scheme}://order/${groupId}?${SHOP_ORDER_PARAM}=${encodeURIComponent(orderId)}`
+
+/** The shop order an activity's url names. */
+export function buyerActivityOrderId(url: string | null | undefined) {
+  const match = url?.match(new RegExp(`[?&]${SHOP_ORDER_PARAM}=([^&]+)`))
+  return match ? decodeURIComponent(match[1]!) : null
+}
+
 /** A state an activity can be in: it starts once the shop accepts, and rejection comes before that. */
 type ActivityState = Exclude<FulfilmentState, "new" | "rejected">
 
