@@ -27,13 +27,15 @@ export async function pushShopLiveUpdate(
   url: string,
   action: VendorLiveUpdateMessage["action"],
   content: VendorActivityContent,
-  at: number
+  at: number,
+  /** What makes this one message: a device gets it once, however often the event comes (ADR 0008). */
+  moment: string
 ): Promise<"sent" | "failed" | "token_rejected"> {
   const { gone, failed } = await pushDataToDevices(scope, [device], {
     template: "vendor-live-update",
     data: vendorLiveUpdateMessage({ action, sellerId, url, content, at }),
     ttl: LIVE_UPDATE_TTL_SECONDS,
-    idempotencyKey: (to) => `vendor-live-update:${sellerId}:${action}:${at}:${to}`,
+    idempotencyKey: (to) => `vendor-live-update:${sellerId}:${moment}:${to}`,
     about: `the Live Update of shop ${sellerId}`,
   })
   if (gone.length) return "token_rejected"

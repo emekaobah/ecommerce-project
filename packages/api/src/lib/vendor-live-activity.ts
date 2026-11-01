@@ -101,7 +101,7 @@ async function endActivity(scope: Scope, activity: Running, content: VendorActiv
   const android = activity.token ? undefined : await androidPhoneOf(scope, activity.device_id)
   if (android) {
     // A moment older than a start it may be making way for: Android draws whichever is newest.
-    const sent = await pushShopLiveUpdate(scope, android, activity.subject_id!, activityUrl(activity.subject_id!), "remove", content, now.getTime() - 1)
+    const sent = await pushShopLiveUpdate(scope, android, activity.subject_id!, activityUrl(activity.subject_id!), "remove", content, now.getTime() - 1, `end:${activity.id}`)
     if (sent === "failed" && !liveActivityOutlived(activity.started_at, now)) return
   } else if (activity.token) {
     const sent = await sender(scope).send({
@@ -123,9 +123,9 @@ async function endActivity(scope: Scope, activity: Running, content: VendorActiv
 }
 
 /** Sends an update and records what Apple accepted. One it says is gone is over; a failed push is tried by the next batch. Android draws it silently: the normal pushes do its alerting. */
-async function sendUpdate(scope: Scope, activity: Updatable, content: VendorActivityContent, priority: 5 | 10, now: Date, alert?: { title: string; body: string }) {
+async function sendUpdate(scope: Scope, activity: Updatable, content: VendorActivityContent, priority: 5 | 10, now: Date, moment: string, alert?: { title: string; body: string }) {
   const status = activity.android
-    ? await pushShopLiveUpdate(scope, activity.android, activity.subject_id!, activityUrl(activity.subject_id!), "show", content, now.getTime())
+    ? await pushShopLiveUpdate(scope, activity.android, activity.subject_id!, activityUrl(activity.subject_id!), "show", content, now.getTime(), moment)
     : (
         await sender(scope).send({
           event: "update",
@@ -202,7 +202,7 @@ async function startOnPhones(scope: Scope, sellerId: string, phones: Awaited<Ret
         }
         const expo = android.get(phone.id)
         const status = expo
-          ? await pushShopLiveUpdate(scope, expo, sellerId, activityUrl(sellerId), "show", content, now.getTime())
+          ? await pushShopLiveUpdate(scope, expo, sellerId, activityUrl(sellerId), "show", content, now.getTime(), `start:${claim.id}`)
           : (
               await sender(scope).send({
                 event: "start",
@@ -279,15 +279,15 @@ export async function startShopActivity(scope: Scope, orderId: string, now = new
   const content = await shopActivityContent(scope, sellerId, hours, now)
   const started = await startOnPhones(scope, sellerId, phones, hours, content, now)
   // After the starts: one just started has what's true now, and had its own alert.
-  await alertRunning(scope, sellerId, phones.filter((phone) => !started.has(phone.id)), "new_order", content, now)
+  await alertRunning(scope, sellerId, orderId, phones.filter((phone) => !started.has(phone.id)), "new_order", content, now)
 }
 
 /** Updates at once, with an alert, the phones running the activity that may still have it. */
-async function alertRunning(scope: Scope, sellerId: string, phones: { id: string }[], moment: VendorActivityMoment, content: VendorActivityContent, now: Date) {
+async function alertRunning(scope: Scope, sellerId: string, orderId: string, phones: { id: string }[], moment: VendorActivityMoment, content: VendorActivityContent, now: Date) {
   const allowed = new Set(phones.map((phone) => phone.id))
   const running = (await updatable(scope, { subject_id: sellerId })).filter((activity) => allowed.has(activity.device_id))
   const alert = vendorActivityAlert(moment, content)
-  await Promise.all(running.map((activity) => sendUpdate(scope, activity, content, 10, now, alert)))
+  await Promise.all(running.map((activity) => sendUpdate(scope, activity, content, 10, now, `${moment}:${orderId}`, alert)))
 }
 
 /** An order entered its last two hours to accept (the reminder's moment, once per order): phones running the activity are alerted at once. */
@@ -298,7 +298,7 @@ export async function alertDeadlineNear(scope: Scope, orderId: string, now: Date
   const phones = await phonesOfShop(scope, sellerId)
   if (!phones.length) return
   const hours = (await shopHoursOf(scope, [sellerId], now)).get(sellerId) ?? null
-  await alertRunning(scope, sellerId, phones, "deadline_near", await shopActivityContent(scope, sellerId, hours, now), now)
+  await alertRunning(scope, sellerId, orderId, phones, "deadline_near", await shopActivityContent(scope, sellerId, hours, now), now)
 }
 
 /** Ends the shop's activity on every phone running it. */
@@ -388,7 +388,8 @@ export async function sendBatchedShopUpdates(scope: Scope, now = new Date()): Pr
   await Promise.all(
     shops.flatMap(({ content, end, update }) => [
       ...end.map((activity) => endActivity(scope, activity, content, now)),
-      ...update.map((activity) => sendUpdate(scope, activity, content, 5, now)),
+      // The update that follows the last one sent: a run of the job that repeats finds it already told.
+      ...update.map((activity) => sendUpdate(scope, activity, content, 5, now, `update:${activity.id}:${activity.sent_at ? new Date(activity.sent_at).getTime() : "first"}`)),
     ])
   )
 }
