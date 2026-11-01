@@ -56,10 +56,12 @@ medusaIntegrationTestRunner({
     /** What a launch with no session reports, with only the phone's key. */
     const reportPushToStart = (key: string, token = apnsToken(), environment = "sandbox") =>
       api.post("/vendor/live-activity-tokens", { kind: "push_to_start", token, environment }, { headers: { [KEY_HEADER]: key } }).then(() => token)
-    const reportActivity = (key: string, token = apnsToken(), id = `activity-${token}`) =>
+    /** What the phone reports of an activity: its token, and the shop its url names (ADR 0018). */
+    const reportActivity = (key: string, sellerId: string, token = apnsToken(), id = `activity-${token}`) =>
       api
-        .post("/vendor/live-activity-tokens", { kind: "activity", activity_id: id, token, environment: "sandbox" }, { headers: { [KEY_HEADER]: key } })
+        .post("/vendor/live-activity-tokens", { kind: "activity", activity_id: id, token, seller_id: sellerId, environment: "sandbox" }, { headers: { [KEY_HEADER]: key } })
         .then(() => token)
+    const endsOf = (token: string) => apns.sentTo(token).filter((p) => p.aps.event === "end")
     const lockScreen = (as: Headers, key: string) =>
       api.get("/vendor/live-activity-devices/current/shop", withKey(as, key)).then((r) => r.data.on as boolean)
     const setLockScreen = (as: Headers, key: string, on: boolean) => api.post("/vendor/live-activity-devices/current/shop", { on }, withKey(as, key))
@@ -241,7 +243,7 @@ medusaIntegrationTestRunner({
         const { key, pushToStart } = await optedIn(member)
         const { grocery } = await paidOrders()
         await startsOn(pushToStart)
-        const yesterdays = await reportActivity(key)
+        const yesterdays = await reportActivity(key, await buyer.sellerId(GROCERY))
 
         await startShopActivity(getContainer(), grocery, new Date(Date.now() + DAY))
 
@@ -312,7 +314,7 @@ medusaIntegrationTestRunner({
         const { key, pushToStart } = await optedIn(member)
         await paidOrders()
         await startsOn(pushToStart)
-        return { member, key, pushToStart, update: await reportActivity(key) }
+        return { member, key, pushToStart, update: await reportActivity(key, await buyer.sellerId(GROCERY)) }
       }
 
       it("ends when the shop is paused", async () => {
@@ -365,11 +367,11 @@ medusaIntegrationTestRunner({
         const { key, pushToStart } = await optedIn(owner.grocery)
         await paidOrders()
         await startsOn(pushToStart)
-        const groceryUpdate = await reportActivity(key)
+        const groceryUpdate = await reportActivity(key, await buyer.sellerId(GROCERY))
         await setLockScreen(owner.gadgets, key, true)
         await paidOrders()
         await startsOn(pushToStart, 2)
-        const gadgetsUpdate = await reportActivity(key)
+        const gadgetsUpdate = await reportActivity(key, await buyer.sellerId(GADGETS))
         expect(propsOf(apns.sentTo(pushToStart)[1]).shop).toBe(GADGETS.name)
 
         await api.post("/vendor/shop-hours/pause", {}, owner.gadgets)
@@ -379,18 +381,82 @@ medusaIntegrationTestRunner({
         expect(apns.sentTo(groceryUpdate).map((p) => p.aps.event)).toEqual(["update"])
       })
 
-      it("doesn't guess whose token it is when two activities on the phone are waiting for one", async () => {
+      it("knows whose token it is when two activities on the phone are waiting for one, in whichever order they arrive", async () => {
         const owner = await memberOfBoth()
         const { key, pushToStart } = await optedIn(owner.grocery)
         await setLockScreen(owner.gadgets, key, true)
         await paidOrders()
         await startsOn(pushToStart, 2)
-        const tokens = [await reportActivity(key), await reportActivity(key)]
+        const gadgetsUpdate = await reportActivity(key, await buyer.sellerId(GADGETS))
+        const groceryUpdate = await reportActivity(key, await buyer.sellerId(GROCERY))
 
         await api.post("/vendor/shop-hours/pause", {}, owner.gadgets)
+
+        const [ended] = await eventually(async () => endsOf(gadgetsUpdate), (sent) => sent.length >= 1)
+        expect(propsOf(ended).shop).toBe(GADGETS.name)
+        expect(endsOf(groceryUpdate)).toEqual([])
+      })
+
+      it("won't follow a token for a shop the member isn't in", async () => {
+        const member = await buyer.owner(GROCERY)
+        const { key, pushToStart } = await optedIn(member)
+        await paidOrders()
+        await startsOn(pushToStart)
+        const notTheirs = await reportActivity(key, await buyer.sellerId(GADGETS))
+        const update = await reportActivity(key, await buyer.sellerId(GROCERY))
+
+        await api.post("/vendor/shop-hours/pause", {}, member)
+
+        await eventually(async () => endsOf(update), (sent) => sent.length >= 1)
+        expect(apns.sentTo(notTheirs)).toEqual([])
+      })
+
+      it("ends straight away an activity whose token arrives after the shop paused", async () => {
+        const member = await buyer.owner(GROCERY)
+        const { key, pushToStart } = await optedIn(member)
+        await paidOrders()
+        await startsOn(pushToStart)
+        await api.post("/vendor/shop-hours/pause", {}, member)
+
+        const late = await reportActivity(key, await buyer.sellerId(GROCERY))
+
+        const [ended] = await eventually(async () => endsOf(late), (sent) => sent.length >= 1)
+        expect(ended.aps.event).toBe("end")
+      })
+
+      it("ends straight away an activity whose token arrives after the shop closed", async () => {
+        const member = await buyer.owner(GROCERY)
+        const { key, pushToStart } = await optedIn(member)
+        await paidOrders()
+        await startsOn(pushToStart)
+        const now = Date.now() - (Date.now() % 60000)
+        await setWeeklyHours(getContainer(), await buyer.sellerId(GROCERY), closedBetween(now - 60000, now + 2 * HOUR, "Africa/Lagos"))
         await endActivitiesOfClosedShops(getContainer())
 
-        for (const token of tokens) expect(apns.sentTo(token)).toEqual([])
+        const late = await reportActivity(key, await buyer.sellerId(GROCERY))
+
+        await eventually(async () => endsOf(late), (sent) => sent.length >= 1)
+      })
+
+      it("leaves one activity for the shop after a pause and resume its token waited through", async () => {
+        const member = await buyer.owner(GROCERY)
+        const sellerId = await buyer.sellerId(GROCERY)
+        const { key, pushToStart } = await optedIn(member)
+        await paidOrders()
+        await startsOn(pushToStart)
+        await api.post("/vendor/shop-hours/pause", {}, member)
+        await api.post("/vendor/shop-hours/resume", {}, member)
+        await startsOn(pushToStart, 2)
+
+        const first = await reportActivity(key, sellerId)
+        const second = await reportActivity(key, sellerId)
+
+        // One of the two is followed; the other can't be told from it, and goes.
+        await eventually(async () => endsOf(second), (sent) => sent.length >= 1)
+        expect(endsOf(first)).toEqual([])
+        await api.post("/vendor/shop-hours/pause", {}, member)
+        await eventually(async () => endsOf(first), (sent) => sent.length >= 1)
+        expect(endsOf(second)).toHaveLength(1)
       })
 
       it("stops trying a rejected update token: the activity is over", async () => {

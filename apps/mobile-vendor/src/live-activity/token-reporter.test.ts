@@ -49,6 +49,14 @@ describe('tokenReporter', () => {
     expect(device.ports.post).toHaveBeenCalledWith('held-key', { kind: 'activity', activity_id: 'a1', token: 'update-1' });
   });
 
+  test('a report names the shop the activity is for', async () => {
+    device = phone('held-key');
+    device.reporter.activityToken('a1', 'update-1', 'sel_1');
+    await device.reporter.idle();
+
+    expect(device.ports.post).toHaveBeenCalledWith('held-key', { kind: 'activity', activity_id: 'a1', token: 'update-1', seller_id: 'sel_1' });
+  });
+
   test('a report that failed is sent again on the next try, and not after it worked', async () => {
     device = phone('held-key');
     device.ports.post.mockImplementationOnce(async () => 'failed');

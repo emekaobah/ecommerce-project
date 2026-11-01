@@ -1,4 +1,4 @@
-export type TokenReport = { kind: 'push_to_start'; token: string } | { kind: 'activity'; activity_id: string; token: string };
+export type TokenReport = { kind: 'push_to_start'; token: string } | { kind: 'activity'; activity_id: string; token: string; seller_id?: string };
 
 /** How a post went: `revoked` means the server no longer knows the key (its member signed out). */
 export type PostResult = 'ok' | 'failed' | 'revoked';
@@ -81,8 +81,9 @@ export function tokenReporter<Session>(ports: TokenReporterPorts<Session>) {
       pushToStart = token;
       add({ kind: 'push_to_start', token });
     },
-    activityToken(activityId: string, token: string) {
-      add({ kind: 'activity', activity_id: activityId, token });
+    /** `sellerId`: the shop the activity's url names, which is how the server knows which it is. */
+    activityToken(activityId: string, token: string, sellerId?: string | null) {
+      add({ kind: 'activity', activity_id: activityId, token, ...(sellerId ? { seller_id: sellerId } : {}) });
     },
     /** A member's session is ready. Runs on every launch: it's how a key is issued and a phone changes hands. */
     signedIn() {

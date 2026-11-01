@@ -43,6 +43,19 @@ export const LiveActivityTokenBody = z.discriminatedUnion("kind", [
 ])
 export type LiveActivityTokenBodyType = z.infer<typeof LiveActivityTokenBody>
 
+/** As a buyer's report, naming the member's shop instead of an order (ADR 0018). */
+export const VendorLiveActivityTokenBody = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("push_to_start"), token: ApnsToken, environment: Environment }),
+  z.object({
+    kind: z.literal("activity"),
+    token: ApnsToken,
+    environment: Environment,
+    activity_id: z.string().trim().min(1).max(100),
+    seller_id: z.string().trim().min(1).max(100).optional(),
+  }),
+])
+export type VendorLiveActivityTokenBodyType = z.infer<typeof VendorLiveActivityTokenBody>
+
 export const LiveActivityStartedBody = z.object({
   order_id: z.string().trim().min(1).max(100),
   activity_id: z.string().trim().min(1).max(100),
@@ -62,10 +75,10 @@ const keyOf = (req: MedusaRequest) => {
 }
 
 /** The phone the request's key belongs to; 401 for none, as a dead session would be. */
-async function deviceOf(req: MedusaRequest) {
+export async function deviceOf(req: MedusaRequest, app: "buyer" | "vendor") {
   const key = keyOf(req)
   const [device] = key
-    ? await req.scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE).listLiveActivityDevices({ key_hash: hashDeviceKey(key) })
+    ? await req.scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE).listLiveActivityDevices({ key_hash: hashDeviceKey(key), app })
     : []
   if (!device) throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "This device isn't registered")
   return device
@@ -102,7 +115,7 @@ export const removeBuyerDevice = async (req: AuthenticatedMedusaRequest, res: Me
 
 /** Takes a token from a phone, with its key. */
 export const reportToken = async (req: MedusaRequest<LiveActivityTokenBodyType>, res: MedusaResponse<LiveActivityTokenResponse>) => {
-  const device = await deviceOf(req)
+  const device = await deviceOf(req, "buyer")
   const body = req.validatedBody as LiveActivityTokenBodyType
   if (body.kind === "push_to_start") {
     const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...body, device_id: device.id } })
@@ -126,7 +139,7 @@ export const reportToken = async (req: MedusaRequest<LiveActivityTokenBodyType>,
 
 /** A phone below iOS 17.2 says it started an order's activity; only its own buyer's order. */
 export const recordStarted = async (req: MedusaRequest<LiveActivityStartedBodyType>, res: MedusaResponse<LiveActivityStartedResponse>) => {
-  const device = await deviceOf(req)
+  const device = await deviceOf(req, "buyer")
   const { order_id, activity_id, environment } = req.validatedBody as LiveActivityStartedBodyType
   const found = await buyerOrder(req.scope, order_id)
   if (!found || device.actor_type !== "customer" || found.checkout.customer_id !== device.actor_id) {

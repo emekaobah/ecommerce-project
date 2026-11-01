@@ -144,7 +144,7 @@ export {
   vendorLiveUpdateView,
 } from "./live-update"
 export type { LiveUpdateIcon, LiveUpdateMessage, LiveUpdateProgress, LiveUpdateView, ThemedColor, VendorLiveUpdateMessage } from "./live-update"
-export { nearestAcceptDeadline, VENDOR_ACTIVITY_FACTORY, vendorActivityAlert, vendorActivityContent, vendorActivityUpdateDue } from "./vendor-activity"
+export { nearestAcceptDeadline, VENDOR_ACTIVITY_FACTORY, vendorActivityAlert, vendorActivityContent, vendorActivitySellerId, vendorActivityUpdateDue, vendorActivityUrl } from "./vendor-activity"
 export type { NearestDeadline, VendorActivityContent, VendorActivityMoment, VendorActivitySent, VendorActivityShop } from "./vendor-activity"
 export type { Reached, TimelineStep } from "./timeline"
 export { HANDOVER_DISAGREEMENT_MS, HANDOVER_REALERT_MS, handoverAlertDue, handoverDisagreement } from "./handover"

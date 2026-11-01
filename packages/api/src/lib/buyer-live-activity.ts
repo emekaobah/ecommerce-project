@@ -264,7 +264,11 @@ export async function moveBuyerActivity(scope: Scope, orderId: string, state: Fu
 
 export const LIVE_ACTIVITY_TOKEN_REPORTED = "live_activity.token_reported"
 /** An activity to catch up, by its row, or a second one for an order already followed, which has none. */
-export type LiveActivityTokenReported = { id: string } | { spare: { order_id: string; token: string; environment: "sandbox" | "production" } }
+export type LiveActivityTokenReported =
+  | { id: string }
+  | { spare: { order_id: string; token: string; environment: "sandbox" | "production" } }
+  | { shop_activity: string }
+  | { spare_shop: { seller_id: string; token: string; environment: "sandbox" | "production" } }
 
 /**
  * An activity's token has arrived, seconds or days after its start, so it can be told what it

@@ -62,7 +62,7 @@ import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validato
 import { AdminSetTopUpCap } from "./admin/courier-approvals/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
-import { LiveActivityDeviceBody, LiveActivityStartedBody, LiveActivityTokenBody } from "./live-activity-tokens";
+import { LiveActivityDeviceBody, LiveActivityStartedBody, LiveActivityTokenBody, VendorLiveActivityTokenBody } from "./live-activity-tokens";
 import { LiveActivityShopBody } from "./vendor-live-activity";
 import { StoreUpdateNotificationPreferences } from "./store/customers/me/notification-preferences/validators";
 import { StoreRecordSearch } from "./store/searches/validators";
@@ -379,7 +379,7 @@ export default defineMiddlewares({
         // A member's phone gets its key, which reports its tokens with no session: that route opts
         // out of the member's auth (#146, ADR 0018). The switch is per shop, for any member.
         { method: ["POST"], matcher: "/vendor/live-activity-devices", middlewares: [validateAndTransformBody(LiveActivityDeviceBody)] },
-        { method: ["POST"], matcher: "/vendor/live-activity-tokens", middlewares: [validateAndTransformBody(LiveActivityTokenBody)] },
+        { method: ["POST"], matcher: "/vendor/live-activity-tokens", middlewares: [validateAndTransformBody(VendorLiveActivityTokenBody)] },
         { method: ["POST"], matcher: "/vendor/live-activity-devices/current/shop", middlewares: [validateAndTransformBody(LiveActivityShopBody)] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },
         // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows (lib/catalogue-import/sheet).

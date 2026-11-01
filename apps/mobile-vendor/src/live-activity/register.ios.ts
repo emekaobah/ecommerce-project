@@ -1,4 +1,4 @@
-import { LIVE_ACTIVITY_KEY_HEADER } from '@oja/domain';
+import { LIVE_ACTIVITY_KEY_HEADER, vendorActivitySellerId } from '@oja/domain';
 import { addPushToStartTokenListener, type LiveActivity } from 'expo-widgets';
 import { AppState, Platform } from 'react-native';
 
@@ -29,6 +29,18 @@ const reporter = phoneReporter({
   },
 });
 
+/**
+ * The shop an activity is for, from the url the server started it with. The library doesn't expose
+ * it, so `patches/expo-widgets` adds `getUrl` (ADR 0018). Null once the activity has gone.
+ */
+function shopOf(activity: LiveActivity<ShopActivityContent>) {
+  try {
+    return vendorActivitySellerId(activity.getUrl());
+  } catch {
+    return null;
+  }
+}
+
 // Held for the life of the JS: the library cancels an activity's token observer when its object is released (#140).
 const watched = new Map<string, LiveActivity<ShopActivityContent>>();
 /** Activities whose token has arrived this launch: until then, each scan asks again. */
@@ -40,7 +52,7 @@ function watch(activity: LiveActivity<ShopActivityContent>) {
   watched.set(id, activity);
   activity.addPushTokenListener(({ activityId, pushToken }) => {
     tokenSeen.add(activityId);
-    reporter.activityToken(activityId, pushToken);
+    reporter.activityToken(activityId, pushToken, shopOf(activity));
   });
 }
 
@@ -49,7 +61,7 @@ async function askForToken(activity: LiveActivity<ShopActivityContent>) {
   const token = await activity.getPushToken().catch(() => null);
   if (!token || tokenSeen.has(activity.getId())) return;
   tokenSeen.add(activity.getId());
-  reporter.activityToken(activity.getId(), token);
+  reporter.activityToken(activity.getId(), token, shopOf(activity));
 }
 
 function scan() {

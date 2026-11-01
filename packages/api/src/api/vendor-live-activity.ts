@@ -1,15 +1,25 @@
-import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import type { AuthenticatedMedusaRequest, MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import { LIVE_ACTIVITY_KEY_HEADER } from "@oja/domain"
+import { LIVE_ACTIVITY_TOKEN_REPORTED, type LiveActivityTokenReported } from "../lib/buyer-live-activity"
+import { memberOfShop } from "../lib/vendor-live-activity"
 import { LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
 import { hashDeviceKey } from "../workflows/live-activity-token/steps"
 import {
   registerLiveActivityDeviceWorkflow,
   removeLiveActivityDeviceWorkflow,
+  reportLiveActivityTokenWorkflow,
   setLiveActivityShopWorkflow,
 } from "../workflows/live-activity-token/workflows"
-import type { LiveActivityDeviceBodyType, LiveActivityDeviceDeleteResponse, LiveActivityDeviceResponse } from "./live-activity-tokens"
+import {
+  deviceOf,
+  type LiveActivityDeviceBodyType,
+  type LiveActivityDeviceDeleteResponse,
+  type LiveActivityDeviceResponse,
+  type LiveActivityTokenResponse,
+  type VendorLiveActivityTokenBodyType,
+} from "./live-activity-tokens"
 import { sellerOf, type VendorRequest } from "./vendor/offer-import/seller"
 
 // A member's phone and the shops it wants the Live Activity for (#146). The shop is the one the
@@ -62,6 +72,27 @@ export const removeMemberDevice = async (req: AuthenticatedMedusaRequest, res: M
     })
   }
   res.json({ deleted: true })
+}
+
+/** Takes a token from a phone, with its key. The shop its url names is trusted only if it's the member's. */
+export const reportShopToken = async (req: MedusaRequest<VendorLiveActivityTokenBodyType>, res: MedusaResponse<LiveActivityTokenResponse>) => {
+  const device = await deviceOf(req, "vendor")
+  const body = req.validatedBody as VendorLiveActivityTokenBodyType
+  if (body.kind === "push_to_start") {
+    const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...body, device_id: device.id } })
+    res.json({ token: result.token })
+    return
+  }
+  const { seller_id, ...report } = body
+  const subject_id = seller_id && (await memberOfShop(req.scope, device.actor_id, seller_id)) ? seller_id : undefined
+  const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...report, device_id: device.id, subject_id } })
+  const reported: LiveActivityTokenReported | null = result.catch_up
+    ? { shop_activity: result.catch_up }
+    : result.spare && subject_id
+      ? { spare_shop: { seller_id: subject_id, token: report.token, environment: report.environment } }
+      : null
+  if (reported) await req.scope.resolve(Modules.EVENT_BUS).emit({ name: LIVE_ACTIVITY_TOKEN_REPORTED, data: reported })
+  res.json({ token: result.token })
 }
 
 /** Whether this phone has "Orders on Lock Screen" on for the shop. Off for a phone with no key yet. */

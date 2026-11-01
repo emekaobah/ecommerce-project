@@ -51,7 +51,7 @@ export const removeLiveActivityDeviceStep = createStep(
 
 export type ReportTokenInput = { device_id: string; environment: Environment; token: string } & (
   | { kind: "push_to_start" }
-  /** `subject_id`: the buyer's own order the activity's url names, when it names one. */
+  /** `subject_id`: what the activity's url names, the buyer's own order or the member's own shop, when it names one. */
   | { kind: "activity"; activity_id: string; subject_id?: string }
 )
 
@@ -73,17 +73,16 @@ export const reportLiveActivityTokenStep = createStep(
     if (stale.length) await devices.deleteLiveActivities(stale.map((activity) => activity.id))
     const known = held.find((activity) => activity.device_id === input.device_id)
     const { app } = await devices.retrieveLiveActivityDevice(input.device_id)
+    const kind = app === "vendor" ? "vendor_shop" : "buyer_shop_order"
     const reported = { apple_id: input.activity_id, token: input.token, environment: input.environment }
     let catch_up: string | null = null
     let spare = false
     if (known) {
       await devices.updateLiveActivities({ id: known.id, ...reported })
       // The server recorded its start, the phone named it, and only now can it be sent anything.
-      if (!known.token && app === "buyer") catch_up = known.id
-    } else if (app === "vendor") {
-      await recordShopActivityToken(devices, input)
+      if (!known.token) catch_up = known.id
     } else {
-      const about = input.subject_id ? await devices.listLiveActivities({ device_id: input.device_id, kind: "buyer_shop_order", subject_id: input.subject_id }, { order: { started_at: "DESC" } }) : []
+      const about = input.subject_id ? await devices.listLiveActivities({ device_id: input.device_id, kind, subject_id: input.subject_id }, { order: { started_at: "DESC" } }) : []
       const running = about.find((activity) => !activity.ended_at)
       // The row its start left, running or ended while it waited for this.
       const started = running && !running.apple_id ? running : !running ? about.find((activity) => !activity.apple_id && !activity.token) : undefined
@@ -95,7 +94,7 @@ export const reportLiveActivityTokenStep = createStep(
       } else {
         const created = await devices.createLiveActivities({
           device_id: input.device_id,
-          kind: "buyer_shop_order",
+          kind,
           subject_id: input.subject_id ?? null,
           ...reported,
           started_at: new Date(),
@@ -108,21 +107,6 @@ export const reportLiveActivityTokenStep = createStep(
     return new StepResponse({ token: input.token, catch_up, spare })
   }
 )
-
-/**
- * The phone can't say which shop a push-started activity is for (ADR 0018). If it's waiting on
- * just one, that's the one. If it's waiting on several it isn't guessed: a wrong guess would end
- * one shop's activity when another closes, so this one runs out by itself.
- */
-async function recordShopActivityToken(devices: LiveActivityTokenModuleService, input: ReportTokenInput & { kind: "activity" }) {
-  const { device_id, activity_id, token, environment } = input
-  const waiting = await devices.listLiveActivities({ device_id, kind: "vendor_shop", ended_at: null, token: null })
-  if (waiting.length === 1) {
-    await devices.updateLiveActivities({ id: waiting[0].id, apple_id: activity_id, token, environment })
-    return
-  }
-  await devices.createLiveActivities({ device_id, kind: "vendor_shop", apple_id: activity_id, token, environment, started_at: new Date() })
-}
 
 export type RecordStartInput = { device_id: string; order_id: string; activity_id: string; environment: Environment }
 

@@ -7,6 +7,7 @@ import {
   vendorActivityAlert,
   vendorActivityContent,
   vendorActivityUpdateDue,
+  vendorActivityUrl,
   type ShopHours,
   type VendorActivityContent,
   type VendorActivityMoment,
@@ -40,7 +41,7 @@ const tokens = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(L
 const sender = (scope: Scope) => scope.resolve<LiveActivityPushModuleService>(LIVE_ACTIVITY_PUSH_MODULE)
 
 /** What tapping the activity opens: that shop's orders, acting for it. */
-const activityUrl = (sellerId: string) => `${appIdentity("vendor").scheme}://shop-orders/${sellerId}`
+const activityUrl = (sellerId: string) => vendorActivityUrl(appIdentity("vendor").scheme, sellerId)
 
 const isOpen = (hours: ShopHours | null, now: Date) => !hours || shopStatus(hours, now).state === "open"
 
@@ -216,6 +217,39 @@ async function startOnPhones(scope: Scope, sellerId: string, phones: Awaited<Ret
       })
   )
   return started
+}
+
+/** Whether this member is in the shop: a phone's key mustn't tie its token to a shop that isn't theirs. */
+export async function memberOfShop(scope: Scope, memberId: string, sellerId: string) {
+  const { data } = await scope
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({ entity: "seller_member", fields: ["member_id"], filters: { seller_id: sellerId, member_id: memberId } })
+  return data.length > 0
+}
+
+/**
+ * An activity's token has arrived, seconds or days after its start. One the shop no longer wants on
+ * this phone (closed or paused while the token was on the way, or the switch went off) ends at
+ * once, so it can't stay up out of hours. One it does want is the minute job's to keep current.
+ */
+export async function catchUpShopActivity(scope: Scope, activityId: string, now = new Date()): Promise<void> {
+  const [row] = await tokens(scope).listLiveActivities({ id: activityId })
+  if (!row?.token || !row.subject_id) return
+  const hours = (await shopHoursOf(scope, [row.subject_id], now)).get(row.subject_id) ?? null
+  const phones = await phonesOfShop(scope, row.subject_id)
+  if (!row.ended_at && isOpen(hours, now) && phones.some((phone) => phone.id === row.device_id)) return
+  await endActivity(scope, row as unknown as Running, await shopActivityContent(scope, row.subject_id, hours, now), now)
+}
+
+/** A second activity on a phone for a shop it already follows has no row to follow it by: it ends at once. */
+export async function endSpareShopActivity(
+  scope: Scope,
+  { seller_id, token, environment }: { seller_id: string; token: string; environment: "sandbox" | "production" },
+  now = new Date()
+): Promise<void> {
+  const hours = (await shopHoursOf(scope, [seller_id], now)).get(seller_id) ?? null
+  const content = await shopActivityContent(scope, seller_id, hours, now)
+  await sender(scope).send({ event: "end", app: "vendor", token, environment, priority: 10, content: { factory: VENDOR_ACTIVITY_FACTORY, props: content }, dismissAt: now })
 }
 
 /**
