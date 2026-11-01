@@ -143,7 +143,7 @@ medusaIntegrationTestRunner({
         expect(push.aps).toMatchObject({
           event: "start",
           "input-push-token": 1,
-          attributes: { url: `oja://order/${groupId}` },
+          attributes: { url: `oja://order/${groupId}?shop_order=${grocery}` },
           alert: { title: `Order ${number} accepted`, body: `${GROCERY.name} is preparing your order.` },
         })
         expect(push.aps["content-state"].name).toBe("BuyerOrderActivity")
@@ -342,7 +342,7 @@ medusaIntegrationTestRunner({
         expect(list).toHaveLength(1)
         expect(list[0]).toMatchObject({
           order_id: grocery,
-          url: `oja://order/${groupId}`,
+          url: `oja://order/${groupId}?shop_order=${grocery}`,
           // Accepting moves the order straight on to picking, so the phone starts it where the order is now.
           content: { shop: GROCERY.name, step: { label: "Being prepared" } },
         })
