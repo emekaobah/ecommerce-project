@@ -25,13 +25,21 @@ export type ExpoPushAlert = {
   interruptionLevel: "time-sensitive"
 }
 
+/**
+ * A message with nothing for Android to show by itself: the app's background task decides what
+ * to do with its `data`. Passed as the notification's `provider_data`, like `ExpoPushAlert`.
+ */
+export type ExpoDataOnly = { data_only: true; ttl: number }
+
 export type ExpoPushMessage = {
   to: string
   title?: string
   body?: string
   data: Record<string, unknown>
-  sound: string
+  sound?: string
   priority: "high"
+  /** How long Expo keeps trying to deliver it, in seconds. */
+  ttl?: number
   channelId?: string
   interruptionLevel?: ExpoPushAlert["interruptionLevel"]
 }

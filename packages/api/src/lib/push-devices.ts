@@ -1,7 +1,7 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PUSH_CHANNEL } from "../modules/expo-push"
-import { DEVICE_NOT_REGISTERED, type ExpoPushAlert } from "../modules/expo-push/expo-api"
+import { DEVICE_NOT_REGISTERED, type ExpoDataOnly, type ExpoPushAlert } from "../modules/expo-push/expo-api"
 import { errorMessage } from "./errors"
 import { forgetPushDevices } from "./push-receipts"
 
@@ -22,12 +22,31 @@ export type DevicePush = {
   alert?: ExpoPushAlert
 }
 
+/** A push with nothing to show: only the app's background task sees it. */
+export type DeviceDataPush = Omit<DevicePush, "title" | "body" | "alert"> & { ttl: number }
+
 /**
  * Pushes to each device, one notification each, so a refusal is known to be that device's. A
  * device Expo says is no longer installed is forgotten; any other push Expo refuses is logged.
  * Either way the other devices get theirs.
  */
 export async function pushToDevices(scope: Scope, devices: string[], push: DevicePush): Promise<void> {
+  await sendToDevices(scope, devices, push, { subject: push.title, text: push.body }, push.alert ?? null)
+}
+
+/** `pushToDevices`, for a message the app handles itself (#148). */
+export async function pushDataToDevices(scope: Scope, devices: string[], push: DeviceDataPush): Promise<void> {
+  const dataOnly: ExpoDataOnly = { data_only: true, ttl: push.ttl }
+  await sendToDevices(scope, devices, push, {}, dataOnly)
+}
+
+async function sendToDevices(
+  scope: Scope,
+  devices: string[],
+  push: Pick<DevicePush, "template" | "data" | "idempotencyKey" | "about">,
+  content: { subject?: string; text?: string },
+  providerData: ExpoPushAlert | ExpoDataOnly | null
+): Promise<void> {
   if (!devices.length) return
   const notifications = scope.resolve(Modules.NOTIFICATION)
   const sent = await Promise.allSettled(
@@ -36,9 +55,9 @@ export async function pushToDevices(scope: Scope, devices: string[], push: Devic
         to,
         channel: PUSH_CHANNEL,
         template: push.template,
-        content: { subject: push.title, text: push.body },
+        content,
         data: push.data,
-        provider_data: push.alert ?? null,
+        provider_data: providerData,
         idempotency_key: push.idempotencyKey(to),
       })
     )

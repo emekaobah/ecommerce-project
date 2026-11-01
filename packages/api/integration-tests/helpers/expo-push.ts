@@ -9,6 +9,8 @@ export type PushMessage = {
   data?: Record<string, unknown>
   sound?: string
   priority?: string
+  /** How long Expo keeps trying to deliver it, in seconds. */
+  ttl?: number
   /** The Android notification channel it is shown on. */
   channelId?: string
   /** How it interrupts on iOS, e.g. `time-sensitive` to break through Focus. */
