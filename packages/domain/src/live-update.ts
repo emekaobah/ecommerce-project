@@ -18,7 +18,7 @@ export type LiveUpdateIcon = StatusSymbol | "bag"
 export type LiveUpdateProgress = {
   /** The bar's parts in order, each as long as its share of the whole. */
   segments: { length: number; color?: ThemedColor }[]
-  /** Marks along the bar, each a position from 0 to the segments' total length. */
+  /** Marks along the bar, each a position from 1 to the segments' total length. */
   points: number[]
   /** Where the bar has reached, and the tracker sits. */
   position: number
@@ -129,7 +129,8 @@ export function buyerLiveUpdateView({ order_id, revision, url, content }: LiveUp
     timeoutMs: LIVE_UPDATE_TIMEOUT_MS,
     progress: {
       segments: Array.from({ length: step.total - 1 }, () => ({ length: 1 })),
-      points: Array.from({ length: step.total }, (_, point) => point),
+      // Android's points start at 1: the bar's start is the tracker's until the order moves on.
+      points: Array.from({ length: step.total - 1 }, (_, point) => point + 1),
       position: step.index - 1,
       tracker: step.icon,
       styledByProgress: true,

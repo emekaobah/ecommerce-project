@@ -27,10 +27,10 @@ describe("buyerLiveUpdateView, against the catalogue's drawings", () => {
     })
   })
 
-  test("in progress: one segment per step and a point at each, the tracker where the order is", () => {
+  test("in progress: a segment between steps and a point at each after the first, the tracker where the order is", () => {
     const { progress, olderBar } = buyerLiveUpdateView(message(buyerActivityContent({ ...order, method: "delivery", state: "picking" })))
     expect(progress?.segments).toEqual(Array(7).fill({ length: 1 }))
-    expect(progress?.points).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+    expect(progress?.points).toEqual([1, 2, 3, 4, 5, 6, 7])
     expect(progress?.position).toBe(2)
     expect(progress?.tracker).toBe("box")
     expect(progress?.styledByProgress).toBe(true)

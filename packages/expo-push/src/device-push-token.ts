@@ -32,6 +32,9 @@ export type PushOptions = {
 export function pushTokenSource({ Constants, Device, Notifications, Platform }: PushModules, { shownInApp }: PushOptions = {}) {
   Notifications.setNotificationHandler({
     handleNotification: (notification) => {
+      // A data-only message, for the app's background task (#148): there's nothing to show.
+      const { title, body } = notification.request.content;
+      if (!title && !body) return Promise.resolve({ shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: false, shouldShowList: false });
       const inApp = shownInApp?.(notification) ?? false;
       return Promise.resolve({
         shouldPlaySound: !inApp,

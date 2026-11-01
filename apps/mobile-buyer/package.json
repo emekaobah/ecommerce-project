@@ -1,6 +1,6 @@
 {
   "name": "@oja/mobile-buyer",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "version": "1.0.0",
   "dependencies": {
     "@clerk/expo": "^4.13.0",
@@ -8,6 +8,7 @@
     "@expo/ui": "~58.0.20",
     "@oja/api-client": "workspace:*",
     "@oja/domain": "workspace:*",
+    "@oja/expo-live-update": "workspace:*",
     "@oja/expo-push": "workspace:*",
     "@oja/expo-sentry": "workspace:*",
     "@oja/ui": "workspace:*",
@@ -31,6 +32,7 @@
     "expo-splash-screen": "~58.0.10",
     "expo-status-bar": "~58.0.3",
     "expo-symbols": "~58.0.4",
+    "expo-task-manager": "~58.0.12",
     "expo-system-ui": "~58.0.6",
     "expo-web-browser": "~58.0.6",
     "expo-widgets": "~58.0.26",
