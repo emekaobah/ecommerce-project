@@ -62,6 +62,7 @@ import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validato
 import { AdminSetTopUpCap } from "./admin/courier-approvals/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
+import { LiveActivityDeviceBody, LiveActivityStartedBody, LiveActivityTokenBody } from "./live-activity-tokens";
 import { StoreUpdateNotificationPreferences } from "./store/customers/me/notification-preferences/validators";
 import { StoreRecordSearch } from "./store/searches/validators";
 import { StoreGetPopularSearches } from "./store/popular-searches/validators";
@@ -293,6 +294,25 @@ export default defineMiddlewares({
         {
             method: ["DELETE"],
             matcher: "/store/push-tokens/:token",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
+        // A signed-in buyer's phone gets its key, and gives it up at sign-out (#143, ADR 0018).
+        {
+            method: ["POST"],
+            matcher: "/store/live-activity-devices",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(LiveActivityDeviceBody)],
+        },
+        {
+            method: ["DELETE"],
+            matcher: "/store/live-activity-devices/current",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
+        // The phone's key is the credential here, not a session: these may run before auth is restored.
+        { method: ["POST"], matcher: "/store/live-activity-tokens", middlewares: [validateAndTransformBody(LiveActivityTokenBody)] },
+        { method: ["POST"], matcher: "/store/live-activities", middlewares: [validateAndTransformBody(LiveActivityStartedBody)] },
+        {
+            method: ["GET"],
+            matcher: "/store/live-activities/owed",
             middlewares: [authenticate("customer", ["session", "bearer"])],
         },
         { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },

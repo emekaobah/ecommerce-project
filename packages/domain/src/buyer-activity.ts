@@ -15,6 +15,9 @@ import { fulfilmentTimeline, shortStepLabel } from "./timeline"
 /** The name the activity's layout is registered under, in the app and in Apple's payload. */
 export const BUYER_ACTIVITY_FACTORY = "BuyerOrderActivity"
 
+/** The header a phone's Live Activity key travels in (ADR 0018): out of URLs and logs. */
+export const LIVE_ACTIVITY_KEY_HEADER = "x-live-activity-key"
+
 /** A state an activity can be in: it starts once the shop accepts, and rejection comes before that. */
 type ActivityState = Exclude<FulfilmentState, "new" | "rejected">
 

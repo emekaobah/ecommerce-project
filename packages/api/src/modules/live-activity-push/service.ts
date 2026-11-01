@@ -21,7 +21,8 @@ type Target = {
 
 export type LiveActivityPush = Target &
   (
-    | { event: "start"; alert: Alert }
+    /** `url` is what tapping the activity opens; the activity keeps it for life. */
+    | { event: "start"; alert: Alert; url?: string }
     | { event: "update"; alert?: Alert }
     /** `content` stays on the Lock Screen until `dismissAt`, so send the real final state. */
     | { event: "end"; dismissAt: Date; alert?: Alert }
@@ -194,7 +195,7 @@ function apsFor(push: LiveActivityPush) {
     ...(push.alert && { alert: push.alert }),
     ...(push.event === "start" && {
       "attributes-type": "LiveActivityAttributes",
-      attributes: {},
+      attributes: push.url ? { url: push.url } : {},
       // Asks iOS for the started activity's own update token.
       "input-push-token": 1,
     }),
