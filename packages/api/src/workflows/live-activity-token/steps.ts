@@ -72,13 +72,16 @@ export const reportLiveActivityTokenStep = createStep(
     const stale = held.filter((activity) => activity.device_id !== input.device_id)
     if (stale.length) await devices.deleteLiveActivities(stale.map((activity) => activity.id))
     const known = held.find((activity) => activity.device_id === input.device_id)
+    const { app } = await devices.retrieveLiveActivityDevice(input.device_id)
     const reported = { apple_id: input.activity_id, token: input.token, environment: input.environment }
     let catch_up: string | null = null
     let spare = false
     if (known) {
       await devices.updateLiveActivities({ id: known.id, ...reported })
       // The server recorded its start, the phone named it, and only now can it be sent anything.
-      if (!known.token) catch_up = known.id
+      if (!known.token && app === "buyer") catch_up = known.id
+    } else if (app === "vendor") {
+      await recordShopActivityToken(devices, input)
     } else {
       const about = input.subject_id ? await devices.listLiveActivities({ device_id: input.device_id, kind: "buyer_shop_order", subject_id: input.subject_id }, { order: { started_at: "DESC" } }) : []
       const running = about.find((activity) => !activity.ended_at)
@@ -106,6 +109,21 @@ export const reportLiveActivityTokenStep = createStep(
   }
 )
 
+/**
+ * The phone can't say which shop a push-started activity is for (ADR 0018). If it's waiting on
+ * just one, that's the one. If it's waiting on several it isn't guessed: a wrong guess would end
+ * one shop's activity when another closes, so this one runs out by itself.
+ */
+async function recordShopActivityToken(devices: LiveActivityTokenModuleService, input: ReportTokenInput & { kind: "activity" }) {
+  const { device_id, activity_id, token, environment } = input
+  const waiting = await devices.listLiveActivities({ device_id, kind: "vendor_shop", ended_at: null, token: null })
+  if (waiting.length === 1) {
+    await devices.updateLiveActivities({ id: waiting[0].id, apple_id: activity_id, token, environment })
+    return
+  }
+  await devices.createLiveActivities({ device_id, kind: "vendor_shop", apple_id: activity_id, token, environment, started_at: new Date() })
+}
+
 export type RecordStartInput = { device_id: string; order_id: string; activity_id: string; environment: Environment }
 
 /** The phone started an activity itself (iOS below 17.2), so the server knows which order it is for. */
@@ -120,5 +138,19 @@ export const recordLiveActivityStartedStep = createStep(
     }
     await devices.createLiveActivities({ device_id, kind: "buyer_shop_order", subject_id: order_id, apple_id: activity_id, environment, started_at: new Date() })
     return new StepResponse({ activity_id })
+  }
+)
+
+export type SetShopInput = { device_id: string; seller_id: string; on: boolean }
+
+/** Turns "Orders on Lock Screen" on or off for one shop on one phone. */
+export const setLiveActivityShopStep = createStep(
+  "set-live-activity-shop",
+  async ({ device_id, seller_id, on }: SetShopInput, { container }) => {
+    const devices = service(container)
+    const held = await devices.listLiveActivityShops({ device_id, seller_id })
+    if (on && !held.length) await devices.createLiveActivityShops({ device_id, seller_id })
+    if (!on && held.length) await devices.deleteLiveActivityShops(held.map(({ id }) => id))
+    return new StepResponse({ on })
   }
 )

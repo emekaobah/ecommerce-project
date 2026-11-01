@@ -142,7 +142,7 @@ export const liveActivityPayloadBytes = (factory: string, props: object) =>
   new TextEncoder().encode(JSON.stringify({ name: factory, props: JSON.stringify(props) })).length
 
 /** Free text on one line, cut to `max` characters at a character's edge, never through an emoji. */
-function clip(text: string, max: number) {
+export function clip(text: string, max: number) {
   // eslint-disable-next-line no-control-regex
   const line = text.replace(/[\s\u0000-\u001f\u007f]+/g, " ").trim()
   const characters = Array.from(line)

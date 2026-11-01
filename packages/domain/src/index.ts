@@ -134,6 +134,8 @@ export {
   MAX_ACTIVITY_CONTENT_BYTES,
 } from "./buyer-activity"
 export type { BuyerActivityContent, BuyerActivityOrder, BuyerActivityOutcome, BuyerActivityPlan, BuyerActivityStep } from "./buyer-activity"
+export { nearestAcceptDeadline, VENDOR_ACTIVITY_FACTORY, vendorActivityContent } from "./vendor-activity"
+export type { NearestDeadline, VendorActivityContent, VendorActivityShop } from "./vendor-activity"
 export type { Reached, TimelineStep } from "./timeline"
 export { HANDOVER_DISAGREEMENT_MS, HANDOVER_REALERT_MS, handoverAlertDue, handoverDisagreement } from "./handover"
 export type { HandoverDisagreement } from "./handover"
@@ -182,6 +184,7 @@ export {
   nextOpening,
   openingLabel,
   openTimeBetween,
+  dateIn,
   shopStatus,
   shopStatusChip,
   shopStatusLabel,

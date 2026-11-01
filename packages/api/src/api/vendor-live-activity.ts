@@ -1,0 +1,85 @@
+import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { MedusaError } from "@medusajs/framework/utils"
+import { z } from "@medusajs/framework/zod"
+import { LIVE_ACTIVITY_KEY_HEADER } from "@oja/domain"
+import { LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
+import { hashDeviceKey } from "../workflows/live-activity-token/steps"
+import {
+  registerLiveActivityDeviceWorkflow,
+  removeLiveActivityDeviceWorkflow,
+  setLiveActivityShopWorkflow,
+} from "../workflows/live-activity-token/workflows"
+import type { LiveActivityDeviceBodyType, LiveActivityDeviceDeleteResponse, LiveActivityDeviceResponse } from "./live-activity-tokens"
+import { sellerOf, type VendorRequest } from "./vendor/offer-import/seller"
+
+// A member's phone and the shops it wants the Live Activity for (#146). The shop is the one the
+// member is acting for, which Mercur has checked they're a member of; the phone is the one whose
+// key they hold (ADR 0018). A phone reports its tokens with that key alone, as the buyer's does.
+
+export const LiveActivityShopBody = z.object({ on: z.boolean() })
+export type LiveActivityShopBodyType = z.infer<typeof LiveActivityShopBody>
+export type LiveActivityShopResponse = { on: boolean }
+
+const keyOf = (req: AuthenticatedMedusaRequest<any>) => {
+  const key = req.headers[LIVE_ACTIVITY_KEY_HEADER]
+  return typeof key === "string" && key ? key : null
+}
+
+/** The phone the request's key names, if it's this member's. */
+async function membersDevice(req: VendorRequest<any>) {
+  const key = keyOf(req)
+  if (!key) return null
+  const [device] = await req.scope
+    .resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
+    .listLiveActivityDevices({ key_hash: hashDeviceKey(key), app: "vendor", actor_type: "member", actor_id: req.auth_context.actor_id })
+  return device ?? null
+}
+
+/** Gives a signed-in member's phone its key, or moves the phone it already names to them. */
+export const registerMemberDevice = async (
+  req: AuthenticatedMedusaRequest<LiveActivityDeviceBodyType>,
+  res: MedusaResponse<LiveActivityDeviceResponse>
+) => {
+  const { result } = await registerLiveActivityDeviceWorkflow(req.scope).run({
+    input: {
+      app: "vendor",
+      actor_type: "member",
+      actor_id: req.auth_context.actor_id,
+      key: keyOf(req) ?? undefined,
+      environment: req.validatedBody.environment,
+      push_token: req.validatedBody.push_token,
+    },
+  })
+  res.json({ device: { key: result.key } })
+}
+
+/** At sign-out: forgets the phone, its tokens and its shops, if it is still this member's. */
+export const removeMemberDevice = async (req: AuthenticatedMedusaRequest, res: MedusaResponse<LiveActivityDeviceDeleteResponse>) => {
+  const key = keyOf(req)
+  if (key) {
+    await removeLiveActivityDeviceWorkflow(req.scope).run({
+      input: { key, actor_type: "member", actor_id: req.auth_context.actor_id },
+    })
+  }
+  res.json({ deleted: true })
+}
+
+/** Whether this phone has "Orders on Lock Screen" on for the shop. Off for a phone with no key yet. */
+export const readShop = async (req: VendorRequest, res: MedusaResponse<LiveActivityShopResponse>) => {
+  const device = await membersDevice(req)
+  const shops = device
+    ? await req.scope
+        .resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
+        .listLiveActivityShops({ device_id: device.id, seller_id: sellerOf(req) })
+    : []
+  res.json({ on: shops.length > 0 })
+}
+
+/** Turns "Orders on Lock Screen" on or off for the shop, on this phone only. */
+export const setShop = async (req: VendorRequest<LiveActivityShopBodyType>, res: MedusaResponse<LiveActivityShopResponse>) => {
+  const device = await membersDevice(req)
+  if (!device) throw new MedusaError(MedusaError.Types.NOT_FOUND, "This phone isn't registered")
+  const { on } = req.validatedBody as LiveActivityShopBodyType
+  const { result } = await setLiveActivityShopWorkflow(req.scope).run({ input: { device_id: device.id, seller_id: sellerOf(req), on } })
+  res.json({ on: result.on })
+}

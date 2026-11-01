@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 import { APNS_ENVIRONMENTS, LIVE_ACTIVITY_ACTORS, LIVE_ACTIVITY_APPS } from "./constants"
 import LiveActivity from "./live-activity"
+import LiveActivityShop from "./live-activity-shop"
 
 /**
  * One app on one phone, and who is signed in on it (ADR 0018). A device belongs to one person at
@@ -24,12 +25,13 @@ const LiveActivityDevice = model
     /** When the phone last reported any activity's update token: iOS has shown it can run them. */
     update_token_reported_at: model.dateTime().nullable(),
     activities: model.hasMany(() => LiveActivity, { mappedBy: "device" }),
+    shops: model.hasMany(() => LiveActivityShop, { mappedBy: "device" }),
   })
   .indexes([
     { on: ["actor_type", "actor_id"] },
     { on: ["push_to_start_token"], unique: true, where: "push_to_start_token IS NOT NULL" },
     { on: ["push_token"], unique: true, where: "push_token IS NOT NULL" },
   ])
-  .cascades({ delete: ["activities"] })
+  .cascades({ delete: ["activities", "shops"] })
 
 export default LiveActivityDevice
