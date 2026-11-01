@@ -1,10 +1,13 @@
 // Relative import of a plain-JS module: Expo's config loader doesn't transpile workspace TypeScript.
-import { APPLE_TEAM_ID, appIdentity } from '../../packages/domain/src/app-identity.js';
+import { apnsEnvironment, APPLE_TEAM_ID, appIdentity } from '../../packages/domain/src/app-identity.js';
 import { fontFiles } from '../../packages/ui/src/fonts.js';
 import type { ExpoConfig } from 'expo/config';
 
 // Name, scheme and bundle id derive from the product-name constant in @oja/domain.
 const { name, slug, scheme, bundleId } = appIdentity('buyer');
+
+// Which of Apple's push services this build uses. The widgets library's default is development (#143).
+const push = apnsEnvironment(process.env.EAS_BUILD_PROFILE);
 
 /**
  * Maps SDK keys for the pin map (ADR 0002), baked into the native projects at prebuild. They
@@ -27,7 +30,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'automatic',
   // Placeholder wordmarks until the design pass supplies the real brand mark.
   icon: './assets/icon.png',
-  ios: { bundleIdentifier: bundleId, appleTeamId: APPLE_TEAM_ID },
+  ios: { bundleIdentifier: bundleId, appleTeamId: APPLE_TEAM_ID, entitlements: { 'aps-environment': push.entitlement } },
   android: {
     package: bundleId,
     predictiveBackGestureEnabled: false,
@@ -62,6 +65,8 @@ const config: ExpoConfig = {
     ],
     // Pushes about the buyer's orders (#27, #28).
     'expo-notifications',
+    // The order on the Lock Screen and in the Dynamic Island (#133). EAS provisions the extension.
+    ['expo-widgets', { enablePushNotifications: true, frequentUpdates: true, groupIdentifier: `group.${bundleId}` }],
     // Crash reporting (#19). Release builds upload source maps and debug symbols when
     // SENTRY_AUTH_TOKEN is set, and skip the upload otherwise.
     [
@@ -74,7 +79,7 @@ const config: ExpoConfig = {
     ],
   ],
   // Expo push tokens are issued per EAS project; without one the app runs but gets no pushes.
-  extra: { eas: { projectId: process.env.EAS_PROJECT_ID || undefined } },
+  extra: { eas: { projectId: process.env.EAS_PROJECT_ID || undefined }, apnsEnvironment: push.host },
   // Metro resolves react, react-native and every autolinked native module to the copy this app
   // links, though Bun's isolated install keeps same-version copies elsewhere (ADR 0012).
   experiments: { typedRoutes: true, reactCompiler: true, autolinkingModuleResolution: true },
