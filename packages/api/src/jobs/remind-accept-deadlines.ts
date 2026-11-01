@@ -6,4 +6,4 @@ export default async function remindAcceptDeadlinesJob(container: MedusaContaine
   await remindAcceptDeadlines(container)
 }
 
-export const config = { name: "remind-accept-deadlines", schedule: "*/5 * * * *" }
+export const config = { name: "remind-accept-deadlines", schedule: "* * * * *" }
