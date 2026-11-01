@@ -4,9 +4,11 @@ import {
   registerLiveActivityDeviceStep,
   removeLiveActivityDeviceStep,
   reportLiveActivityTokenStep,
+  setLiveActivityShopStep,
   type RecordStartInput,
   type RegisterDeviceInput,
   type ReportTokenInput,
+  type SetShopInput,
 } from "./steps"
 
 /** A phone gets its key once someone is signed in on it (ADR 0018). */
@@ -30,4 +32,9 @@ export const reportLiveActivityTokenWorkflow = createWorkflow("report-live-activ
 /** A phone on iOS below 17.2 started an activity itself. */
 export const recordLiveActivityStartedWorkflow = createWorkflow("record-live-activity-started", (input: RecordStartInput) => {
   return new WorkflowResponse(recordLiveActivityStartedStep(input))
+})
+
+/** A member turns "Orders on Lock Screen" on or off for a shop on their phone. */
+export const setLiveActivityShopWorkflow = createWorkflow("set-live-activity-shop", (input: SetShopInput) => {
+  return new WorkflowResponse(setLiveActivityShopStep(input))
 })
