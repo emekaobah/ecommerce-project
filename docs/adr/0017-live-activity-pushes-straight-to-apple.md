@@ -21,6 +21,8 @@ The device test (#140, iPhone 17 on iOS 27.0.1, `expo-widgets@58.0.26`, APNs san
 
 "Don't Allow", production builds and token rotation weren't tested.
 
+Android has no equivalent of this push, and stays on Expo: see ADR 0019. This ADR is about iOS only.
+
 ## Decision
 
 Live Activity pushes sit outside the notification module and outside Expo. `src/modules/live-activity-push` sends them to Apple over HTTP/2, signed with a .p8 key.
@@ -30,6 +32,7 @@ Live Activity pushes sit outside the notification module and outside Expo. `src/
 - **The token's recorded environment picks the host**, so test builds and store builds never cross over.
 - **The signing token is cached for 50 minutes.** Apple refuses one older than an hour and throttles refreshing more often than every 20 minutes. Connections stay open and are reused, as Apple asks.
 - **With no key it logs and sends nothing**, so a developer needs no Apple key to run the backend.
+- **A `failed` ending is tried again.** The caller keeps the activity unended (a buyer's with the final state it tried to show, in `end_content`, for the `retry-buyer-activity-endings` job; a shop's by the minute job, since it's still closed) until Apple takes it, or until the 12 hours iOS gives an activity have passed and nothing is left to end. A dead token Apple keeps answering `failed` for can't be tried for ever.
 
 ## Consequences
 
