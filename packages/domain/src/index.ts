@@ -121,10 +121,21 @@ export { isSaved, wishlistMove } from "./wishlist"
 export type { WishlistMove } from "./wishlist"
 export { acceptClockFraction, acceptClockTime, acceptDeadline, acceptReminderDue, acceptTimeLeft } from "./accept-deadline"
 export { fulfilmentTimeline, recordReached, shortStepLabel } from "./timeline"
-export { BUYER_ACTIVITY_FACTORY, buyerActivityContent, LIVE_ACTIVITY_KEY_HEADER, liveActivityPayloadBytes, MAX_ACTIVITY_CONTENT_BYTES } from "./buyer-activity"
+export {
+  BUYER_ACTIVITY_DISMISS_AFTER_MS,
+  BUYER_ACTIVITY_FACTORY,
+  buyerActivityContent,
+  buyerActivityOrderId,
+  buyerActivityPlan,
+  buyerActivityRestarts,
+  buyerActivityUrl,
+  LIVE_ACTIVITY_KEY_HEADER,
+  liveActivityPayloadBytes,
+  MAX_ACTIVITY_CONTENT_BYTES,
+} from "./buyer-activity"
+export type { BuyerActivityContent, BuyerActivityOrder, BuyerActivityOutcome, BuyerActivityPlan, BuyerActivityStep } from "./buyer-activity"
 export { nearestAcceptDeadline, VENDOR_ACTIVITY_FACTORY, vendorActivityAlert, vendorActivityContent, vendorActivityUpdateDue } from "./vendor-activity"
 export type { NearestDeadline, VendorActivityContent, VendorActivityMoment, VendorActivitySent, VendorActivityShop } from "./vendor-activity"
-export type { BuyerActivityContent, BuyerActivityOrder, BuyerActivityOutcome, BuyerActivityStep } from "./buyer-activity"
 export type { Reached, TimelineStep } from "./timeline"
 export { HANDOVER_DISAGREEMENT_MS, HANDOVER_REALERT_MS, handoverAlertDue, handoverDisagreement } from "./handover"
 export type { HandoverDisagreement } from "./handover"
