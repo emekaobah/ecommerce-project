@@ -68,7 +68,7 @@ export type LiveActivityTokenResponse = { token: string }
 export type LiveActivityStartedResponse = { activity_id: string }
 export type OwedActivitiesResponse = { activities: OwedActivity[] }
 
-const keyOf = (req: MedusaRequest) => {
+export const keyOf = (req: MedusaRequest<any>) => {
   const key = req.headers[LIVE_ACTIVITY_KEY_HEADER]
   return typeof key === "string" && key ? key : null
 }
@@ -83,34 +83,31 @@ export async function deviceOf(req: MedusaRequest, app: "buyer" | "vendor") {
   return device
 }
 
-/** Gives a signed-in buyer's phone its key, or moves the phone it already names to them. */
-export const registerBuyerDevice = async (
-  req: AuthenticatedMedusaRequest<LiveActivityDeviceBodyType>,
-  res: MedusaResponse<LiveActivityDeviceResponse>
-) => {
-  const { result } = await registerLiveActivityDeviceWorkflow(req.scope).run({
-    input: {
-      app: "buyer",
-      actor_type: "customer",
-      actor_id: req.auth_context.actor_id,
-      key: keyOf(req) ?? undefined,
-      environment: req.validatedBody.environment,
-      push_token: req.validatedBody.push_token,
-    },
-  })
-  res.json({ device: { key: result.key } })
-}
-
-/** At sign-out: forgets the phone and its tokens, if it is still this buyer's. */
-export const removeBuyerDevice = async (req: AuthenticatedMedusaRequest, res: MedusaResponse<LiveActivityDeviceDeleteResponse>) => {
-  const key = keyOf(req)
-  if (key) {
-    await removeLiveActivityDeviceWorkflow(req.scope).run({
-      input: { key, actor_type: "customer", actor_id: req.auth_context.actor_id },
+/** Gives a signed-in person's phone its key, or moves the phone it already names to them. */
+export const registerDevice =
+  (app: "buyer" | "vendor", actor_type: "customer" | "member") =>
+  async (req: AuthenticatedMedusaRequest<LiveActivityDeviceBodyType>, res: MedusaResponse<LiveActivityDeviceResponse>) => {
+    const { result } = await registerLiveActivityDeviceWorkflow(req.scope).run({
+      input: {
+        app,
+        actor_type,
+        actor_id: req.auth_context.actor_id,
+        key: keyOf(req) ?? undefined,
+        environment: req.validatedBody.environment,
+        push_token: req.validatedBody.push_token,
+      },
     })
+    res.json({ device: { key: result.key } })
   }
-  res.json({ deleted: true })
-}
+
+/** At sign-out: forgets the phone and everything of its, if it is still this person's. */
+export const removeDevice =
+  (actor_type: "customer" | "member") =>
+  async (req: AuthenticatedMedusaRequest, res: MedusaResponse<LiveActivityDeviceDeleteResponse>) => {
+    const key = keyOf(req)
+    if (key) await removeLiveActivityDeviceWorkflow(req.scope).run({ input: { key, actor_type, actor_id: req.auth_context.actor_id } })
+    res.json({ deleted: true })
+  }
 
 /** Takes a token from a phone, with its key. */
 export const reportToken = async (req: MedusaRequest<LiveActivityTokenBodyType>, res: MedusaResponse<LiveActivityTokenResponse>) => {
