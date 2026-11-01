@@ -134,6 +134,8 @@ export {
   MAX_ACTIVITY_CONTENT_BYTES,
 } from "./buyer-activity"
 export type { BuyerActivityContent, BuyerActivityOrder, BuyerActivityOutcome, BuyerActivityPlan, BuyerActivityStep } from "./buyer-activity"
+export { buyerLiveUpdateMessage, buyerLiveUpdateView, LIVE_UPDATE_TTL_SECONDS, readLiveUpdateMessage } from "./live-update"
+export type { LiveUpdateIcon, LiveUpdateMessage, LiveUpdateProgress, LiveUpdateView, ThemedColor } from "./live-update"
 export { nearestAcceptDeadline, VENDOR_ACTIVITY_FACTORY, vendorActivityAlert, vendorActivityContent, vendorActivityUpdateDue } from "./vendor-activity"
 export type { NearestDeadline, VendorActivityContent, VendorActivityMoment, VendorActivitySent, VendorActivityShop } from "./vendor-activity"
 export type { Reached, TimelineStep } from "./timeline"

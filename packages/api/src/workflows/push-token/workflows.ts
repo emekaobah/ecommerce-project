@@ -1,8 +1,8 @@
 import { WorkflowResponse, createWorkflow } from "@medusajs/framework/workflows-sdk"
-import { forgetPushDevicesStep, registerPushTokenStep, removePushTokenStep, type PushTokenInput } from "./steps"
+import { forgetPushDevicesStep, registerPushTokenStep, removePushTokenStep, type PushTokenInput, type RegisterPushTokenInput } from "./steps"
 
 /** A buyer's or member's device registers for pushes once they are signed in on it (#27). */
-export const registerPushTokenWorkflow = createWorkflow("register-push-token", (input: PushTokenInput) => {
+export const registerPushTokenWorkflow = createWorkflow("register-push-token", (input: RegisterPushTokenInput) => {
   return new WorkflowResponse(registerPushTokenStep(input))
 })
 

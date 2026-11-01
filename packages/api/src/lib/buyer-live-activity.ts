@@ -2,7 +2,6 @@ import {
   appIdentity,
   BUYER_ACTIVITY_DISMISS_AFTER_MS,
   BUYER_ACTIVITY_FACTORY,
-  buyerActivityContent,
   buyerActivityPlan,
   buyerActivityRestarts,
   buyerActivityUrl,
@@ -10,7 +9,6 @@ import {
   orderNumber,
   type BuyerActivityContent,
   type FulfilmentState,
-  type RemovedItem,
 } from "@oja/domain"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
@@ -19,8 +17,10 @@ import type { LiveActivityPush } from "../modules/live-activity-push/service"
 import { LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
 import { hashDeviceKey } from "../workflows/live-activity-token/steps"
 import { buyerOrder } from "./buyer-notifications"
+import { endBuyerLiveUpdate, removeBuyerLiveUpdates, showBuyerLiveUpdate } from "./buyer-live-update"
 import { errorMessage } from "./errors"
 import { listBuyerOrderGroups, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
+import { contentOf, RUNS_AN_ACTIVITY, type ActivityState, type Ending } from "./buyer-activity-content"
 import { ordersOnLockScreenOn } from "./notification-preferences"
 
 // A buyer's shop order on their Lock Screen and in the Dynamic Island (#133). Pushes go straight
@@ -43,24 +43,7 @@ export const activityAlertReplacesPush = (device: DeviceFacts) => device.update_
 
 const senderOf = (scope: Scope) => scope.resolve<LiveActivityPushModuleService>(LIVE_ACTIVITY_PUSH_MODULE)
 
-type ActivityState = Exclude<FulfilmentState, "new" | "rejected">
 type Found = NonNullable<Awaited<ReturnType<typeof buyerOrder>>>
-/** What only a cancelled or not collected order's own event knows. */
-type Ending = { refund?: number; kept?: RemovedItem[] }
-
-const contentOf = (number: string, order: BuyerOrder, state: ActivityState, { refund, kept }: Ending = {}): BuyerActivityContent =>
-  buyerActivityContent({
-    number,
-    shop: order.seller.name,
-    method: order.fulfilment.method,
-    state,
-    currency_code: order.currency_code,
-    pickup_code: order.pickup?.code,
-    cancellation: order.fulfilment.cancellation,
-    refund: refund ?? order.refund?.amount ?? 0,
-    kept,
-  })
-
 const contentPush = (content: BuyerActivityContent) => ({ app: "buyer" as const, content: { factory: BUYER_ACTIVITY_FACTORY, props: content } })
 
 /** The state's push, as the activity's alert: named as clipped for it, and short of a pickup's address, which the code replaces. */
@@ -223,9 +206,10 @@ export async function endBuyerActivity(scope: Scope, orderId: string, state: Act
   if (!found) return
   const content = contentOf(found.checkout.number, found.order, state, ending)
   const dismissAt = new Date(Date.now() + BUYER_ACTIVITY_DISMISS_AFTER_MS)
-  await Promise.all(
-    (await runningActivities(scope, orderId, found.checkout.customer_id)).map((row) => finish(scope, row, content, dismissAt))
-  )
+  await Promise.all([
+    endBuyerLiveUpdate(scope, found, orderId, state, content),
+    ...(await runningActivities(scope, orderId, found.checkout.customer_id)).map((row) => finish(scope, row, content, dismissAt)),
+  ])
 }
 
 async function finish(scope: Scope, row: Pick<Row, "id" | "token" | "environment" | "ended_at">, content: BuyerActivityContent, dismissAt: Date) {
@@ -249,6 +233,7 @@ export async function endNotCollectedActivity(scope: Scope, { id, amount, kept }
  * turn "Orders on Lock Screen" off (#145). One still waiting for its token ends when that arrives.
  */
 export async function endBuyerActivities(scope: Scope, customerId: string): Promise<void> {
+  await removeBuyerLiveUpdates(scope, customerId)
   const store = tokens(scope)
   const devices = await store.listLiveActivityDevices({ app: "buyer", actor_type: "customer", actor_id: customerId })
   if (!devices.length) return
@@ -269,6 +254,7 @@ export async function endBuyerActivities(scope: Scope, customerId: string): Prom
  */
 export async function moveBuyerActivity(scope: Scope, orderId: string, state: FulfilmentState): Promise<string[]> {
   const { action } = buyerActivityPlan(state)
+  if (action === "start" || action === "update") await showBuyerLiveUpdate(scope, orderId, state)
   if (action === "start") return startBuyerActivity(scope, orderId)
   if (action === "update") return updateBuyerActivity(scope, orderId, state)
   // Cancelled and not collected end from their own events, which say what was refunded.
@@ -310,19 +296,6 @@ export async function endSpareBuyerActivity(
   const content = contentOf(found.checkout.number, found.order, state as ActivityState)
   await senderOf(scope).send({ ...contentPush(content), event: "end", token, environment, priority: 10, dismissAt: new Date() })
 }
-
-/** Where an order has been accepted and isn't finished: when a phone should be showing it. */
-const RUNS_AN_ACTIVITY = new Set<FulfilmentState>([
-  "accepted",
-  "picking",
-  "partially_available",
-  "packed",
-  "label_booked",
-  "courier_confirmed",
-  "handed_to_courier",
-  "in_transit",
-  "ready_for_pickup",
-])
 
 export type OwedActivity = { order_id: string; url: string; content: BuyerActivityContent }
 

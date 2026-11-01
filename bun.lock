@@ -67,6 +67,7 @@
         "@expo/ui": "~58.0.20",
         "@oja/api-client": "workspace:*",
         "@oja/domain": "workspace:*",
+        "@oja/expo-live-update": "workspace:*",
         "@oja/expo-push": "workspace:*",
         "@oja/expo-sentry": "workspace:*",
         "@oja/ui": "workspace:*",
@@ -91,6 +92,7 @@
         "expo-status-bar": "~58.0.3",
         "expo-symbols": "~58.0.4",
         "expo-system-ui": "~58.0.6",
+        "expo-task-manager": "~58.0.12",
         "expo-web-browser": "~58.0.6",
         "expo-widgets": "~58.0.26",
         "qrcode-generator": "1.4.4",
@@ -299,6 +301,20 @@
       "devDependencies": {
         "@types/bun": "1.3.10",
         "typescript": "5.9.3",
+      },
+    },
+    "packages/expo-live-update": {
+      "name": "@oja/expo-live-update",
+      "version": "0.0.0",
+      "dependencies": {
+        "@oja/domain": "workspace:*",
+      },
+      "devDependencies": {
+        "expo": "~58.0.14",
+        "typescript": "~6.0.3",
+      },
+      "peerDependencies": {
+        "expo": "*",
       },
     },
     "packages/expo-push": {
@@ -1332,6 +1348,8 @@
     "@oja/api-client": ["@oja/api-client@workspace:packages/api-client"],
 
     "@oja/domain": ["@oja/domain@workspace:packages/domain"],
+
+    "@oja/expo-live-update": ["@oja/expo-live-update@workspace:packages/expo-live-update"],
 
     "@oja/expo-push": ["@oja/expo-push@workspace:packages/expo-push"],
 
@@ -2955,6 +2973,8 @@
 
     "expo-system-ui": ["expo-system-ui@58.0.6", "", { "dependencies": { "@react-native/normalize-colors": "0.88.0", "debug": "^4.3.2" }, "peerDependencies": { "expo": "*", "react-native": "*", "react-native-web": "*" }, "optionalPeers": ["react-native-web"] }, "sha512-K1+GIYhNDc4J0lJAL0m8giesP1dgfavhN+joA6FQ45r1FXAWwS1PaueCiCJaq5hB6z5iAYT7b9XqYp76UU65yw=="],
 
+    "expo-task-manager": ["expo-task-manager@58.0.13", "", { "dependencies": { "unimodules-app-loader": "~58.0.2" }, "peerDependencies": { "expo": "*", "react-native": "*" } }, "sha512-wMDmVmbCV6aKvORmVHr8qu+oQfA5+EWe9EhYvLgQj5Qd2IPXEBM9OjOieylk0/tdXaF8ZfGany5Oqkr3/KzCAA=="],
+
     "expo-updates-interface": ["expo-updates-interface@58.0.1", "", { "peerDependencies": { "expo": "*" } }, "sha512-OF+3BtMXtUsXWDfpHVNus9yHpx7WjMwjxDfeeN9LQBYSq/UtYmNNHBSfzChYTuqljWFSOAHRfsDykV9EB73Wlg=="],
 
     "expo-web-browser": ["expo-web-browser@58.0.6", "", { "peerDependencies": { "expo": "*", "react-native": "*" } }, "sha512-6/QtDqTOaTqM/ysYYdEZG4XDrWloOo1wVYCn4g3IgayF+1lZWTwMqa5j4kcn2TA1UBer8O7zbMQYLfSMppQ/zg=="],
@@ -4491,6 +4511,8 @@
 
     "unicorn-magic": ["unicorn-magic@0.3.0", "", {}, "sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA=="],
 
+    "unimodules-app-loader": ["unimodules-app-loader@58.0.2", "", {}, "sha512-d7vZN9/awIwPCqzfw1qR/geJEzv3ElW0VdwXFnPw29QZYoAZI0jqXGKPZVG1vQCfhEiWJtBX/nVm1XI8wshrDg=="],
+
     "unique-string": ["unique-string@2.0.0", "", { "dependencies": { "crypto-random-string": "^2.0.0" } }, "sha512-uNaeirEPvpZWSgzwsPGtU2zVSTrn/8L5q/IexZmH0eH6SA73CmAA5U4GwORTxQAZs95TAXLNqeLoPPNO5gZfWg=="],
 
     "universalify": ["universalify@0.1.2", "", {}, "sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg=="],
@@ -5016,6 +5038,8 @@
     "@next/eslint-plugin-next/fast-glob": ["fast-glob@3.3.1", "", { "dependencies": { "@nodelib/fs.stat": "^2.0.2", "@nodelib/fs.walk": "^1.2.3", "glob-parent": "^5.1.2", "merge2": "^1.3.0", "micromatch": "^4.0.4" } }, "sha512-kNFPyjhh5cKjrUltxs+wFx+ZkbRaxxmZ+X0ZU31SOsxCEtP9VPgtq2teZw1DebupL5GmDaNQ6yKMMVcM41iqDg=="],
 
     "@noble/curves/@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
+
+    "@oja/expo-live-update/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "@oja/expo-push/@types/react": ["@types/react@19.3.0", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg=="],
 

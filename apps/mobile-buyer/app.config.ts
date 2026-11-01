@@ -33,6 +33,8 @@ const config: ExpoConfig = {
   ios: { bundleIdentifier: bundleId, appleTeamId: APPLE_TEAM_ID, entitlements: { 'aps-environment': push.entitlement } },
   android: {
     package: bundleId,
+    // Firebase's client config, without which Android gives no Expo push token: no pushes, no Live Update.
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
     predictiveBackGestureEnabled: false,
     adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#0B5CFF' },
   },
