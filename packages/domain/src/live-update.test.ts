@@ -27,15 +27,22 @@ describe("buyerLiveUpdateView, against the catalogue's drawings", () => {
     })
   })
 
-  test("in progress: a segment between steps and a point at each after the first, the tracker where the order is", () => {
+  test("in progress: a segment between steps, the tracker where the order is", () => {
     const { progress, olderBar } = buyerLiveUpdateView(message(buyerActivityContent({ ...order, method: "delivery", state: "picking" })))
     expect(progress?.segments).toEqual(Array(7).fill({ length: 1 }))
-    expect(progress?.points).toEqual([1, 2, 3, 4, 5, 6, 7])
+    // More than the 4 Android draws: it would stop part-way along.
+    expect(progress?.points).toEqual([])
     expect(progress?.position).toBe(2)
     expect(progress?.tracker).toBe("box")
     expect(progress?.styledByProgress).toBe(true)
     // Older Android fills with the step out of the path's steps.
     expect(olderBar).toEqual({ max: 8, current: 3 })
+  })
+
+  test("a pickup's shorter path has a point at each step after the first", () => {
+    const { progress } = buyerLiveUpdateView(message(buyerActivityContent({ ...order, method: "pickup", state: "accepted" })))
+    expect(progress?.segments).toHaveLength(4)
+    expect(progress?.points).toEqual([1, 2, 3, 4])
   })
 
   test("on its way: the tracker and chip become the truck", () => {

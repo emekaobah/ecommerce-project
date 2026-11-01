@@ -70,6 +70,8 @@ const LIVE_UPDATE_TIMEOUT_MS = 12 * 60 * 60 * 1000
 /** A push older than this would only bring back something that has already gone. */
 export const LIVE_UPDATE_TTL_SECONDS = LIVE_UPDATE_TIMEOUT_MS / 1000
 
+const MAX_POINTS = 4
+
 // The catalogue's accent on a card, in each appearance.
 const ACCENT: ThemedColor = { light: "#1B2559", dark: "#AEB8FF" }
 
@@ -129,8 +131,9 @@ export function buyerLiveUpdateView({ order_id, revision, url, content }: LiveUp
     timeoutMs: LIVE_UPDATE_TIMEOUT_MS,
     progress: {
       segments: Array.from({ length: step.total - 1 }, () => ({ length: 1 })),
-      // Android's points start at 1: the bar's start is the tracker's until the order moves on.
-      points: Array.from({ length: step.total - 1 }, (_, point) => point + 1),
+      // Android's points start at 1, and it draws only the first few, which would stop part-way along a
+      // delivery's bar. There, the gaps between segments mark the steps alone.
+      points: step.total - 1 <= MAX_POINTS ? Array.from({ length: step.total - 1 }, (_, point) => point + 1) : [],
       position: step.index - 1,
       tracker: step.icon,
       styledByProgress: true,
