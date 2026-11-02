@@ -16,3 +16,9 @@ export type AppIdentity = {
 
 /** Name, scheme and bundle id for an app, derived from the product name. */
 export declare function appIdentity(app: "buyer" | "vendor"): AppIdentity
+
+/** Which of Apple's push services an EAS build profile uses: its iOS entitlement, and the host tokens are recorded under. */
+export declare function apnsEnvironment(profile: string | undefined): {
+  entitlement: "development" | "production"
+  host: "sandbox" | "production"
+}

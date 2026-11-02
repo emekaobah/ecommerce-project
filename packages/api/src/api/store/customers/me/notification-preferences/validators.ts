@@ -5,6 +5,7 @@ export const StoreUpdateNotificationPreferences = z
   .object({
     cart_reminder_push: z.boolean().optional(),
     cart_reminder_email: z.boolean().optional(),
+    orders_on_lock_screen: z.boolean().optional(),
   })
   .strict()
 

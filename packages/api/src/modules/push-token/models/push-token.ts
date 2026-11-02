@@ -4,6 +4,10 @@ import { model } from "@medusajs/framework/utils"
 export const PUSH_TOKEN_ACTORS = ["customer", "member"] as const
 export type PushTokenActor = (typeof PUSH_TOKEN_ACTORS)[number]
 
+/** What a phone says it is when it registers. */
+export const PUSH_TOKEN_PLATFORMS = ["ios", "android"] as const
+export type PushTokenPlatform = (typeof PUSH_TOKEN_PLATFORMS)[number]
+
 /**
  * A device's Expo push token and who is signed in on it (#27). A device belongs to one person
  * at a time: registering it again for someone else moves it to them.
@@ -15,6 +19,8 @@ const PushToken = model
     actor_type: model.enum([...PUSH_TOKEN_ACTORS]),
     /** The customer or member id. */
     actor_id: model.text(),
+    /** Null for a build from before phones said: it gets normal pushes, and nothing only a newer build can draw (#148). */
+    platform: model.enum([...PUSH_TOKEN_PLATFORMS]).nullable(),
   })
   .indexes([{ on: ["actor_type", "actor_id"] }])
 
