@@ -23,13 +23,22 @@ export async function androidPhonesAmong(scope: Scope, phones: { id: string; pus
 export async function pushShopLiveUpdate(
   scope: Scope,
   device: string,
-  sellerId: string,
-  url: string,
-  action: VendorLiveUpdateMessage["action"],
-  content: VendorActivityContent,
-  at: number,
-  /** What makes this one message: a device gets it once, however often the event comes (ADR 0008). */
-  moment: string
+  {
+    sellerId,
+    url,
+    action,
+    content,
+    at,
+    moment,
+  }: {
+    sellerId: string
+    url: string
+    action: VendorLiveUpdateMessage["action"]
+    content: VendorActivityContent
+    at: number
+    /** What makes this one message: a device gets it once, however often the event comes (ADR 0008). */
+    moment: string
+  }
 ): Promise<"sent" | "failed" | "token_rejected"> {
   const { gone, failed } = await pushDataToDevices(scope, [device], {
     template: "vendor-live-update",

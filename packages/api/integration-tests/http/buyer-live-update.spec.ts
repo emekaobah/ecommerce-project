@@ -156,7 +156,8 @@ medusaIntegrationTestRunner({
 
         await post(`${orderId}/accept`)
 
-        await lastIs(device, orderId, "Being prepared")
+        const sent = await lastIs(device, orderId, "Being prepared")
+        expect(sent.at(-1).data.action).toBe("show")
       })
 
       it("ends a cancelled order with who, why and the refund, as iOS does", async () => {

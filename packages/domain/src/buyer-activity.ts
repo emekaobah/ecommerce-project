@@ -150,7 +150,7 @@ export const liveActivityPayloadBytes = (factory: string, props: object) =>
 /** Free text on one line, cut to `max` characters at a character's edge, never through an emoji. */
 export function clip(text: string, max: number) {
   // eslint-disable-next-line no-control-regex
-  const line = text.replace(/[\s\u0000-\u001f\u007f]+/g, " ").trim()
+  const line = text.replace(/[\s\u0000-\u0008\u000e-\u001f\u007f]+/g, " ").trim()
   const characters = Array.from(line)
   return characters.length <= max ? line : `${characters.slice(0, max - 1).join("").trimEnd()}…`
 }

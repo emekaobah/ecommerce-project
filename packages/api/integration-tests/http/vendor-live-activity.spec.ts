@@ -435,7 +435,8 @@ medusaIntegrationTestRunner({
 
         const late = await reportActivity(key, await buyer.sellerId(GROCERY))
 
-        await eventually(async () => endsOf(late), (sent) => sent.length >= 1)
+        const ended = await eventually(async () => endsOf(late), (sent) => sent.length >= 1)
+        expect(ended[0].aps.event).toBe("end")
       })
 
       it("leaves one activity for the shop after a pause and resume its token waited through", async () => {

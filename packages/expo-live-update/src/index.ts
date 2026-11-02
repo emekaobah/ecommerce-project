@@ -49,9 +49,10 @@ export function registerLiveUpdateTask({
   Notifications: typeof ExpoNotifications;
   apply: (payload: unknown, ports: LiveUpdatePorts) => void;
 }): void {
-  TaskManager.defineTask(TASK, async ({ data, error }) => {
+  TaskManager.defineTask(TASK, ({ data, error }) => {
     if (error) console.warn('The Live Update task failed', error);
     else apply(data, { show: showLiveUpdate, cancel: cancelLiveUpdate });
+    return Promise.resolve();
   });
   Notifications.registerTaskAsync(TASK).catch((error) => console.warn('Registering the Live Update task failed', error));
 }

@@ -31,10 +31,12 @@ export function tokenReporter(ports: TokenReporterPorts) {
         console.warn('Starting a Live Activity failed', error);
       }
     }
-    for (const [orderId, activityId] of [...unrecorded]) {
-      await ports.recordStarted(key, orderId, activityId);
-      unrecorded.delete(orderId);
-    }
+    await Promise.all(
+      Array.from(unrecorded, async ([orderId, activityId]) => {
+        await ports.recordStarted(key, orderId, activityId);
+        unrecorded.delete(orderId);
+      })
+    );
   }
 
   return sharedReporter<void>({ ...ports, subjectField: 'order_id', afterReporting: startOwed, beforeSignOut: () => unrecorded.clear() });

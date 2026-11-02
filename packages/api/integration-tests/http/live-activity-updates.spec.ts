@@ -389,8 +389,10 @@ medusaIntegrationTestRunner({
 
         await post(`${orderId}/book-label`)
 
-        await sentTo(pushToStart, 2)
-        await eventually(async () => pushedTitles(device), (titles) => titles.includes(`Courier booked for order ${number}`))
+        const starts = await sentTo(pushToStart, 2)
+        expect(starts.at(-1)?.aps.event).toBe("start")
+        const titles = await eventually(async () => pushedTitles(device), (sent) => sent.includes(`Courier booked for order ${number}`))
+        expect(titles).toContain(`Courier booked for order ${number}`)
       })
 
       it("is an ordinary update for a step with no push", async () => {
@@ -487,7 +489,8 @@ medusaIntegrationTestRunner({
         await eventually(async () => apns.attemptsTo(token), (tries) => tries >= 1)
         await settle()
         apns.recover(token)
-        await retriedInto(token)
+        const ended = await retriedInto(token)
+        expect(ended.length).toBeGreaterThanOrEqual(1)
       })
 
       it("stops once iOS has let the activity go, so a dead token isn't tried for ever", async () => {

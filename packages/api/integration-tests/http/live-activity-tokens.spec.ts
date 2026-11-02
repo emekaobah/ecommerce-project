@@ -227,8 +227,10 @@ medusaIntegrationTestRunner({
 
         await accept(GROCERY, grocery)
 
-        await startsOn(phone.pushToStart)
-        await eventually(async () => acceptedPushes(phone.device), (sent) => sent.length >= 1)
+        const [start] = await startsOn(phone.pushToStart)
+        expect(start.aps.event).toBe("start")
+        const pushes = await eventually(async () => acceptedPushes(phone.device), (sent) => sent.length >= 1)
+        expect(pushes.length).toBeGreaterThanOrEqual(1)
       })
 
       it("doesn't go to an iPhone that reported one from an earlier activity: the start's alert replaces it", async () => {
@@ -276,7 +278,8 @@ medusaIntegrationTestRunner({
 
         await getContainer().resolve("event_bus").emit({ name: "order_fulfilment.state_changed", data: { id: grocery, state: "accepted" } })
 
-        await startsOn(phone.pushToStart)
+        const [start] = await startsOn(phone.pushToStart)
+        expect(start.aps.event).toBe("start")
       })
     })
 

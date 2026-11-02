@@ -106,6 +106,7 @@ export function buyerLiveUpdateMessage({
 
 function endingLine(shop: string, outcome: BuyerActivityOutcome) {
   const refunded = (refund: string | null) => (refund ? ` You'll be refunded ${refund}.` : "")
+  const keptBack = (kept: string | null) => (kept ? ` Fresh items aren't refunded: ${kept}.` : "")
   switch (outcome.kind) {
     case "delivered":
       return `Your order from ${shop} has arrived.`
@@ -114,7 +115,7 @@ function endingLine(shop: string, outcome: BuyerActivityOutcome) {
     case "cancelled":
       return `${outcome.reason}.${refunded(outcome.refund)}`
     case "not_collected":
-      return `It wasn't collected in time.${refunded(outcome.refund)}${outcome.kept ? ` Fresh items aren't refunded: ${outcome.kept}.` : ""}`
+      return `It wasn't collected in time.${refunded(outcome.refund)}${keptBack(outcome.kept)}`
   }
 }
 
@@ -135,9 +136,10 @@ export function buyerLiveUpdateView({ order_id, revision, url, content }: BuyerL
     }
   }
   const stepLine = `Step ${step.index} of ${step.total}`
+  const nextLine = step.next ? ` · Next: ${step.next}` : ""
   return {
     ...shared,
-    text: code ? `Code ${code} · Show this code at ${shop}.` : `${shop} · ${stepLine}${step.next ? ` · Next: ${step.next}` : ""}`,
+    text: code ? `Code ${code} · Show this code at ${shop}.` : `${shop} · ${stepLine}${nextLine}`,
     chip: code ? code.replace(/\s/g, "") : `${step.index} of ${step.total}`,
     icon: step.icon,
     ongoing: true,
@@ -208,11 +210,12 @@ function stageBar(counts: VendorActivityContent["counts"]): LiveUpdateProgress |
  */
 export function vendorLiveUpdateView({ seller_id, revision, url, content }: VendorLiveUpdateMessage): LiveUpdateView {
   const { shop, counts, deadline, urgent } = content
+  const orders = counts.new === 1 ? "order" : "orders"
   return {
     id: seller_id,
     revision,
     url,
-    title: counts.new ? `${shownCount(counts.new)} new ${counts.new === 1 ? "order" : "orders"} to accept` : "No new orders",
+    title: counts.new ? `${shownCount(counts.new)} new ${orders} to accept` : "No new orders",
     text: `${shownCount(counts.picking)} picking · ${shownCount(counts.ready)} ready · ${shownCount(counts.out)} out`,
     // Words as well as the colour: checked on Android 17, a promoted notification draws its timer and icon in the system's colours.
     subText: urgent ? `Under 2 hours · ${shop}` : shop,

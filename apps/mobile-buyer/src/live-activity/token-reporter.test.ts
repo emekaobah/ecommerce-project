@@ -146,15 +146,18 @@ describe('reporting', () => {
   test('a post that throws counts as failed', async () => {
     const f = fakes();
     f.setKey('k');
-    const reporter = tokenReporter({
-      ...f.ports,
-      post: async () => {
-        throw new Error('offline');
-      },
+    const post = mock(async (_key: string, _report: unknown): Promise<PostResult> => {
+      throw new Error('offline');
     });
+    const reporter = tokenReporter({ ...f.ports, post });
 
     reporter.pushToStartToken('abc');
     await settled(reporter);
+    reporter.signedIn();
+    await settled(reporter);
+
+    // Failed, so it's still waiting and goes again.
+    expect(post).toHaveBeenCalledTimes(2);
   });
 
   test('a rotated token replaces the one still waiting', async () => {

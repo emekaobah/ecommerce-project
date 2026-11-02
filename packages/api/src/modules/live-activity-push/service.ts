@@ -104,7 +104,7 @@ export default class LiveActivityPushModuleService {
   private loadKey() {
     const { key, keyPath } = this.options
     // Hosts' variables often carry a PEM's line breaks as a literal \n.
-    if (key) return key.replaceAll("\\n", "\n")
+    if (key) return key.replaceAll(String.raw`\n`, "\n")
     if (!keyPath) return undefined
     try {
       return readFileSync(keyPath, "utf8")

@@ -46,11 +46,9 @@ export const reportShopToken = async (req: MedusaRequest<VendorLiveActivityToken
   const { seller_id, ...report } = body
   const subject_id = seller_id && (await memberOfShop(req.scope, device.actor_id, seller_id)) ? seller_id : undefined
   const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...report, device_id: device.id, subject_id } })
-  const reported: LiveActivityTokenReported | null = result.catch_up
-    ? { shop_activity: result.catch_up }
-    : result.spare && subject_id
-      ? { spare_shop: { seller_id: subject_id, token: report.token, environment: report.environment } }
-      : null
+  let reported: LiveActivityTokenReported | null = null
+  if (result.catch_up) reported = { shop_activity: result.catch_up }
+  else if (result.spare && subject_id) reported = { spare_shop: { seller_id: subject_id, token: report.token, environment: report.environment } }
   if (reported) await req.scope.resolve(Modules.EVENT_BUS).emit({ name: LIVE_ACTIVITY_TOKEN_REPORTED, data: reported })
   res.json({ token: result.token })
 }

@@ -42,7 +42,9 @@ const ShopActivityLayout = (props: VendorActivityContent, environment: LiveActiv
   const island = { ...palette(true), tile: '#1C1C1F' };
 
   const { shop, counts, urgent } = props;
-  const deadline = props.deadline ? new Date(props.deadline) : null;
+  const deadlineOf = (at: VendorActivityContent['deadline']) => (at ? new Date(at) : null);
+  const deadline = deadlineOf(props.deadline);
+  const urgentOr = (whenUrgent: string, otherwise: string) => (urgent ? whenUrgent : otherwise);
   const shown = (count: number) => (count > 99 ? '99+' : String(count));
   const open = counts.picking + counts.ready + counts.out;
 
@@ -71,6 +73,7 @@ const ShopActivityLayout = (props: VendorActivityContent, environment: LiveActiv
       {timer(ink, size, 62)}
     </HStack>
   );
+  const deadlineChip = (colors: typeof screen) => (urgent ? chip(colors.urgent, colors.urgentInk, 13) : chip(SUN, INK_ON_SUN, 13));
   const details = (colors: typeof screen, markFill: string) => (
     <VStack spacing={8} alignment="leading">
       <HStack spacing={8}>
@@ -86,49 +89,55 @@ const ShopActivityLayout = (props: VendorActivityContent, environment: LiveActiv
       </HStack>
       {deadline ? (
         <HStack spacing={8}>
-          <Text modifiers={[font({ size: 12, weight: 'bold' }), foregroundStyle(colors.muted), lineLimit(1)]}>{urgent ? 'Under 2 hours to accept' : 'Next to accept'}</Text>
+          <Text modifiers={[font({ size: 12, weight: 'bold' }), foregroundStyle(colors.muted), lineLimit(1)]}>{urgentOr('Under 2 hours to accept', 'Next to accept')}</Text>
           <Spacer />
-          {urgent ? chip(colors.urgent, colors.urgentInk, 13) : chip(SUN, INK_ON_SUN, 13)}
+          {deadlineChip(colors)}
         </HStack>
       ) : (
         <Text modifiers={[font({ size: 12.5 }), foregroundStyle(colors.muted), lineLimit(1)]}>No new orders to accept.</Text>
       )}
     </VStack>
   );
-  const accent = urgent ? EMBER_TEXT : SUN_TEXT;
+  const accent = urgentOr(EMBER_TEXT, SUN_TEXT);
   const newCount = (color: string) => (
     <HStack spacing={3}>
       <Image systemName="bell" size={13} color={color} />
       <Text modifiers={[font({ size: 13, weight: 'heavy' }), foregroundStyle(color), monospacedDigit()]}>{shown(counts.new)}</Text>
     </HStack>
   );
-
-  return {
-    banner: <VStack modifiers={[padding({ all: 14 }), activityBackgroundTint(screen.card)]}>{details(screen, dark ? MARK : LIGHT_MARK)}</VStack>,
-    bannerSmall: (
-      <VStack spacing={6} alignment="leading" modifiers={[padding({ horizontal: 12, vertical: 10 }), activityBackgroundTint(screen.card)]}>
-        <HStack spacing={6}>
-          <HStack spacing={3} modifiers={[padding({ horizontal: 8, vertical: 2 }), background(urgent ? screen.urgentCountTile : screen.countTile), cornerRadius(999)]}>
-            <Image systemName="bell" size={13} color={urgent ? screen.urgent : screen.countInk} />
-            <Text modifiers={[font({ size: 13, weight: 'heavy' }), foregroundStyle(urgent ? screen.urgent : screen.countInk), monospacedDigit()]}>{shown(counts.new)}</Text>
-          </HStack>
-          <Text modifiers={[font({ size: 13, weight: 'heavy' }), foregroundStyle(screen.ink)]}>New</Text>
-        </HStack>
-        {deadline ? (urgent ? chip(screen.urgent, screen.urgentInk, 13) : chip(SUN, INK_ON_SUN, 13)) : <Text modifiers={[font({ size: 11 }), foregroundStyle(screen.muted), lineLimit(1)]}>No new orders to accept.</Text>}
-        <Text modifiers={[font({ size: 11 }), foregroundStyle(screen.muted), lineLimit(1)]}>{shop}</Text>
-      </VStack>
-    ),
-    compactLeading: deadline ? newCount(accent) : mark(MARK),
-    compactTrailing: deadline ? timer(accent, 13, 56) : <Text modifiers={[font({ size: 13, weight: 'heavy' }), foregroundStyle(island.ink), lineLimit(1)]}>{`${open} open`}</Text>,
-    minimal: deadline ? (
+  const screenMark = () => (dark ? MARK : LIGHT_MARK);
+  const smallCountdown = () => (deadline ? deadlineChip(screen) : <Text modifiers={[font({ size: 11 }), foregroundStyle(screen.muted), lineLimit(1)]}>No new orders to accept.</Text>);
+  const compactLeading = () => (deadline ? newCount(accent) : mark(MARK));
+  const compactTrailing = () => (deadline ? timer(accent, 13, 56) : <Text modifiers={[font({ size: 13, weight: 'heavy' }), foregroundStyle(island.ink), lineLimit(1)]}>{`${open} open`}</Text>);
+  const minimal = () =>
+    deadline ? (
       <ZStack modifiers={[frame({ width: 24, height: 24 })]}>
-        <Circle modifiers={[foregroundStyle(urgent ? island.urgentCountTile : SUN)]} />
+        <Circle modifiers={[foregroundStyle(urgentOr(island.urgentCountTile, SUN))]} />
         {urgent ? <Circle modifiers={[strokeBorder({ content: EMBER_TEXT, style: { lineWidth: 1.5 } })]} /> : null}
-        <Text modifiers={[font({ size: 12, weight: 'heavy' }), foregroundStyle(urgent ? EMBER_TEXT : INK_ON_SUN), monospacedDigit()]}>{shown(counts.new)}</Text>
+        <Text modifiers={[font({ size: 12, weight: 'heavy' }), foregroundStyle(urgentOr(EMBER_TEXT, INK_ON_SUN)), monospacedDigit()]}>{shown(counts.new)}</Text>
       </ZStack>
     ) : (
       mark(MARK)
+    );
+
+  return {
+    banner: <VStack modifiers={[padding({ all: 14 }), activityBackgroundTint(screen.card)]}>{details(screen, screenMark())}</VStack>,
+    bannerSmall: (
+      <VStack spacing={6} alignment="leading" modifiers={[padding({ horizontal: 12, vertical: 10 }), activityBackgroundTint(screen.card)]}>
+        <HStack spacing={6}>
+          <HStack spacing={3} modifiers={[padding({ horizontal: 8, vertical: 2 }), background(urgentOr(screen.urgentCountTile, screen.countTile)), cornerRadius(999)]}>
+            <Image systemName="bell" size={13} color={urgentOr(screen.urgent, screen.countInk)} />
+            <Text modifiers={[font({ size: 13, weight: 'heavy' }), foregroundStyle(urgentOr(screen.urgent, screen.countInk)), monospacedDigit()]}>{shown(counts.new)}</Text>
+          </HStack>
+          <Text modifiers={[font({ size: 13, weight: 'heavy' }), foregroundStyle(screen.ink)]}>New</Text>
+        </HStack>
+        {smallCountdown()}
+        <Text modifiers={[font({ size: 11 }), foregroundStyle(screen.muted), lineLimit(1)]}>{shop}</Text>
+      </VStack>
     ),
+    compactLeading: compactLeading(),
+    compactTrailing: compactTrailing(),
+    minimal: minimal(),
     expandedBottom: details(island, MARK),
   };
 };

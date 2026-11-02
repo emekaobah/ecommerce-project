@@ -8,7 +8,7 @@ export const liveActivityTokens = {
   available: true,
   signedIn() {},
   pushTokenRegistered(_token: string) {},
-  async signingOut() {
+  signingOut() {
     cancelAllLiveUpdates();
   },
 };

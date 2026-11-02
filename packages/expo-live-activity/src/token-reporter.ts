@@ -134,7 +134,7 @@ export function tokenReporter<Session = void>(ports: TokenReporterPorts<Session>
   async function flush() {
     const key = await phone.heldKey();
     if (!key) return;
-    for (const [id, report] of [...pending]) {
+    for (const [id, report] of pending) {
       const result = await ports.post(key, report).catch((): PostResult => 'failed');
       if (result === 'revoked') {
         await phone.clearKey();

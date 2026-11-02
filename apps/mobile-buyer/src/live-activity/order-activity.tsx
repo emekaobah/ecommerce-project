@@ -21,22 +21,34 @@ const OrderActivityLayout = (props: BuyerActivityContent, environment: LiveActiv
   const island = { ...palette(true), tile: '#333338' };
   const { step, outcome, code } = props;
   const symbol = SYMBOLS[step.icon];
-  const stepLine = step.next ? `Step ${step.index} of ${step.total} · Next: ${step.next}` : `Step ${step.index} of ${step.total}`;
+  const nextLine = (next: string | null | undefined) => (next ? ` · Next: ${next}` : '');
+  const stepLine = `Step ${step.index} of ${step.total}${nextLine(step.next)}`;
   const refundLine = (refund: string | null) => (refund ? ` You'll be refunded ${refund}.` : '');
   // Each ending's sentence, as its push says it. Only delivered and collected end with the bar full.
-  const endingLine = !outcome
-    ? null
-    : outcome.kind === 'cancelled'
-      ? `${outcome.reason}.${refundLine(outcome.refund)}`
-      : outcome.kind === 'not_collected'
-        ? `It wasn't collected in time.${refundLine(outcome.refund)}${outcome.kept ? ` Fresh items aren't refunded: ${outcome.kept}.` : ''}`
-        : outcome.kind === 'delivered'
-          ? `Your order from ${props.shop} has arrived.`
-          : `You collected your order from ${props.shop}. Your receipt is in your email.`;
+  const keptLine = (kept: string | null) => (kept ? ` Fresh items aren't refunded: ${kept}.` : '');
+  const ending = () => {
+    switch (outcome?.kind) {
+      case 'cancelled':
+        return `${outcome.reason}.${refundLine(outcome.refund)}`;
+      case 'not_collected':
+        return `It wasn't collected in time.${refundLine(outcome.refund)}${keptLine(outcome.kept)}`;
+      case 'delivered':
+        return `Your order from ${props.shop} has arrived.`;
+      case 'collected':
+        return `You collected your order from ${props.shop}. Your receipt is in your email.`;
+      default:
+        return null;
+    }
+  };
+  const endingLine = ending();
   const endedWell = outcome?.kind === 'delivered' || outcome?.kind === 'collected';
+  const showsBar = !outcome || endedWell;
   // Green once it's ready or done, muted once it has gone wrong, as on the catalogue's chips.
-  const tones = (colors: typeof screen) =>
-    code || endedWell ? { chip: colors.go, ink: colors.goInk } : outcome ? { chip: colors.mute, ink: colors.muteInk } : { chip: colors.chip, ink: colors.chipInk };
+  const tones = (colors: typeof screen) => {
+    if (code || endedWell) return { chip: colors.go, ink: colors.goInk };
+    if (outcome) return { chip: colors.mute, ink: colors.muteInk };
+    return { chip: colors.chip, ink: colors.chipInk };
+  };
 
   const mark = (colors: typeof screen) => (
     <ZStack modifiers={[frame({ width: 22, height: 22 })]}>
@@ -76,7 +88,7 @@ const OrderActivityLayout = (props: BuyerActivityContent, environment: LiveActiv
       {code ? codeText(colors, 34) : null}
       {code ? <Text modifiers={[font({ size: 11.5, weight: 'bold' }), foregroundStyle(colors.muted), lineLimit(1)]}>{`Show this code at ${props.shop}.`}</Text> : null}
       {endingLine ? <Text modifiers={[font({ size: 12.5 }), foregroundStyle(colors.muted), lineLimit(3)]}>{endingLine}</Text> : null}
-      {!outcome || endedWell ? bar(colors, 6) : null}
+      {showsBar ? bar(colors, 6) : null}
       {outcome ? null : <Text modifiers={[font({ size: 11.5, weight: 'bold' }), foregroundStyle(colors.muted), lineLimit(1)]}>{stepLine}</Text>}
     </VStack>
   );
@@ -87,6 +99,18 @@ const OrderActivityLayout = (props: BuyerActivityContent, environment: LiveActiv
       <Image systemName={symbol} size={11} color={island.chipInk} />
     </ZStack>
   );
+  // The code replaces the bar.
+  const smallProgress = () => {
+    if (code) return codeText(screen, 22);
+    return showsBar ? bar(screen, 5) : null;
+  };
+  const compactLeading = () => (outcome ? mark(island) : chip(island, 24));
+  // The code sits here to be read without a long-press; a finished order shows its outcome's symbol.
+  const compactTrailing = () => {
+    if (code) return codeText(island, 12.5);
+    return outcome ? chip(island, 24) : ring;
+  };
+  const minimal = () => (code || outcome ? chip(island, 24) : ring);
 
   return {
     banner: <VStack modifiers={[padding({ all: 14 }), activityBackgroundTint(screen.card)]}>{details(screen)}</VStack>,
@@ -96,15 +120,13 @@ const OrderActivityLayout = (props: BuyerActivityContent, environment: LiveActiv
           {chip(screen, 24)}
           <Text modifiers={[font({ size: 13, weight: 'heavy' }), foregroundStyle(screen.ink), lineLimit(1)]}>{step.short}</Text>
         </HStack>
-        {/* The code replaces the bar. */}
-        {code ? codeText(screen, 22) : !outcome || endedWell ? bar(screen, 5) : null}
+        {smallProgress()}
         <Text modifiers={[font({ size: 11 }), foregroundStyle(screen.muted), lineLimit(1)]}>{props.shop}</Text>
       </VStack>
     ),
-    compactLeading: outcome ? mark(island) : chip(island, 24),
-    // The code sits here to be read without a long-press; a finished order shows its outcome's symbol.
-    compactTrailing: code ? codeText(island, 12.5) : outcome ? chip(island, 24) : ring,
-    minimal: code || outcome ? chip(island, 24) : ring,
+    compactLeading: compactLeading(),
+    compactTrailing: compactTrailing(),
+    minimal: minimal(),
     expandedBottom: details(island),
   };
 };

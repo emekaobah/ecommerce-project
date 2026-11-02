@@ -111,7 +111,7 @@ type Addressed = { android?: string | null; token: string | null; environment: A
  */
 async function pushTo(scope: Scope, phone: Addressed, sellerId: string, push: ShopPush) {
   const { content, event, at, moment } = push
-  if (phone.android) return pushShopLiveUpdate(scope, phone.android, sellerId, activityUrl(sellerId), event === "end" ? "remove" : "show", content, at, moment)
+  if (phone.android) return pushShopLiveUpdate(scope, phone.android, { sellerId, url: activityUrl(sellerId), action: event === "end" ? "remove" : "show", content, at, moment })
   if (!phone.token) return null
   const target = { app: "vendor" as const, token: phone.token, environment: phone.environment, content: { factory: VENDOR_ACTIVITY_FACTORY, props: content } }
   if (event === "start") return (await sender(scope).send({ ...target, event, priority: 10, alert: push.alert, url: activityUrl(sellerId) })).status

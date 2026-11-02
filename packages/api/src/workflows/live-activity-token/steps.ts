@@ -108,63 +108,74 @@ export type ReportTokenInput = { device_id: string; environment: ApnsEnvironment
   | { kind: "activity"; activity_id: string; subject_id?: string }
 )
 
+type Devices = ReturnType<typeof service>
+type ActivityReport = Extract<ReportTokenInput, { kind: "activity" }>
+type TokenTaken = { catch_up: string | null; spare: boolean; undo: ReportUndo }
+
+async function takePushToStartToken(devices: Devices, input: Extract<ReportTokenInput, { kind: "push_to_start" }>): Promise<TokenTaken> {
+  const holders = await devices.listLiveActivityDevices({ push_to_start_token: input.token })
+  const others = holders.filter((other) => other.id !== input.device_id)
+  if (others.length) await devices.updateLiveActivityDevices(others.map(({ id }) => ({ id, push_to_start_token: null })))
+  const before = await devices.retrieveLiveActivityDevice(input.device_id)
+  await devices.updateLiveActivityDevices({ id: input.device_id, environment: input.environment, push_to_start_token: input.token })
+  const undo: ReportUndo = { device: saved(before, DEVICE_FIELDS), holders: others.map(({ id, push_to_start_token }) => ({ id, push_to_start_token })), activities: [], deleted: [] }
+  return { catch_up: null, spare: false, undo }
+}
+
+/** An activity this phone hasn't named before: the row its start left, a spare, or one the server has no row for. */
+async function placeNewActivity(devices: Devices, input: ActivityReport, kind: "vendor_shop" | "buyer_shop_order", undo: ReportUndo): Promise<Pick<TokenTaken, "catch_up" | "spare">> {
+  const reported = { apple_id: input.activity_id, token: input.token, environment: input.environment }
+  const about = input.subject_id ? await devices.listLiveActivities({ device_id: input.device_id, kind, subject_id: input.subject_id }, { order: { started_at: "DESC" } }) : []
+  const running = about.find((activity) => !activity.ended_at)
+  // The row its start left, running or ended while it waited for this.
+  let started = about.find((activity) => !activity.apple_id && !activity.token)
+  if (running) started = running.apple_id ? undefined : running
+  if (started) {
+    undo.activities.push(saved(started, ACTIVITY_FIELDS))
+    await devices.updateLiveActivities({ id: started.id, ...reported })
+    return { catch_up: started.id, spare: false }
+  }
+  if (running) return { catch_up: null, spare: true }
+  const created = await devices.createLiveActivities({
+    device_id: input.device_id,
+    kind,
+    subject_id: input.subject_id ?? null,
+    ...reported,
+    started_at: new Date(),
+  })
+  // One the server has no row for: Apple's answer to its start got lost, say. It can still be followed.
+  undo.created = created.id
+  return { catch_up: input.subject_id ? created.id : null, spare: false }
+}
+
+async function takeActivityToken(devices: Devices, input: ActivityReport): Promise<TokenTaken> {
+  const held = await devices.listLiveActivities({ $or: [{ apple_id: input.activity_id }, { token: input.token }] })
+  // A sign-out that never reached the server left the activity on the phone's old row.
+  const stale = held.filter((activity) => activity.device_id !== input.device_id)
+  if (stale.length) await devices.deleteLiveActivities(stale.map((activity) => activity.id))
+  const known = held.find((activity) => activity.device_id === input.device_id)
+  const device = await devices.retrieveLiveActivityDevice(input.device_id)
+  const undo: ReportUndo = { device: saved(device, DEVICE_FIELDS), holders: [], activities: [], deleted: stale.map((activity) => saved(activity, ACTIVITY_FIELDS)) }
+  let placed: Pick<TokenTaken, "catch_up" | "spare">
+  if (known) {
+    undo.activities.push(saved(known, ACTIVITY_FIELDS))
+    await devices.updateLiveActivities({ id: known.id, apple_id: input.activity_id, token: input.token, environment: input.environment })
+    // The server recorded its start, the phone named it, and only now can it be sent anything.
+    placed = { catch_up: known.token ? null : known.id, spare: false }
+  } else {
+    placed = await placeNewActivity(devices, input, device.app === "vendor" ? "vendor_shop" : "buyer_shop_order", undo)
+  }
+  await devices.updateLiveActivityDevices({ id: input.device_id, environment: input.environment, update_token_reported_at: new Date() })
+  return { ...placed, undo }
+}
+
 /** Takes a token from the phone, repeats included; a token another row holds has moved to this phone. */
 export const reportLiveActivityTokenStep = createStep(
   "report-live-activity-token",
   async (input: ReportTokenInput, { container }) => {
     const devices = service(container)
-    if (input.kind === "push_to_start") {
-      const holders = await devices.listLiveActivityDevices({ push_to_start_token: input.token })
-      const others = holders.filter((other) => other.id !== input.device_id)
-      if (others.length) await devices.updateLiveActivityDevices(others.map(({ id }) => ({ id, push_to_start_token: null })))
-      const before = await devices.retrieveLiveActivityDevice(input.device_id)
-      await devices.updateLiveActivityDevices({ id: input.device_id, environment: input.environment, push_to_start_token: input.token })
-      const undo: ReportUndo = { device: saved(before, DEVICE_FIELDS), holders: others.map(({ id, push_to_start_token }) => ({ id, push_to_start_token })), activities: [], deleted: [] }
-      return new StepResponse({ token: input.token, catch_up: null as string | null, spare: false }, undo)
-    }
-    const held = await devices.listLiveActivities({ $or: [{ apple_id: input.activity_id }, { token: input.token }] })
-    // A sign-out that never reached the server left the activity on the phone's old row.
-    const stale = held.filter((activity) => activity.device_id !== input.device_id)
-    if (stale.length) await devices.deleteLiveActivities(stale.map((activity) => activity.id))
-    const known = held.find((activity) => activity.device_id === input.device_id)
-    const device = await devices.retrieveLiveActivityDevice(input.device_id)
-    const { app } = device
-    const kind = app === "vendor" ? "vendor_shop" : "buyer_shop_order"
-    const reported = { apple_id: input.activity_id, token: input.token, environment: input.environment }
-    let catch_up: string | null = null
-    let spare = false
-    const undo: ReportUndo = { device: saved(device, DEVICE_FIELDS), holders: [], activities: [], deleted: stale.map((activity) => saved(activity, ACTIVITY_FIELDS)) }
-    if (known) {
-      undo.activities.push(saved(known, ACTIVITY_FIELDS))
-      await devices.updateLiveActivities({ id: known.id, ...reported })
-      // The server recorded its start, the phone named it, and only now can it be sent anything.
-      if (!known.token) catch_up = known.id
-    } else {
-      const about = input.subject_id ? await devices.listLiveActivities({ device_id: input.device_id, kind, subject_id: input.subject_id }, { order: { started_at: "DESC" } }) : []
-      const running = about.find((activity) => !activity.ended_at)
-      // The row its start left, running or ended while it waited for this.
-      const started = running && !running.apple_id ? running : !running ? about.find((activity) => !activity.apple_id && !activity.token) : undefined
-      if (started) {
-        undo.activities.push(saved(started, ACTIVITY_FIELDS))
-        await devices.updateLiveActivities({ id: started.id, ...reported })
-        catch_up = started.id
-      } else if (running) {
-        spare = true
-      } else {
-        const created = await devices.createLiveActivities({
-          device_id: input.device_id,
-          kind,
-          subject_id: input.subject_id ?? null,
-          ...reported,
-          started_at: new Date(),
-        })
-        // One the server has no row for: Apple's answer to its start got lost, say. It can still be followed.
-        undo.created = created.id
-        if (input.subject_id) catch_up = created.id
-      }
-    }
-    await devices.updateLiveActivityDevices({ id: input.device_id, environment: input.environment, update_token_reported_at: new Date() })
-    return new StepResponse({ token: input.token, catch_up, spare }, undo)
+    const { undo, ...taken } = input.kind === "push_to_start" ? await takePushToStartToken(devices, input) : await takeActivityToken(devices, input)
+    return new StepResponse({ token: input.token, ...taken }, undo)
   },
   async (undo, { container }) => {
     if (!undo) return
