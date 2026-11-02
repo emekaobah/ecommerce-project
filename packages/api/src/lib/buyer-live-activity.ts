@@ -19,7 +19,7 @@ import { hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModule
 import { buyerOrder } from "./buyer-notifications"
 import { endBuyerLiveUpdate, removeBuyerLiveUpdates, showBuyerLiveUpdate } from "./buyer-live-update"
 import { errorMessage } from "./errors"
-import { listBuyerOrderGroups, type BuyerOrder, type BuyerOrderGroup } from "./buyer-orders"
+import { listBuyerOrderGroups, type BuyerOrderGroup } from "./buyer-orders"
 import { contentOf, RUNS_AN_ACTIVITY, type ActivityState, type Ending } from "./buyer-activity-content"
 import { ordersOnLockScreenOn } from "./notification-preferences"
 

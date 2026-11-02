@@ -1,4 +1,4 @@
-import type { AuthenticatedMedusaRequest, MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import { LIVE_ACTIVITY_TOKEN_REPORTED, type LiveActivityTokenReported } from "../lib/buyer-live-activity"
