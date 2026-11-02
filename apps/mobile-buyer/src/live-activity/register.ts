@@ -10,5 +10,6 @@ export const liveActivityTokens = {
   pushTokenRegistered(_token: string) {},
   signingOut() {
     cancelAllLiveUpdates();
+    return Promise.resolve();
   },
 };
