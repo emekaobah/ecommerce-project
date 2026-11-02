@@ -21,3 +21,9 @@ android {
 dependencies {
   implementation 'androidx.core:core:1.17.0'
 }
+
+// After an Expo, React Native or dependency bump, the build fails until gradle.lockfile is regenerated:
+// from a prebuilt app's android/, ./gradlew :oja-expo-live-update:dependencies --write-locks
+dependencyLocking {
+  lockAllConfigurations()
+}
