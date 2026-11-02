@@ -403,7 +403,7 @@ medusaIntegrationTestRunner({
         await placeOrder()
         await eventually(async () => expo.sentTo(device), (sent) => sent.length >= 1)
 
-        // Its ending may already have gone: the token's arrival ends it at once with the switch off.
+        // Its ending may already have gone: the minute job ends it with the switch off, and may fire during this test.
         expect(apns.sentTo(update).filter((p) => p.aps.event !== "end")).toEqual([])
       })
 
