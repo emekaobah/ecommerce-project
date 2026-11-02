@@ -128,6 +128,7 @@ export {
   buyerActivityOrderId,
   buyerActivityPlan,
   buyerActivityRestarts,
+  liveActivityOutlived,
   buyerActivityUrl,
   LIVE_ACTIVITY_KEY_HEADER,
   liveActivityPayloadBytes,
@@ -138,13 +139,13 @@ export {
   buyerLiveUpdateMessage,
   buyerLiveUpdateView,
   LIVE_UPDATE_TTL_SECONDS,
-  readLiveUpdateMessage,
+  readBuyerLiveUpdateMessage,
   readVendorLiveUpdateMessage,
   vendorLiveUpdateMessage,
   vendorLiveUpdateView,
 } from "./live-update"
-export type { LiveUpdateIcon, LiveUpdateMessage, LiveUpdateProgress, LiveUpdateView, ThemedColor, VendorLiveUpdateMessage } from "./live-update"
-export { nearestAcceptDeadline, VENDOR_ACTIVITY_FACTORY, vendorActivityAlert, vendorActivityContent, vendorActivityUpdateDue } from "./vendor-activity"
+export type { LiveUpdateIcon, BuyerLiveUpdateMessage, LiveUpdateProgress, LiveUpdateView, ThemedColor, VendorLiveUpdateMessage } from "./live-update"
+export { nearestAcceptDeadline, VENDOR_ACTIVITY_FACTORY, vendorActivityAlert, vendorActivityContent, vendorActivitySellerId, vendorActivityUpdateDue, vendorActivityUrl } from "./vendor-activity"
 export type { NearestDeadline, VendorActivityContent, VendorActivityMoment, VendorActivitySent, VendorActivityShop } from "./vendor-activity"
 export type { Reached, TimelineStep } from "./timeline"
 export { HANDOVER_DISAGREEMENT_MS, HANDOVER_REALERT_MS, handoverAlertDue, handoverDisagreement } from "./handover"

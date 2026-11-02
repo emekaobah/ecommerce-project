@@ -6,7 +6,7 @@ import { keepShopActivitiesCurrent } from "../../src/lib/vendor-live-activity"
 import { LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../../src/modules/live-activity-token"
 import { seedDemoWorld } from "../../src/scripts/seed"
 import { apnsToken, fakeApns } from "../helpers/apns"
-import { buyerCheckout, eventually, GADGETS, GROCERY } from "../helpers/checkout"
+import { buyerCheckout, eventually, GADGETS, GROCERY, type Shop } from "../helpers/checkout"
 import { fakeClerk } from "../helpers/clerk"
 import { fakeExpoPush, pushToken } from "../helpers/expo-push"
 import { fakePaystack } from "../helpers/paystack"
@@ -54,9 +54,9 @@ medusaIntegrationTestRunner({
       await api.post("/vendor/live-activity-devices/current/shop", { on: true }, withKey(as, key))
       return { key, pushToStart }
     }
-    const reportActivity = async (key: string) => {
+    const reportActivity = async (key: string, shop: Shop = GROCERY) => {
       const token = apnsToken()
-      await report(key, { kind: "activity", activity_id: `activity-${token}`, token })
+      await report(key, { kind: "activity", activity_id: `activity-${token}`, token, seller_id: await buyer.sellerId(shop) })
       return token
     }
     const placeOrder = async () => {
@@ -403,7 +403,8 @@ medusaIntegrationTestRunner({
         await placeOrder()
         await eventually(async () => expo.sentTo(device), (sent) => sent.length >= 1)
 
-        expect(apns.sentTo(update)).toEqual([])
+        // Its ending may already have gone: the minute job ends it with the switch off, and may fire during this test.
+        expect(apns.sentTo(update).filter((p) => p.aps.event !== "end")).toEqual([])
       })
 
       it("updates only the shop that changed", async () => {
@@ -411,7 +412,7 @@ medusaIntegrationTestRunner({
         const gadgets = await optedIn(await buyer.owner(GADGETS))
         const { cartId } = await buyer.paidCheckout()
         await startsOn(gadgets.pushToStart)
-        const gadgetsUpdate = await reportActivity(gadgets.key)
+        const gadgetsUpdate = await reportActivity(gadgets.key, GADGETS)
         await tick(Date.now() + MINUTE)
         const before = [apns.sentTo(update).length, apns.sentTo(gadgetsUpdate).length]
 

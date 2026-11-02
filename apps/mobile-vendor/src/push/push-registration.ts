@@ -1,4 +1,5 @@
 import { createVendorClient } from '@oja/api-client';
+import { pushPlatform } from '@oja/expo-push';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
@@ -16,7 +17,7 @@ async function register(): Promise<string | null> {
   try {
     const pushToken = await devicePushToken();
     if (!pushToken) return null;
-    await vendorClient.vendor.pushTokens.mutate({ token: pushToken, platform: Platform.OS === 'android' ? 'android' : 'ios' });
+    await vendorClient.vendor.pushTokens.mutate({ token: pushToken, platform: pushPlatform(Platform.OS) });
     liveActivityTokens.pushTokenRegistered(pushToken);
     return pushToken;
   } catch (error) {

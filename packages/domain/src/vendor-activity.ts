@@ -14,6 +14,19 @@ export const VENDOR_ACTIVITY_FACTORY = "ShopOrdersActivity"
 
 const MAX_SHOP = 80
 
+/**
+ * What tapping a shop's activity opens: that shop's orders, acting for it. It also names the shop,
+ * because the url is the one thing about an activity that the server sets in its push-to-start and
+ * the app can read back (ADR 0018), and it stays the same for the activity's whole life.
+ */
+export const vendorActivityUrl = (scheme: string, sellerId: string) => `${scheme}://shop-orders/${encodeURIComponent(sellerId)}`
+
+/** The shop an activity's url names. */
+export function vendorActivitySellerId(url: string | null | undefined) {
+  const match = url?.match(/:\/\/shop-orders\/([^/?#]+)/)
+  return match ? decodeURIComponent(match[1]!) : null
+}
+
 /** The new order to accept soonest: when, and whether it's in its last two hours. */
 export type NearestDeadline = { at: string; urgent: boolean }
 

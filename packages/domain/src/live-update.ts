@@ -55,7 +55,7 @@ export type LiveUpdateView = {
   countdownTo: number | null
 }
 
-export type LiveUpdateMessage = {
+export type BuyerLiveUpdateMessage = {
   live_update: "buyer_shop_order"
   /** `show` starts or updates it, `end` shows the final state, `remove` takes it away at once. */
   action: "show" | "end" | "remove"
@@ -95,12 +95,12 @@ export function buyerLiveUpdateMessage({
   content,
   at,
 }: {
-  action: LiveUpdateMessage["action"]
+  action: BuyerLiveUpdateMessage["action"]
   orderId: string
   url: string
   content: BuyerActivityContent
   at: number
-}): LiveUpdateMessage {
+}): BuyerLiveUpdateMessage {
   return { live_update: "buyer_shop_order", action, order_id: orderId, revision: at, url, content }
 }
 
@@ -119,7 +119,7 @@ function endingLine(shop: string, outcome: BuyerActivityOutcome) {
 }
 
 /** A buyer's shop order as a notification, as drawn in the screens catalogue (#141). */
-export function buyerLiveUpdateView({ order_id, revision, url, content }: LiveUpdateMessage): LiveUpdateView {
+export function buyerLiveUpdateView({ order_id, revision, url, content }: BuyerLiveUpdateMessage): LiveUpdateView {
   const { step, shop, number, code, outcome } = content
   const shared = { id: order_id, revision, url, title: step.label, subText: number, color: ACCENT, countdownTo: null }
   if (outcome) {
@@ -238,12 +238,12 @@ function messageIn(payload: unknown): Record<string, unknown> | null {
 }
 
 /** The message in what the phone's notification task was given; null for anything else. */
-export function readLiveUpdateMessage(payload: unknown): LiveUpdateMessage | null {
+export function readBuyerLiveUpdateMessage(payload: unknown): BuyerLiveUpdateMessage | null {
   const message = messageIn(payload)
-  return message?.live_update ? (message as LiveUpdateMessage) : null
+  return message?.live_update === "buyer_shop_order" ? (message as unknown as BuyerLiveUpdateMessage) : null
 }
 
-/** `readLiveUpdateMessage`, in the vendor app. */
+/** `readBuyerLiveUpdateMessage`, in the vendor app. */
 export function readVendorLiveUpdateMessage(payload: unknown): VendorLiveUpdateMessage | null {
   const message = messageIn(payload)
   return message?.live_update === "vendor_shop" ? (message as unknown as VendorLiveUpdateMessage) : null

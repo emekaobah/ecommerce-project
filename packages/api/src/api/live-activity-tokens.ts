@@ -4,8 +4,7 @@ import { z } from "@medusajs/framework/zod"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { buyerOrder } from "../lib/buyer-notifications"
 import { LIVE_ACTIVITY_TOKEN_REPORTED, owedBuyerActivities, type LiveActivityTokenReported, type OwedActivity } from "../lib/buyer-live-activity"
-import { APNS_ENVIRONMENTS, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
-import { hashDeviceKey } from "../workflows/live-activity-token/steps"
+import { APNS_ENVIRONMENTS, hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
 import {
   recordLiveActivityStartedWorkflow,
   registerLiveActivityDeviceWorkflow,
@@ -43,6 +42,19 @@ export const LiveActivityTokenBody = z.discriminatedUnion("kind", [
 ])
 export type LiveActivityTokenBodyType = z.infer<typeof LiveActivityTokenBody>
 
+/** As a buyer's report, naming the member's shop instead of an order (ADR 0018). */
+export const VendorLiveActivityTokenBody = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("push_to_start"), token: ApnsToken, environment: Environment }),
+  z.object({
+    kind: z.literal("activity"),
+    token: ApnsToken,
+    environment: Environment,
+    activity_id: z.string().trim().min(1).max(100),
+    seller_id: z.string().trim().min(1).max(100).optional(),
+  }),
+])
+export type VendorLiveActivityTokenBodyType = z.infer<typeof VendorLiveActivityTokenBody>
+
 export const LiveActivityStartedBody = z.object({
   order_id: z.string().trim().min(1).max(100),
   activity_id: z.string().trim().min(1).max(100),
@@ -56,53 +68,50 @@ export type LiveActivityTokenResponse = { token: string }
 export type LiveActivityStartedResponse = { activity_id: string }
 export type OwedActivitiesResponse = { activities: OwedActivity[] }
 
-const keyOf = (req: MedusaRequest) => {
+export const keyOf = (req: MedusaRequest<any>) => {
   const key = req.headers[LIVE_ACTIVITY_KEY_HEADER]
   return typeof key === "string" && key ? key : null
 }
 
 /** The phone the request's key belongs to; 401 for none, as a dead session would be. */
-async function deviceOf(req: MedusaRequest) {
+export async function deviceOf(req: MedusaRequest, app: "buyer" | "vendor") {
   const key = keyOf(req)
   const [device] = key
-    ? await req.scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE).listLiveActivityDevices({ key_hash: hashDeviceKey(key) })
+    ? await req.scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE).listLiveActivityDevices({ key_hash: hashDeviceKey(key), app })
     : []
   if (!device) throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "This device isn't registered")
   return device
 }
 
-/** Gives a signed-in buyer's phone its key, or moves the phone it already names to them. */
-export const registerBuyerDevice = async (
-  req: AuthenticatedMedusaRequest<LiveActivityDeviceBodyType>,
-  res: MedusaResponse<LiveActivityDeviceResponse>
-) => {
-  const { result } = await registerLiveActivityDeviceWorkflow(req.scope).run({
-    input: {
-      app: "buyer",
-      actor_type: "customer",
-      actor_id: req.auth_context.actor_id,
-      key: keyOf(req) ?? undefined,
-      environment: req.validatedBody.environment,
-      push_token: req.validatedBody.push_token,
-    },
-  })
-  res.json({ device: { key: result.key } })
-}
-
-/** At sign-out: forgets the phone and its tokens, if it is still this buyer's. */
-export const removeBuyerDevice = async (req: AuthenticatedMedusaRequest, res: MedusaResponse<LiveActivityDeviceDeleteResponse>) => {
-  const key = keyOf(req)
-  if (key) {
-    await removeLiveActivityDeviceWorkflow(req.scope).run({
-      input: { key, actor_type: "customer", actor_id: req.auth_context.actor_id },
+/** Gives a signed-in person's phone its key, or moves the phone it already names to them. */
+export const registerDevice =
+  (app: "buyer" | "vendor", actor_type: "customer" | "member") =>
+  async (req: AuthenticatedMedusaRequest<LiveActivityDeviceBodyType>, res: MedusaResponse<LiveActivityDeviceResponse>) => {
+    const { result } = await registerLiveActivityDeviceWorkflow(req.scope).run({
+      input: {
+        app,
+        actor_type,
+        actor_id: req.auth_context.actor_id,
+        key: keyOf(req) ?? undefined,
+        environment: req.validatedBody.environment,
+        push_token: req.validatedBody.push_token,
+      },
     })
+    res.json({ device: { key: result.key } })
   }
-  res.json({ deleted: true })
-}
+
+/** At sign-out: forgets the phone and everything of its, if it is still this person's. */
+export const removeDevice =
+  (actor_type: "customer" | "member") =>
+  async (req: AuthenticatedMedusaRequest, res: MedusaResponse<LiveActivityDeviceDeleteResponse>) => {
+    const key = keyOf(req)
+    if (key) await removeLiveActivityDeviceWorkflow(req.scope).run({ input: { key, actor_type, actor_id: req.auth_context.actor_id } })
+    res.json({ deleted: true })
+  }
 
 /** Takes a token from a phone, with its key. */
 export const reportToken = async (req: MedusaRequest<LiveActivityTokenBodyType>, res: MedusaResponse<LiveActivityTokenResponse>) => {
-  const device = await deviceOf(req)
+  const device = await deviceOf(req, "buyer")
   const body = req.validatedBody as LiveActivityTokenBodyType
   if (body.kind === "push_to_start") {
     const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...body, device_id: device.id } })
@@ -126,7 +135,7 @@ export const reportToken = async (req: MedusaRequest<LiveActivityTokenBodyType>,
 
 /** A phone below iOS 17.2 says it started an order's activity; only its own buyer's order. */
 export const recordStarted = async (req: MedusaRequest<LiveActivityStartedBodyType>, res: MedusaResponse<LiveActivityStartedResponse>) => {
-  const device = await deviceOf(req)
+  const device = await deviceOf(req, "buyer")
   const { order_id, activity_id, environment } = req.validatedBody as LiveActivityStartedBodyType
   const found = await buyerOrder(req.scope, order_id)
   if (!found || device.actor_type !== "customer" || found.checkout.customer_id !== device.actor_id) {

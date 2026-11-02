@@ -67,6 +67,7 @@
         "@expo/ui": "~58.0.20",
         "@oja/api-client": "workspace:*",
         "@oja/domain": "workspace:*",
+        "@oja/expo-live-activity": "workspace:*",
         "@oja/expo-live-update": "workspace:*",
         "@oja/expo-push": "workspace:*",
         "@oja/expo-sentry": "workspace:*",
@@ -123,6 +124,7 @@
         "@expo/ui": "~58.0.20",
         "@oja/api-client": "workspace:*",
         "@oja/domain": "workspace:*",
+        "@oja/expo-live-activity": "workspace:*",
         "@oja/expo-live-update": "workspace:*",
         "@oja/expo-push": "workspace:*",
         "@oja/expo-sentry": "workspace:*",
@@ -305,6 +307,19 @@
         "typescript": "5.9.3",
       },
     },
+    "packages/expo-live-activity": {
+      "name": "@oja/expo-live-activity",
+      "version": "0.0.0",
+      "dependencies": {
+        "@oja/domain": "workspace:*",
+      },
+      "devDependencies": {
+        "expo-constants": "~58.0.12",
+        "expo-secure-store": "~58.0.2",
+        "react-native": "0.88.0",
+        "typescript": "~6.0.3",
+      },
+    },
     "packages/expo-live-update": {
       "name": "@oja/expo-live-update",
       "version": "0.0.0",
@@ -313,6 +328,8 @@
       },
       "devDependencies": {
         "expo": "~58.0.14",
+        "expo-notifications": "~58.1.5",
+        "expo-task-manager": "~58.0.12",
         "typescript": "~6.0.3",
       },
       "peerDependencies": {
@@ -1350,6 +1367,8 @@
     "@oja/api-client": ["@oja/api-client@workspace:packages/api-client"],
 
     "@oja/domain": ["@oja/domain@workspace:packages/domain"],
+
+    "@oja/expo-live-activity": ["@oja/expo-live-activity@workspace:packages/expo-live-activity"],
 
     "@oja/expo-live-update": ["@oja/expo-live-update@workspace:packages/expo-live-update"],
 
@@ -5040,6 +5059,8 @@
     "@next/eslint-plugin-next/fast-glob": ["fast-glob@3.3.1", "", { "dependencies": { "@nodelib/fs.stat": "^2.0.2", "@nodelib/fs.walk": "^1.2.3", "glob-parent": "^5.1.2", "merge2": "^1.3.0", "micromatch": "^4.0.4" } }, "sha512-kNFPyjhh5cKjrUltxs+wFx+ZkbRaxxmZ+X0ZU31SOsxCEtP9VPgtq2teZw1DebupL5GmDaNQ6yKMMVcM41iqDg=="],
 
     "@noble/curves/@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
+
+    "@oja/expo-live-activity/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "@oja/expo-live-update/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 

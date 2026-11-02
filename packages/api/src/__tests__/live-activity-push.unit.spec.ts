@@ -19,12 +19,7 @@ const content = { factory: "BuyerOrderActivity", props: { step: 2, shopName: "Ma
 
 describe("Live Activity pushes to Apple", () => {
   const logger = { info: jest.fn(), warn: jest.fn() }
-  const senders: LiveActivityPushModuleService[] = []
-  const senderWith = (options: ConstructorParameters<typeof LiveActivityPushModuleService>[1]) => {
-    const sender = new LiveActivityPushModuleService({ logger } as never, options)
-    senders.push(sender)
-    return sender
-  }
+  const senderWith = (options: ConstructorParameters<typeof LiveActivityPushModuleService>[1]) => new LiveActivityPushModuleService({ logger } as never, options)
   const configured = () => senderWith(optionsFor(apns))
 
   beforeAll(() => apns.start())
@@ -33,7 +28,7 @@ describe("Live Activity pushes to Apple", () => {
     jest.restoreAllMocks()
     logger.info.mockClear()
     logger.warn.mockClear()
-    senders.splice(0).forEach((sender) => sender.close())
+    apns.dropConnections()
     apns.reset()
   })
 

@@ -259,6 +259,90 @@ medusaIntegrationTestRunner({
         await settle()
         expect(updatesOf(device, orderId)).toHaveLength(count)
       })
+
+      it("leaves an order it ended ended once it's back on, as on an iPhone", async () => {
+        const device = await android()
+        const { orderId, number } = await paidOrder()
+        await post(`${orderId}/accept`)
+        await lastIs(device, orderId, "Being prepared")
+        await turn(false)
+        const sent = await eventually(async () => updatesOf(device, orderId), (all) => all.at(-1)?.data.action === "remove")
+        const count = sent.length
+
+        await turn(true)
+        await pack(orderId)
+        await post(`${orderId}/cancel`, { reason: "items_unavailable" })
+
+        await eventually(async () => pushedTitles(device), (titles) => titles.some((title) => title.includes(number) && /cancel/i.test(title)))
+        await settle()
+        expect(updatesOf(device, orderId)).toHaveLength(count)
+      })
+
+      it("doesn't show, once it's back on, an order accepted while it was off", async () => {
+        const device = await android()
+        await turn(false)
+        const { orderId, number } = await paidOrder()
+        await post(`${orderId}/accept`)
+        await eventually(async () => pushedTitles(device), (titles) => titles.includes(`Order ${number} accepted`))
+
+        await turn(true)
+        await pack(orderId)
+
+        await settle()
+        expect(updatesOf(device, orderId)).toHaveLength(0)
+      })
+
+      it("takes an order away once however often it's turned off", async () => {
+        const device = await android()
+        const { orderId } = await paidOrder()
+        await post(`${orderId}/accept`)
+        await lastIs(device, orderId, "Being prepared")
+
+        await turn(false)
+        await eventually(async () => updatesOf(device, orderId), (all) => all.at(-1)?.data.action === "remove")
+        await turn(true)
+        await turn(false)
+
+        await settle()
+        expect(updatesOf(device, orderId).filter((m) => m.data.action === "remove")).toHaveLength(1)
+      })
+
+      it("keeps each order to itself on a phone with several: only the later one shows once it's back on", async () => {
+        const device = await android()
+        const before = await paidOrder()
+        await post(`${before.orderId}/accept`)
+        await lastIs(device, before.orderId, "Being prepared")
+        await turn(false)
+        const sent = await eventually(async () => updatesOf(device, before.orderId), (all) => all.at(-1)?.data.action === "remove")
+        await turn(true)
+
+        const later = await paidOrder()
+        await post(`${later.orderId}/accept`)
+        await lastIs(device, later.orderId, "Being prepared")
+        const also = await paidOrder()
+        await post(`${also.orderId}/accept`)
+        await lastIs(device, also.orderId, "Being prepared")
+        await pack(later.orderId)
+
+        await lastIs(device, later.orderId, "Packed")
+        expect(updatesOf(device, before.orderId)).toHaveLength(sent.length)
+        expect(updatesOf(device, also.orderId).at(-1).data.content.step.label).toBe("Being prepared")
+      })
+    })
+
+    it("doesn't come back when the phone signs in again: signing out cleared what it showed", async () => {
+      const device = await android()
+      const { orderId } = await paidOrder()
+      await post(`${orderId}/accept`)
+      await lastIs(device, orderId, "Being prepared")
+      await api.delete(`/store/push-tokens/${encodeURIComponent(device)}`, ada())
+      await api.post("/store/push-tokens", { token: device, platform: "android" }, ada())
+      const count = updates(device).length
+
+      await pack(orderId)
+
+      await settle()
+      expect(updates(device)).toHaveLength(count)
     })
 
     it("stops when the phone signs out, with its push token", async () => {

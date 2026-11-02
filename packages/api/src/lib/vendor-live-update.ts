@@ -9,7 +9,7 @@ import { pushDataToDevices } from "./push-devices"
 type Scope = Pick<MedusaContainer, "resolve">
 
 /** Which of these phones are Android, by what each said when it registered for pushes: phone id to Expo token. */
-export async function androidPhones(scope: Scope, phones: { id: string; push_token?: string | null }[]): Promise<Map<string, string>> {
+export async function androidPhonesAmong(scope: Scope, phones: { id: string; push_token?: string | null }[]): Promise<Map<string, string>> {
   const linked = phones.filter((phone) => phone.push_token)
   if (!linked.length) return new Map()
   const rows = await scope
@@ -27,13 +27,15 @@ export async function pushShopLiveUpdate(
   url: string,
   action: VendorLiveUpdateMessage["action"],
   content: VendorActivityContent,
-  at: number
+  at: number,
+  /** What makes this one message: a device gets it once, however often the event comes (ADR 0008). */
+  moment: string
 ): Promise<"sent" | "failed" | "token_rejected"> {
   const { gone, failed } = await pushDataToDevices(scope, [device], {
     template: "vendor-live-update",
     data: vendorLiveUpdateMessage({ action, sellerId, url, content, at }),
     ttl: LIVE_UPDATE_TTL_SECONDS,
-    idempotencyKey: (to) => `vendor-live-update:${sellerId}:${action}:${at}:${to}`,
+    idempotencyKey: (to) => `vendor-live-update:${sellerId}:${moment}:${to}`,
     about: `the Live Update of shop ${sellerId}`,
   })
   if (gone.length) return "token_rejected"

@@ -39,6 +39,8 @@ export function fakeApns(sandboxPort: number, productionPort: number) {
   let connections = 0
   const unregistered = new Set<string>()
   const badTokens = new Set<string>()
+  const failing = new Set<string>()
+  const attempts = new Map<string, number>()
   let unresponsive = false
   const sessions = new Set<Http2Session>()
   let servers: Http2Server[] = []
@@ -62,6 +64,8 @@ export function fakeApns(sandboxPort: number, productionPort: number) {
     if (headers["apns-push-type"] !== "liveactivity") return { status: 400, reason: "InvalidPushType" }
     if (Buffer.byteLength(raw) > MAX_PAYLOAD_BYTES) return { status: 413, reason: "PayloadTooLarge" }
     const token = String(headers[":path"]).replace("/3/device/", "")
+    attempts.set(token, (attempts.get(token) ?? 0) + 1)
+    if (failing.has(token)) return { status: 503, reason: "ServiceUnavailable" }
     if (badTokens.has(token)) return { status: 400, reason: "BadDeviceToken" }
     if (unregistered.has(token)) return { status: 410, reason: "Unregistered" }
     pushes.push({
@@ -131,6 +135,15 @@ export function fakeApns(sandboxPort: number, productionPort: number) {
     rejectAsBad: (token: string) => {
       badTokens.add(token)
     },
+    /** Apple answers 503 for this token, until `recover`: nothing's wrong with the token. */
+    fail: (token: string) => {
+      failing.add(token)
+    },
+    recover: (token: string) => {
+      failing.delete(token)
+    },
+    /** How many pushes to this token reached Apple, accepted or not. */
+    attemptsTo: (token: string) => attempts.get(token) ?? 0,
     /** Apple stops answering, but keeps the connection open. */
     hang: () => {
       unresponsive = true
@@ -144,6 +157,8 @@ export function fakeApns(sandboxPort: number, productionPort: number) {
       connections = 0
       unregistered.clear()
       badTokens.clear()
+      failing.clear()
+      attempts.clear()
       unresponsive = false
     },
   }

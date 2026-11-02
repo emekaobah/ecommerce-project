@@ -61,6 +61,12 @@ export const buyerActivityRestarts = (state: FulfilmentState, startedAt: Date, n
   return action === "update" && alert && now.getTime() - startedAt.getTime() >= RESTART_AFTER_MS
 }
 
+/** iOS keeps an activity for 8 hours, then up to 4 more on the Lock Screen. */
+const LIVE_ACTIVITY_LIFETIME_MS = 12 * 60 * 60 * 1000
+
+/** Whether iOS has let this activity go by itself, so nothing is left to end. It's how tries at an ending stop. */
+export const liveActivityOutlived = (startedAt: Date | string, now: Date) => now.getTime() - new Date(startedAt).getTime() >= LIVE_ACTIVITY_LIFETIME_MS
+
 /** How long a finished order stays on the Lock Screen. */
 export const BUYER_ACTIVITY_DISMISS_AFTER_MS = 30 * 60 * 1000
 

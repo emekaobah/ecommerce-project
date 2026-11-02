@@ -6,6 +6,7 @@
     "@expo/ui": "~58.0.20",
     "@oja/api-client": "workspace:*",
     "@oja/domain": "workspace:*",
+    "@oja/expo-live-activity": "workspace:*",
     "@oja/expo-live-update": "workspace:*",
     "@oja/expo-push": "workspace:*",
     "@oja/expo-sentry": "workspace:*",

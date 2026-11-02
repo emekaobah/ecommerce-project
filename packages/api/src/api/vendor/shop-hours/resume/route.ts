@@ -1,4 +1,5 @@
 import type { MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { resumeShop, vendorShopHours } from "../../../../lib/shop-hours"
 import { noticeShopsOpeningAndClosing } from "../../../../lib/vendor-live-activity"
 import { errorMessage } from "../../../../lib/errors"
@@ -12,6 +13,6 @@ import type { VendorShopHoursResponse } from "../route"
 export const POST = async (req: VendorRequest, res: MedusaResponse<VendorShopHoursResponse>) => {
   const sellerId = sellerOf(req)
   await resumeShop(req.scope, sellerId)
-  await noticeShopsOpeningAndClosing(req.scope, new Date(), sellerId).catch((error) => req.scope.resolve("logger").warn(`Restarting shop ${sellerId}'s Live Activity failed: ${errorMessage(error)}`))
+  await noticeShopsOpeningAndClosing(req.scope, new Date(), sellerId).catch((error) => req.scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Restarting shop ${sellerId}'s Live Activity failed: ${errorMessage(error)}`))
   res.json({ shop_hours: await vendorShopHours(req.scope, sellerId) })
 }

@@ -2,7 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { remindAcceptDeadlines } from "../../src/lib/order-acceptance"
 import { fulfilmentService } from "../../src/lib/order-fulfilment"
 import { resumeShop, setWeeklyHours } from "../../src/lib/shop-hours"
-import { keepShopActivitiesCurrent } from "../../src/lib/vendor-live-activity"
+import { alertDeadlineNear, keepShopActivitiesCurrent, startShopActivity } from "../../src/lib/vendor-live-activity"
 import { LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../../src/modules/live-activity-token"
 import { seedDemoWorld } from "../../src/scripts/seed"
 import { buyerCheckout, eventually, GADGETS, GROCERY } from "../helpers/checkout"
@@ -211,6 +211,30 @@ medusaIntegrationTestRunner({
 
         const [, moved] = await updateArrives(device, 2)
         expect(moved.data.content.deadline).toBe(new Date(new Date(row.placed_at).getTime() + 26 * HOUR).toISOString())
+      })
+    })
+
+    describe("an event arriving twice (ADR 0008)", () => {
+      it("tells a phone of a new order once, whenever the repeat comes", async () => {
+        const { device } = await showing()
+        const second = await placeOrder()
+        await updateArrives(device, 2)
+        await eventually(async () => newOrderPushes(device), (sent) => sent.length >= 2)
+        const count = updates(device).length
+
+        await startShopActivity(getContainer(), second, new Date(Date.now() + 1000))
+
+        expect(updates(device)).toHaveLength(count)
+      })
+
+      it("tells a phone of an order's last two hours once, whenever the repeat comes", async () => {
+        const { device, orderId } = await showing()
+        await alertDeadlineNear(getContainer(), orderId, new Date(Date.now() + 1000))
+        const count = updates(device).length
+
+        await alertDeadlineNear(getContainer(), orderId, new Date(Date.now() + 2000))
+
+        expect(updates(device)).toHaveLength(count)
       })
     })
 

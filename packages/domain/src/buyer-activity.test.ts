@@ -5,6 +5,7 @@ import {
   buyerActivityOrderId,
   buyerActivityPlan,
   buyerActivityRestarts,
+  liveActivityOutlived,
   buyerActivityUrl,
   liveActivityPayloadBytes,
   MAX_ACTIVITY_CONTENT_BYTES,
@@ -13,6 +14,14 @@ import { buyerStatusPush } from "./buyer-push"
 import { formatMoney } from "./money"
 
 const order = { number: "OJ-2412", shop: "Iya Bisi Foodstuff", currency_code: "ngn" }
+
+describe("liveActivityOutlived", () => {
+  const START = new Date("2026-11-01T00:00:00.000Z")
+  test("holds once iOS's 8 hours and 4 on the Lock Screen have passed", () => {
+    expect(liveActivityOutlived(START, new Date("2026-11-01T11:59:00.000Z"))).toBe(false)
+    expect(liveActivityOutlived(START, new Date("2026-11-01T12:00:00.000Z"))).toBe(true)
+  })
+})
 
 describe("buyerActivityContent", () => {
   test("an accepted delivery is step 2 of the 8 on its order screen, Being prepared next", () => {

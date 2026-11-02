@@ -15,8 +15,6 @@ import {
 import { VENDOR_ACTIVITY_FACTORY, type VendorActivityContent } from '@oja/domain';
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
 
-export type ShopActivityContent = VendorActivityContent;
-
 /**
  * The shop's orders on the Lock Screen and in the Dynamic Island, as drawn in the screens
  * catalogue (#141). The whole function runs as a string in the widget's own JS runtime, so it

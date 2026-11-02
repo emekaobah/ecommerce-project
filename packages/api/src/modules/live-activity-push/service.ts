@@ -5,7 +5,7 @@ import { connect, constants, type ClientHttp2Session } from "node:http2"
 export type ApnsEnvironment = "sandbox" | "production"
 export type LiveActivityApp = "buyer" | "vendor"
 
-type Alert = { title: string; body: string; sound?: string }
+export type LiveActivityAlert = { title: string; body: string; sound?: string }
 
 type Target = {
   app: LiveActivityApp
@@ -22,10 +22,10 @@ type Target = {
 export type LiveActivityPush = Target &
   (
     /** `url` is what tapping the activity opens; the activity keeps it for life. */
-    | { event: "start"; alert: Alert; url?: string }
-    | { event: "update"; alert?: Alert }
+    | { event: "start"; alert: LiveActivityAlert; url?: string }
+    | { event: "update"; alert?: LiveActivityAlert }
     /** `content` stays on the Lock Screen until `dismissAt`, so send the real final state. */
-    | { event: "end"; dismissAt: Date; alert?: Alert }
+    | { event: "end"; dismissAt: Date; alert?: LiveActivityAlert }
   )
 
 /**
@@ -93,12 +93,6 @@ export default class LiveActivityPushModuleService {
     } catch (error) {
       return this.failed(push, error instanceof Error ? error.message : String(error))
     }
-  }
-
-  /** Closes the connections to Apple. A later `send` opens them again. */
-  close() {
-    for (const session of this.sessions.values()) session.close()
-    this.sessions.clear()
   }
 
   private failed(push: LiveActivityPush, reason: string): LiveActivityPushResult {

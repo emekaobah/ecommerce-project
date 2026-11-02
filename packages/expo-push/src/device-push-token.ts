@@ -15,6 +15,9 @@ export type PushModules = {
   Platform: typeof Platform;
 };
 
+/** What a device tells the backend it is when it registers for pushes. */
+export const pushPlatform = (os: string) => (os === 'android' ? 'android' : 'ios');
+
 export type PushOptions = {
   /**
    * Whether the app shows this push itself while it is open (the vendor app's new-order

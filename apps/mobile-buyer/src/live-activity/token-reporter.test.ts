@@ -69,7 +69,7 @@ describe('signing out', () => {
 
     await reporter.signingOut();
 
-    expect(f.ports.remove).toHaveBeenCalledWith('held-key');
+    expect(f.ports.remove).toHaveBeenCalledWith('held-key', undefined);
   });
 });
 
@@ -234,7 +234,7 @@ describe('signing out', () => {
 
     await reporter.signingOut();
 
-    expect(f.ports.remove).toHaveBeenCalledWith('issued-key');
+    expect(f.ports.remove).toHaveBeenCalledWith('issued-key', undefined);
     expect(f.key()).toBeNull();
   });
 
@@ -251,7 +251,7 @@ describe('signing out', () => {
     finishRegistering('issued-key');
     await out;
 
-    expect(f.ports.remove).toHaveBeenCalledWith('issued-key');
+    expect(f.ports.remove).toHaveBeenCalledWith('issued-key', undefined);
     expect(f.key()).toBeNull();
   });
 

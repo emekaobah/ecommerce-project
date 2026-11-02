@@ -1,4 +1,5 @@
 import { useAuth } from '@clerk/expo';
+import { pushPlatform } from '@oja/expo-push';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
@@ -14,7 +15,7 @@ const registration = deviceRegistration({
   pushesCanArrive,
   pushToken: devicePushToken,
   add: async (token) => {
-    await storeClient.store.pushTokens.mutate({ token, platform: Platform.OS === 'android' ? 'android' : 'ios' });
+    await storeClient.store.pushTokens.mutate({ token, platform: pushPlatform(Platform.OS) });
     liveActivityTokens.pushTokenRegistered(token);
   },
   remove: async (token) => {

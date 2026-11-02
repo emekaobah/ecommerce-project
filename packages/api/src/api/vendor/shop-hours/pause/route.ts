@@ -1,4 +1,5 @@
 import type { MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { pauseShop, vendorShopHours } from "../../../../lib/shop-hours"
 import { endShopActivity, noticeShopsOpeningAndClosing } from "../../../../lib/vendor-live-activity"
 import { errorMessage } from "../../../../lib/errors"
@@ -15,6 +16,6 @@ import type { VendorPauseShopType } from "../validators"
 export const POST = async (req: VendorRequest<VendorPauseShopType>, res: MedusaResponse<VendorShopHoursResponse>) => {
   const sellerId = sellerOf(req)
   await pauseShop(req.scope, sellerId, req.validatedBody)
-  await Promise.all([endShopActivity(req.scope, sellerId), noticeShopsOpeningAndClosing(req.scope, new Date(), sellerId)]).catch((error) => req.scope.resolve("logger").warn(`Ending shop ${sellerId}'s Live Activity failed: ${errorMessage(error)}`))
+  await Promise.all([endShopActivity(req.scope, sellerId), noticeShopsOpeningAndClosing(req.scope, new Date(), sellerId)]).catch((error) => req.scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Ending shop ${sellerId}'s Live Activity failed: ${errorMessage(error)}`))
   res.json({ shop_hours: await vendorShopHours(req.scope, sellerId) })
 }

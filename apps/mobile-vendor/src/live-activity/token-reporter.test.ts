@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 
-import { tokenReporter, type PostResult, type TokenReporterPorts } from './token-reporter';
+import { tokenReporter, type PostResult, type TokenReporterPorts } from '@oja/expo-live-activity';
 
 type Session = { token: string };
 const SESSION: Session = { token: 'member' };
@@ -18,6 +18,8 @@ function phone(heldKey: string | null = null) {
     register: mock(async (held: string | null) => held ?? 'issued-key'),
     remove: mock(async (_key: string, _session: Session) => {}),
     post: mock(async (): Promise<PostResult> => 'ok'),
+    endActivities: mock(() => {}),
+    subjectField: 'seller_id',
   } satisfies TokenReporterPorts<Session>;
   return { ports, reporter: tokenReporter(ports), key: () => key };
 }
@@ -49,6 +51,14 @@ describe('tokenReporter', () => {
     expect(device.ports.post).toHaveBeenCalledWith('held-key', { kind: 'activity', activity_id: 'a1', token: 'update-1' });
   });
 
+  test('a report names the shop the activity is for', async () => {
+    device = phone('held-key');
+    device.reporter.activityToken('a1', 'update-1', 'sel_1');
+    await device.reporter.idle();
+
+    expect(device.ports.post).toHaveBeenCalledWith('held-key', { kind: 'activity', activity_id: 'a1', token: 'update-1', seller_id: 'sel_1' });
+  });
+
   test('a report that failed is sent again on the next try, and not after it worked', async () => {
     device = phone('held-key');
     device.ports.post.mockImplementationOnce(async () => 'failed');
@@ -77,6 +87,23 @@ describe('tokenReporter', () => {
     await device.reporter.signingOut(SESSION);
 
     expect(device.ports.remove).toHaveBeenCalledWith('issued-key', SESSION);
+    expect(device.key()).toBeNull();
+  });
+
+  test('sign-out ends what the phone is showing: the server is about to forget its tokens', async () => {
+    await device.reporter.signingOut(SESSION);
+
+    expect(device.ports.endActivities).toHaveBeenCalledTimes(1);
+  });
+
+  test('sign-out still forgets the phone if its activities can\'t be ended', async () => {
+    device = phone('held-key');
+    device.ports.endActivities.mockImplementationOnce(() => {
+      throw new Error('gone');
+    });
+    await device.reporter.signingOut(SESSION);
+
+    expect(device.ports.remove).toHaveBeenCalledWith('held-key', SESSION);
     expect(device.key()).toBeNull();
   });
 

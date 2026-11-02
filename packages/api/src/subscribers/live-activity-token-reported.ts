@@ -1,10 +1,13 @@
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { catchUpBuyerActivity, endSpareBuyerActivity, LIVE_ACTIVITY_TOKEN_REPORTED, type LiveActivityTokenReported } from "../lib/buyer-live-activity"
+import { catchUpShopActivity, endSpareShopActivity } from "../lib/vendor-live-activity"
 
 /** A phone reported an activity's token: answered first, because a background launch has only seconds (#140), and caught up here (#144). */
 export default async function liveActivityTokenReportedHandler({ event, container }: SubscriberArgs<LiveActivityTokenReported>) {
   const { data } = event
   if ("spare" in data) await endSpareBuyerActivity(container, data.spare)
+  else if ("spare_shop" in data) await endSpareShopActivity(container, data.spare_shop)
+  else if ("shop_activity" in data) await catchUpShopActivity(container, data.shop_activity)
   else await catchUpBuyerActivity(container, data.id)
 }
 

@@ -4,7 +4,7 @@ import {
   buyerLiveUpdateMessage,
   buyerLiveUpdateView,
   LIVE_UPDATE_TTL_SECONDS,
-  readLiveUpdateMessage,
+  readBuyerLiveUpdateMessage,
   readVendorLiveUpdateMessage,
   vendorLiveUpdateMessage,
   vendorLiveUpdateView,
@@ -112,11 +112,11 @@ describe("buyerLiveUpdateView, against the catalogue's drawings", () => {
   })
 })
 
-describe("readLiveUpdateMessage", () => {
+describe("readBuyerLiveUpdateMessage", () => {
   const sent = message(buyerActivityContent({ ...order, method: "delivery", state: "picking" }))
 
   test("reads what the backend sent, from the JSON string the push carries it in", () => {
-    expect(readLiveUpdateMessage({ data: { dataString: JSON.stringify(sent) } })).toEqual(sent)
+    expect(readBuyerLiveUpdateMessage({ data: { dataString: JSON.stringify(sent) } })).toEqual(sent)
   })
 
   test.each([
@@ -125,7 +125,7 @@ describe("readLiveUpdateMessage", () => {
     ["a tap on a notification", { actionIdentifier: "x", notification: {} }],
     ["JSON that doesn't parse", { data: { dataString: "{" } }],
   ])("ignores %s", (_, payload) => {
-    expect(readLiveUpdateMessage(payload)).toBeNull()
+    expect(readBuyerLiveUpdateMessage(payload)).toBeNull()
   })
 })
 

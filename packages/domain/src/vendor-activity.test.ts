@@ -5,12 +5,27 @@ import {
   nearestAcceptDeadline,
   vendorActivityAlert,
   vendorActivityContent,
+  vendorActivitySellerId,
   vendorActivityUpdateDue,
+  vendorActivityUrl,
   VENDOR_ACTIVITY_FACTORY,
   type VendorActivityContent,
 } from "./vendor-activity"
 
 const COUNTS = { new: 2, picking: 1, ready: 3, out: 4 }
+
+describe("vendorActivityUrl", () => {
+  test("opens the shop's orders, and names the shop for the phone to read back", () => {
+    const url = vendorActivityUrl("ojavendor", "sel_1")
+    expect(url).toBe("ojavendor://shop-orders/sel_1")
+    expect(vendorActivitySellerId(url)).toBe("sel_1")
+  })
+
+  test("names no shop in a url that isn't a shop's", () => {
+    expect(vendorActivitySellerId("oja://order/group_1?shop_order=order_1")).toBeNull()
+    expect(vendorActivitySellerId(null)).toBeNull()
+  })
+})
 
 describe("vendorActivityContent", () => {
   test("carries the shop's name, its four stage counts and the nearest deadline with its urgency", () => {
