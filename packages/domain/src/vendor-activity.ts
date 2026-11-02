@@ -54,9 +54,9 @@ export function vendorActivityContent({ shop, counts, deadline }: VendorActivity
  * urgency is the time chip's (`acceptClockStatus`), counted in the shop's open hours.
  */
 export function nearestAcceptDeadline(placedAt: string[], now: Date, hours: ShopHours | null): NearestDeadline | null {
-  const deadlines = placedAt.map((placed) => acceptDeadline(placed, hours)).filter((at): at is string => at !== null)
-  if (!deadlines.length) return null
-  const at = deadlines.reduce((nearest, deadline) => (Date.parse(deadline) < Date.parse(nearest) ? deadline : nearest))
+  const [first, ...rest] = placedAt.map((placed) => acceptDeadline(placed, hours)).filter((at): at is string => at !== null)
+  if (first === undefined) return null
+  const at = rest.reduce((nearest, deadline) => (Date.parse(deadline) < Date.parse(nearest) ? deadline : nearest), first)
   return { at, urgent: acceptTimeLeft(at, now, hours).urgent }
 }
 
