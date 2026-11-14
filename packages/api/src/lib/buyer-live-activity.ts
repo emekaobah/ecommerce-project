@@ -17,7 +17,7 @@ import { LIVE_ACTIVITY_PUSH_MODULE, type ApnsEnvironment, type LiveActivityAlert
 import type { LiveActivityPush } from "../modules/live-activity-push/service"
 import { hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
 import { buyerOrder } from "./buyer-notifications"
-import { endBuyerLiveUpdate, removeBuyerLiveUpdates, showBuyerLiveUpdate } from "./buyer-live-update"
+import { endBuyerLiveUpdate, removeBuyerLiveUpdates, retryBuyerLiveUpdateEndings, showBuyerLiveUpdate } from "./buyer-live-update"
 import { errorMessage } from "./errors"
 import { listBuyerOrderGroups, type BuyerOrderGroup } from "./buyer-orders"
 import { contentOf, RUNS_AN_ACTIVITY, type ActivityState, type Ending } from "./buyer-activity-content"
@@ -105,8 +105,18 @@ async function startOnDevice(
     url: buyerActivityUrl(appIdentity("buyer").scheme, checkout.group.id, orderId),
   })
   if (sent.status === "sent") return true
-  await store.deleteLiveActivities(claim.id)
-  if (sent.status === "token_rejected") await store.updateLiveActivityDevices({ id: device.id, push_to_start_token: null })
+  try {
+    await store.deleteLiveActivities(claim.id)
+  } catch (error) {
+    // At least stop it being the running one, so an activity it was to replace can be again.
+    scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Forgetting the refused Live Activity of order ${orderId} failed: ${errorMessage(error)}`)
+    await store.updateLiveActivities({ id: claim.id, ended_at: new Date() }).catch(() => {})
+  }
+  if (sent.status === "token_rejected") {
+    await store.updateLiveActivityDevices({ id: device.id, push_to_start_token: null }).catch((error) => {
+      scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Forgetting a rejected push-to-start token failed: ${errorMessage(error)}`)
+    })
+  }
   return false
 }
 
@@ -156,7 +166,12 @@ async function restartOnDevice(scope: Scope, found: Found, row: Row, content: Bu
   const store = tokenStore(scope)
   const endedAt = new Date()
   await store.updateLiveActivities({ id: row.id, ended_at: endedAt })
-  if (!(await startOnDevice(scope, found, row.subject_id!, row.device, content, alert))) {
+  // Whatever goes wrong, the old activity stays the running one unless the fresh one started.
+  const started = await startOnDevice(scope, found, row.subject_id!, row.device, content, alert).catch((error) => {
+    scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Restarting the Live Activity of order ${row.subject_id} failed: ${errorMessage(error)}`)
+    return false
+  })
+  if (!started) {
     await store.updateLiveActivities({ id: row.id, ended_at: null })
     return false
   }
@@ -249,6 +264,8 @@ export async function retryBuyerActivityEndings(scope: Scope, now = new Date()):
       await finish(scope, row, row.end_content as unknown as BuyerActivityContent, new Date(row.end_dismiss_at!))
     })
   )
+  // Android's last messages, which have no event of their own to try again either.
+  await retryBuyerLiveUpdateEndings(scope, now.getTime())
 }
 
 /** A pickup order's hold ended: `order_fulfilment.not_collected`'s data says what's refunded and which lines aren't. */
@@ -309,10 +326,11 @@ export type LiveActivityTokenReported =
  * missed: accepting has already moved the order on to picking, and the order may have finished.
  */
 export async function catchUpBuyerActivity(scope: Scope, activityId: string): Promise<void> {
-  const [row] = await tokenStore(scope).listLiveActivities({ id: activityId })
+  const [row] = await tokenStore(scope).listLiveActivities({ id: activityId }, { relations: ["device"] })
   if (!row?.token || !row.subject_id) return
   const found = await buyerOrder(scope, row.subject_id)
-  if (!found) return
+  // A phone that has since moved to someone else gets nothing more of the order.
+  if (!found || row.device.actor_type !== "customer" || row.device.actor_id !== found.checkout.customer_id) return
   const state = found.order.fulfilment.state
   const { action } = buyerActivityPlan(state)
   if (action === "none") return

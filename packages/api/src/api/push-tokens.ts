@@ -10,6 +10,8 @@ import { registerPushTokenWorkflow, removePushTokenWorkflow } from "../workflows
 export const PushTokenBody = z.object({
   token: z.string().trim().regex(/^Expo(nent)?PushToken\[[^\]]+\]$/),
   platform: z.enum(PUSH_TOKEN_PLATFORMS).optional(),
+  /** The phone's id for this sign-in, which its Live Update messages carry (#133). */
+  session: z.string().trim().min(8).max(100).optional(),
 })
 export type PushTokenBodyType = z.infer<typeof PushTokenBody>
 
@@ -21,7 +23,13 @@ export const registerPushToken =
   (actorType: PushTokenActor) =>
   async (req: AuthenticatedMedusaRequest<PushTokenBodyType>, res: MedusaResponse<PushTokenResponse>) => {
     const { result } = await registerPushTokenWorkflow(req.scope).run({
-      input: { token: req.validatedBody.token, platform: req.validatedBody.platform, actor_type: actorType, actor_id: req.auth_context.actor_id },
+      input: {
+        token: req.validatedBody.token,
+        platform: req.validatedBody.platform,
+        session: req.validatedBody.session,
+        actor_type: actorType,
+        actor_id: req.auth_context.actor_id,
+      },
     })
     res.json({ push_token: result })
   }

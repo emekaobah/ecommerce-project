@@ -1,5 +1,7 @@
 import { createVendorClient } from '@oja/api-client';
 import { pushPlatform } from '@oja/expo-push';
+import { endLiveUpdateSession, liveUpdateSession } from '@oja/expo-live-update';
+import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
@@ -17,7 +19,7 @@ async function register(): Promise<string | null> {
   try {
     const pushToken = await devicePushToken();
     if (!pushToken) return null;
-    await vendorClient.vendor.pushTokens.mutate({ token: pushToken, platform: pushPlatform(Platform.OS) });
+    await vendorClient.vendor.pushTokens.mutate({ token: pushToken, platform: pushPlatform(Platform.OS), session: await liveUpdateSession(SecureStore) });
     liveActivityTokens.pushTokenRegistered(pushToken);
     return pushToken;
   } catch (error) {
@@ -45,6 +47,8 @@ export function usePushRegistration(): void {
  * Waits for a registration still under way, so it can't land after the removal.
  */
 export async function forgetDevice(session: Session | undefined): Promise<void> {
+  // The sign-in's id goes first: a Live Update message still on its way is for someone no longer here.
+  await endLiveUpdateSession(SecureStore).catch((error) => console.warn('Forgetting the Live Update session failed', error));
   void liveActivityTokens.signingOut(session);
   const pending = registered;
   registered = Promise.resolve(null);

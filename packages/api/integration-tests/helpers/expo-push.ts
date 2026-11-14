@@ -37,6 +37,7 @@ export function fakeExpoPush(port: number) {
   const messages: PushMessage[] = []
   const unregistered = new Set<string>()
   const uninstalledAfterSend = new Set<string>()
+  const failing = new Set<string>()
   /** The token each accepted ticket was for. */
   const tickets = new Map<string, string>()
   let server: Server | undefined
@@ -60,6 +61,7 @@ export function fakeExpoPush(port: number) {
     messages.push(...batch)
     const replies = batch.map((m) => {
       if (unregistered.has(m.to)) return DEVICE_NOT_REGISTERED(m.to)
+      if (failing.has(m.to)) return { status: "error", message: "Rate exceeded", details: { error: "MessageRateExceeded" } }
       const id = randomUUID()
       tickets.set(id, m.to)
       return { status: "ok", id }
@@ -115,7 +117,15 @@ export function fakeExpoPush(port: number) {
     uninstallAfterSend: (token: string) => {
       uninstalledAfterSend.add(token)
     },
+    /** Expo refuses messages to this token for a reason that may pass, until `recover`. */
+    fail: (token: string) => {
+      failing.add(token)
+    },
+    recover: (token: string) => {
+      failing.delete(token)
+    },
     reset: () => {
+      failing.clear()
       messages.length = 0
       unregistered.clear()
       uninstalledAfterSend.clear()
