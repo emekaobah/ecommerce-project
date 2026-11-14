@@ -5,6 +5,7 @@ import {
   buyerActivityOrderId,
   buyerActivityPlan,
   buyerActivityRestarts,
+  liveActivityDueRestart,
   liveActivityOutlived,
   buyerActivityUrl,
   liveActivityPayloadBytes,
@@ -20,6 +21,15 @@ describe("liveActivityOutlived", () => {
   test("holds once iOS's 8 hours and 4 on the Lock Screen have passed", () => {
     expect(liveActivityOutlived(START, new Date("2026-11-01T11:59:00.000Z"))).toBe(false)
     expect(liveActivityOutlived(START, new Date("2026-11-01T12:00:00.000Z"))).toBe(true)
+  })
+})
+
+describe("liveActivityDueRestart", () => {
+  const START = new Date("2026-11-01T00:00:00.000Z")
+  test("holds from 7 hours, an hour before iOS stops taking the activity's updates", () => {
+    expect(liveActivityDueRestart(START, new Date("2026-11-01T06:59:00.000Z"))).toBe(false)
+    expect(liveActivityDueRestart(START, new Date("2026-11-01T07:00:00.000Z"))).toBe(true)
+    expect(liveActivityDueRestart(START.toISOString(), new Date("2026-11-01T07:00:00.000Z"))).toBe(true)
   })
 })
 

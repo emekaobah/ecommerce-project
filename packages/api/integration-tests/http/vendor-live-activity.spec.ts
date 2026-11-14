@@ -251,6 +251,28 @@ medusaIntegrationTestRunner({
         expect(apns.sentTo(yesterdays).map((p) => p.aps.event)).toEqual(["end"])
       })
 
+      it("starts afresh on a new order once the running one is 7 hours old, before iOS stops taking its updates at 8", async () => {
+        const member = await staff(GROCERY)
+        const { key, pushToStart } = await optedIn(member)
+        const { grocery } = await paidOrders()
+        await startsOn(pushToStart)
+        const earlier = await reportActivity(key, await buyer.sellerId(GROCERY))
+        const store = getContainer().resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
+        const running = await store.listLiveActivities({ kind: "vendor_shop", ended_at: null })
+        const now = Date.now()
+
+        // Six hours in, a new order only alerts the running one.
+        await store.updateLiveActivities(running.map(({ id }) => ({ id, started_at: new Date(now - 6 * HOUR) })))
+        await startShopActivity(getContainer(), grocery, new Date(now))
+        expect(apns.sentTo(pushToStart).map((p) => p.aps.event)).toEqual(["start"])
+
+        // Seven hours in, the same day, it starts a fresh one and ends the old.
+        await store.updateLiveActivities(running.map(({ id }) => ({ id, started_at: new Date(now - 7 * HOUR) })))
+        await startShopActivity(getContainer(), grocery, new Date(now))
+        expect(apns.sentTo(pushToStart).map((p) => p.aps.event)).toEqual(["start", "start"])
+        expect(apns.sentTo(earlier).map((p) => p.aps.event)).toContain("end")
+      })
+
       it("leaves the new-order push and alarm as they are, on every member's device", async () => {
         const owner = await buyer.owner(GROCERY)
         const { pushToStart } = await optedIn(owner)

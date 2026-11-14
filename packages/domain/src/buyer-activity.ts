@@ -52,13 +52,16 @@ const BUYER_ACTIVITY_PLANS: Record<FulfilmentState, BuyerActivityPlan> = {
 
 export const buyerActivityPlan = (state: FulfilmentState) => BUYER_ACTIVITY_PLANS[state]
 
-/** iOS ends an activity at 8 hours, so a pushed milestone this long after the start begins a fresh one. */
+/** iOS stops taking an activity's updates at 8 hours, so one this old is replaced at its next alerting moment. */
 const RESTART_AFTER_MS = 7 * 60 * 60 * 1000
+
+/** Whether an activity that began at `startedAt` is old enough to be replaced by a fresh one, on a buyer's order or a shop's day alike. */
+export const liveActivityDueRestart = (startedAt: Date | string, now: Date) => now.getTime() - new Date(startedAt).getTime() >= RESTART_AFTER_MS
 
 /** Whether reaching `state` starts a fresh activity in place of one that began at `startedAt`. */
 export const buyerActivityRestarts = (state: FulfilmentState, startedAt: Date, now: Date) => {
   const { action, alert } = buyerActivityPlan(state)
-  return action === "update" && alert && now.getTime() - startedAt.getTime() >= RESTART_AFTER_MS
+  return action === "update" && alert && liveActivityDueRestart(startedAt, now)
 }
 
 /** iOS keeps an activity for 8 hours, then up to 4 more on the Lock Screen. */

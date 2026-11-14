@@ -1,6 +1,7 @@
 import {
   appIdentity,
   dateIn,
+  liveActivityDueRestart,
   liveActivityOutlived,
   nearestAcceptDeadline,
   shopStatus,
@@ -204,7 +205,9 @@ async function startOnPhones(scope: Scope, sellerId: string, phones: Awaited<Ret
       .map(async (phone) => {
         const [running] = await store.listLiveActivities({ device_id: phone.id, kind: "vendor_shop", subject_id: sellerId, ended_at: null })
         if (running) {
-          if (dateIn(new Date(running.started_at).getTime(), timeZone) === today) return
+          // Today's carries on, unless iOS is about to stop taking its updates: Android has no such limit.
+          const startedToday = dateIn(new Date(running.started_at).getTime(), timeZone) === today
+          if (startedToday && (android.has(phone.id) || !liveActivityDueRestart(running.started_at, now))) return
           await endActivity(scope, running as unknown as Running, content, now, { owed: true })
         }
         let claim: { id: string }

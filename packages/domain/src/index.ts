@@ -128,6 +128,7 @@ export {
   buyerActivityOrderId,
   buyerActivityPlan,
   buyerActivityRestarts,
+  liveActivityDueRestart,
   liveActivityOutlived,
   buyerActivityUrl,
   LIVE_ACTIVITY_KEY_HEADER,
