@@ -4,6 +4,9 @@ import type * as ExpoNotifications from 'expo-notifications';
 import type * as ExpoTaskManager from 'expo-task-manager';
 
 import type { LiveUpdatePorts } from './applier';
+import { currentLiveUpdateSession, type SessionStore } from './session';
+
+export { endLiveUpdateSession, liveUpdateSession, type SessionStore } from './session';
 
 // Android 16 Live Updates, and ongoing notifications on older Android (#133), for the buyer and
 // vendor apps. What to show is `LiveUpdateView`, from @oja/domain. There's no native module on iOS
@@ -43,16 +46,18 @@ const TASK = 'oja-live-update';
 export function registerLiveUpdateTask({
   TaskManager,
   Notifications,
+  SecureStore,
   apply,
 }: {
   TaskManager: typeof ExpoTaskManager;
   Notifications: typeof ExpoNotifications;
-  apply: (payload: unknown, ports: LiveUpdatePorts) => void;
+  /** Where the phone keeps its sign-in's id, which a message must carry to be drawn. */
+  SecureStore: SessionStore;
+  apply: (payload: unknown, ports: LiveUpdatePorts, session: string | null) => void;
 }): void {
-  TaskManager.defineTask(TASK, ({ data, error }) => {
+  TaskManager.defineTask(TASK, async ({ data, error }) => {
     if (error) console.warn('The Live Update task failed', error);
-    else apply(data, { show: showLiveUpdate, cancel: cancelLiveUpdate });
-    return Promise.resolve();
+    else apply(data, { show: showLiveUpdate, cancel: cancelLiveUpdate }, await currentLiveUpdateSession(SecureStore));
   });
   Notifications.registerTaskAsync(TASK).catch((error) => console.warn('Registering the Live Update task failed', error));
 }

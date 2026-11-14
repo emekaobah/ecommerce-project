@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PUSH_CHANNEL } from "../modules/expo-push"
 import { DEVICE_NOT_REGISTERED, type ExpoDataOnly, type ExpoPushAlert } from "../modules/expo-push/expo-api"
 import { errorMessage } from "./errors"
+import { PUSH_TOKEN_MODULE, type PushTokenModuleService } from "../modules/push-token"
 import { forgetPushDevices } from "./push-receipts"
 
 type Scope = Pick<MedusaContainer, "resolve">
@@ -40,13 +41,17 @@ export async function pushToDevices(scope: Scope, devices: string[], push: Devic
 /** `pushToDevices`, for a message the app handles itself (#148). Says how it went for whoever keeps track of what each device has. */
 export async function pushDataToDevices(scope: Scope, devices: string[], push: DeviceDataPush): Promise<PushOutcome> {
   const dataOnly: ExpoDataOnly = { data_only: true, ttl: push.ttl }
-  return sendToDevices(scope, devices, push, {}, dataOnly)
+  if (!devices.length) return { gone: [], failed: [] }
+  // Each phone's message names its sign-in, so one that lands after its person signed out isn't drawn (#133).
+  const rows = await scope.resolve<PushTokenModuleService>(PUSH_TOKEN_MODULE).listPushTokens({ token: devices }, { select: ["token", "session"], take: null })
+  const sessions = new Map(rows.map((row) => [row.token, row.session ?? null]))
+  return sendToDevices(scope, devices, { ...push, dataFor: (to) => ({ ...push.data, session: sessions.get(to) ?? null }) }, {}, dataOnly)
 }
 
 async function sendToDevices(
   scope: Scope,
   devices: string[],
-  push: Pick<DevicePush, "template" | "data" | "idempotencyKey" | "about">,
+  push: Pick<DevicePush, "template" | "data" | "idempotencyKey" | "about"> & { dataFor?: (device: string) => Record<string, unknown> },
   content: { subject?: string; text?: string },
   providerData: ExpoPushAlert | ExpoDataOnly | null
 ): Promise<PushOutcome> {
@@ -59,7 +64,7 @@ async function sendToDevices(
         channel: PUSH_CHANNEL,
         template: push.template,
         content,
-        data: push.data,
+        data: push.dataFor ? push.dataFor(to) : push.data,
         provider_data: providerData,
         idempotency_key: push.idempotencyKey(to),
       })

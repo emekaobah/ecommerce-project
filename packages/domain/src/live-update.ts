@@ -60,10 +60,12 @@ export type BuyerLiveUpdateMessage = {
   /** `show` starts or updates it, `end` shows the final state, `remove` takes it away at once. */
   action: "show" | "end" | "remove"
   order_id: string
-  /** The server's time, so a late push can't undo a newer one. */
+  /** When the order reached what `content` shows, so a late push can't undo a newer one. */
   revision: number
   url: string
   content: BuyerActivityContent
+  /** The sign-in it is for (`session` of the phone's push token), set as it is sent; a phone signed in afresh, or out, ignores it. */
+  session?: string | null
 }
 
 /** A message about a shop's orders. `show` starts or updates it, `remove` takes it away: a shop closing leaves nothing to see. */
@@ -75,6 +77,8 @@ export type VendorLiveUpdateMessage = {
   revision: number
   url: string
   content: VendorActivityContent
+  /** The sign-in it is for, as on `BuyerLiveUpdateMessage`. */
+  session?: string | null
 }
 
 /** As long as iOS keeps an activity on the Lock Screen (8 hours, then up to 4 more). A later milestone shows it again. */

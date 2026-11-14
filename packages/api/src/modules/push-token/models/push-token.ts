@@ -21,6 +21,11 @@ const PushToken = model
     actor_id: model.text(),
     /** Null for a build from before phones said: it gets normal pushes, and nothing only a newer build can draw (#148). */
     platform: model.enum([...PUSH_TOKEN_PLATFORMS]).nullable(),
+    /**
+     * The id the phone made up for this sign-in, which its Live Update messages carry, so one that
+     * arrives after its person signed out isn't drawn (#133). Null for a build that doesn't say.
+     */
+    session: model.text().nullable(),
   })
   .indexes([{ on: ["actor_type", "actor_id"] }])
 
