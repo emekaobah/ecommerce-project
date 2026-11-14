@@ -172,6 +172,23 @@ medusaIntegrationTestRunner({
         expect(updates(device)).toHaveLength(4)
       })
 
+      it("tries a refused update again once, and then takes it as sent", async () => {
+        const { device, orderId } = await showing()
+        await accept(orderId)
+        expo.fail(device)
+        await tick(Date.now() + MINUTE)
+        const refused = updates(device).length
+        expo.recover(device)
+
+        await tick(Date.now() + 2 * MINUTE)
+        await tick(Date.now() + 3 * MINUTE)
+        await tick(Date.now() + 4 * MINUTE)
+
+        // One more message, the retry, and nothing after it: the first minute's refusal mustn't leave it unsent for ever.
+        expect(updates(device)).toHaveLength(refused + 1)
+        expect(updates(device).at(-1).data.content.counts).toEqual(await tiles())
+      })
+
       it("updates at once for a new order, once, even on the phone it started on", async () => {
         const { device } = await showing()
         expect(updates(device)).toHaveLength(1)

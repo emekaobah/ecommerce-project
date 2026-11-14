@@ -165,16 +165,14 @@ export async function retryBuyerLiveUpdateEndings(scope: Scope, now = Date.now()
       const reachedAt = revisionOf(records.get(orderId)?.reached?.[state])
       // The phone has timed the notification out by itself by now.
       if (now - reachedAt > LIVE_UPDATE_TTL_SECONDS * 1000) return settle()
-      // A key of its own each minute: Medusa sends a failed key's retry but then can't record it, so it would never count as sent.
-      const retry = `retry:${Math.floor(now / 60_000)}`
       if (!(await ordersOnLockScreenOn(scope, found.checkout.customer_id))) {
         const content = contentOf(found.checkout.number, found.order, state as ActivityState)
-        return sendLast(scope, showing, found, orderId, { action: "remove", content, moment: `remove:${retry}`, at: now })
+        return sendLast(scope, showing, found, orderId, { action: "remove", content, moment: "remove", at: now })
       }
       // One still on its way has more events to come, each of which tries again.
       if (buyerActivityPlan(state).action !== "end") return
       const content = contentOf(found.checkout.number, found.order, state as ActivityState)
-      await sendLast(scope, showing, found, orderId, { action: "end", content, moment: `${state}:${retry}`, at: reachedAt })
+      await sendLast(scope, showing, found, orderId, { action: "end", content, moment: state, at: reachedAt })
     })
   )
 }

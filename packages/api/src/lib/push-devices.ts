@@ -83,5 +83,28 @@ async function sendToDevices(
     }
   })
   await forgetPushDevices(scope, gone)
+  await releaseFailedKeys(scope, failed.map((device) => push.idempotencyKey(device)))
   return { gone, failed }
+}
+
+/**
+ * Lets a push Expo refused be sent again under its key. Medusa retries a key whose notification
+ * failed, but sends it under a new id it never saves, so recording the send fails and the retry
+ * counts as failed too: a caller trying again each minute would push the same message every
+ * minute. Renaming the failed notification's key makes the next try a fresh notification.
+ */
+async function releaseFailedKeys(scope: Scope, keys: string[]): Promise<void> {
+  if (!keys.length) return
+  // `updateNotifications` is generated on Medusa's service, but its public type leaves it out.
+  const notifications = scope.resolve(Modules.NOTIFICATION) as unknown as {
+    listNotifications: (filters: Record<string, unknown>, config?: Record<string, unknown>) => Promise<{ id: string; idempotency_key: string | null; status: string }[]>
+    updateNotifications: (data: { id: string; idempotency_key: string }[]) => Promise<unknown>
+  }
+  try {
+    const held = await notifications.listNotifications({ idempotency_key: keys }, { select: ["id", "idempotency_key", "status"], take: null })
+    const failed = held.filter((row) => row.status === "failure" && row.idempotency_key)
+    if (failed.length) await notifications.updateNotifications(failed.map((row) => ({ id: row.id, idempotency_key: `${row.idempotency_key}#failed:${row.id}` })))
+  } catch (error) {
+    scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Freeing refused pushes to be sent again failed: ${errorMessage(error)}`)
+  }
 }
