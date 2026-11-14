@@ -1,6 +1,6 @@
 # 8. Push notifications through Medusa's notification module
 
-Status: accepted, 2026-10-06; amended 2026-11-01 for data-only pushes (#148, #149, ADR 0019)
+Status: accepted, 2026-10-06; amended 2026-11-01 for data-only pushes (#148, #149, ADR 0019), and 2026-11-14 for retrying a failed key
 
 ## Context
 
@@ -9,7 +9,7 @@ Status: accepted, 2026-10-06; amended 2026-11-01 for data-only pushes (#148, #14
 Facts that shaped the decision (checked 2026-10-06):
 
 - Medusa 2.20's notification module sends each notification through the provider registered for its channel (`email`, `sms`, or any name we choose), and records it: recipient, channel, template, data, status (`pending`, `success`, `failure`) and the provider's `external_id`.
-- `createNotifications` skips a notification whose `idempotency_key` it has already sent. One that failed is sent again under the same key.
+- `createNotifications` skips a notification whose `idempotency_key` it has already sent. One that failed is sent again under the same key, but under a new id it never saves, so recording the result fails and the retry counts as failed even when it was delivered (found 2026-11-14).
 - Expo's push API answers each message with a ticket: an id, or an error such as `DeviceNotRegistered` when it already knows the app is gone. About 15 minutes later the ticket's receipt says whether the message was delivered, with the same errors. Receipts are kept for a day.
 - A device has one Expo push token per app install. Staff share devices, and a buyer may sign in on a phone a shop member used.
 - Expo's server SDK only wraps two HTTP calls, so we call the API directly.
@@ -35,7 +35,7 @@ Tokens live in our own module (`src/modules/push-token`). `token` is unique, and
 
 ### Idempotency keys stop duplicate pushes
 
-Every push has an idempotency key `<kind>:<order id>:<device token>`, or for a push about a shop rather than one order, `<kind>:<seller id>:<moment>:<device token>`, where the moment is made from the event, never the clock. An event can arrive twice, for example after a subscriber retry or a re-emitted event, and a device is still told only once. Because the key includes the device, a member who registers a new device later can still get a push about the same event on it. A push Expo refused can be retried, since the module resends failed notifications.
+Every push has an idempotency key `<kind>:<order id>:<device token>`, or for a push about a shop rather than one order, `<kind>:<seller id>:<moment>:<device token>`, where the moment is made from the event, never the clock. An event can arrive twice, for example after a subscriber retry or a re-emitted event, and a device is still told only once. Because the key includes the device, a member who registers a new device later can still get a push about the same event on it. A push Expo refused can be retried: its failed notification's key is renamed (`<key>#failed:<id>`, `src/lib/push-devices.ts`), so the retry is a fresh notification the module records, and a key that was sent still blocks a repeat.
 
 ## Consequences
 
