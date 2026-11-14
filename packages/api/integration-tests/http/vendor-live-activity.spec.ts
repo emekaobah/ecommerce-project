@@ -504,5 +504,27 @@ medusaIntegrationTestRunner({
         expect(apns.sentTo(update)).toEqual([])
       })
     })
+
+    describe("a day's first order after an ending that failed (found reviewing PR 152)", () => {
+      it("starts today's activity even when yesterday evening's one couldn't be ended", async () => {
+        const member = await staff(GROCERY)
+        const { key, pushToStart } = await optedIn(member)
+        const { grocery } = await paidOrders()
+        await startsOn(pushToStart)
+        const yesterdays = await reportActivity(key, await buyer.sellerId(GROCERY))
+
+        // 01:00 tomorrow in Lagos (UTC+1), with the running activity started at 23:00 tonight: a new day, inside iOS's 12 hours.
+        // Lagos's next midnight, as UTC, is that day boundary less an hour; an hour on from it is 01:00 there.
+        const tomorrow1am = new Date(Math.ceil((Date.now() + HOUR) / DAY) * DAY)
+        const store = getContainer().resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
+        const running = await store.listLiveActivities({ kind: "vendor_shop", ended_at: null })
+        await store.updateLiveActivities(running.map(({ id }) => ({ id, started_at: new Date(tomorrow1am.getTime() - 2 * HOUR) })))
+        apns.fail(yesterdays)
+
+        await startShopActivity(getContainer(), grocery, tomorrow1am)
+
+        expect(apns.sentTo(pushToStart).map((p) => p.aps.event)).toEqual(["start", "start"])
+      })
+    })
   },
 })

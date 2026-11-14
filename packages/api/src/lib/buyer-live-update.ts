@@ -39,18 +39,17 @@ const recorded = (scope: Scope, orderId: string, devices: string[]) => tokenStor
 
 const running = (rows: { ended_at: Date | string | null; push_token: string }[]) => rows.filter((row) => !row.ended_at).map((row) => row.push_token)
 
-async function send(
-  scope: Scope,
-  devices: string[],
-  groupId: string,
-  orderId: string,
-  action: BuyerLiveUpdateMessage["action"],
-  content: BuyerActivityContent,
+/** One message about an order, as each of its phones is sent it. */
+type Message = {
+  action: BuyerLiveUpdateMessage["action"]
+  content: BuyerActivityContent
   /** What makes this one message: a device gets it once, however often the event comes. */
-  moment: string,
+  moment: string
   /** The message's revision: when the order reached what `content` shows, so a message read before a later one can't outrank it. */
   at: number
-) {
+}
+
+async function send(scope: Scope, devices: string[], groupId: string, orderId: string, { action, content, moment, at }: Message) {
   const url = buyerActivityUrl(appIdentity("buyer").scheme, groupId, orderId)
   const outcome = await pushDataToDevices(scope, devices, {
     template: "buyer-live-update",
@@ -70,8 +69,8 @@ async function send(
  * Sends the order's last message to these phones and records it over. A phone Expo refused it for
  * stays running, for `retryBuyerLiveUpdateEndings` to try again.
  */
-async function sendLast(scope: Scope, devices: string[], found: Found, orderId: string, action: "end" | "remove", content: BuyerActivityContent, moment: string, at: number) {
-  const { gone, failed } = await send(scope, devices, found.checkout.group.id, orderId, action, content, moment, at)
+async function sendLast(scope: Scope, devices: string[], found: Found, orderId: string, message: Message & { action: "end" | "remove" }) {
+  const { gone, failed } = await send(scope, devices, found.checkout.group.id, orderId, message)
   const over = devices.filter((device) => !gone.includes(device) && !failed.includes(device))
   if (!over.length) return
   const rows = await recorded(scope, orderId, over)
@@ -98,7 +97,7 @@ export async function showBuyerLiveUpdate(scope: Scope, orderId: string, state: 
   const rows = await recorded(scope, orderId, devices)
   const content = contentOf(found.checkout.number, found.order, now as ActivityState)
   if (!(await ordersOnLockScreenOn(scope, found.checkout.customer_id))) {
-    if (running(rows).length) await sendLast(scope, running(rows), found, orderId, "remove", content, "remove", Date.now())
+    if (running(rows).length) await sendLast(scope, running(rows), found, orderId, { action: "remove", content, moment: "remove", at: Date.now() })
     return
   }
   const fresh = buyerActivityPlan(state).action === "start" ? devices.filter((device) => !rows.some((row) => row.push_token === device)) : []
@@ -107,7 +106,7 @@ export async function showBuyerLiveUpdate(scope: Scope, orderId: string, state: 
   if (!showing.length) return
   // An order can reach a state again (a courier label rebooked), and the phone is told each time.
   const reached = (await fulfilmentsOf(scope, [orderId])).get(orderId)?.reached
-  await send(scope, showing, found.checkout.group.id, orderId, "show", content, `${state}:${reached?.[state] ?? ""}`, revisionOf(reached?.[now]))
+  await send(scope, showing, found.checkout.group.id, orderId, { action: "show", content, moment: `${state}:${reached?.[state] ?? ""}`, at: revisionOf(reached?.[now]) })
 }
 
 /** When the order reached a state, as a message's revision; now, for an order not moved since that was kept. */
@@ -120,7 +119,7 @@ export async function endBuyerLiveUpdate(scope: Scope, found: Found, orderId: st
   const showing = running(await recorded(scope, orderId, devices))
   if (!showing.length) return
   const reached = (await fulfilmentsOf(scope, [orderId])).get(orderId)?.reached
-  await sendLast(scope, showing, found, orderId, "end", content, state, revisionOf(reached?.[state]))
+  await sendLast(scope, showing, found, orderId, { action: "end", content, moment: state, at: revisionOf(reached?.[state]) })
 }
 
 /**
@@ -136,7 +135,12 @@ export async function removeBuyerLiveUpdates(scope: Scope, customerId: string): 
       const found = await buyerOrder(scope, orderId)
       if (!found) return
       const showing = rows.filter((row) => row.order_id === orderId).map((row) => row.push_token)
-      await sendLast(scope, showing, found, orderId, "remove", contentOf(found.checkout.number, found.order, found.order.fulfilment.state as ActivityState), "remove", Date.now())
+      await sendLast(scope, showing, found, orderId, {
+        action: "remove",
+        content: contentOf(found.checkout.number, found.order, found.order.fulfilment.state as ActivityState),
+        moment: "remove",
+        at: Date.now(),
+      })
     })
   )
 }
@@ -165,11 +169,12 @@ export async function retryBuyerLiveUpdateEndings(scope: Scope, now = Date.now()
       const retry = `retry:${Math.floor(now / 60_000)}`
       if (!(await ordersOnLockScreenOn(scope, found.checkout.customer_id))) {
         const content = contentOf(found.checkout.number, found.order, state as ActivityState)
-        return sendLast(scope, showing, found, orderId, "remove", content, `remove:${retry}`, now)
+        return sendLast(scope, showing, found, orderId, { action: "remove", content, moment: `remove:${retry}`, at: now })
       }
       // One still on its way has more events to come, each of which tries again.
       if (buyerActivityPlan(state).action !== "end") return
-      await sendLast(scope, showing, found, orderId, "end", contentOf(found.checkout.number, found.order, state as ActivityState), `${state}:${retry}`, reachedAt)
+      const content = contentOf(found.checkout.number, found.order, state as ActivityState)
+      await sendLast(scope, showing, found, orderId, { action: "end", content, moment: `${state}:${retry}`, at: reachedAt })
     })
   )
 }
