@@ -16,10 +16,10 @@ jest.setTimeout(5 * 60 * 1000)
 // Regressions found reviewing PR 152 (#133): Live Activities and Android Live Updates when a push fails, races or lands late.
 
 const clerk = fakeClerk()
-const paystack = fakePaystack(41000 + (process.pid % 1000))
-const shipbubble = fakeShipbubble(42000 + (process.pid % 1000))
-const expo = fakeExpoPush(43000 + (process.pid % 1000))
-const apns = fakeApns(44000 + (process.pid % 999), 45000 + (process.pid % 500))
+const paystack = fakePaystack(13000 + (process.pid % 1000))
+const shipbubble = fakeShipbubble(2000 + (process.pid % 1000))
+const expo = fakeExpoPush(4000 + (process.pid % 1000))
+const apns = fakeApns(8000 + (process.pid % 499), 8500 + (process.pid % 500))
 process.env.CLERK_JWT_KEY = clerk.jwtKey
 process.env.PAYSTACK_SECRET_KEY = paystack.secretKey
 process.env.PAYSTACK_API_URL = paystack.apiUrl

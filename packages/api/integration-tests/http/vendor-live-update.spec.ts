@@ -17,9 +17,9 @@ jest.setTimeout(5 * 60 * 1000)
 // The shop's orders on an Android phone (#149): the data-only messages that reach Expo.
 
 const clerk = fakeClerk()
-const paystack = fakePaystack(44000 + (process.pid % 1000))
-const shipbubble = fakeShipbubble(45000 + (process.pid % 1000))
-const expo = fakeExpoPush(46000 + (process.pid % 1000))
+const paystack = fakePaystack(10000 + (process.pid % 1000))
+const shipbubble = fakeShipbubble(11000 + (process.pid % 1000))
+const expo = fakeExpoPush(12000 + (process.pid % 1000))
 process.env.CLERK_JWT_KEY = clerk.jwtKey
 process.env.PAYSTACK_SECRET_KEY = paystack.secretKey
 process.env.PAYSTACK_API_URL = paystack.apiUrl
