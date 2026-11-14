@@ -47,12 +47,14 @@ async function send(
   action: BuyerLiveUpdateMessage["action"],
   content: BuyerActivityContent,
   /** What makes this one message: a device gets it once, however often the event comes. */
-  moment: string
+  moment: string,
+  /** The message's revision: when the order reached what `content` shows, so a message read before a later one can't outrank it. */
+  at: number
 ) {
   const url = buyerActivityUrl(appIdentity("buyer").scheme, groupId, orderId)
   const outcome = await pushDataToDevices(scope, devices, {
     template: "buyer-live-update",
-    data: buyerLiveUpdateMessage({ action, orderId, url, content, at: Date.now() }),
+    data: buyerLiveUpdateMessage({ action, orderId, url, content, at }),
     ttl: LIVE_UPDATE_TTL_SECONDS,
     idempotencyKey: (to) => `buyer-live-update:${moment}:${orderId}:${to}`,
     about: `the Live Update of order ${orderId}`,
@@ -66,10 +68,10 @@ async function send(
 
 /**
  * Sends the order's last message to these phones and records it over. A phone Expo refused it for
- * stays running, so the next event about the order can try again.
+ * stays running, for `retryBuyerLiveUpdateEndings` to try again.
  */
-async function sendLast(scope: Scope, devices: string[], found: Found, orderId: string, action: "end" | "remove", content: BuyerActivityContent, moment: string) {
-  const { gone, failed } = await send(scope, devices, found.checkout.group.id, orderId, action, content, moment)
+async function sendLast(scope: Scope, devices: string[], found: Found, orderId: string, action: "end" | "remove", content: BuyerActivityContent, moment: string, at: number) {
+  const { gone, failed } = await send(scope, devices, found.checkout.group.id, orderId, action, content, moment, at)
   const over = devices.filter((device) => !gone.includes(device) && !failed.includes(device))
   if (!over.length) return
   const rows = await recorded(scope, orderId, over)
@@ -96,7 +98,7 @@ export async function showBuyerLiveUpdate(scope: Scope, orderId: string, state: 
   const rows = await recorded(scope, orderId, devices)
   const content = contentOf(found.checkout.number, found.order, now as ActivityState)
   if (!(await ordersOnLockScreenOn(scope, found.checkout.customer_id))) {
-    if (running(rows).length) await sendLast(scope, running(rows), found, orderId, "remove", content, "remove")
+    if (running(rows).length) await sendLast(scope, running(rows), found, orderId, "remove", content, "remove", Date.now())
     return
   }
   const fresh = buyerActivityPlan(state).action === "start" ? devices.filter((device) => !rows.some((row) => row.push_token === device)) : []
@@ -104,16 +106,21 @@ export async function showBuyerLiveUpdate(scope: Scope, orderId: string, state: 
   const showing = [...running(rows), ...fresh]
   if (!showing.length) return
   // An order can reach a state again (a courier label rebooked), and the phone is told each time.
-  const reachedAt = (await fulfilmentsOf(scope, [orderId])).get(orderId)?.reached?.[state] ?? ""
-  await send(scope, showing, found.checkout.group.id, orderId, "show", content, `${state}:${reachedAt}`)
+  const reached = (await fulfilmentsOf(scope, [orderId])).get(orderId)?.reached
+  await send(scope, showing, found.checkout.group.id, orderId, "show", content, `${state}:${reached?.[state] ?? ""}`, revisionOf(reached?.[now]))
 }
+
+/** When the order reached a state, as a message's revision; now, for an order not moved since that was kept. */
+const revisionOf = (reachedAt: string | Date | undefined | null) => (reachedAt ? new Date(reachedAt).getTime() : Date.now())
 
 /** The order finished: the phones still showing it show how, briefly. */
 export async function endBuyerLiveUpdate(scope: Scope, found: Found, orderId: string, state: FulfilmentState, content: BuyerActivityContent): Promise<void> {
   const devices = await androidPhonesOfBuyer(scope, found.checkout.customer_id)
   if (!devices.length) return
   const showing = running(await recorded(scope, orderId, devices))
-  if (showing.length) await sendLast(scope, showing, found, orderId, "end", content, state)
+  if (!showing.length) return
+  const reached = (await fulfilmentsOf(scope, [orderId])).get(orderId)?.reached
+  await sendLast(scope, showing, found, orderId, "end", content, state, revisionOf(reached?.[state]))
 }
 
 /**
@@ -129,7 +136,40 @@ export async function removeBuyerLiveUpdates(scope: Scope, customerId: string): 
       const found = await buyerOrder(scope, orderId)
       if (!found) return
       const showing = rows.filter((row) => row.order_id === orderId).map((row) => row.push_token)
-      await sendLast(scope, showing, found, orderId, "remove", contentOf(found.checkout.number, found.order, found.order.fulfilment.state as ActivityState), "remove")
+      await sendLast(scope, showing, found, orderId, "remove", contentOf(found.checkout.number, found.order, found.order.fulfilment.state as ActivityState), "remove", Date.now())
+    })
+  )
+}
+
+/**
+ * The minute job: last messages Expo refused, which no later event would send. An order its buyer
+ * turned the switch off for is removed; a finished one is ended as it finished. Once the phone
+ * will have timed the notification out by itself, nothing is left to send.
+ */
+export async function retryBuyerLiveUpdateEndings(scope: Scope, now = Date.now()): Promise<void> {
+  const rows = await tokenStore(scope).listBuyerLiveUpdates({ ended_at: null }, { take: null })
+  const orders = [...new Set(rows.map((row) => row.order_id))]
+  const records = await fulfilmentsOf(scope, orders)
+  await Promise.all(
+    orders.map(async (orderId) => {
+      const found = await buyerOrder(scope, orderId)
+      const state = found?.order.fulfilment.state
+      const devices = rows.filter((row) => row.order_id === orderId)
+      const settle = () => tokenStore(scope).updateBuyerLiveUpdates(devices.map(({ id }) => ({ id, ended_at: new Date(now) })))
+      if (!found || !state) return settle()
+      const showing = devices.filter((row) => row.customer_id === found.checkout.customer_id).map((row) => row.push_token)
+      const reachedAt = revisionOf(records.get(orderId)?.reached?.[state])
+      // The phone has timed the notification out by itself by now.
+      if (now - reachedAt > LIVE_UPDATE_TTL_SECONDS * 1000) return settle()
+      // A key of its own each minute: Medusa sends a failed key's retry but then can't record it, so it would never count as sent.
+      const retry = `retry:${Math.floor(now / 60_000)}`
+      if (!(await ordersOnLockScreenOn(scope, found.checkout.customer_id))) {
+        const content = contentOf(found.checkout.number, found.order, state as ActivityState)
+        return sendLast(scope, showing, found, orderId, "remove", content, `remove:${retry}`, now)
+      }
+      // One still on its way has more events to come, each of which tries again.
+      if (buyerActivityPlan(state).action !== "end") return
+      await sendLast(scope, showing, found, orderId, "end", contentOf(found.checkout.number, found.order, state as ActivityState), `${state}:${retry}`, reachedAt)
     })
   )
 }

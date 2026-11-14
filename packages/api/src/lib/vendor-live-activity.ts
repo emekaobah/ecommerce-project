@@ -121,14 +121,38 @@ async function pushTo(scope: Scope, phone: Addressed, sellerId: string, push: Sh
 
 /**
  * Ends one activity. One Apple couldn't be told about stays running, for the job to try again,
- * until iOS will have let it go by itself. One Apple says is gone has its token forgotten.
+ * until iOS will have let it go by itself; or, when a fresh one has to take its place (`owed`), is
+ * over here and its ending owed, for `retryShopActivityEndings`. One Apple says is gone has its
+ * token forgotten.
  */
-async function endActivity(scope: Scope, activity: Running, content: VendorActivityContent, now: Date) {
+async function endActivity(scope: Scope, activity: Running, content: VendorActivityContent, now: Date, { owed = false } = {}) {
+  const status = await sendEnding(scope, activity, content, now)
+  if (status === "failed" && !liveActivityOutlived(activity.started_at, now)) {
+    if (owed) await tokenStore(scope).updateLiveActivities({ id: activity.id, ended_at: now, end_content: content as unknown as Record<string, unknown>, end_dismiss_at: now })
+    return
+  }
+  await tokenStore(scope).updateLiveActivities({ id: activity.id, ended_at: now, ...(status === "token_rejected" ? { token: null } : {}) })
+}
+
+/** Tells the phone the activity is over, answering as Apple's sender does. */
+async function sendEnding(scope: Scope, activity: Running, content: VendorActivityContent, now: Date) {
   const android = activity.token ? undefined : await androidPhoneOf(scope, activity.device_id)
   // A moment older than a start it may be making way for: Android draws whichever is newest.
-  const status = await pushTo(scope, { ...activity, android }, activity.subject_id!, { event: "end", content, at: now.getTime() - 1, moment: `end:${activity.id}`, dismissAt: now })
-  if (status === "failed" && !liveActivityOutlived(activity.started_at, now)) return
-  await tokenStore(scope).updateLiveActivities({ id: activity.id, ended_at: now, ...(status === "token_rejected" ? { token: null } : {}) })
+  return pushTo(scope, { ...activity, android }, activity.subject_id!, { event: "end", content, at: now.getTime() - 1, moment: `end:${activity.id}`, dismissAt: now })
+}
+
+/** The minute job's part for endings owed when a fresh activity took an old one's place: tried until they land, or iOS has let the old one go. */
+export async function retryShopActivityEndings(scope: Scope, now = new Date()): Promise<void> {
+  const store = tokenStore(scope)
+  const owed = (await store.listLiveActivities({ kind: "vendor_shop", end_dismiss_at: { $ne: null } }, { take: null })) as unknown as (Running & { end_content: Record<string, unknown> | null })[]
+  await Promise.all(
+    owed.map(async (activity) => {
+      const outlived = liveActivityOutlived(activity.started_at, now)
+      const status = outlived ? null : await sendEnding(scope, activity, activity.end_content as unknown as VendorActivityContent, now)
+      if (status === "failed") return
+      await store.updateLiveActivities({ id: activity.id, end_content: null, end_dismiss_at: null, ...(status === "token_rejected" ? { token: null } : {}) })
+    })
+  )
 }
 
 /** Sends an update and records what Apple accepted. One it says is gone is over; a failed push is tried by the next batch. */
@@ -181,7 +205,7 @@ async function startOnPhones(scope: Scope, sellerId: string, phones: Awaited<Ret
         const [running] = await store.listLiveActivities({ device_id: phone.id, kind: "vendor_shop", subject_id: sellerId, ended_at: null })
         if (running) {
           if (dateIn(new Date(running.started_at).getTime(), timeZone) === today) return
-          await endActivity(scope, running as unknown as Running, content, now)
+          await endActivity(scope, running as unknown as Running, content, now, { owed: true })
         }
         let claim: { id: string }
         try {
@@ -193,7 +217,7 @@ async function startOnPhones(scope: Scope, sellerId: string, phones: Awaited<Ret
             started_at: now,
           })
         } catch (error) {
-          // Another order of the same moment got there first.
+          // Another order of the same moment got there first, or an earlier one is still running.
           logger.warn(`Recording shop ${sellerId}'s Live Activity failed: ${errorMessage(error)}`)
           return
         }
@@ -386,6 +410,7 @@ export async function sendBatchedShopUpdates(scope: Scope, now = new Date()): Pr
 
 /** The minute job: everything that keeps shops' activities true without an event to say so. */
 export async function keepShopActivitiesCurrent(scope: Scope, now = new Date()): Promise<void> {
+  await retryShopActivityEndings(scope, now)
   await endActivitiesOfClosedShops(scope, now)
   await noticeShopsOpeningAndClosing(scope, now)
   await sendBatchedShopUpdates(scope, now)
