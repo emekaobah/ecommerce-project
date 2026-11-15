@@ -1,8 +1,13 @@
 import { createVendorClient } from '@oja/api-client';
+import { pushPlatform } from '@oja/expo-push';
+import { endLiveUpdateSession, liveUpdateSession } from '@oja/expo-live-update';
+import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { vendorClient } from '@/api/client';
 import { env } from '@/config/env';
+import { liveActivityTokens } from '@/live-activity/register';
 import { useSession, type Session } from '@/session/session-store';
 
 import { devicePushToken } from './device-push-token';
@@ -14,7 +19,8 @@ async function register(): Promise<string | null> {
   try {
     const pushToken = await devicePushToken();
     if (!pushToken) return null;
-    await vendorClient.vendor.pushTokens.mutate({ token: pushToken });
+    await vendorClient.vendor.pushTokens.mutate({ token: pushToken, platform: pushPlatform(Platform.OS), session: await liveUpdateSession(SecureStore) });
+    liveActivityTokens.pushTokenRegistered(pushToken);
     return pushToken;
   } catch (error) {
     // Pushes are a convenience: the order list still refreshes on its own.
@@ -28,7 +34,10 @@ export function usePushRegistration(): void {
   // Again only when the member changes, not when they switch shop: pushes come from all their shops.
   const memberToken = useSession()?.token;
   useEffect(() => {
-    if (memberToken) registered = register();
+    if (!memberToken) return;
+    registered = register();
+    // Whether or not pushes are allowed: Live Activities are a separate permission.
+    liveActivityTokens.signedIn();
   }, [memberToken]);
 }
 
@@ -38,6 +47,9 @@ export function usePushRegistration(): void {
  * Waits for a registration still under way, so it can't land after the removal.
  */
 export async function forgetDevice(session: Session | undefined): Promise<void> {
+  // The sign-in's id goes first: a Live Update message still on its way is for someone no longer here.
+  await endLiveUpdateSession(SecureStore).catch((error) => console.warn('Forgetting the Live Update session failed', error));
+  void liveActivityTokens.signingOut(session);
   const pending = registered;
   registered = Promise.resolve(null);
   const pushToken = await pending;

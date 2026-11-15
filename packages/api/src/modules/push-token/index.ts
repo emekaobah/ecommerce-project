@@ -3,7 +3,7 @@ import PushTokenModuleService from "./service"
 
 export const PUSH_TOKEN_MODULE = "pushToken"
 export { PushTokenModuleService }
-export { PUSH_TOKEN_ACTORS, type PushTokenActor } from "./models/push-token"
+export { PUSH_TOKEN_ACTORS, PUSH_TOKEN_PLATFORMS, type PushTokenActor, type PushTokenPlatform } from "./models/push-token"
 
 export default Module(PUSH_TOKEN_MODULE, {
   service: PushTokenModuleService,

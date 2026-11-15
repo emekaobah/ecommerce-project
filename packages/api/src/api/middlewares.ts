@@ -62,6 +62,8 @@ import { AdminSettleOwedRefund } from "./admin/owed-refunds/[id]/settle/validato
 import { AdminSetTopUpCap } from "./admin/courier-approvals/validators";
 import { StoreGetPlaceAddress, StoreReverseGeocode, StoreSuggestAddresses } from "./store/address-lookup/validators";
 import { PushTokenBody } from "./push-tokens";
+import { LiveActivityDeviceBody, LiveActivityStartedBody, LiveActivityTokenBody, VendorLiveActivityTokenBody } from "./live-activity-tokens";
+import { LiveActivityShopBody } from "./vendor-live-activity";
 import { StoreUpdateNotificationPreferences } from "./store/customers/me/notification-preferences/validators";
 import { StoreRecordSearch } from "./store/searches/validators";
 import { StoreGetPopularSearches } from "./store/popular-searches/validators";
@@ -295,6 +297,25 @@ export default defineMiddlewares({
             matcher: "/store/push-tokens/:token",
             middlewares: [authenticate("customer", ["session", "bearer"])],
         },
+        // A signed-in buyer's phone gets its key, and gives it up at sign-out (#143, ADR 0018).
+        {
+            method: ["POST"],
+            matcher: "/store/live-activity-devices",
+            middlewares: [authenticate("customer", ["session", "bearer"]), validateAndTransformBody(LiveActivityDeviceBody)],
+        },
+        {
+            method: ["DELETE"],
+            matcher: "/store/live-activity-devices/current",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
+        // The phone's key is the credential here, not a session: these may run before auth is restored.
+        { method: ["POST"], matcher: "/store/live-activity-tokens", middlewares: [validateAndTransformBody(LiveActivityTokenBody)] },
+        { method: ["POST"], matcher: "/store/live-activities", middlewares: [validateAndTransformBody(LiveActivityStartedBody)] },
+        {
+            method: ["GET"],
+            matcher: "/store/live-activities/owed",
+            middlewares: [authenticate("customer", ["session", "bearer"])],
+        },
         { method: ["POST"], matcher: "/store/carts/:id/complete", middlewares: [paystackCartsCompleteByWebhook] },
         // Paystack signs the raw body, so it is kept for the check.
         {
@@ -355,6 +376,11 @@ export default defineMiddlewares({
         ...vendorPriceListMiddlewares,
         // A member's device registers for their shops' pushes (#27); Mercur authenticates the member.
         { method: ["POST"], matcher: "/vendor/push-tokens", middlewares: [validateAndTransformBody(PushTokenBody)] },
+        // A member's phone gets its key, which reports its tokens with no session: that route opts
+        // out of the member's auth (#146, ADR 0018). The switch is per shop, for any member.
+        { method: ["POST"], matcher: "/vendor/live-activity-devices", middlewares: [validateAndTransformBody(LiveActivityDeviceBody)] },
+        { method: ["POST"], matcher: "/vendor/live-activity-tokens", middlewares: [validateAndTransformBody(VendorLiveActivityTokenBody)] },
+        { method: ["POST"], matcher: "/vendor/live-activity-devices/current/shop", middlewares: [validateAndTransformBody(LiveActivityShopBody)] },
         { matcher: "/vendor/payments*", middlewares: [showTheShopItsOwnPayment] },
         // Catalogue sheets arrive as CSV text in the body, up to MAX_IMPORT_ROWS rows (lib/catalogue-import/sheet).
         {

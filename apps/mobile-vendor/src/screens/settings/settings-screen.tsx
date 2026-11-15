@@ -5,11 +5,13 @@ import { useSession } from '@/session/session-store';
 
 import { AccountRows } from './account-rows';
 import { NewOrderAlertSetting } from './new-order-alert-setting';
+import { OrdersOnLockScreenSetting } from './orders-on-lock-screen-setting';
 import { ShopCard } from './shop-card';
 import { TakingOrdersSetting } from './taking-orders-setting';
 
 /**
- * Settings (catalogue v-shop #4): the shop's card with Taking orders and Full-screen new orders,
+ * Settings (catalogue v-shop #4): the shop's card with Taking orders, Full-screen new orders and
+ * Orders on Lock Screen,
  * then Switch shop, Opening hours and Sign out. Each section is its own file.
  */
 export function SettingsScreen() {
@@ -20,6 +22,7 @@ export function SettingsScreen() {
       <ShopCard sellerId={sellerId}>
         {sellerId ? <TakingOrdersSetting sellerId={sellerId} /> : null}
         <NewOrderAlertSetting />
+        {sellerId ? <OrdersOnLockScreenSetting sellerId={sellerId} /> : null}
       </ShopCard>
       <AccountRows sellerId={sellerId} />
     </ScrollView>

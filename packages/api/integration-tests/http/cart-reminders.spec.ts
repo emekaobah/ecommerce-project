@@ -495,7 +495,7 @@ medusaIntegrationTestRunner({
         expect(res.data).toMatch(/<form method="post">/)
         expect(res.data).toMatch(/<button[^>]*>Unsubscribe<\/button>/)
         expect(res.data).not.toContain("You're unsubscribed")
-        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
+        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true, orders_on_lock_screen: true })
       })
 
       it("unsubscribes the buyer from its page's button without signing in, which the preferences then show", async () => {
@@ -510,7 +510,7 @@ medusaIntegrationTestRunner({
         expect(res.status).toBe(200)
         expect(res.headers["content-type"]).toMatch(/html/)
         expect(res.data).toContain("You're unsubscribed")
-        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: false })
+        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: false, orders_on_lock_screen: true })
 
         const cartId = await cartOf(as, [[GROCERY, RICE, 1]])
         await remind(dueAt(await changedAt(cartId)))
@@ -524,7 +524,7 @@ medusaIntegrationTestRunner({
 
         expect(res.status).toBe(200)
         expect(res.data).toContain("You're unsubscribed")
-        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: false })
+        expect(await preferencesOf(as)).toEqual({ cart_reminder_push: true, cart_reminder_email: false, orders_on_lock_screen: true })
       })
 
       it("refuses a tampered or unknown unsubscribe link, leaving the buyer subscribed", async () => {
@@ -550,8 +550,8 @@ medusaIntegrationTestRunner({
           expect(get.data).not.toContain("<form")
           expect((await oneClick(`/unsubscribe/${bad}`)).status).toBe(404)
         }
-        expect(await preferencesOf(ada.as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
-        expect(await preferencesOf(bea.as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true })
+        expect(await preferencesOf(ada.as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true, orders_on_lock_screen: true })
+        expect(await preferencesOf(bea.as)).toEqual({ cart_reminder_push: true, cart_reminder_email: true, orders_on_lock_screen: true })
       })
     })
   },

@@ -1,7 +1,12 @@
 import { useAuth } from '@clerk/expo';
+import { pushPlatform } from '@oja/expo-push';
+import { endLiveUpdateSession, liveUpdateSession } from '@oja/expo-live-update';
+import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 
 import { storeClient } from '@/api/client';
+import { liveActivityTokens } from '@/live-activity/register';
 import { openPushConsent } from '@/navigation';
 
 import { devicePushToken, notificationPermission, pushesCanArrive } from './device-push-token';
@@ -12,7 +17,8 @@ const registration = deviceRegistration({
   pushesCanArrive,
   pushToken: devicePushToken,
   add: async (token) => {
-    await storeClient.store.pushTokens.mutate({ token });
+    await storeClient.store.pushTokens.mutate({ token, platform: pushPlatform(Platform.OS), session: await liveUpdateSession(SecureStore) });
+    liveActivityTokens.pushTokenRegistered(token);
   },
   remove: async (token) => {
     await storeClient.store.pushTokens.$token.delete({ $token: encodeURIComponent(token) });
@@ -24,7 +30,11 @@ const registration = deviceRegistration({
 export function usePushRegistration(): void {
   const { isSignedIn, userId } = useAuth();
   useEffect(() => {
-    if (isSignedIn && userId) registration.registerOrAskConsent();
+    if (isSignedIn && userId) {
+      registration.registerOrAskConsent();
+      // Whether or not pushes are allowed: Live Activities are a separate permission.
+      liveActivityTokens.signedIn();
+    }
   }, [isSignedIn, userId]);
 }
 
@@ -35,4 +45,8 @@ export const registerAfterConsent = registration.registerAfterConsent;
  * Before sign-out, while the session still works: stops this device getting the buyer's pushes.
  * Waits for a registration still under way, so it can't land after the removal.
  */
-export const forgetDevice = registration.forgetDevice;
+export async function forgetDevice(): Promise<void> {
+  // The sign-in's id goes first: a Live Update message still on its way is for someone no longer here.
+  await endLiveUpdateSession(SecureStore).catch((error) => console.warn('Forgetting the Live Update session failed', error));
+  await Promise.all([registration.forgetDevice(), liveActivityTokens.signingOut()]);
+}

@@ -79,6 +79,16 @@ const STEPS: Record<FulfilmentMethod, Record<Audience, Step[]>> = {
   },
 }
 
+/** A step's label where there's little room (Apple Watch, CarPlay); the others are short already. */
+const SHORT_LABELS: Record<string, string> = {
+  "Being prepared": "Preparing",
+  "Courier booked": "Booked",
+  "Picked up by the courier": "Picked up",
+  "Ready for pickup": "Ready",
+}
+
+export const shortStepLabel = (label: string) => SHORT_LABELS[label] ?? label
+
 /** The steps of the order's path: a pickup order not collected ends there. */
 const stepsOf = (method: FulfilmentMethod, state: FulfilmentState, audience: Audience) =>
   state === "not_collected" ? [...START[audience], ...NOT_COLLECTED_STEPS] : STEPS[method][audience]

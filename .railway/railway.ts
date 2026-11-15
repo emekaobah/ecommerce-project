@@ -59,6 +59,13 @@ const sharedVariables = [
   // Resend (#5): the API key, and the sender, an address on a domain verified in Resend.
   "RESEND_API_KEY",
   "RESEND_FROM",
+  // Apple push for Live Activities (ADR 0017, #142): the key's id and contents, the team id and
+  // both apps' bundle ids. Without the key they're only logged.
+  "APNS_KEY_ID",
+  "APNS_TEAM_ID",
+  "APNS_KEY",
+  "APNS_BUYER_BUNDLE_ID",
+  "APNS_VENDOR_BUNDLE_ID",
   // Signs the unsubscribe links in emails a buyer can turn off (#139); without it those emails
   // aren't sent. A long random value; changing it breaks links already sent.
   "UNSUBSCRIBE_SECRET",

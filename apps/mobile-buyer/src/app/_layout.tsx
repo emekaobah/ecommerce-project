@@ -11,6 +11,8 @@ import { useEffect } from 'react';
 import { queryClient } from '@/api/query-client';
 import { CartProvider } from '@/cart/cart-provider';
 import { env } from '@/config/env';
+// At JS startup, outside any screen: a background launch runs only this file's imports (#140).
+import '@/live-activity/register';
 import { AddressPromptProvider } from '@/delivering-to/address-prompt-provider';
 import { DeliveringToProvider } from '@/delivering-to/delivering-to-provider';
 import { stackSettled } from '@/navigation';

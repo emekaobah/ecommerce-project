@@ -1,4 +1,7 @@
 import type { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { endBuyerActivities } from "../../../../../lib/buyer-live-activity"
+import { errorMessage } from "../../../../../lib/errors"
 import {
   notificationPreferencesOf,
   setNotificationPreferences,
@@ -19,5 +22,13 @@ export const POST = async (
   req: AuthenticatedMedusaRequest<StoreUpdateNotificationPreferencesType>,
   res: MedusaResponse<NotificationPreferencesResponse>
 ) => {
-  res.json({ notification_preferences: await setNotificationPreferences(req.scope, req.auth_context.actor_id, req.validatedBody) })
+  const customerId = req.auth_context.actor_id
+  const saved = await setNotificationPreferences(req.scope, customerId, req.validatedBody)
+  if (req.validatedBody.orders_on_lock_screen === false) {
+    // The switch is saved, so it mustn't flip back over this: the order's next update ends what's left.
+    await endBuyerActivities(req.scope, customerId).catch((error) =>
+      req.scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Ending the Live Activities of ${customerId} failed: ${errorMessage(error)}`)
+    )
+  }
+  res.json({ notification_preferences: saved })
 }

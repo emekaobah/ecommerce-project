@@ -17,3 +17,14 @@ export function appIdentity(app) {
   // The vendor app gets its own name and scheme so both apps install side by side.
   return { name: `${PRODUCT_NAME} Vendor`, slug: `${base}-vendor`, scheme: `${base}vendor`, bundleId }
 }
+
+/**
+ * Which of Apple's push services an EAS build profile's phones use, as its iOS entitlement says
+ * it and as the backend records it with each token. Production and internal (ad hoc) builds are
+ * production; only a development-signed build gets sandbox tokens.
+ */
+export function apnsEnvironment(profile) {
+  return profile === "production" || profile === "preview"
+    ? { entitlement: "production", host: "production" }
+    : { entitlement: "development", host: "sandbox" }
+}

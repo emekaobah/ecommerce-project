@@ -10,7 +10,7 @@ import { setNotificationPreferencesWorkflow } from "../workflows/notification-pr
 type Scope = Pick<MedusaContainer, "resolve">
 
 /** Every setting a buyer has; each is on unless they turned it off. */
-export const NOTIFICATION_PREFERENCE_KEYS = ["cart_reminder_push", "cart_reminder_email"] as const
+export const NOTIFICATION_PREFERENCE_KEYS = ["cart_reminder_push", "cart_reminder_email", "orders_on_lock_screen"] as const
 export type NotificationPreferenceKey = (typeof NOTIFICATION_PREFERENCE_KEYS)[number]
 
 export type NotificationPreferences = Record<NotificationPreferenceKey, boolean>
@@ -18,7 +18,11 @@ export type NotificationPreferences = Record<NotificationPreferenceKey, boolean>
 export type NotificationPreferencesChange = Partial<NotificationPreferences>
 
 /** A buyer who never changed a setting has them all on. */
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = { cart_reminder_push: true, cart_reminder_email: true }
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  cart_reminder_push: true,
+  cart_reminder_email: true,
+  orders_on_lock_screen: true,
+}
 
 /** Just the settings, from a saved row or anything else carrying them. */
 export const settingsOf = (row: NotificationPreferences): NotificationPreferences =>
@@ -30,6 +34,15 @@ export async function notificationPreferencesOf(scope: Scope, customerId: string
   const [saved] = await service.listNotificationPreferences({ customer_id: customerId })
   if (!saved) return { ...DEFAULT_NOTIFICATION_PREFERENCES }
   return settingsOf(saved)
+}
+
+/**
+ * Whether the buyer lets their shop orders run on the Lock Screen (#145). Everything that would
+ * start an activity or a Live Update asks this, on iOS and Android alike. Order pushes don't: they
+ * have no setting, and iOS's own per-app setting applies on top of this one.
+ */
+export async function ordersOnLockScreenOn(scope: Scope, customerId: string): Promise<boolean> {
+  return (await notificationPreferencesOf(scope, customerId)).orders_on_lock_screen
 }
 
 /** Changes the buyer's settings named in `change`, keeping the others; returns them all. */

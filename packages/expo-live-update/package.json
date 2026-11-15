@@ -1,0 +1,26 @@
+{
+  "name": "@oja/expo-live-update",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./applier": "./src/applier.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oja/domain": "workspace:*"
+  },
+  "peerDependencies": {
+    "expo": "*"
+  },
+  "devDependencies": {
+    "expo": "~58.0.14",
+    "expo-notifications": "~58.1.5",
+    "expo-task-manager": "~58.0.12",
+    "typescript": "~6.0.3"
+  }
+}

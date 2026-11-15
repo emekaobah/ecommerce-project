@@ -1,0 +1,29 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.oja'
+version = '0.0.0'
+
+expoModule {
+  v2 true
+}
+
+android {
+  namespace "expo.modules.ojaliveupdate"
+  defaultConfig {
+    versionCode 1
+    versionName '0.0.0'
+  }
+}
+
+dependencies {
+  implementation 'androidx.core:core:1.17.0'
+}
+
+// After an Expo, React Native or dependency bump, the build fails until gradle.lockfile is regenerated:
+// from a prebuilt app's android/, ./gradlew :oja-expo-live-update:dependencies --write-locks
+dependencyLocking {
+  lockAllConfigurations()
+}

@@ -258,6 +258,24 @@ module.exports = withMercur({
     { resolve: './src/modules/shop-hours' },
     // Each device's Expo push token, and the buyer or shop member signed in on it (#27).
     { resolve: './src/modules/push-token' },
+    { resolve: './src/modules/live-activity-token' },
+    // Live Activity pushes, sent straight to Apple rather than through Expo (ADR 0017, #142).
+    // Without Apple's push key it logs and sends nothing.
+    {
+      resolve: './src/modules/live-activity-push',
+      options: {
+        keyId: process.env.APNS_KEY_ID || undefined,
+        teamId: process.env.APNS_TEAM_ID || undefined,
+        key: process.env.APNS_KEY || undefined,
+        keyPath: process.env.APNS_KEY_PATH || undefined,
+        bundleIds: {
+          buyer: process.env.APNS_BUYER_BUNDLE_ID || undefined,
+          vendor: process.env.APNS_VENDOR_BUNDLE_ID || undefined,
+        },
+        sandboxUrl: process.env.APNS_SANDBOX_URL || undefined,
+        productionUrl: process.env.APNS_PRODUCTION_URL || undefined,
+      },
+    },
     // Each buyer's notification settings, e.g. cart reminders by push and by email (#138).
     { resolve: './src/modules/notification-preference' },
     // Where each shop's buyers collect pickup orders, for shops that offer pickup (#12).

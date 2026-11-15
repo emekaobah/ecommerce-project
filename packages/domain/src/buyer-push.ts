@@ -101,7 +101,7 @@ export function orderConfirmedPush({ number, shops }: { number: string; shops: C
 export type RemovedItem = { title: string; quantity: number }
 
 /** Two lines are named; more are counted, to keep a push short. */
-function namedItems(items: RemovedItem[]) {
+export function namedItems(items: RemovedItem[]) {
   const units = items.reduce((sum, item) => sum + item.quantity, 0)
   return items.length <= 2 ? items.map((item) => `${item.quantity} × ${item.title}`).join(" and ") : `${units} of your items`
 }

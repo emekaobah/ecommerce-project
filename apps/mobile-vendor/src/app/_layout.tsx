@@ -9,6 +9,8 @@ import { useEffect } from 'react';
 import { hydrateNewOrderAlertMode } from '@/alerts/new-order-alert-store';
 import { queryClient } from '@/api/query-client';
 import { env } from '@/config/env';
+// At JS startup, outside any screen: a background launch runs only this file's imports (#140).
+import '@/live-activity/register';
 import { createNewOrderChannel } from '@/push/new-order-channel';
 import { hydrateSession, useSessionState } from '@/session/session-store';
 
