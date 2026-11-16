@@ -16,6 +16,8 @@ export type PhoneKeyPorts<Session> = {
   remove: (key: string, session: Session) => Promise<void>;
   /** Clears what the phone is showing: the server is about to forget it, and it may show a pickup code. */
   endActivities: () => void;
+  /** False where the server has no use for the phone's Expo token: a member's iPhone, whose activities don't go through Expo. */
+  linksPushToken?: boolean;
 };
 
 type PhoneKeyHooks = {
@@ -73,6 +75,7 @@ export function phoneKey<Session = void>(ports: PhoneKeyPorts<Session>, hooks: P
     },
     /** The phone's Expo push token is known: what the server reaches an Android phone by, and which Expo pushes a start stands in for. */
     pushTokenRegistered(token: string) {
+      if (ports.linksPushToken === false) return;
       pushToken = token;
       if (signedIn) inBackground(register);
     },

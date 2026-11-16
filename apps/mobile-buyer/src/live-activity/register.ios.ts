@@ -1,5 +1,5 @@
 import { buyerActivityOrderId, type BuyerActivityContent } from '@oja/domain';
-import { liveActivityPhone, watchActivities } from '@oja/expo-live-activity';
+import { FIRST_PUSH_TO_START_IOS, liveActivityPhone, watchActivities } from '@oja/expo-live-activity';
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { addPushToStartTokenListener } from 'expo-widgets';
@@ -9,11 +9,9 @@ import { storeClient } from '@/api/client';
 import { env } from '@/config/env';
 
 import { orderActivity } from './order-activity';
-import { tokenReporter, type OwedActivity } from './token-reporter';
+import { tokenReporter } from './token-reporter';
 
 // Imported by the root layout, so it runs at JS startup, on a background launch too (#140).
-
-const FIRST_PUSH_TO_START_IOS = 17.2;
 
 const phone = liveActivityPhone({ Constants, SecureStore });
 const { environment, withKey } = phone;
@@ -29,7 +27,7 @@ const reporter = tokenReporter({
     await storeClient.store.liveActivityDevices.current.delete(withKey(key));
   },
   post: async (key, report) => phone.resultOf(await phone.postWithKey(`${env.apiUrl}/store/live-activity-tokens`, key, { ...report, environment }, publishable)),
-  owed: async (key) => (await storeClient.store.liveActivities.owed.query(withKey(key))).activities as OwedActivity[],
+  owed: async (key) => (await storeClient.store.liveActivities.owed.query(withKey(key))).activities,
   startActivity: (content: BuyerActivityContent, url) => {
     const activity = orderActivity.start(content, url);
     watcher.watch(activity);

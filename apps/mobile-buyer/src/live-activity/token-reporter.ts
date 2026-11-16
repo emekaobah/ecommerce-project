@@ -1,15 +1,16 @@
+import type { OjaClient } from '@oja/api-client';
 import { tokenReporter as sharedReporter, type TokenReporterPorts as SharedPorts } from '@oja/expo-live-activity';
-import type { BuyerActivityContent } from '@oja/domain';
 
 export type { PostResult, TokenReport } from '@oja/expo-live-activity';
 
-export type OwedActivity = { order_id: string; url: string; content: BuyerActivityContent };
+/** An accepted order this phone should be showing and doesn't, as the server's route answers it. */
+export type OwedActivity = Awaited<ReturnType<OjaClient['store']['liveActivities']['owed']['query']>>['activities'][number];
 
 export type TokenReporterPorts = Omit<SharedPorts<void>, 'subjectField' | 'afterReporting' | 'beforeSignOut'> & {
   /** Needs a session: the accepted orders this phone should show and doesn't. */
   owed: (key: string) => Promise<OwedActivity[]>;
   /** Starts an activity on the phone, answering its id. Throws where iOS won't. */
-  startActivity: (content: BuyerActivityContent, url: string) => string;
+  startActivity: (content: OwedActivity['content'], url: string) => string;
   recordStarted: (key: string, orderId: string, activityId: string) => Promise<void>;
   /** Below iOS 17.2 the server can't start activities, so the app does. */
   startsActivitiesItself: () => boolean;

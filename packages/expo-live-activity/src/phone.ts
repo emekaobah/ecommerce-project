@@ -14,6 +14,9 @@ type Environment = 'sandbox' | 'production';
 
 const KEY_ITEM = 'oja.live-activity-key';
 
+/** The first iOS that lets the server start an activity by push. Below it, an app starts its own, or none. */
+export const FIRST_PUSH_TO_START_IOS = 17.2;
+
 /** Where a phone keeps its key, which of Apple's hosts its build uses, and how it posts with the key alone. */
 export function liveActivityPhone({ Constants, SecureStore }: PhoneModules) {
   // A background launch can run on a locked phone, which a default keychain item won't open for.

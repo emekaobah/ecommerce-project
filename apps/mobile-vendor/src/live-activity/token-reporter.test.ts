@@ -129,6 +129,17 @@ describe('tokenReporter', () => {
     expect(device.ports.post).toHaveBeenCalledWith('issued-key', { kind: 'push_to_start', token: 'start-1' });
   });
 
+  test('a phone that doesn\'t link its Expo token never sends it', async () => {
+    const ports = { ...phone().ports, linksPushToken: false };
+    const reporter = tokenReporter(ports);
+    reporter.signedIn();
+    reporter.pushTokenRegistered('ExponentPushToken[x]');
+    await reporter.idle();
+
+    expect(ports.register).toHaveBeenCalledTimes(1);
+    expect(ports.register).toHaveBeenCalledWith(null, null);
+  });
+
   describe('the switch', () => {
     test('has no key to read with until the phone has one', async () => {
       expect(await device.reporter.currentKey()).toBeNull();
