@@ -266,7 +266,7 @@ async function startOnPhones(scope: Scope, sellerId: string, phones: Awaited<Ret
               alert: { title: content.shop, body: "Today's orders are on your Lock Screen." },
             },
           })
-        const id = await claimAndStart(scope, claim, `Live Activity of shop ${sellerId}`, start, { byPushToStart: !expo })
+        const id = await claimAndStart(scope, claim, `Live Activity of shop ${sellerId}`, start, { byPushToStart: !expo, cleanupFailures: "thrown" })
         if (!id) return
         await store.updateLiveActivities({ id, sent_content: content, sent_at: now })
         started.add(phone.id)

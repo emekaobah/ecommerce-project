@@ -96,7 +96,7 @@ async function startOnDevice(
         url: buyerActivityUrl(appIdentity("buyer").scheme, checkout.group.id, orderId),
       })
     ).status
-  return (await claimAndStart(scope, claim, `Live Activity of order ${orderId}`, start, { byPushToStart: true })) !== null
+  return (await claimAndStart(scope, claim, `Live Activity of order ${orderId}`, start, { byPushToStart: true, cleanupFailures: "logged" })) !== null
 }
 
 /**

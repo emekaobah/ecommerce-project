@@ -10,10 +10,16 @@ type Scope = Pick<MedusaContainer, "resolve">
 export type StartClaim = { device_id: string; kind: LiveActivityKind; subject_id: string; environment: ApnsEnvironment; started_at: Date }
 
 /**
+ * What happens when cleaning up after a refused start fails: "logged" ends the row instead, so it
+ * stops being the running one, and carries on; "thrown" leaves it to the caller.
+ */
+export type CleanupFailures = "logged" | "thrown"
+
+/**
  * Starts an activity on one phone, recording it first so a repeat of the event can't start a
  * second. `send` asks for the start, given the new row's id; null means the phone can't be reached
- * yet. Answers the row's id if the start was sent. If not, nothing stays recorded, and when the
- * start went by the phone's push-to-start token (`byPushToStart`) and Apple rejected it, the phone
+ * yet. Answers the row's id if the start was sent. If not, the row is deleted, and when the start
+ * went by the phone's push-to-start token (`byPushToStart`) and Apple rejected it, the phone
  * forgets that token. `about` names the activity in the logs.
  */
 export async function claimAndStart(
@@ -21,7 +27,7 @@ export async function claimAndStart(
   claim: StartClaim,
   about: string,
   send: (claimId: string) => Promise<LiveActivityPushResult["status"] | null>,
-  { byPushToStart }: { byPushToStart: boolean }
+  { byPushToStart, cleanupFailures }: { byPushToStart: boolean; cleanupFailures: CleanupFailures }
 ): Promise<string | null> {
   const store = scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
   const logger = scope.resolve(ContainerRegistrationKeys.LOGGER)
@@ -35,6 +41,11 @@ export async function claimAndStart(
   }
   const status = await send(id)
   if (status === "sent") return id
+  if (cleanupFailures === "thrown") {
+    await store.deleteLiveActivities(id)
+    if (status === "token_rejected" && byPushToStart) await store.updateLiveActivityDevices({ id: claim.device_id, push_to_start_token: null })
+    return null
+  }
   try {
     await store.deleteLiveActivities(id)
   } catch (error) {
