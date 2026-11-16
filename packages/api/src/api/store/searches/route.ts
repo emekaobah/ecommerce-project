@@ -1,8 +1,9 @@
 import type { MedusaResponse, MedusaStoreRequest } from "@medusajs/framework/http"
 import { recordSearch } from "../../../lib/popular-searches"
+import { clientNetwork } from "../../../lib/rate-limit"
 import type { StoreRecordSearchType } from "./validators"
 
-/** `recorded` is false for a region that doesn't exist. */
+/** `recorded` is false for a region that doesn't exist, and for a search over the limits on its network address (#132). */
 export type StoreRecordSearchResponse = { recorded: boolean }
 
 /**
@@ -12,5 +13,5 @@ export type StoreRecordSearchResponse = { recorded: boolean }
  */
 export const POST = async (req: MedusaStoreRequest<StoreRecordSearchType>, res: MedusaResponse<StoreRecordSearchResponse>) => {
   const { term, region_id, phone_id } = req.validatedBody
-  res.json({ recorded: await recordSearch(req.scope, { term, region_id, phone_id }) })
+  res.json({ recorded: await recordSearch(req.scope, { term, region_id, phone_id }, clientNetwork(req.ip ?? "")) })
 }
