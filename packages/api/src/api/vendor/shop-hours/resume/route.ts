@@ -13,6 +13,6 @@ import type { VendorShopHoursResponse } from "../route"
 export const POST = async (req: VendorRequest, res: MedusaResponse<VendorShopHoursResponse>) => {
   const sellerId = sellerOf(req)
   await resumeShop(req.scope, sellerId)
-  await noticeShopsOpeningAndClosing(req.scope, new Date(), sellerId).catch((error) => req.scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Restarting shop ${sellerId}'s Live Activity failed: ${errorMessage(error)}`))
+  await noticeShopsOpeningAndClosing(req.scope, new Date(), { sellerId }).catch((error) => req.scope.resolve(ContainerRegistrationKeys.LOGGER).warn(`Restarting shop ${sellerId}'s Live Activity failed: ${errorMessage(error)}`))
   res.json({ shop_hours: await vendorShopHours(req.scope, sellerId) })
 }

@@ -1,19 +1,10 @@
-import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError, Modules } from "@medusajs/framework/utils"
+import type { MedusaResponse } from "@medusajs/framework/http"
+import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
-import { LIVE_ACTIVITY_TOKEN_REPORTED, type LiveActivityTokenReported } from "../lib/buyer-live-activity"
 import { memberOfShop } from "../lib/vendor-live-activity"
 import { hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
-import {
-  reportLiveActivityTokenWorkflow,
-  setLiveActivityShopWorkflow,
-} from "../workflows/live-activity-token/workflows"
-import {
-  deviceOf,
-  keyOf,
-  type LiveActivityTokenResponse,
-  type VendorLiveActivityTokenBodyType,
-} from "./live-activity-tokens"
+import { setLiveActivityShopWorkflow } from "../workflows/live-activity-token/workflows"
+import { keyOf, reportTokenFor } from "./live-activity-tokens"
 import { sellerOf, type VendorRequest } from "./vendor/offer-import/seller"
 
 // A member's phone and the shops it wants the Live Activity for (#146). The shop is the one the
@@ -34,24 +25,14 @@ async function membersDevice(req: VendorRequest<any>) {
   return device ?? null
 }
 
-/** Takes a token from a phone, with its key. The shop its url names is trusted only if it's the member's. */
-export const reportShopToken = async (req: MedusaRequest<VendorLiveActivityTokenBodyType>, res: MedusaResponse<LiveActivityTokenResponse>) => {
-  const device = await deviceOf(req, "vendor")
-  const body = req.validatedBody as VendorLiveActivityTokenBodyType
-  if (body.kind === "push_to_start") {
-    const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...body, device_id: device.id } })
-    res.json({ token: result.token })
-    return
-  }
-  const { seller_id, ...report } = body
-  const subject_id = seller_id && (await memberOfShop(req.scope, device.actor_id, seller_id)) ? seller_id : undefined
-  const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...report, device_id: device.id, subject_id } })
-  let reported: LiveActivityTokenReported | null = null
-  if (result.catch_up) reported = { shop_activity: result.catch_up }
-  else if (result.spare && subject_id) reported = { spare_shop: { seller_id: subject_id, token: report.token, environment: report.environment } }
-  if (reported) await req.scope.resolve(Modules.EVENT_BUS).emit({ name: LIVE_ACTIVITY_TOKEN_REPORTED, data: reported })
-  res.json({ token: result.token })
-}
+/** A member's phone: the shop its activity's url names must be one the member is in. */
+export const reportShopToken = reportTokenFor({
+  app: "vendor",
+  subject: "seller_id",
+  owns: (scope, device, sellerId) => memberOfShop(scope, device.actor_id, sellerId),
+  catchUp: (shop_activity) => ({ shop_activity }),
+  spare: (seller_id, report) => ({ spare_shop: { seller_id, ...report } }),
+})
 
 /** Whether this phone has "Orders on Lock Screen" on for the shop. Off for a phone with no key yet. */
 export const readShop = async (req: VendorRequest, res: MedusaResponse<LiveActivityShopResponse>) => {

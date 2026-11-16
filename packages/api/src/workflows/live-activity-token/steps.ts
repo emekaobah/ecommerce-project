@@ -2,10 +2,17 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { randomBytes } from "node:crypto"
 import type { ApnsEnvironment } from "../../modules/live-activity-push"
-import { hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../../modules/live-activity-token"
+import {
+  hashDeviceKey,
+  LIVE_ACTIVITY_TOKEN_MODULE,
+  type LiveActivityActor,
+  type LiveActivityApp,
+  type LiveActivityKind,
+  type LiveActivityTokenModuleService,
+} from "../../modules/live-activity-token"
 
 type Scope = Pick<MedusaContainer, "resolve">
-type Actor = { actor_type: "customer" | "member"; actor_id: string }
+type Actor = { actor_type: LiveActivityActor; actor_id: string }
 
 const service = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
 
@@ -16,7 +23,7 @@ const SHOP_FIELDS = ["id", "device_id", "seller_id", "closed_seen_at"] as const
 /** A row's own columns, as they stood: what a step that changed or deleted it puts back. */
 const saved = <T extends object, K extends keyof T>(row: T, fields: readonly K[]) => Object.fromEntries(fields.map((field) => [field, row[field]])) as Pick<T, K>
 
-export type RegisterDeviceInput = Actor & { app: "buyer" | "vendor"; key?: string; environment: ApnsEnvironment; push_token?: string }
+export type RegisterDeviceInput = Actor & { app: LiveActivityApp; key?: string; environment: ApnsEnvironment; push_token?: string }
 
 type SavedDevice = Pick<Awaited<ReturnType<LiveActivityTokenModuleService["retrieveLiveActivityDevice"]>>, (typeof DEVICE_FIELDS)[number]>
 type RegisterUndo = { unlinked: { id: string; push_token: string | null }[]; previous?: SavedDevice; created?: string }
@@ -53,10 +60,12 @@ export const registerLiveActivityDeviceStep = createStep(
   }
 )
 
+export type RemoveDeviceInput = Actor & { key: string }
+
 /** Forgets the phone and its activities, if it is still this person's: someone else may have signed in on it since. */
 export const removeLiveActivityDeviceStep = createStep(
   "remove-live-activity-device",
-  async ({ key, ...actor }: Actor & { key: string }, { container }) => {
+  async ({ key, ...actor }: RemoveDeviceInput, { container }) => {
     const devices = service(container)
     const owned = await devices.listLiveActivityDevices({ key_hash: hashDeviceKey(key), ...actor }, { relations: ["activities", "shops"] })
     if (owned.length) await devices.deleteLiveActivityDevices(owned.map((d) => d.id))
@@ -123,7 +132,7 @@ async function takePushToStartToken(devices: Devices, input: Extract<ReportToken
 }
 
 /** An activity this phone hasn't named before: the row its start left, a spare, or one the server has no row for. */
-async function placeNewActivity(devices: Devices, input: ActivityReport, kind: "vendor_shop" | "buyer_shop_order", undo: ReportUndo): Promise<Pick<TokenTaken, "catch_up" | "spare">> {
+async function placeNewActivity(devices: Devices, input: ActivityReport, kind: LiveActivityKind, undo: ReportUndo): Promise<Pick<TokenTaken, "catch_up" | "spare">> {
   const reported = { apple_id: input.activity_id, token: input.token, environment: input.environment }
   const about = input.subject_id ? await devices.listLiveActivities({ device_id: input.device_id, kind, subject_id: input.subject_id }, { order: { started_at: "DESC" } }) : []
   const running = about.find((activity) => !activity.ended_at)

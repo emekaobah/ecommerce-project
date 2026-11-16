@@ -25,7 +25,8 @@ import { pushDataToDevices } from "./push-devices"
 type Scope = Pick<MedusaContainer, "resolve">
 type Found = NonNullable<Awaited<ReturnType<typeof buyerOrder>>>
 
-const tokenStore = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
+/** The Live Activity token module's service, which keeps Android's Live Updates too. */
+const tokenModule = (scope: Scope) => scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE)
 
 async function androidPhonesOfBuyer(scope: Scope, customerId: string): Promise<string[]> {
   const tokens = await scope
@@ -35,7 +36,7 @@ async function androidPhonesOfBuyer(scope: Scope, customerId: string): Promise<s
 }
 
 /** What's recorded of this order on these phones. */
-const recorded = (scope: Scope, orderId: string, devices: string[]) => tokenStore(scope).listBuyerLiveUpdates({ order_id: orderId, push_token: devices }, { take: null })
+const recorded = (scope: Scope, orderId: string, devices: string[]) => tokenModule(scope).listBuyerLiveUpdates({ order_id: orderId, push_token: devices }, { take: null })
 
 const running = (rows: { ended_at: Date | string | null; push_token: string }[]) => rows.filter((row) => !row.ended_at).map((row) => row.push_token)
 
@@ -59,8 +60,8 @@ async function send(scope: Scope, devices: string[], groupId: string, orderId: s
     about: `the Live Update of order ${orderId}`,
   })
   if (outcome.gone.length) {
-    const forgotten = await tokenStore(scope).listBuyerLiveUpdates({ push_token: outcome.gone }, { select: ["id"], take: null })
-    await tokenStore(scope).deleteBuyerLiveUpdates(forgotten.map(({ id }) => id))
+    const forgotten = await tokenModule(scope).listBuyerLiveUpdates({ push_token: outcome.gone }, { select: ["id"], take: null })
+    await tokenModule(scope).deleteBuyerLiveUpdates(forgotten.map(({ id }) => id))
   }
   return outcome
 }
@@ -74,12 +75,12 @@ async function sendLast(scope: Scope, devices: string[], found: Found, orderId: 
   const over = devices.filter((device) => !gone.includes(device) && !failed.includes(device))
   if (!over.length) return
   const rows = await recorded(scope, orderId, over)
-  await tokenStore(scope).updateBuyerLiveUpdates(rows.filter((row) => !row.ended_at).map(({ id }) => ({ id, ended_at: new Date() })))
+  await tokenModule(scope).updateBuyerLiveUpdates(rows.filter((row) => !row.ended_at).map(({ id }) => ({ id, ended_at: new Date() })))
 }
 
 /** The shop accepted, so these phones start showing the order. A repeat of the event finds them recorded. */
 async function recordStarted(scope: Scope, orderId: string, customerId: string, devices: string[]) {
-  await Promise.all(devices.map((push_token) => tokenStore(scope).createBuyerLiveUpdates({ push_token, order_id: orderId, customer_id: customerId }).catch(() => null)))
+  await Promise.all(devices.map((push_token) => tokenModule(scope).createBuyerLiveUpdates({ push_token, order_id: orderId, customer_id: customerId }).catch(() => null)))
 }
 
 /**
@@ -129,7 +130,7 @@ export async function endBuyerLiveUpdate(scope: Scope, found: Found, orderId: st
 export async function removeBuyerLiveUpdates(scope: Scope, customerId: string): Promise<void> {
   const devices = await androidPhonesOfBuyer(scope, customerId)
   if (!devices.length) return
-  const rows = await tokenStore(scope).listBuyerLiveUpdates({ customer_id: customerId, push_token: devices, ended_at: null }, { take: null })
+  const rows = await tokenModule(scope).listBuyerLiveUpdates({ customer_id: customerId, push_token: devices, ended_at: null }, { take: null })
   await Promise.all(
     [...new Set(rows.map((row) => row.order_id))].map(async (orderId) => {
       const found = await buyerOrder(scope, orderId)
@@ -151,7 +152,7 @@ export async function removeBuyerLiveUpdates(scope: Scope, customerId: string): 
  * will have timed the notification out by itself, nothing is left to send.
  */
 export async function retryBuyerLiveUpdateEndings(scope: Scope, now = Date.now()): Promise<void> {
-  const rows = await tokenStore(scope).listBuyerLiveUpdates({ ended_at: null }, { take: null })
+  const rows = await tokenModule(scope).listBuyerLiveUpdates({ ended_at: null }, { take: null })
   const orders = [...new Set(rows.map((row) => row.order_id))]
   const records = await fulfilmentsOf(scope, orders)
   await Promise.all(
@@ -159,7 +160,7 @@ export async function retryBuyerLiveUpdateEndings(scope: Scope, now = Date.now()
       const found = await buyerOrder(scope, orderId)
       const state = found?.order.fulfilment.state
       const devices = rows.filter((row) => row.order_id === orderId)
-      const settle = () => tokenStore(scope).updateBuyerLiveUpdates(devices.map(({ id }) => ({ id, ended_at: new Date(now) })))
+      const settle = () => tokenModule(scope).updateBuyerLiveUpdates(devices.map(({ id }) => ({ id, ended_at: new Date(now) })))
       if (!found || !state) return settle()
       const showing = devices.filter((row) => row.customer_id === found.checkout.customer_id).map((row) => row.push_token)
       const reachedAt = revisionOf(records.get(orderId)?.reached?.[state])
