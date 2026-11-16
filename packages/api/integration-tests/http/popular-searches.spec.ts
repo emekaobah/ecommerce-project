@@ -76,6 +76,43 @@ medusaIntegrationTestRunner({
         expect(await status(record("rice", phone(1), `reg_${"x".repeat(100)}`))).toBe(400)
         expect(await service().listSearchRecords({})).toHaveLength(0)
       })
+
+      // #132: the phone id is made up by the app, so a limit per network address is what bounds one client.
+      const recordFrom = (address: string, term: string, phoneId: string) =>
+        api.post(
+          "/store/searches",
+          { term, region_id: regionId, phone_id: phoneId },
+          { headers: { ...headers, "x-forwarded-for": address } }
+        )
+
+      it("counts one address as one phone towards a term, however many phone ids it makes up", async () => {
+        const answers: { recorded: boolean }[] = []
+        for (let n = 1; n <= 5; n++) answers.push((await recordFrom("203.0.113.1", "Kaftan", phone(n))).data)
+        // Another term from the same address, and the same term from another address, still count.
+        answers.push((await recordFrom("203.0.113.1", "lantern", phone(1))).data)
+        answers.push((await recordFrom("203.0.113.2", "kaftan", phone(6))).data)
+
+        expect(answers.map((a) => a.recorded)).toEqual([true, false, false, false, false, true, true])
+        const saved = await service().listSearchRecords({}, { select: ["term", "phone_id"] })
+        expect(saved.filter((r) => r.term === "kaftan").map((r) => r.phone_id).sort()).toEqual([phone(1), phone(6)])
+      })
+
+      it("takes an IPv6 /64 as one address, since one phone is given the whole block", async () => {
+        const first = await recordFrom("2001:db8:1:2::a", "agbada", phone(1))
+        const sameBlock = await recordFrom("2001:db8:1:2:ffff::b", "agbada", phone(2))
+        const otherBlock = await recordFrom("2001:db8:1:3::a", "agbada", phone(3))
+
+        expect([first.data.recorded, sameBlock.data.recorded, otherBlock.data.recorded]).toEqual([true, false, true])
+      })
+
+      it("records at most 30 searches an hour from one address", async () => {
+        const recorded: boolean[] = []
+        for (let n = 1; n <= 31; n++) recorded.push((await recordFrom("203.0.113.3", `term ${n}`, phone(1))).data.recorded)
+
+        expect(recorded.filter(Boolean)).toHaveLength(30)
+        expect(recorded[30]).toBe(false)
+        expect((await recordFrom("203.0.113.4", "term 31", phone(2))).data.recorded).toBe(true)
+      })
     })
 
     describe("publishPopularSearches", () => {

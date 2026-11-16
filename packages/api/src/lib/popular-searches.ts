@@ -8,6 +8,7 @@ import {
   recordSearchWorkflow,
 } from "../workflows/popular-search/workflows"
 import { listingSearchCounter } from "./listings"
+import { type RateLimit, withinRateLimit } from "./rate-limit"
 import { BLOCKED_SEARCH_WORDS } from "./search-blocklist"
 
 // Popular searches on the Search tab (#124), Oja-wide in each region for now rather than near
@@ -36,20 +37,34 @@ export const normaliseSearch = (term: string) => term.trim().replaceAll(/\s+/g, 
 /** Whether any word of a normalised term is on the blocklist. */
 export const isBlockedSearch = (term: string) => term.split(" ").some((word) => BLOCKED_SEARCH_WORDS.has(word))
 
+/** At most this many searches an hour are recorded from one network address (#132). */
+export const SEARCHES_PER_ADDRESS_HOUR = 30
+const SEARCHES_PER_ADDRESS: RateLimit = { name: "searches-per-address", max: SEARCHES_PER_ADDRESS_HOUR, windowSeconds: 60 * 60 }
+
+/**
+ * One network address counts as one phone towards a term for as long as a search counts (#132).
+ * The app makes its phone id up, so one client could otherwise make up the phones a term needs.
+ */
+const TERM_PER_ADDRESS: RateLimit = { name: "search-term-per-address", max: 1, windowSeconds: POPULAR_WINDOW_DAYS * 24 * 60 * 60 }
+
 /**
  * Records a search a buyer used, normalised; without who they are. A region that doesn't exist
- * isn't recorded, so made-up ids can't fill the table. Whether it was recorded.
+ * isn't recorded, so made-up ids can't fill the table, and nor is a search over the limits on
+ * the network address it came `from`. Whether it was recorded.
  */
 export async function recordSearch(
   scope: Scope,
   search: { term: string; region_id: string; phone_id: string },
+  from: string,
   now = new Date()
 ): Promise<boolean> {
   const [region] = await scope.resolve(Modules.REGION).listRegions({ id: search.region_id }, { select: ["id"] })
   if (!region) return false
-  await recordSearchWorkflow(scope as MedusaContainer).run({
-    input: { ...search, term: normaliseSearch(search.term), searched_at: now },
-  })
+  const term = normaliseSearch(search.term)
+  // The hourly limit first, so a search it refuses doesn't use up the address's one count for the term.
+  if (!(await withinRateLimit(scope, SEARCHES_PER_ADDRESS, from))) return false
+  if (!(await withinRateLimit(scope, TERM_PER_ADDRESS, JSON.stringify([from, search.region_id, term])))) return false
+  await recordSearchWorkflow(scope as MedusaContainer).run({ input: { ...search, term, searched_at: now } })
   return true
 }
 
