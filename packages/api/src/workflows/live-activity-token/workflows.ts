@@ -7,6 +7,7 @@ import {
   setLiveActivityShopStep,
   type RecordStartInput,
   type RegisterDeviceInput,
+  type RemoveDeviceInput,
   type ReportTokenInput,
   type SetShopInput,
 } from "./steps"
@@ -17,12 +18,9 @@ export const registerLiveActivityDeviceWorkflow = createWorkflow("register-live-
 })
 
 /** A phone stops getting a person's activities when they sign out of it. */
-export const removeLiveActivityDeviceWorkflow = createWorkflow(
-  "remove-live-activity-device",
-  (input: { key: string; actor_type: "customer" | "member"; actor_id: string }) => {
-    return new WorkflowResponse(removeLiveActivityDeviceStep(input))
-  }
-)
+export const removeLiveActivityDeviceWorkflow = createWorkflow("remove-live-activity-device", (input: RemoveDeviceInput) => {
+  return new WorkflowResponse(removeLiveActivityDeviceStep(input))
+})
 
 /** A phone reports a push-to-start token, or an activity's own update token. */
 export const reportLiveActivityTokenWorkflow = createWorkflow("report-live-activity-token", (input: ReportTokenInput) => {

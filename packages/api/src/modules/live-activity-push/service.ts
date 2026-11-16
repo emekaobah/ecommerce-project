@@ -1,9 +1,10 @@
 import { createSign } from "node:crypto"
 import { readFileSync } from "node:fs"
 import { connect, constants, type ClientHttp2Session } from "node:http2"
+import type { LiveActivityApp } from "../live-activity-token/models/constants"
 
 export type ApnsEnvironment = "sandbox" | "production"
-export type LiveActivityApp = "buyer" | "vendor"
+export type { LiveActivityApp }
 
 export type LiveActivityAlert = { title: string; body: string; sound?: string }
 

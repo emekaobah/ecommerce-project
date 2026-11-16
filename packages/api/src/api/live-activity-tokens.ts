@@ -1,10 +1,19 @@
 import type { MedusaRequest, MedusaResponse, AuthenticatedMedusaRequest } from "@medusajs/framework/http"
+import type { MedusaContainer } from "@medusajs/framework/types"
 import { LIVE_ACTIVITY_KEY_HEADER } from "@oja/domain"
 import { z } from "@medusajs/framework/zod"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { buyerOrder } from "../lib/buyer-notifications"
 import { LIVE_ACTIVITY_TOKEN_REPORTED, owedBuyerActivities, type LiveActivityTokenReported, type OwedActivity } from "../lib/buyer-live-activity"
-import { APNS_ENVIRONMENTS, hashDeviceKey, LIVE_ACTIVITY_TOKEN_MODULE, type LiveActivityTokenModuleService } from "../modules/live-activity-token"
+import type { ApnsEnvironment } from "../modules/live-activity-push"
+import {
+  APNS_ENVIRONMENTS,
+  hashDeviceKey,
+  LIVE_ACTIVITY_TOKEN_MODULE,
+  type LiveActivityActor,
+  type LiveActivityApp,
+  type LiveActivityTokenModuleService,
+} from "../modules/live-activity-token"
 import {
   recordLiveActivityStartedWorkflow,
   registerLiveActivityDeviceWorkflow,
@@ -18,6 +27,7 @@ import {
 
 const ApnsToken = z.string().trim().regex(/^[0-9a-fA-F]{16,512}$/)
 const Environment = z.enum(APNS_ENVIRONMENTS)
+const Id = z.string().trim().min(1).max(100)
 
 export const LiveActivityDeviceBody = z.object({
   environment: Environment,
@@ -29,35 +39,36 @@ export const LiveActivityDeviceBody = z.object({
 })
 export type LiveActivityDeviceBodyType = z.infer<typeof LiveActivityDeviceBody>
 
-export const LiveActivityTokenBody = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("push_to_start"), token: ApnsToken, environment: Environment }),
-  z.object({
-    kind: z.literal("activity"),
-    token: ApnsToken,
-    environment: Environment,
-    activity_id: z.string().trim().min(1).max(100),
-    /** The shop order the activity's url names (ADR 0018). */
-    order_id: z.string().trim().min(1).max(100).optional(),
-  }),
-])
-export type LiveActivityTokenBodyType = z.infer<typeof LiveActivityTokenBody>
+/** What an activity's url names, by the field each app's phones report it in (ADR 0018). */
+type Subject = "order_id" | "seller_id"
 
-/** As a buyer's report, naming the member's shop instead of an order (ADR 0018). */
-export const VendorLiveActivityTokenBody = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("push_to_start"), token: ApnsToken, environment: Environment }),
-  z.object({
-    kind: z.literal("activity"),
-    token: ApnsToken,
-    environment: Environment,
-    activity_id: z.string().trim().min(1).max(100),
-    seller_id: z.string().trim().min(1).max(100).optional(),
-  }),
-])
-export type VendorLiveActivityTokenBodyType = z.infer<typeof VendorLiveActivityTokenBody>
+/** A phone's push-to-start token, or an activity's own token with what its url names under `subject`. */
+const tokenBody = <S extends Subject>(subject: S) =>
+  z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("push_to_start"), token: ApnsToken, environment: Environment }),
+    z.object({
+      kind: z.literal("activity"),
+      token: ApnsToken,
+      environment: Environment,
+      activity_id: Id,
+      ...({ [subject]: Id.optional() } as Record<S, z.ZodOptional<typeof Id>>),
+    }),
+  ])
+
+/** `tokenBody(subject)`'s output, which zod can't infer while `subject` is generic. */
+type TokenBodyType<S extends Subject> =
+  | { kind: "push_to_start"; token: string; environment: ApnsEnvironment }
+  | ({ kind: "activity"; token: string; environment: ApnsEnvironment; activity_id: string } & Partial<Record<S, string>>)
+
+/** A buyer's report names the shop order its activity's url does. */
+export const LiveActivityTokenBody = tokenBody("order_id")
+
+/** A member's report names the shop instead (ADR 0018). */
+export const VendorLiveActivityTokenBody = tokenBody("seller_id")
 
 export const LiveActivityStartedBody = z.object({
-  order_id: z.string().trim().min(1).max(100),
-  activity_id: z.string().trim().min(1).max(100),
+  order_id: Id,
+  activity_id: Id,
   environment: Environment,
 })
 export type LiveActivityStartedBodyType = z.infer<typeof LiveActivityStartedBody>
@@ -74,7 +85,7 @@ export const keyOf = (req: MedusaRequest<any>) => {
 }
 
 /** The phone the request's key belongs to; 401 for none, as a dead session would be. */
-export async function deviceOf(req: MedusaRequest, app: "buyer" | "vendor") {
+export async function deviceOf(req: MedusaRequest, app: LiveActivityApp) {
   const key = keyOf(req)
   const [device] = key
     ? await req.scope.resolve<LiveActivityTokenModuleService>(LIVE_ACTIVITY_TOKEN_MODULE).listLiveActivityDevices({ key_hash: hashDeviceKey(key), app })
@@ -85,7 +96,7 @@ export async function deviceOf(req: MedusaRequest, app: "buyer" | "vendor") {
 
 /** Gives a signed-in person's phone its key, or moves the phone it already names to them. */
 export const registerDevice =
-  (app: "buyer" | "vendor", actor_type: "customer" | "member") =>
+  (app: LiveActivityApp, actor_type: LiveActivityActor) =>
   async (req: AuthenticatedMedusaRequest<LiveActivityDeviceBodyType>, res: MedusaResponse<LiveActivityDeviceResponse>) => {
     const { result } = await registerLiveActivityDeviceWorkflow(req.scope).run({
       input: {
@@ -102,34 +113,65 @@ export const registerDevice =
 
 /** At sign-out: forgets the phone and everything of its, if it is still this person's. */
 export const removeDevice =
-  (actor_type: "customer" | "member") =>
+  (actor_type: LiveActivityActor) =>
   async (req: AuthenticatedMedusaRequest, res: MedusaResponse<LiveActivityDeviceDeleteResponse>) => {
     const key = keyOf(req)
     if (key) await removeLiveActivityDeviceWorkflow(req.scope).run({ input: { key, actor_type, actor_id: req.auth_context.actor_id } })
     res.json({ deleted: true })
   }
 
-/** Takes a token from a phone, with its key. */
-export const reportToken = async (req: MedusaRequest<LiveActivityTokenBodyType>, res: MedusaResponse<LiveActivityTokenResponse>) => {
-  const device = await deviceOf(req, "buyer")
-  const body = req.validatedBody as LiveActivityTokenBodyType
-  if (body.kind === "push_to_start") {
-    const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...body, device_id: device.id } })
-    res.json({ token: result.token })
-    return
-  }
-  const { order_id, ...report } = body
-  // A phone's key mustn't get it another buyer's order and pickup code. One still showing the last
-  // buyer's activity after a sign-out that never reached us has its token kept, and followed by nothing.
-  const found = order_id ? await buyerOrder(req.scope, order_id) : null
-  const subject_id = found && device.actor_type === "customer" && found.checkout.customer_id === device.actor_id ? order_id : undefined
-  const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...report, device_id: device.id, subject_id } })
-  let reported: LiveActivityTokenReported | null = null
-  if (result.catch_up) reported = { id: result.catch_up }
-  else if (result.spare && subject_id) reported = { spare: { order_id: subject_id, token: report.token, environment: report.environment } }
-  if (reported) await req.scope.resolve(Modules.EVENT_BUS).emit({ name: LIVE_ACTIVITY_TOKEN_REPORTED, data: reported })
-  res.json({ token: result.token })
+type Device = Awaited<ReturnType<typeof deviceOf>>
+
+/** How one app's phones report their tokens: what an activity's url names, and what follows a report. */
+export type TokenRoute<S extends Subject> = {
+  app: LiveActivityApp
+  /** The report's field for what the activity's url names. */
+  subject: S
+  /** Whether that is the device's person's own: a phone's key mustn't tie its token to someone else's. */
+  owns: (scope: MedusaContainer, device: Device, subjectId: string) => Promise<boolean>
+  /** An activity to catch up, by its row. */
+  catchUp: (activityId: string) => LiveActivityTokenReported
+  /** A second activity on the phone for a subject it already follows, which has no row. */
+  spare: (subjectId: string, report: { token: string; environment: ApnsEnvironment }) => LiveActivityTokenReported
 }
+
+/**
+ * Takes a token from a phone, with its key. What the activity's url names is trusted only if it's
+ * the phone's person's own. One still showing the last person's activity after a sign-out that never
+ * reached us has its token kept, and followed by nothing.
+ */
+export const reportTokenFor =
+  <S extends Subject>(route: TokenRoute<S>) =>
+  async (req: MedusaRequest<TokenBodyType<S>>, res: MedusaResponse<LiveActivityTokenResponse>) => {
+    const device = await deviceOf(req, route.app)
+    const body = req.validatedBody as TokenBodyType<S>
+    if (body.kind === "push_to_start") {
+      const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { ...body, device_id: device.id } })
+      res.json({ token: result.token })
+      return
+    }
+    const { kind, token, environment, activity_id } = body
+    const named = (body as Partial<Record<Subject, string>>)[route.subject]
+    const subject_id = named && (await route.owns(req.scope, device, named)) ? named : undefined
+    const { result } = await reportLiveActivityTokenWorkflow(req.scope).run({ input: { kind, token, environment, activity_id, device_id: device.id, subject_id } })
+    let reported: LiveActivityTokenReported | null = null
+    if (result.catch_up) reported = route.catchUp(result.catch_up)
+    else if (result.spare && subject_id) reported = route.spare(subject_id, { token, environment })
+    if (reported) await req.scope.resolve(Modules.EVENT_BUS).emit({ name: LIVE_ACTIVITY_TOKEN_REPORTED, data: reported })
+    res.json({ token: result.token })
+  }
+
+/** A buyer's phone: the order its activity's url names must be the buyer's, as it carries their pickup code. */
+export const reportToken = reportTokenFor({
+  app: "buyer",
+  subject: "order_id",
+  owns: async (scope, device, orderId) => {
+    const found = await buyerOrder(scope, orderId)
+    return !!found && device.actor_type === "customer" && found.checkout.customer_id === device.actor_id
+  },
+  catchUp: (id) => ({ id }),
+  spare: (order_id, report) => ({ spare: { order_id, ...report } }),
+})
 
 /** A phone below iOS 17.2 says it started an order's activity; only its own buyer's order. */
 export const recordStarted = async (req: MedusaRequest<LiveActivityStartedBodyType>, res: MedusaResponse<LiveActivityStartedResponse>) => {
