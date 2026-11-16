@@ -26,6 +26,13 @@ describe("clientNetwork", () => {
     expect(clientNetwork("::ffff:203.0.113.7")).toBe("203.0.113.7")
   })
 
+  it("unwraps a mapped IPv4 address however it is written, so two never share one network", () => {
+    expect(clientNetwork("::ffff:cb00:7107")).toBe("203.0.113.7")
+    expect(clientNetwork("::FFFF:CB00:7108")).toBe("203.0.113.8")
+    expect(clientNetwork("0:0:0:0:0:ffff:203.0.113.7")).toBe("203.0.113.7")
+    expect(clientNetwork("0000:0000:0000:0000:0000:ffff:cb00:7107")).toBe("203.0.113.7")
+  })
+
   it("takes an IPv6 address's /64, however it is written", () => {
     expect(clientNetwork("2001:0db8:0001:0002:aaaa:bbbb:cccc:dddd")).toBe("2001:db8:1:2::/64")
     expect(clientNetwork("2001:db8:1:2::1")).toBe("2001:db8:1:2::/64")

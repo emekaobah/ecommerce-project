@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import { isIPv6 } from "node:net"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import Redis from "ioredis"
+import Redis, { type RedisOptions } from "ioredis"
 
 // A fixed-window rate limiter (#132), the repo's first: a key may be hit `max` times in each
 // `windowSeconds` window. Counts live in Redis when the backend has one (production), so every
@@ -38,16 +38,27 @@ export function memoryRateLimitStore(clock: () => number = Date.now): RateLimitS
  * otherwise step through it.
  */
 export function clientNetwork(address: string): string {
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address)
-  if (mapped) return mapped[1]
   if (!isIPv6(address)) return address
-  const [head, tail = ""] = address.toLowerCase().split("%")[0].split("::")
-  const headGroups = head ? head.split(":") : []
-  const tailGroups = address.includes("::") && tail ? tail.split(":") : []
-  const groups = address.includes("::")
-    ? [...headGroups, ...new Array(8 - headGroups.length - tailGroups.length).fill("0"), ...tailGroups]
-    : headGroups
-  return `${groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`
+  const groups = ipv6Groups(address)
+  const mapped = groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff
+  if (mapped) return [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join(".")
+  return `${groups.slice(0, 4).map((g) => g.toString(16)).join(":")}::/64`
+}
+
+/** A valid IPv6 address's eight 16-bit groups, `::` expanded; a dotted IPv4 tail is the last two. */
+function ipv6Groups(address: string): number[] {
+  const groupsOf = (part: string) =>
+    part
+      ? part.split(":").flatMap((g) => {
+          if (!g.includes(".")) return [Number.parseInt(g, 16)]
+          const [a, b, c, d] = g.split(".").map(Number)
+          return [(a << 8) | b, (c << 8) | d]
+        })
+      : []
+  const [head, tail] = address.split("%")[0].split("::")
+  if (tail === undefined) return groupsOf(head)
+  const [headGroups, tailGroups] = [groupsOf(head), groupsOf(tail)]
+  return [...headGroups, ...new Array<number>(8 - headGroups.length - tailGroups.length).fill(0), ...tailGroups]
 }
 
 // Counts and starts the window in one step, so no key is left without an expiry.
@@ -55,9 +66,10 @@ const HIT_SCRIPT = `local n = redis.call('INCR', KEYS[1])
 if n == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
 return n`
 
-function redisRateLimitStore(url: string): RateLimitStore {
-  // Short timeouts, so a slow or lost Redis lets the hit through (below) instead of holding the request.
-  const redis = new Redis(url, { maxRetriesPerRequest: 1, connectTimeout: 2000, commandTimeout: 500 })
+function redisRateLimitStore(url: string, options: RedisOptions = {}): RateLimitStore {
+  // The backend's own Redis options (a password, TLS) as Medusa's client gets them, with short
+  // timeouts, so a slow or lost Redis lets the hit through (below) instead of holding the request.
+  const redis = new Redis(url, { ...options, maxRetriesPerRequest: 1, connectTimeout: 2000, commandTimeout: 500 })
   // Reconnects are retried on their own; a failed hit is logged by withinRateLimit.
   redis.on("error", () => {})
   return { hit: async (key, windowSeconds) => Number(await redis.eval(HIT_SCRIPT, 1, key, windowSeconds)) }
@@ -67,8 +79,8 @@ let store: RateLimitStore | undefined
 
 function storeOf(scope: Scope): RateLimitStore {
   if (!store) {
-    const { redisUrl } = scope.resolve(ContainerRegistrationKeys.CONFIG_MODULE).projectConfig
-    store = redisUrl ? redisRateLimitStore(redisUrl) : memoryRateLimitStore()
+    const { redisUrl, redisOptions } = scope.resolve(ContainerRegistrationKeys.CONFIG_MODULE).projectConfig
+    store = redisUrl ? redisRateLimitStore(redisUrl, redisOptions) : memoryRateLimitStore()
   }
   return store
 }
