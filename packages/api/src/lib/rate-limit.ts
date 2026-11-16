@@ -45,7 +45,7 @@ export function clientNetwork(address: string): string {
   const headGroups = head ? head.split(":") : []
   const tailGroups = address.includes("::") && tail ? tail.split(":") : []
   const groups = address.includes("::")
-    ? [...headGroups, ...Array(8 - headGroups.length - tailGroups.length).fill("0"), ...tailGroups]
+    ? [...headGroups, ...new Array(8 - headGroups.length - tailGroups.length).fill("0"), ...tailGroups]
     : headGroups
   return `${groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`
 }
